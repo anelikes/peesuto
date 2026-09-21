@@ -1,221 +1,230 @@
-# pocket-paste v1 实现计划
+# pocket-paste v1 实现计划（第二版）
 
-2026-09-22 定稿。技术验证已完成（见 git 历史与 README），本计划把它推到 v1：
-一个可分发的 macOS 菜单栏应用，完整开源，开源版用户自带 API key，
-商业版提供订阅制的托管服务。设计系统搁置，不在 v1 范围。
+2026-09-22 改版。第一版把产品定义为"复制文字，粘贴出卡片"；当天晚些时候用户
+把定位改为：**首先是一个智能剪贴板，其次是一个借复制粘贴进入的 AI 动作入口**。
+卡片、GIF、视频是其中一个动作，锦上添花。整个应用开源；用户隐私是硬约束，
+决策用的小模型和生成用的大模型都必须支持自部署接入。
 
-## 0. v1 的定义
+第一版计划已完成的部分（core/ 迁移、引擎钉住、sidecar 打包验证、单元测试与
+CI）全部保留，它们是新计划的底座。
 
-v1 完成的判据是下面每一条都成立，缺一条就不是 v1：
+## 0. 定位与原则
 
-1. **开源 CLI 可用。** 克隆仓库，`bun install && bun run setup`，不需要 wrangler，
-   配置 Cloudflare 的 account ID 与 API token 后 `paste "文本"` 出图；不配置时
-   仍出一张素卡（kind=plain，默认版式）。
-2. **macOS 应用可装可用。** 一个 DMG；首次启动引导设置快捷键与提供方；在任何
-   应用里复制文字，按快捷键，粘贴得到 PNG 卡片；有顺序的内容得到 GIF。
-   预览窗可切画幅、换一版、保存、拖出。
-3. **托管模式代码就绪。** 应用里输入订阅凭证即可不配置 Cloudflare 使用；
-   托管代理带鉴权、计量、限流、输入上限，不记录文本。部署与计费账号是用户动作。
-4. **输入长尾有基线。** 100 条真实剪贴板样本全部渲染，引擎 `verify` 零 finding，
-   或者是一条被明确拒绝并给出原因的样本。
-5. **CI 绿。** 单元测试与样本渲染在 macOS runner 上跑通；打包工作流能产出未签名
-   的应用；签名与公证接入用户提供的证书后即生效。
+- **主体是剪贴板历史加智能挑选。** 复制过的东西按快捷键随时可取；粘贴时，应用
+  读取当前输入框的上下文，让决策模型从最近的历史里挑出最合理的一条，预选给
+  用户，回车即粘贴。
+- **动作是可配置的。** "粘贴为卡片"、"粘贴译文"、"粘贴摘要"都是动作：一个
+  触发方式（快捷键、提示词、菜单）、一个输入、一类模型、一个输出形态。内置几
+  个，用户可以自己加，动作包可以分发。
+- **本地优先，出网显式。** 历史本地加密存储；密码框与密码管理器默认排除；纯
+  本地模式下所有非模型功能可用；任何内容离开本机都是用户显式选择的结果，
+  并可审计。
+- **模型双轨、三种接入。** 决策类（Jev 或同类小模型）和生成类（LLM）各自独立
+  配置；每类都支持自带 key、自部署端点、托管服务三种接入。自部署就是一个
+  base URL 加可选凭证。
+- **开源全部，订阅卖托管与内容。** 应用、核心算法、动作格式、风格包格式全部
+  MIT。订阅解锁的是托管的模型调用（免配置）和官方的风格包、动作包。
 
-## 1. 架构
+## 1. v1 的定义
 
-三层，边界与现有代码一一对应：
+1. **历史可用。** 安装后自动记录复制的文字与图片；快捷键弹出面板，搜索、回车
+   粘贴、置顶、删除、一键清空；密码管理器与 Concealed 类型的内容不进历史。
+2. **智能挑选可用。** 在支持辅助功能的输入框里按粘贴快捷键，面板把决策模型
+   挑出的一条放在首位并高亮，回车粘贴；无上下文或无模型时退化为最近优先。
+   附一份三十个真实场景的命中率探测表。
+3. **动作可用。** 内置五个动作：智能粘贴、粘贴为卡片、粘贴为 GIF、粘贴译文、
+   粘贴摘要；用户可用提示词加快捷键新建动作；动作以 JSON 文件存于
+   App Support，格式有文档。
+4. **双轨 Provider 可用。** 决策类：Jev 经 Cloudflare 自带 key、任意兼容端点
+   （自部署代理或托管）、无。生成类：任意 OpenAI 兼容端点（Ollama、vLLM、
+   LM Studio、各家云）、Anthropic、托管、无。凭证在 Keychain；离线模式一键
+   切换。
+5. **隐私可核。** 设置里能看到每类数据去向；本地日志只记出网的去向与字节数，
+   不记内容；历史库用 Keychain 里的密钥加密；README 有隐私说明。
+6. **可发布。** DMG、自动更新、CI 绿；签名公证接入用户证书即生效。
 
-| 层 | 技术 | 职责 | 对应今天的代码 |
-|---|---|---|---|
-| 壳 | Tauri 2，Rust | 托盘、全局快捷键、剪贴板、窗口、自动更新、Keychain | 无 |
-| 界面 | HTML + TypeScript，跑在 WKWebView | 预览、设置、引导 | 无 |
-| 渲染链 | Bun + 引擎（wasm 光栅器 + JS 编译器 + 字体） | 文本 → Jev → DSL → composition → PNG/GIF | run.ts、paste/gen.ts、paste/emoji.ts |
+## 2. 架构
 
-渲染链作为 sidecar 随应用分发：一份 Bun 可执行文件加一棵只读资源树（引擎源码子集、
-vendored 编译器、pocketjs.wasm、字体）。运行时在 Application Support 下建一棵可写
-的工作树（符号链接指向资源，compositions/paste 与 dist 为真实目录），和今天的
-`.work/tree` 是同一个办法。引擎的 build 记录要求构建与启动的 Bun 版本一致，随包
-分发同一份 Bun 恰好满足它。
+四层：
 
-**决策提供方**是一个接口，三种实现，开源版与订阅版是同一个二进制，只差这项设置：
-
-| Provider | 凭证 | 去向 |
+| 层 | 技术 | 职责 |
 |---|---|---|
-| `cloudflare` | 用户自己的 account ID + API token | Workers AI REST 端点 `typesafe/jev` |
-| `hosted` | 订阅凭证 | 我们部署的代理 worker |
-| `none` | 无 | 不问 Jev，kind=plain，默认版式 |
+| 壳 | Tauri 2，Rust | 托盘、全局快捷键、剪贴板轮询与写入、粘贴模拟、辅助功能上下文采集、加密存储、Keychain、窗口 |
+| 界面 | HTML + TypeScript | 历史面板、挑选确认条、动作结果、设置、引导 |
+| Core | TypeScript，Bun，长驻 sidecar | 挑选与动作的逻辑、Provider 双轨、出网层、渲染链、CLI |
+| 引擎 | Pocket Motion | 卡片、GIF、视频的确定性渲染 |
 
-Jev 的答案按文本哈希缓存，同一段文本再次粘贴得到同一张卡；"换一版"是显式操作。
+**壳与 Core 的分工。** 所有需要常驻、需要系统权限、需要每秒写盘的事在壳里：
+每 250 ms 读一次 pasteboard 的 changeCount，新内容按类型（文本、RTF、HTML、
+图片、文件 URL）落库；粘贴模拟是写 pasteboard 再合成一次 ⌘V 键事件；上下文
+采集走 AXUIElement。所有"判断"在 Core 里：挑选、动作运行、模型调用、渲染。
+Core 以长驻进程运行，壳启动时拉起一次，通过 stdin/stdout 的 JSON 行协议交互
+（`pick`、`run-action`、`render`、`health`），这样挑选的往返不含进程启动开销，
+测量缓存和连接也保温。`paste` CLI 继续存在，供开源用户和脚本使用。
 
-## 2. 仓库布局
+**上下文采集分级。** L0 只有前台应用；L1 加聚焦控件的角色与标签；L2 加光标
+前后各 N 字符。原生与 Electron 应用一般能到 L2，Chromium 网页要开启无障碍
+才有 L2，密码框（AXSecureTextField）不采集且不弹智能挑选。挑选问题按级别
+退化，L0 时决策模型只看应用和候选。
+
+**挑选问题的形状。** state 是应用标识、控件角色、光标前后文、最近 N 条候选
+的摘要（截断，不含被排除的项）；问题是一个 Choice 覆盖候选加"都不合适"，
+加一个 Noul 问"此处是否该粘贴"。答案只用于排序与预选，粘贴永远由用户按键
+确认。命中率经探测验证后，再考虑对高置信度跳过确认。
+
+**Provider 双轨。**
+
+| 类 | 实现 | 凭证 | 说明 |
+|---|---|---|---|
+| Decider | `jev-cloudflare` | account ID + token | Workers AI REST，自带 key |
+| Decider | `jev-endpoint` | 可选 bearer | 任意兼容 `{state, questions}` 的 URL：自部署的 proxy/ 或托管 |
+| Decider | `none` | 无 | 启发式：最近优先、同应用亲和 |
+| Generator | `openai-compatible` | 可选 key | base URL + model：Ollama、vLLM、LM Studio、云服务 |
+| Generator | `anthropic` | key | 自带 key |
+| Generator | `hosted` | 订阅凭证 | 托管代理 |
+| Generator | `none` | 无 | 生成类动作不可用，提示配置 |
+
+两类共用一个出网层：唯一的 fetch 出口，受"离线模式"开关约束，记录去向、
+时间、字节数到本地日志，不记内容。
+
+**动作声明。** 一个动作是一份 JSON：
+
+```
+{ "id": "translate-en", "name": "粘贴译文", "trigger": { "hotkey": "Cmd+Alt+V" },
+  "input": "clipboard", "needs": "generator",
+  "prompt": "Translate to English. Output only the translation.\n\n{{input}}",
+  "output": "text" }
+```
+
+`needs` 是 `decider`、`generator`、`render` 或 `none`；`output` 是 `text`、
+`image`、`gif`、`video`、`file`。内置动作：`paste-smart`（挑选）、`paste-card`
+（走渲染链，含第一版的七个 Jev 问题）、`paste-gif`、`paste-translate`、
+`paste-summary`。用户动作放 `<App Support>/actions/*.json`；动作包是一个目录，
+格式与内置相同。风格包同理是目录（`core/src/catalog.ts` 已按可合并设计）。
+
+**存储。** SQLite，字段级加密，密钥在 Keychain；图片存缩略图与原图文件；
+排除规则：`org.nspasteboard.ConcealedType`、`org.nspasteboard.TransientType`、
+应用黑名单（预置 1Password、Bitwarden、Keychain Access 等）；保留期限；
+一键清空真正删除文件。
+
+## 3. 仓库布局
 
 ```
 pocket-paste/
-  PLAN.md               本文件（中文，内部）
-  README.md             英文
-  LICENSE               MIT，与引擎一致
-  package.json          bun 脚本入口
-  engine.json           引擎的 repo + ref + sha，scripts/engine.ts 按它取回
-  engine/               引擎 checkout（gitignore；POCKET_ENGINE 可指向别处）
-  core/                 渲染链，TypeScript，跑在 Bun
-    src/cli.ts          paste：文本进、图片出（用户直接用，也是 sidecar 入口）
-    src/questions.ts    Jev 的七个问题 + 答案 → DSL（纯函数）
-    src/dsl.ts          DSL 类型与校验
-    src/provider/       cloudflare | hosted | none + 答案缓存
-    src/render/         工作树、composition 生成、emoji、引擎驱动、GIF 编码
-    tests/              单元测试 + 夹具渲染
-    fixtures/           job-*.json 与语料
-  app/                  Tauri 2 应用
-    src-tauri/          Rust 壳
-    src/                界面
-  proxy/                Cloudflare worker：dev 模式（wrangler dev）与 hosted 模式
-  scripts/              engine.ts、bundle-sidecar.ts、fetch-emoji.ts
+  PLAN.md  README.md  LICENSE  package.json  engine.json
+  engine/                引擎 checkout（gitignore；POCKET_ENGINE 可指向别处）
+  core/
+    src/cli.ts           paste CLI（保留）
+    src/daemon.ts        长驻 sidecar：JSON 行协议
+    src/pick/            挑选：候选摘要、上下文分级、问题、启发式退化
+    src/actions/         动作声明、校验、运行时、内置动作
+    src/provider/        decider/ 与 generator/ 两轨，egress.ts 出网层，cache.ts
+    src/render/          卡片渲染链（第一版）
+    src/catalog.ts       目录与风格包合并
+    src/questions.ts  src/dsl.ts  src/engine.ts
+    tests/  fixtures/
+  app/                   Tauri 2
+    src-tauri/src/       clipboard.rs 轮询与写入、paste.rs 粘贴模拟、
+                         context.rs AX 采集、store.rs 加密存储、secrets.rs、
+                         sidecar.rs 长驻进程、hotkeys.rs、tray.rs
+    src/                 history 面板、confirm 条、result 视图、settings、onboarding
+  proxy/                 可自部署的 Jev 代理 worker（dev 与 hosted 两种模式）
+  scripts/               engine.ts、bundle-sidecar.ts、fetch-emoji.ts、probe-pick.ts
 ```
 
-## 3. 里程碑
+## 4. 里程碑
 
-每个里程碑列出目标、任务、验收，以及哪些事只有用户能做。顺序按风险排：
-最不确定的最先做。
+按风险和依赖排序。M0 已完成，其余从 M1 开始。
 
-### M1 引擎成为依赖，仓库成形
+### M0 底座（已完成，2026-09-22）
 
-目标：pocket-paste 不再依赖旁边恰好存在的 checkout，不再把文件复制进引擎目录。
+core/ 迁移且五个夹具逐字节一致；`engine.json` 钉住引擎；`scripts/engine.ts`
+取回与校验；单元测试与 CI；sidecar 打包验证通过：无仓库、PATH 上无 bun 的
+干净环境里，资源树 73 MB 加 Bun 58 MB，冷启动约 3.2 s，热启动约 0.8 s。
+GIF 进程内编码与 Noto Emoji 全集拉取、Tauri 脚手架在进行中。
 
-- `engine.json` 钉住引擎的 repo、ref、sha；`scripts/engine.ts` 取回、`bun install`、
-  `bun run vendor`、`bun scripts/assets.ts`，或在 `POCKET_ENGINE` 指向现有 checkout
-  时直接校验。今天钉的是私有仓库 `feat/transparent-clear` 的 `ca3c076`，因为补丁
-  0014（透明）与 0015（仅度量缓存）还没进公开的 `anelikes/pocket-motion`（v0.1.0
-  只到补丁 0012）。
-- 代码迁入 `core/`，拆成纯函数与副作用两半：问题与答案映射、DSL 校验、emoji 切分
-  是纯函数，可以不带引擎测试；工作树、生成、构建、出帧是引擎驱动。
-- 生成器改为在工作树里生成 composition，通过绝对路径动态 import 引擎的
-  `src/text/fit.ts` 与 `src/text/measure.ts`。
-- `package.json`、锁文件、`bun test`；GitHub Actions 跑单元测试，并在 macOS runner
-  上取回引擎、渲染五个夹具、比对 digest。
-- 验收：五个夹具的 PNG 与迁移前逐字节一致（迁移前先录一次 sha256 作为基线）。
+### M1 剪贴板历史（壳）
 
-用户动作：合并引擎分支栈（rename-card → keyframe-lints → transparent-clear），
-发布到公开仓库并打 tag；之后 `engine.json` 改指公开 tag。这一步不阻塞 M1 到 M6。
+- `clipboard.rs`：轮询 changeCount，类型识别，排除规则，去重。
+- `store.rs`：SQLite 加密存储，保留策略，缩略图。
+- `paste.rs`：写 pasteboard、合成 ⌘V、可选恢复原内容；需要辅助功能权限。
+- 历史面板：快捷键弹出、搜索、方向键、回车粘贴、置顶、删除、清空。
+- 验收：v1 定义第 1 条；连续复制一百次不丢不重；密码管理器内容不入库。
 
-### M2 打包 spike：sidecar 脱离仓库运行
+### M2 上下文采集与智能挑选
 
-目标：证明渲染链能作为随包资源在没有仓库、PATH 上没有 bun 的机器上跑起来。
-这是整个计划里唯一可能推翻架构的一步，所以在 GUI 之前做。
+- `context.rs`：AX 采集，三级降级，密码框短路。
+- `core/src/pick/`：候选摘要、问题构造、答案到排序、`none` 启发式。
+- `scripts/probe-pick.ts`：用记录的三十个场景量命中率（场景文件本地生成，
+  不入库）。
+- 验收：v1 定义第 2 条；探测表进 `baselines/pick.md`。
 
-- `scripts/bundle-sidecar.ts` 产出 `app/src-tauri/sidecar/`：当前运行的 bun 二进制
-  的副本（版本与构建记录一致）+ `resources/engine/`（`src/`、`vendor/pocketjs/`
-  的 tools、framework、contracts、hosts/web、tests/png.ts，`node_modules` 只保留
-  编译器实际 import 的包，`assets/fonts`）+ `resources/core/`。
-- 运行时把 sidecar 目录加进 PATH 再启动引擎，因为引擎用 `Bun.spawn(["bun", …])`
-  从 PATH 找 bun。这样不需要改引擎；改引擎为 `process.execPath` 是给上游的建议。
-- 工作树建在 `~/Library/Application Support/pocket-paste/work/`；仅度量缓存落在
-  工作树的 `dist/.measure/`，随版本失效。
-- GIF 改为进程内编码：直接从引擎的帧源拿 RGBA，用 `gifenc` 量化与编码，去掉
-  ffmpeg 依赖。同时 PNG 路径不变。
-- emoji：量 Noto Emoji 128 px 全集的总大小，20 MB 以内就整套随包，否则随包常用
-  子集并保留联网缓存，离线失败要给明确提示。
-- 验收：把 sidecar 目录拷到一个临时目录，清空 PATH 里的 bun，`paste` 出图；记录
-  冷启动与热启动耗时。
+### M3 Provider 双轨与出网层
 
-### M3 决策层
+- Decider 三种、Generator 四种实现；`egress.ts` 唯一出口，离线开关，去向日志。
+- Cloudflare REST 真实跑通；本地 Ollama 跑通翻译；凭证入 Keychain。
+- 答案缓存按内容哈希。
+- 验收：v1 定义第 4、5 条。前置假设要第一时间验证：`typesafe/jev` 能从
+  Workers AI 的 REST 端点调到。
 
-目标：三种 Provider 与答案缓存，开源版的 BYO key 路径真实跑通。
+### M4 动作系统
 
-- `provider/cloudflare.ts`：REST 调用，超时 5 s，一次重试；探测调用验证凭证；
-  错误分类（凭证无效、模型不可用、网络）。
-- `provider/hosted.ts`：同一请求体加订阅凭证，指向代理。
-- `provider/none.ts`：不调用，返回素卡答案。
-- `cache.ts`：按 `sha256(text)` 缓存答案，落 App Support；"换一版"绕过缓存。
-- 输入上限（先定 2000 字），超出直接拒绝并说明。
-- 验收：用真实 Cloudflare 凭证跑六段样本；凭证错误时错误信息可读；`none` 模式
-  五个夹具全部出图。
+- 声明格式与校验、运行时、五个内置动作、自定义动作编辑器。
+- `paste-card` 与 `paste-gif` 接现有渲染链；视频输出依赖引擎的 render 与
+  ffmpeg，v1 里作为"检测到 ffmpeg 才启用"的动作。
+- 动作包目录格式与文档。
+- 验收：v1 定义第 3 条。
 
-前置假设要第一时间验证：`typesafe/jev` 能从 Workers AI 的 REST 端点调到，而不只
-是 Worker 绑定。
+### M5 GUI 整合与引导
 
-### M4 GUI v1
+- 托盘、历史面板、挑选确认条、动作结果视图、设置（双轨 Provider、隐私、
+  排除、快捷键、动作）、引导（辅助功能权限是必需项：粘贴模拟与上下文采集
+  都靠它）。
+- Core 改为长驻 sidecar；CLI 保留。
+- 验收：从 DMG 安装后走完引导，六个动作各用一次。
 
-目标：菜单栏应用把渲染链变成"复制，按键，粘贴"。
+### M6 长尾与隐私审计
 
-- Tauri 2 脚手架，插件：global-shortcut、clipboard-manager、shell（sidecar）、
-  updater、positioner、autostart、store；API token 用 Keychain。
-- 流程：快捷键 → 读剪贴板文本 → 起 sidecar → PNG/GIF 回写剪贴板 → 预览窗从托盘
-  弹出。
-- 预览窗：图片、画幅三选一、换一版、保存、拖出、错误态（文本过长、凭证无效、
-  离线、放不下）。
-- 设置：Provider 与凭证、快捷键、默认画幅、开机自启、输出目录。
-- 首次运行引导：辅助功能权限、Provider 选择、试一次。
-- 验收：从 DMG 安装后走完引导，六段样本各粘贴一次；应用常驻内存与安装包体积
-  记录进 README。
+- 卡片语料一百条，`verify` 零 finding 或明确拒绝。
+- 隐私审计清单：每类数据去向、关闭方法、验证步骤；对 1Password、Bitwarden、
+  Keychain Access 与 Concealed 类型逐一实测。
 
-### M5 输入长尾
+### M7 发布工程
 
-目标：产品面对真实剪贴板不崩。
+LICENSE、CONTRIBUTING、SECURITY、隐私说明；GitHub Actions 出未签名 DMG；签名
+公证与 updater 密钥待用户提供；Homebrew cask。
 
-- 语料 100 条，来源：聊天、文档、代码、日志、URL、带 emoji、纯英文、繁体、混排、
-  超长。放 `core/fixtures/corpus/`。
-- 自动化：每条渲染，跑引擎 `verify`，结果写成一张对照表。
-- 策略：整条阶梯放不下时按段落截断并加省略号；超长代码行按字号阶梯下探到底后
-  截断；非中英文脚本明确拒绝；引用归属的正则改为只匹配行尾；stat 取"最大或带
-  单位"的数字而不是第一个；强调词只上色首次出现。
-- 验收：v1 定义第 4 条。
+### M8 订阅
 
-### M6 发布工程
+托管 decider 与 generator 代理（鉴权、计量、限流、不记内容）；许可证密钥与
+应用内授权；风格包与动作包分发；计费用 merchant of record；官网与条款。
 
-目标：能持续出版本。
+## 5. 已定的决策
 
-- LICENSE（MIT）、CONTRIBUTING、SECURITY、issue 模板；README 说明剪贴板内容会
-  离开本机去到 Jev，以及三种 Provider 各自去向。
-- GitHub Actions：测试、样本渲染、`tauri build` 产未签名 DMG；签名与公证在用户
-  提供 Apple 证书与 App Store Connect API key 后启用。
-- Tauri updater 的公钥进仓库，私钥在用户手里。
-- Homebrew cask 公式。
-- 验收：一次 tag 触发的工作流产出可下载的 DMG。
+- 主体是智能剪贴板，卡片是动作。（2026-09-22 用户）
+- 决策模型与生成模型分轨，每轨都支持自带 key、自部署端点、托管。（2026-09-22 用户）
+- 隐私是硬约束：本地优先、出网显式可审计、历史加密、密码类默认排除。（2026-09-22 用户）
+- 挑选第一版是预选加确认，不自动粘贴。
+- Core 长驻，壳负责系统集成与存储。
+- 壳用 Tauri 2；开源版与订阅版同一二进制；引擎分支由用户合并，pocket-paste
+  只钉 commit。
+- 开源核心算法与所有格式；订阅解锁托管调用与官方风格包、动作包。
+- ffmpeg 不随包：GIF 进程内编码，视频动作按 ffmpeg 存在与否启用。
+- v1 完成后不停，继续 M6 到 M8；独立模块交给子 agent 并行。
 
-用户动作：Apple Developer 账号、证书、Notarization 凭证；updater 签名密钥。
-
-### M7 订阅层
-
-目标：托管代理与应用内授权就绪，可部署。
-
-- `proxy/`：一个 worker 两种模式。dev 模式无鉴权只监听本地；hosted 模式要求
-  Bearer 凭证，KV 计量按月配额，限流，输入上限，不写日志正文。
-- 凭证形态：许可证密钥（离线可校验的签名串），应用登录时向代理换取短期 token，
-  本地缓存并给 7 天宽限。
-- 计费：merchant of record（Paddle 或 LemonSqueezy）的 webhook 写入 KV 里的
-  订阅状态；代理只读状态。
-- 官网与文档一页，隐私政策与条款。
-- 验收：本地 `wrangler dev` 下走完签发、调用、配额耗尽、过期四条路径。
-
-用户动作：Cloudflare 上部署、绑定域名；计费平台开户；条款审阅。
-
-### 之后（不在 v1）
-
-Windows；iOS 分享扩展与 Web 走云渲染；设计系统与风格库作为付费差异化。
-
-## 4. 已定的决策
-
-- 壳用 Tauri 2，不用 Electron 或 Swift。理由：体积、跨平台、Rust 与引擎同源。
-- 开源版与订阅版同一个二进制，差别只在 Provider 设置。
-- 订阅先卖"免配置"，风格库作为第二个付费理由排在 v1 之后。
-- 引擎的分支由用户合并；pocket-paste 只钉引擎的某个 commit，从不写引擎目录。
-- Jev 的不确定性用缓存解决，不用阈值硬编码之外的规则。
-- ffmpeg 不随包，GIF 进程内编码。
-
-## 5. 风险与退路
+## 6. 风险与退路
 
 | 风险 | 表现 | 退路 |
 |---|---|---|
-| sidecar 脱离仓库跑不起来 | M2 验收失败 | 云渲染：core 部署为服务，应用只做壳；开源版随之需要自托管渲染服务 |
-| Jev 不在 REST 端点 | M3 探测 404 | 开源版改为用户自部署代理 worker（今天的做法），文档化 `wrangler deploy` |
-| Bun 二进制体积 | 安装包 40 MB 以上 | 接受；或 `bun build --compile` 加 `BUN_BE_BUN` 复用同一二进制做子进程 |
-| 编译器有原生依赖 | node_modules 子集含 .node | 已查：字体烘焙用 opentype.js，纯 JS；@napi-rs/canvas 只在无关工具里 |
-| 全局快捷键权限 | 用户不开辅助功能 | 引导页 + 托盘菜单里的手动触发按钮 |
+| Chromium 网页拿不到上下文 | 浏览器里只有 L0/L1 | 按级别退化，浏览器里以应用与站点亲和排序 |
+| 粘贴模拟被应用拦截 | 合成 ⌘V 无效 | 面板里提供"仅复制到剪贴板"并提示手动粘贴 |
+| 挑选命中率不够 | 探测表低于可用线 | 保留历史面板与最近优先，挑选降为排序提示 |
+| 隐私事故 | 内容意外出网 | 唯一出网层加离线开关，日志可核，默认本地 |
+| Jev 不在 REST 端点 | M3 探测 404 | 自部署 proxy/ 作为默认路径 |
+| 长驻 sidecar 内存 | 常驻 Bun 进程 | 空闲 N 分钟后退出，下次调用再拉起 |
 
-## 6. 用户待办
+## 7. 用户待办
 
-按需要的时间点排：
-
-1. M1 期间或之后：合并引擎分支栈，公开仓库打 tag。
-2. M6：Apple Developer 账号、Developer ID 证书、Notarization API key、updater 密钥。
-3. M7：Cloudflare 部署与域名、计费平台开户、条款与隐私政策审阅。
+1. 引擎分支栈合并与公开 tag（不阻塞 M1 到 M6）。
+2. M7：Apple Developer 账号、证书、Notarization、updater 密钥。
+3. M8：Cloudflare 部署与域名、计费平台、条款审阅。
