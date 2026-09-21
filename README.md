@@ -26,3 +26,14 @@ under `.work/`; the engine checkout is never written to.
 `paste/gen.ts` is the whole DSL → composition step: every field except `text`
 is something Jev can return. `probe.ts` asks the questions for six sample
 texts and prints what came back.
+
+Text is measured against a cached metrics-only bake of `paste/charset.txt`
+(ASCII, CJK punctuation, GB2312 level 1), so a paste costs one composition
+build, not two; a character outside the charset falls back to a per-paste
+measurement build. Emoji are pictures: `paste/emoji.ts` splits them out of
+the text, fetches each one's 128 px PNG from Noto Emoji at a pinned tag into
+`.work/emoji/`, stages it beside the composition and draws it inline at the
+font size, measured as one advance when wrapping.
+
+Output is transparent where the card declares no ground once the engine
+checkout carries patch 0014; the palettes here all declare one.

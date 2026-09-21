@@ -80,11 +80,12 @@ const comp = join(WORK, "compositions/paste");
 await mkdir(comp, { recursive: true });
 await copyFile(join(HERE, "paste/gen.ts"), join(comp, "gen.ts"));
 await copyFile(join(HERE, "paste/charset.txt"), join(comp, "charset.txt"));
+await copyFile(join(HERE, "paste/emoji.ts"), join(comp, "emoji.ts"));
 await Bun.write(join(comp, "job.json"), JSON.stringify(dsl, null, 2));
 
 // --- 4. gen → build → render ---
 const sh = async (args: string[]) => {
-  const p = Bun.spawn(args, { cwd: WORK, stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn(args, { cwd: WORK, stdout: "pipe", stderr: "pipe", env: { ...process.env, PASTE_EMOJI_CACHE: join(HERE, ".work/emoji") } });
   const [o, e, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   if (code !== 0) throw new Error(`${args.slice(0, 4).join(" ")} failed:\n${o}${e}`);
   return o;
@@ -93,7 +94,7 @@ const t1 = performance.now();
 console.log((await sh(["bun", "compositions/paste/gen.ts", "--dsl", "compositions/paste/job.json"])).trim());
 await sh(["bun", "src/cli/main.ts", "build", "compositions/paste"]);
 const frames = (await Bun.file(join(comp, "pocket-motion.json")).json()).durationFrames as number;
-const dest = out ?? join(HERE, "out", frames > 1 ? "card.gif" : "card.png");
+const dest = out ? resolve(out) : join(HERE, "out", frames > 1 ? "card.gif" : "card.png");
 await mkdir(resolve(dest, ".."), { recursive: true });
 if (frames > 1) {
   const mp4 = join(WORK, "dist/card.mp4");

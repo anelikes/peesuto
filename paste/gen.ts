@@ -10,6 +10,7 @@
  */
 import { fitToBox, segments, wrapLines } from "../../src/text/fit.ts";
 import { openMeasurer } from "../../src/text/measure.ts";
+import { countEmoji, splitEmoji, stageEmoji, stripEmoji } from "./emoji.ts";
 
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
 const DIR = new URL(".", import.meta.url).pathname;
@@ -79,7 +80,11 @@ async function main() {
   const bold = dsl.kind !== "code";
   const sizes = [...new Set([...(LADDER[dsl.scale]!), ...(heroNum ? HERO[dsl.scale]! : []), 28, 32])];
   const words = segments(body, "zh-CN");
-  const texts = [body, attribution, heroNum, ...words, ...body.split("\n"), "“", "”", "·"].filter(Boolean);
+  // Emoji are pictures, not glyphs: they never reach the atlas or the
+  // measurer, and they measure as one advance of the font size (below).
+  const texts = [body, attribution, heroNum, ...words, ...body.split("\n"), "“", "”", "·"]
+    .map(stripEmoji)
+    .filter(Boolean);
 
   // `charset.txt` beside this file: ASCII, CJK punctuation and the 3755
   // level-1 GB2312 characters. With it the measurement is a cached
@@ -93,17 +98,23 @@ async function main() {
     cache: { charset },
   });
   try {
+    /** A width function that measures text runs with the atlas and emoji as `px` each. */
+    const measureWith = (px: number, isBold: boolean) => {
+      const base = m.measure(px, isBold);
+      return (s: string): number =>
+        splitEmoji(s).reduce((w, r) => w + ("text" in r ? (r.text ? base(r.text) : 0) : px), 0);
+    };
     // --- fit the body ---
     let lines: string[], size: number;
     const maxH = Math.round(view.h * (heroNum ? 0.35 : 0.62));
     if (explicitLines) {
       const raw = body.split("\n").map((l) => (dsl.kind === "list" ? l.replace(/^\s*(?:[-*•·]|\d+[.、)])\s*/, "") : l));
       const ladder = LADDER[dsl.scale]!;
-      size = ladder.find((s) => raw.every((l) => m.measure(s, bold)(l) <= colW) && raw.length * m.lineHeight(s, bold) * 1.35 <= maxH) ?? ladder[ladder.length - 1]!;
+      size = ladder.find((s) => raw.every((l) => measureWith(s, bold)(l) <= colW) && raw.length * m.lineHeight(s, bold) * 1.35 <= maxH) ?? ladder[ladder.length - 1]!;
       lines = raw;
     } else {
       const fit = fitToBox(body, { maxWidth: colW, maxHeight: maxH },
-        LADDER[dsl.scale]!.map((s) => ({ px: s, measure: m.measure(s, bold), lineHeight: m.lineHeight(s, bold) })), "zh-CN", "balanced");
+        LADDER[dsl.scale]!.map((s) => ({ px: s, measure: measureWith(s, bold), lineHeight: m.lineHeight(s, bold) })), "zh-CN", "balanced");
       if (fit.overflows) throw new Error(`paste: text does not fit at any size in ladder ${dsl.scale}; cut it or drop scale`);
       lines = fit.lines; size = fit.px;
     }
@@ -125,13 +136,21 @@ async function main() {
     const emphWord = dsl.emphasis >= 0 ? words[dsl.emphasis] : undefined;
     const align = dsl.layout === "center" ? "items-center" : "items-start";
     const textCls = `text-[${size}px] ${bold ? "font-bold" : ""}`;
+    const emojiKeys = new Set<string>();
+    /** Text runs as `Text`, emoji runs as square `Image`s at the font size. */
+    const plainRuns = (s: string, cls: string, color: string, name?: string): string =>
+      splitEmoji(s).map((r) => {
+        if ("emoji" in r) {
+          emojiKeys.add(r.key);
+          return `<Image class="w-[${size}px] h-[${size}px]" src="e_${r.key}.png" />`;
+        }
+        return r.text ? `<Text${name ? ` debugName="${name}"` : ""} class="${cls} text-[${color}]">{${jsx(r.text)}}</Text>` : "";
+      }).join("");
     const runs = (line: string, cls: string): string => {
-      if (!emphWord || !line.includes(emphWord)) return `<Text class="${cls} text-[${pal.ink}]">{${jsx(line)}}</Text>`;
+      if (!emphWord || !line.includes(emphWord)) return plainRuns(line, cls, pal.ink);
       const [a, ...rest] = line.split(emphWord);
       const b = rest.join(emphWord);
-      return [a && `<Text class="${cls} text-[${pal.ink}]">{${jsx(a)}}</Text>`,
-        `<Text debugName="emphasis" class="${cls} text-[${pal.accent}]">{${jsx(emphWord)}}</Text>`,
-        b && `<Text class="${cls} text-[${pal.ink}]">{${jsx(b)}}</Text>`].filter(Boolean).join("");
+      return plainRuns(a ?? "", cls, pal.ink) + plainRuns(emphWord, cls, pal.accent, "emphasis") + plainRuns(b, cls, pal.ink);
     };
     const stagger = 110;
     const lineNodes = lines.map((l, li) => {
@@ -145,7 +164,12 @@ async function main() {
       parts.push(`        <Text debugName="hero" class="text-[${hs}px] font-bold text-[${pal.accent}] h-[${Math.round(m.lineHeight(hs, true))}px]${rise(0)}">{${jsx(heroNum)}}</Text>`);
     }
     parts.push(...lineNodes);
-    if (attribution) parts.push(`        <View class="h-[${Math.round(lh * 0.6)}px]" /><Text debugName="attribution" class="text-[32px] text-[${pal.muted}]${rise(lines.length * stagger + 120)}">{${jsx("— " + attribution)}}</Text>`);
+    if (attribution) parts.push(`        <View class="h-[${Math.round(lh * 0.6)}px]" /><View debugName="attribution" class="flex-row items-center${rise(lines.length * stagger + 120)}">${plainRuns("— " + attribution, "text-[32px]", pal.muted)}</View>`);
+
+    // --- emoji pictures beside the composition, declared linear for the downscale ---
+    const emojiCache = process.env.PASTE_EMOJI_CACHE ?? `${DIR}.emoji-cache`;
+    const emojiFiles = await stageEmoji(emojiKeys, emojiCache, DIR);
+    await Bun.write(`${DIR}images.json`, JSON.stringify(Object.fromEntries(emojiFiles.map((f) => [f, { linear: true }])), null, 2) + "\n");
 
     const column = dsl.layout === "split"
       ? `      <View class="absolute left-[${px(margin)}] top-[${px(margin)}] w-[8px] h-[${px(view.h - 2 * margin)}] bg-[${pal.accent}] rounded-[4px]" />
@@ -159,7 +183,7 @@ ${parts.join("\n")}
     const bg = dsl.kind === "code" ? `bg-[${pal.bg2}]` : `bg-gradient-to-b from-[${pal.bg}] to-[${pal.bg2}]`;
     await Bun.write(`${DIR}main.tsx`, `// GENERATED by compositions/paste/gen.ts — do not edit by hand.
 import { mount } from "@pocketjs/framework";
-import { Text, View } from "@pocketjs/framework/components";
+import { ${emojiFiles.length > 0 ? "Image, " : ""}Text, View } from "@pocketjs/framework/components";
 
 mount(() => (
   <View class="w-full h-full ${bg}">
@@ -184,7 +208,7 @@ export default definePocketConfig({ theme: { keyframes: ${JSON.stringify(keyfram
       title: "paste card", version: "0.0.0", engine: { capabilities: { requires: ["text.glyphs.baked"] } },
       app: { entry: "compositions/paste/main.tsx", output: "motion-paste", framework: "solid", viewport: { fixed: { logical: [view.w, view.h], presentation: "native" } } },
     }, null, 2) + "\n");
-    console.log(`paste: ${dsl.kind}/${dsl.layout}/${dsl.palette}/${dsl.aspect} scale=${dsl.scale} tone=${dsl.tone} → ${lines.length} line(s) at ${size}px, ${frames} frame(s)`);
+    console.log(`paste: ${dsl.kind}/${dsl.layout}/${dsl.palette}/${dsl.aspect} scale=${dsl.scale} tone=${dsl.tone} → ${lines.length} line(s) at ${size}px, ${frames} frame(s)${emojiFiles.length ? `, ${emojiFiles.length} emoji` : ""}`);
   } finally { await m.close(); }
 }
 await main();
