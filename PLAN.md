@@ -155,7 +155,11 @@ GIF 改为进程内编码（gifenc，帧间差分，体积是 ffmpeg 版的一�
 - 历史面板：快捷键弹出、搜索、方向键、回车粘贴、置顶、删除、清空。
 - 验收：v1 定义第 1 条；连续复制一百次不丢不重；密码管理器内容不入库。
 
-### M2 上下文采集与智能挑选
+### M2 上下文采集与智能挑选（Core 侧已完成 2026-09-22；`context.rs` 待壳）
+
+`core/src/pick/` 落地：候选摘要、三级上下文的问题构造、答案到排序的融合、
+启发式退化；36 个测试；合成场景探测启发式 top-1 19/30、top-3 30/30
+（`baselines/pick.md`）。代理已放行挑选请求的形状。
 
 - `context.rs`：AX 采集，三级降级，密码框短路。
 - `core/src/pick/`：候选摘要、问题构造、答案到排序、`none` 启发式。
@@ -163,7 +167,11 @@ GIF 改为进程内编码（gifenc，帧间差分，体积是 ffmpeg 版的一�
   不入库）。
 - 验收：v1 定义第 2 条；探测表进 `baselines/pick.md`。
 
-### M3 Provider 双轨与出网层
+### M3 Provider 双轨与出网层（已完成 2026-09-22，真实调用待凭证）
+
+decider 三种、generator 四种、`egress.ts` 唯一出口与离线开关、去向日志、
+凭证引用经 SecretStore 解析、配置文件不含明文密钥；89 个测试。待用户：
+Cloudflare token 验证 REST；本机 Ollama 验证翻译。
 
 - Decider 三种、Generator 四种实现；`egress.ts` 唯一出口，离线开关，去向日志。
 - Cloudflare REST 真实跑通；本地 Ollama 跑通翻译；凭证入 Keychain。
@@ -171,7 +179,10 @@ GIF 改为进程内编码（gifenc，帧间差分，体积是 ffmpeg 版的一�
 - 验收：v1 定义第 4、5 条。前置假设要第一时间验证：`typesafe/jev` 能从
   Workers AI 的 REST 端点调到。
 
-### M4 动作系统
+### M4 动作系统（已完成 2026-09-22，编辑器待 GUI）
+
+`core/src/actions/`：声明格式与校验、用户文件与动作包加载、五个内置动作、
+运行时；`docs/actions.md`；`paste --action <id>` 命令行入口。
 
 - 声明格式与校验、运行时、五个内置动作、自定义动作编辑器。
 - `paste-card` 与 `paste-gif` 接现有渲染链；视频输出依赖引擎的 render 与
@@ -179,7 +190,10 @@ GIF 改为进程内编码（gifenc，帧间差分，体积是 ffmpeg 版的一�
 - 动作包目录格式与文档。
 - 验收：v1 定义第 3 条。
 
-### M5 GUI 整合与引导
+### M5 GUI 整合与引导（Core 侧 daemon 已完成 2026-09-22）
+
+`core/src/daemon.ts` 与 `docs/daemon.md`：JSON 行协议，冒烟通过（health、
+pick、run-action 出 PNG 与 GIF）。壳侧整合进行中。
 
 - 托盘、历史面板、挑选确认条、动作结果视图、设置（双轨 Provider、隐私、
   排除、快捷键、动作）、引导（辅助功能权限是必需项：粘贴模拟与上下文采集
@@ -198,7 +212,10 @@ GIF 改为进程内编码（gifenc，帧间差分，体积是 ffmpeg 版的一�
 LICENSE、CONTRIBUTING、SECURITY、隐私说明；GitHub Actions 出未签名 DMG；签名
 公证与 updater 密钥待用户提供；Homebrew cask。
 
-### M8 订阅
+### M8 订阅（代理侧已完成 2026-09-22，部署与计费待用户）
+
+`proxy/` hosted 模式：订阅 token、月配额、限流、`/v1/ask`、`/v1/generate`、
+`/v1/me`、`/v1/packs`、admin 与计费 webhook，126 个测试；`docs/subscription.md`。
 
 托管 decider 与 generator 代理（鉴权、计量、限流、不记内容）；许可证密钥与
 应用内授权；风格包与动作包分发；计费用 merchant of record；官网与条款。

@@ -7,6 +7,13 @@ section here becomes one.
 
 ## Unreleased
 
+- Smart paste: context-levelled pick question, heuristic fallback, hit-rate probe.
+- Two-track providers (decider: cloudflare, endpoint, none; generator: openai-compatible, anthropic, hosted, none) behind one egress layer with an offline switch and a destination-only log.
+- Actions: JSON format, five built-ins, user files and packs, `paste --action`.
+- Core daemon over JSON lines for the desktop app.
+- Proxy worker: hosted mode with subscriber tokens, quota, rate limit, generate, me, packs.
+- Release engineering docs and workflow; privacy audit checklist.
+
 The foundation — M0 of `PLAN.md`, which was M1 to M3 of the plan's first
 edition: the render chain as a package, the engine as a pinned dependency,
 the sidecar proven to run outside the repository, and the decision layer
