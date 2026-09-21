@@ -128,7 +128,8 @@ jobs:
           releaseBody: "See CHANGELOG.md for what changed."
           releaseDraft: true
           prerelease: false
-          args: --target aarch64-apple-darwin
+          # The sidecar config adds externalBin + resources produced by bundle-sidecar.ts.
+          args: --config src-tauri/tauri.sidecar.conf.json --target aarch64-apple-darwin
 
       - name: DMG as a workflow artifact
         uses: actions/upload-artifact@v4
