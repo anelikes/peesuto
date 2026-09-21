@@ -57,10 +57,14 @@ const clamp = (v: number) => Math.max(0, Math.min(3, Math.round(v)));
 const kindP = a.kind.probabilities[a.kind.choice] ?? 0;
 const kind = kindP < 0.6 ? "plain" : a.kind.choice === "event" ? "plain" : a.kind.choice;
 const emphIdx = a.emphasis.choice === "none" ? -1 : Number(a.emphasis.choice.slice(1));
+// `animate` and `tone` are answered independently (Jev never conditions one
+// question on another), so a "yes, animate" with tone 0 is a real combination
+// that the generator would render static: give motion at least the gentle tone.
+const animate = a.animate.noul > 0.5;
 const dsl = {
   text, kind, layout: a.layout.choice, palette: a.palette.choice, aspect,
-  scale: clamp(a.scale.score), tone: clamp(a.tone.score), emphasis: emphIdx,
-  animate: a.animate.noul > 0.5,
+  scale: clamp(a.scale.score), tone: animate ? Math.max(1, clamp(a.tone.score)) : clamp(a.tone.score), emphasis: emphIdx,
+  animate,
 };
 console.log(`jev ${jevMs} ms → ${JSON.stringify({ ...dsl, text: undefined })}  (kind p=${kindP.toFixed(2)})`);
 
