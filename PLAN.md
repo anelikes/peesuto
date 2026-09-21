@@ -141,7 +141,11 @@ pocket-paste/
 core/ 迁移且五个夹具逐字节一致；`engine.json` 钉住引擎；`scripts/engine.ts`
 取回与校验；单元测试与 CI；sidecar 打包验证通过：无仓库、PATH 上无 bun 的
 干净环境里，资源树 73 MB 加 Bun 58 MB，冷启动约 3.2 s，热启动约 0.8 s。
-GIF 进程内编码与 Noto Emoji 全集拉取、Tauri 脚手架在进行中。
+GIF 改为进程内编码（gifenc，帧间差分，体积是 ffmpeg 版的一半，ffmpeg 不再是
+运行时依赖）；Noto Emoji 128 px 全集 3,583 张共 19.0 MiB，低于 20 MB 阈值，
+随包分发（`scripts/fetch-emoji.ts` 拉取，`bundle-sidecar.ts` 打包，运行时先查
+随包集，再查缓存，最后才联网）。Cloudflare REST provider 已实现并有桩测试，
+真实调用待用户提供 API token（本会话不读取 wrangler 的 OAuth 凭证文件）。
 
 ### M1 剪贴板历史（壳）
 
@@ -225,6 +229,9 @@ LICENSE、CONTRIBUTING、SECURITY、隐私说明；GitHub Actions 出未签名 D
 
 ## 7. 用户待办
 
+0. 一个 Cloudflare API token（Workers AI 读权限），用于验证 `typesafe/jev`
+   的 REST 路径：`PASTE_PROVIDER=cloudflare PASTE_CF_ACCOUNT_ID=… PASTE_CF_TOKEN=…
+   bun run paste "…"`。
 1. 引擎分支栈合并与公开 tag（不阻塞 M1 到 M6）。
 2. M7：Apple Developer 账号、证书、Notarization、updater 密钥。
 3. M8：Cloudflare 部署与域名、计费平台、条款审阅。
