@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pocket Paste</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/result.ts" defer></script>
+  </head>
+  <body class="panel result">
+    <header class="bar" data-tauri-drag-region>
+      <span class="title" data-tauri-drag-region>Card</span>
+      <span id="status" class="status"></span>
+      <button id="close" class="icon" title="Hide (Esc)" aria-label="Hide">×</button>
+    </header>
+    <main>
+      <div id="stage" class="stage">
+        <img id="card" alt="" hidden />
+        <div id="spinner" class="spinner" hidden></div>
+        <div id="error" class="error" hidden>
+          <p id="error-title" class="error-title"></p>
+          <p id="error-detail" class="error-detail"></p>
+          <button id="error-settings" class="link" hidden>Open Settings…</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="segmented" id="aspect" role="radiogroup" aria-label="Aspect">
+          <button data-aspect="chat" role="radio">Chat</button>
+          <button data-aspect="doc" role="radio">Doc</button>
+          <button data-aspect="social" role="radio">Social</button>
+        </div>
+        <button id="another" class="ghost">Another take</button>
+      </div>
+      <div class="row actions">
+        <button id="paste" class="primary">Paste</button>
+        <button id="copy">Copy</button>
+        <button id="save">Save…</button>
+        <button id="reveal" class="ghost">Reveal</button>
+      </div>
+      <p id="timing" class="timing"></p>
+    </main>
+  </body>
+</html>

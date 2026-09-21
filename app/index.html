@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pocket Paste</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/history.ts" defer></script>
+  </head>
+  <body class="panel history">
+    <header class="bar" data-tauri-drag-region>
+      <input id="search" class="search" type="search" placeholder="Search history" autocomplete="off" spellcheck="false" />
+      <div class="menu-anchor">
+        <button id="more" class="icon" title="More" aria-label="More">⋯</button>
+        <div id="more-menu" class="dropdown" hidden>
+          <button data-action="clear">Clear all…</button>
+          <button data-action="settings">Settings…</button>
+        </div>
+      </div>
+    </header>
+    <div id="confirm" class="confirm">
+      <span class="confirm-label">Paste:</span>
+      <span id="confirm-text" class="confirm-text"></span>
+      <kbd>⏎</kbd>
+    </div>
+    <div id="ax-banner" class="banner" hidden>
+      <span>Pasting for you needs Accessibility access.</span>
+      <button id="ax-allow" class="link">Allow…</button>
+      <button id="ax-settings" class="link">Settings</button>
+    </div>
+    <div id="clear-confirm" class="banner" hidden>
+      <span>Clear the whole history?</span>
+      <button id="clear-yes" class="link danger">Clear</button>
+      <button id="clear-no" class="link">Keep</button>
+    </div>
+    <ul id="list" class="list" role="listbox" aria-label="Clipboard history"></ul>
+    <p id="empty" class="empty" hidden>Nothing copied yet.</p>
+    <div id="context" class="dropdown context" hidden>
+      <button data-action="paste">Paste</button>
+      <button data-action="card">Paste as card</button>
+      <button data-action="pin">Pin</button>
+      <button data-action="delete" class="danger">Delete</button>
+    </div>
+    <footer class="hint">
+      <span><kbd>↑</kbd><kbd>↓</kbd> select</span>
+      <span><kbd>⏎</kbd> paste</span>
+      <span><kbd>⌘⌫</kbd> delete</span>
+      <span><kbd>esc</kbd> close</span>
+    </footer>
+  </body>
+</html>

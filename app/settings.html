@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pocket Paste</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/settings.ts" defer></script>
+  </head>
+  <body class="settings">
+    <main>
+      <section id="intro" class="intro" hidden>
+        <h1>Welcome to Pocket Paste</h1>
+        <p>Everything you copy shows up in a panel behind one shortcut. Pick an item, press ⏎, and it is pasted where you were. Actions such as <em>Paste as card</em> turn the text into something else first.</p>
+        <p>Pocket Paste needs <strong>Accessibility</strong> access to paste for you (it presses ⌘V on your behalf) and, later, to see what you are typing into.</p>
+      </section>
+
+      <section>
+        <h2>Accessibility</h2>
+        <div class="field-row">
+          <span id="ax-status" class="pill">Checking…</span>
+          <button id="ax-recheck">Re-check</button>
+          <button id="ax-allow">Allow…</button>
+          <button id="ax-open" class="ghost">Open System Settings</button>
+        </div>
+        <p class="help">System Settings → Privacy &amp; Security → Accessibility → turn on Pocket Paste. Required for pasting; the shortcut works without it.</p>
+      </section>
+
+      <section>
+        <h2>Shortcut</h2>
+        <label class="field">
+          <span>Open history</span>
+          <input id="hotkey" type="text" readonly placeholder="Press keys…" />
+        </label>
+        <p class="help">Click the field and press a combination with ⌘, ⌃ or ⌥.</p>
+      </section>
+
+      <section>
+        <h2>Decisions</h2>
+        <label class="field">
+          <span>Provider</span>
+          <select id="provider-kind">
+            <option value="none">None — plain cards, nothing leaves this Mac</option>
+            <option value="proxy">Proxy — a Jev proxy worker (URL + token)</option>
+            <option value="cloudflare" disabled>Cloudflare Workers AI (soon)</option>
+            <option value="hosted" disabled>Hosted (soon)</option>
+          </select>
+        </label>
+        <div id="provider-proxy" hidden>
+          <label class="field">
+            <span>Proxy URL</span>
+            <input id="provider-url" type="url" placeholder="http://localhost:8787/" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span>Token</span>
+            <input id="provider-token" type="password" placeholder="Stored in the Keychain" autocomplete="off" />
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>Cards</h2>
+        <label class="field">
+          <span>Default aspect</span>
+          <select id="aspect">
+            <option value="chat">Chat</option>
+            <option value="doc">Doc</option>
+            <option value="social">Social</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Renderer</span>
+          <select id="sidecar-mode">
+            <option value="dev">Dev — bun on a pocket-paste checkout</option>
+            <option value="bundled">Bundled — the sidecar shipped with the app</option>
+          </select>
+        </label>
+        <label class="field" id="repo-field">
+          <span>Checkout</span>
+          <input id="dev-repo" type="text" spellcheck="false" />
+        </label>
+        <p id="sidecar-info" class="help mono"></p>
+      </section>
+
+      <section>
+        <h2>General</h2>
+        <label class="check">
+          <input id="autostart" type="checkbox" />
+          <span>Launch at login</span>
+        </label>
+      </section>
+
+      <div class="row actions sticky">
+        <button id="save" class="primary">Save</button>
+        <button id="test">Save &amp; Test</button>
+        <span id="status" class="status"></span>
+      </div>
+
+      <section id="test-result" hidden>
+        <h2>Test</h2>
+        <div class="stage small"><img id="test-card" alt="" hidden /></div>
+        <p id="test-text" class="help mono"></p>
+      </section>
+    </main>
+  </body>
+</html>
