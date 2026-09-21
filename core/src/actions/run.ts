@@ -3,6 +3,7 @@
  * any particular action: a generator action is a prompt, a render action is
  * the card chain with the action's overrides, smart paste is the pick.
  */
+import type { Catalog } from "../catalog.ts";
 import type { JevRequest } from "../questions.ts";
 import { pick } from "../pick/index.ts";
 import type { ClipItem, Context, PickResult } from "../pick/types.ts";
@@ -22,6 +23,8 @@ export interface ActionDeps {
   readonly render: Omit<RenderOptions, "out"> | null;
   /** History candidates for smart paste, most recent first. */
   readonly candidates?: () => Promise<ClipItem[]> | ClipItem[];
+  /** The catalog with style packs merged in. */
+  readonly catalog?: Catalog;
 }
 
 export function fillTemplate(template: string, input: ActionInput): string {
@@ -48,10 +51,10 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
       if (!deps.render) throw new ActionError("needs", `${spec.id} needs the render engine; it is not available`);
       const aspect = input.aspect ?? spec.render?.aspect ?? "chat";
       const animate = spec.render?.animate === "always" ? true : spec.render?.animate === "never" ? false : undefined;
-      const { dsl, decided } = await decideCard(input.text, { aspect, decider: deps.decider, force: animate === undefined ? undefined : { animate } });
+      const { dsl, decided } = await decideCard(input.text, { aspect, decider: deps.decider, force: animate === undefined ? undefined : { animate }, catalog: deps.catalog });
       if (spec.output === "video") throw new ActionError("needs", `${spec.id}: video output needs ffmpeg and is not enabled in this build`);
       if (spec.output !== "image" && spec.output !== "gif") throw new ActionError("spec", `${spec.id}: a render action outputs image or gif`);
-      const r = await renderCard(dsl, deps.render);
+      const r = await renderCard(dsl, { ...deps.render, catalog: deps.catalog });
       if (spec.output === "gif" && r.format !== "gif") throw new ActionError("run", `${spec.id}: the card came out static`);
       return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: { dsl, decided, lines: r.lines, size: r.size, frames: r.frames, render: r.ms } };
     }

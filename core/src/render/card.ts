@@ -3,6 +3,7 @@
  */
 import { mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import type { Catalog } from "../catalog.ts";
 import type { Dsl } from "../dsl.ts";
 import { ensureWorkTree, runEngine } from "../engine.ts";
 import { composeCard, type ComposeResult } from "./compose.ts";
@@ -13,6 +14,8 @@ export interface RenderOptions {
   readonly work: string;
   readonly emojiCache: string;
   readonly emojiBundle?: string;
+  /** The catalog with style packs merged in; the base one when absent. */
+  readonly catalog?: Catalog;
   /** Output path; defaults to `<outDir>/card.png|gif`. */
   readonly out?: string;
   readonly outDir?: string;
@@ -29,7 +32,7 @@ export async function prepareCard(dsl: Dsl, o: RenderOptions): Promise<ComposeRe
   await ensureWorkTree(o.engine, o.work);
   await mkdir(join(o.work, "compositions/paste"), { recursive: true });
   const t0 = performance.now();
-  const composed = await composeCard(dsl, { engine: o.engine, work: o.work, emojiCache: o.emojiCache, emojiBundle: o.emojiBundle });
+  const composed = await composeCard(dsl, { engine: o.engine, work: o.work, emojiCache: o.emojiCache, emojiBundle: o.emojiBundle, catalog: o.catalog });
   const t1 = performance.now();
   await runEngine(o.work, ["build", "compositions/paste"]);
   const t2 = performance.now();

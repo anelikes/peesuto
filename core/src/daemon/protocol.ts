@@ -27,7 +27,7 @@ export type Request =
   | { id: number; cmd: "shutdown" };
 
 export type Response =
-  | { id: number; ok: true; cmd: "health"; version: string; engine: string | null; providers: { decider: string; generator: string; offline: boolean }; uptimeMs: number }
+  | { id: number; ok: true; cmd: "health"; version: string; engine: string | null; providers: { decider: string; generator: string; offline: boolean }; uptimeMs: number; packs: { id: string; name: string; version: string; kind: "actions" | "styles" }[] }
   | { id: number; ok: true; cmd: "config.set"; providers: { decider: string; generator: string; offline: boolean } }
   | { id: number; ok: true; cmd: "pick"; result: PickResult }
   | { id: number; ok: true; cmd: "actions.list" | "actions.reload"; actions: ActionSpec[]; problems: { file: string; message: string }[] }

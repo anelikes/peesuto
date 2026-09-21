@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { loadActions, runAction, ActionError, type ActionDeps, type ActionSpec, type LoadedActions } from "../actions/index.ts";
 import { parseDsl } from "../dsl.ts";
 import { EngineError } from "../engine.ts";
+import { BASE_CATALOG } from "../catalog.ts";
+import { loadPacks, type LoadedPacks } from "../packs.ts";
 import { pick } from "../pick/index.ts";
 import { ComposeError } from "../render/compose.ts";
 import { renderCard, type RenderOptions } from "../render/card.ts";
@@ -26,11 +28,18 @@ export interface DaemonHost {
 export class Daemon {
   private providers: Awaited<ReturnType<DaemonHost["resolveProviders"]>> | null = null;
   private actions: LoadedActions = { actions: [], problems: [] };
+  private packs: LoadedPacks = { catalog: BASE_CATALOG, packs: [], problems: [] };
   private readonly started = Date.now();
   constructor(private readonly host: DaemonHost) {}
 
-  async init(): Promise<void> {
+  private async reload(): Promise<void> {
+    this.packs = await loadPacks(join(this.host.appData, "packs"));
     this.actions = await loadActions({ userDir: join(this.host.appData, "actions"), packsDir: join(this.host.appData, "packs") });
+    this.actions = { actions: this.actions.actions, problems: [...this.actions.problems, ...this.packs.problems] };
+  }
+
+  async init(): Promise<void> {
+    await this.reload();
     this.providers = await this.host.resolveProviders({});
   }
 
@@ -50,7 +59,7 @@ export class Daemon {
     try {
       switch (req.cmd) {
         case "health":
-          return { id, ok: true, cmd: "health", version: this.host.version, engine: this.host.engine, providers: this.providers?.names ?? { decider: "none", generator: "none", offline: false }, uptimeMs: Date.now() - this.started };
+          return { id, ok: true, cmd: "health", version: this.host.version, engine: this.host.engine, providers: this.providers?.names ?? { decider: "none", generator: "none", offline: false }, uptimeMs: Date.now() - this.started, packs: this.packs.packs };
         case "config.set":
           this.providers = await this.host.resolveProviders(req);
           return { id, ok: true, cmd: "config.set", providers: this.providers.names };
@@ -61,10 +70,10 @@ export class Daemon {
         case "actions.list":
           return { id, ok: true, cmd: "actions.list", actions: this.actions.actions, problems: this.actions.problems };
         case "actions.reload":
-          this.actions = await loadActions({ userDir: join(this.host.appData, "actions"), packsDir: join(this.host.appData, "packs") });
+          await this.reload();
           return { id, ok: true, cmd: "actions.reload", actions: this.actions.actions, problems: this.actions.problems };
         case "run-action": {
-          const deps: ActionDeps = { decider: this.providers?.decider ?? null, generator: this.providers?.generator ?? null, render: this.render(), candidates: req.candidates ? () => req.candidates! : undefined };
+          const deps: ActionDeps = { decider: this.providers?.decider ?? null, generator: this.providers?.generator ?? null, render: this.render(), candidates: req.candidates ? () => req.candidates! : undefined, catalog: this.packs.catalog };
           const r = await runAction(this.spec(req.action), req.input, deps);
           const { pick: p, ...result } = r as typeof r & { pick?: unknown };
           return { id, ok: true, cmd: "run-action", result, ...(p ? { pick: p as never } : {}) };
@@ -72,7 +81,7 @@ export class Daemon {
         case "render": {
           const render = this.render();
           if (!render) throw new EngineError("rendering is not available in this install");
-          const r = await renderCard(parseDsl(req.dsl), { ...render, out: req.out });
+          const r = await renderCard(parseDsl(req.dsl), { ...render, out: req.out, catalog: this.packs.catalog });
           return { id, ok: true, cmd: "render", path: r.path, format: r.format, frames: r.frames, ms: r.ms };
         }
         case "shutdown":
