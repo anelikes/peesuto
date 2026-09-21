@@ -19,14 +19,27 @@
       </div>
     </header>
     <div id="confirm" class="confirm">
+      <span id="pick-dot" class="dot" hidden></span>
       <span class="confirm-label">Paste:</span>
       <span id="confirm-text" class="confirm-text"></span>
+      <span id="pick-spinner" class="spinner tiny" hidden></span>
+      <span id="pick-source" class="tag" hidden></span>
       <kbd>⏎</kbd>
     </div>
+    <div id="note" class="banner info" hidden><span id="note-text"></span></div>
     <div id="ax-banner" class="banner" hidden>
       <span>Pasting for you needs Accessibility access.</span>
       <button id="ax-allow" class="link">Allow…</button>
       <button id="ax-settings" class="link">Settings</button>
+    </div>
+    <div id="locked" class="banner" hidden>
+      <span id="locked-text">The history is locked.</span>
+      <button id="locked-fresh" class="link danger">Start fresh…</button>
+    </div>
+    <div id="fresh-confirm" class="banner" hidden>
+      <span>Delete the locked history and start over?</span>
+      <button id="fresh-yes" class="link danger">Delete</button>
+      <button id="fresh-no" class="link">Keep</button>
     </div>
     <div id="clear-confirm" class="banner" hidden>
       <span>Clear the whole history?</span>
@@ -37,7 +50,7 @@
     <p id="empty" class="empty" hidden>Nothing copied yet.</p>
     <div id="context" class="dropdown context" hidden>
       <button data-action="paste">Paste</button>
-      <button data-action="card">Paste as card</button>
+      <div id="context-actions"></div>
       <button data-action="pin">Pin</button>
       <button data-action="delete" class="danger">Delete</button>
     </div>

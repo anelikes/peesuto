@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the history, result and settings webviews may call. The pasteboard, the global shortcut, paste simulation and the sidecar are driven from Rust and need no webview permission.",
+  "description": "What the history, result and settings webviews may call. The pasteboard, the global shortcuts, paste simulation, context capture and Core are driven from Rust and need no webview permission.",
   "windows": [
     "history",
     "result",
@@ -22,6 +22,7 @@
         }
       ]
     },
+    "clipboard-manager:allow-write-text",
     "dialog:allow-save",
     "store:default",
     "autostart:default",

@@ -86,12 +86,14 @@ async fn deliver(app: AppHandle, panel: &'static str, write: impl FnOnce() -> bo
 }
 
 #[tauri::command]
-pub async fn paste_item(app: AppHandle, id: u64) -> Result<(), PasteFailure> {
-    let item = app
-        .state::<History>()
-        .get(id)
-        .ok_or_else(|| fail("missing", "That item is no longer in the history."))?;
-    let text = item.text.clone();
+pub async fn paste_item(app: AppHandle, id: String) -> Result<(), PasteFailure> {
+    let history = app.state::<History>();
+    let item = history.get(&id).ok_or_else(|| fail("missing", "That item is no longer in the history."))?;
+    if item.kind == "image" {
+        let png = history.with(|s| s.image(&id)).flatten().ok_or_else(|| fail("missing", "The image file is gone."))?;
+        return deliver(app, windows::HISTORY, move || pasteboard::write_png(&png)).await;
+    }
+    let text = item.text.clone().unwrap_or_default();
     if item.kind == "file" {
         let first = text.lines().next().unwrap_or("").to_string();
         return deliver(app, windows::HISTORY, move || pasteboard::write_file(Path::new(&first), None)).await;
@@ -114,7 +116,7 @@ pub async fn paste_file(app: AppHandle, path: String) -> Result<(), PasteFailure
 #[tauri::command]
 pub async fn paste_card(app: AppHandle, path: String, format: String) -> Result<(), PasteFailure> {
     let writer = app.clone();
-    deliver(app, windows::RESULT, move || crate::card::copy_to_clipboard(&writer, Path::new(&path), &format).is_ok()).await
+    deliver(app, windows::RESULT, move || crate::actions::copy_to_clipboard(&writer, Path::new(&path), &format).is_ok()).await
 }
 
 #[tauri::command]

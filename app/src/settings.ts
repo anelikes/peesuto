@@ -1,44 +1,66 @@
-/** Settings and first-run onboarding. */
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+/** Settings and first-run onboarding: General, Providers (two tracks), Actions, Privacy, Exclusions. */
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Store } from "@tauri-apps/plugin-store";
 import {
-  $, ACCESSIBILITY_URL, DEFAULTS, humanError, openSettingsStore, readSettings,
-  type AppInfo, type Aspect, type PasteError, type PasteResult, type Settings,
+  $, ACCESSIBILITY_URL, DEFAULT_BLACKLIST, DEFAULT_OPENAI_BASE_URL, DEFAULTS, el, humanError, isPasteError, openSettingsStore, readSettings,
+  type ActionsInfo, type AppInfo, type Aspect, type ClipItem, type Context, type DaemonStatus, type HistoryStatus, type HotkeyReport,
+  type PickResult, type PrivacyInfo, type ProvidersForm, type Settings,
 } from "./shared";
 
 const intro = $("intro");
 const axStatus = $("ax-status");
 const hotkey = $<HTMLInputElement>("hotkey");
-const providerKind = $<HTMLSelectElement>("provider-kind");
-const providerProxy = $("provider-proxy");
-const providerUrl = $<HTMLInputElement>("provider-url");
-const providerToken = $<HTMLInputElement>("provider-token");
+const smartPaste = $<HTMLInputElement>("smart-paste");
 const aspect = $<HTMLSelectElement>("aspect");
 const sidecarMode = $<HTMLSelectElement>("sidecar-mode");
 const repoField = $("repo-field");
 const devRepo = $<HTMLInputElement>("dev-repo");
 const sidecarInfo = $("sidecar-info");
+const daemonStatus = $("daemon-status");
+const appInfo = $("app-info");
 const autostart = $<HTMLInputElement>("autostart");
 const status = $("status");
-const testResult = $("test-result");
-const testCard = $<HTMLImageElement>("test-card");
-const testText = $("test-text");
+
+const deciderKind = $<HTMLSelectElement>("decider-kind");
+const generatorKind = $<HTMLSelectElement>("generator-kind");
+const offline = $<HTMLInputElement>("offline");
+const offlinePrivacy = $<HTMLInputElement>("offline-privacy");
+const retention = $<HTMLInputElement>("retention");
+const blacklistEl = $<HTMLUListElement>("blacklist");
+const blacklistAdd = $<HTMLInputElement>("blacklist-add");
 
 let store: Store;
+let loaded: Settings = { ...DEFAULTS };
+let blacklist: string[] = [...DEFAULT_BLACKLIST];
 
 function say(text: string, kind: "" | "ok" | "err" = ""): void {
   status.textContent = text;
   status.className = `status ${kind}`;
 }
 
-function syncVisibility(): void {
-  providerProxy.hidden = providerKind.value !== "proxy";
-  repoField.hidden = sidecarMode.value !== "dev";
+// ---- panes ----
+for (const tab of document.querySelectorAll<HTMLButtonElement>(".tabs button")) {
+  tab.addEventListener("click", () => showPane(tab.dataset.pane ?? "general"));
+}
+function showPane(name: string): void {
+  for (const tab of document.querySelectorAll<HTMLButtonElement>(".tabs button")) tab.setAttribute("aria-selected", String(tab.dataset.pane === name));
+  for (const pane of document.querySelectorAll<HTMLElement>(".pane")) pane.hidden = pane.id !== `pane-${name}`;
+  if (name === "privacy") void refreshPrivacy();
+  if (name === "actions") void refreshActions();
+  if (name === "general") void refreshDaemon();
+  try { localStorage.setItem("pane", name); } catch { /* fine */ }
 }
 
+function syncVisibility(): void {
+  repoField.hidden = sidecarMode.value !== "dev";
+  for (const box of document.querySelectorAll<HTMLElement>("[data-decider]")) box.hidden = box.dataset.decider !== deciderKind.value;
+  for (const box of document.querySelectorAll<HTMLElement>("[data-generator]")) box.hidden = box.dataset.generator !== generatorKind.value;
+}
+
+// ---- general ----
 async function refreshAccessibility(): Promise<void> {
   const trusted = await invoke<boolean>("accessibility_status").catch(() => false);
   axStatus.textContent = trusted ? "Allowed" : "Not allowed";
@@ -51,24 +73,225 @@ async function refreshInfo(): Promise<void> {
     const s = info.sidecar;
     const mark = (ok: boolean) => (ok ? "✓" : "✗");
     sidecarInfo.textContent = [
-      `dev: bun ${s.bun ?? "not found"} · ${mark(s.dev_cli_present)} ${s.dev_cli}`,
+      `dev: bun ${s.bun ?? "not found"} · ${mark(s.dev_daemon_present)} ${s.dev_daemon}`,
       `bundled: ${mark(s.bundled_present)} ${s.bundled_binary} · ${mark(s.resources_present)} ${s.resources}`,
-      `cards: ${info.cards_dir}`,
     ].join("\n");
+    appInfo.textContent = `${info.identifier} ${info.version}\ndata: ${info.app_data}\nlog: ${info.log}`;
   } catch (e) {
     sidecarInfo.textContent = String(e);
   }
 }
 
+async function refreshDaemon(): Promise<void> {
+  try {
+    const d = await invoke<DaemonStatus>("daemon_status");
+    const label = d.fallback ? "Core: gave up (CLI fallback)" : d.ready ? `Core: ready${d.version ? ` ${d.version}` : ""}${d.engine ? "" : " · no engine"}` : d.alive ? "Core: starting…" : "Core: idle (starts on demand)";
+    daemonStatus.textContent = label;
+    daemonStatus.className = `pill ${d.fallback ? "warn" : d.ready ? "ok" : ""}`;
+  } catch (e) {
+    daemonStatus.textContent = String(e);
+  }
+}
+
+// ---- providers ----
+function readProvidersForm(): ProvidersForm {
+  const v = (id: string) => $<HTMLInputElement>(id).value.trim();
+  const opt = (s: string) => (s ? s : undefined);
+  const decider: ProvidersForm["config"]["decider"] =
+    deciderKind.value === "proxy" ? { kind: "proxy", url: v("proxy-url") || "http://localhost:8787/" }
+    : deciderKind.value === "cloudflare" ? { kind: "cloudflare", accountId: v("cf-account"), tokenRef: "" }
+    : deciderKind.value === "hosted" ? { kind: "hosted", tokenRef: "", url: opt(v("hosted-url")) }
+    : { kind: "none" };
+  const generator: ProvidersForm["config"]["generator"] =
+    generatorKind.value === "openai-compatible" ? { kind: "openai-compatible", baseUrl: v("oai-url") || DEFAULT_OPENAI_BASE_URL, model: v("oai-model") }
+    : generatorKind.value === "anthropic" ? { kind: "anthropic", apiKeyRef: "", model: opt(v("anthropic-model")) }
+    : generatorKind.value === "hosted" ? { kind: "hosted", tokenRef: "", url: opt(v("gen-hosted-url")) }
+    : { kind: "none" };
+  const hostedToken = deciderKind.value === "hosted" ? v("hosted-token") || v("gen-hosted-token") : v("gen-hosted-token") || v("hosted-token");
+  const generatorApiKey = generatorKind.value === "anthropic" ? v("anthropic-key") : v("oai-key") || v("anthropic-key");
+  return { config: { decider, generator, offline: offline.checked }, proxyToken: v("proxy-token"), cloudflareToken: v("cf-token"), hostedToken, generatorApiKey };
+}
+
+function fillProvidersForm(f: ProvidersForm): void {
+  const set = (id: string, value: string | undefined) => { $<HTMLInputElement>(id).value = value ?? ""; };
+  const d = f.config.decider;
+  deciderKind.value = d.kind;
+  if (d.kind === "proxy") set("proxy-url", d.url);
+  if (d.kind === "cloudflare") set("cf-account", d.accountId);
+  if (d.kind === "hosted") set("hosted-url", d.url);
+  const g = f.config.generator;
+  generatorKind.value = g.kind;
+  if (g.kind === "openai-compatible") { set("oai-url", g.baseUrl); set("oai-model", g.model); }
+  if (g.kind === "anthropic") set("anthropic-model", g.model);
+  if (g.kind === "hosted") set("gen-hosted-url", g.url);
+  set("proxy-token", f.proxyToken);
+  set("cf-token", f.cloudflareToken);
+  set("hosted-token", f.hostedToken);
+  set("gen-hosted-token", f.hostedToken);
+  set("oai-key", f.generatorApiKey);
+  set("anthropic-key", f.generatorApiKey);
+  offline.checked = f.config.offline;
+  offlinePrivacy.checked = f.config.offline;
+  if (!$<HTMLInputElement>("oai-url").value) $<HTMLInputElement>("oai-url").value = DEFAULT_OPENAI_BASE_URL;
+}
+
+const TEST_SENTENCE = "Pocket Paste keeps what you copy and pastes what fits.";
+
+async function testDecider(): Promise<void> {
+  const out = $("test-decider-out");
+  out.textContent = "Saving and asking…";
+  if (!(await saveAll())) { out.textContent = "Fix the save first."; return; }
+  const now = Date.now();
+  const candidates: ClipItem[] = [
+    { id: "t1", kind: "text", text: "https://example.com/report.pdf", preview: "https://example.com/report.pdf", createdAt: now - 60_000, pinned: false, bytes: 30, types: [] },
+    { id: "t2", kind: "text", text: "Dear team, please find the report attached.", preview: "Dear team, please find the report attached.", createdAt: now - 5_000, pinned: false, bytes: 43, types: [] },
+  ];
+  const context: Context = { level: 2, appBundleId: "com.apple.mail", appName: "Mail", role: "AXTextArea", label: "Message body", before: "Here is the link: ", after: "" };
+  try {
+    const t0 = performance.now();
+    const r = await invoke<PickResult>("daemon_pick", { context, candidates, fresh: true });
+    const top = r.ranked[0];
+    out.textContent = `${r.source} · top: “${top?.item.preview ?? "?"}” (${top?.reason ?? ""}) · shouldPaste ${(r.shouldPaste * 100).toFixed(0)} % · ${Math.round(performance.now() - t0)} ms`;
+    out.className = "help ok";
+  } catch (e) {
+    const err = isPasteError(e) ? e : { kind: "error", message: String(e) };
+    const h = humanError(err.kind, err.message);
+    out.textContent = `${h.title} ${h.detail}`;
+    out.className = "help err";
+  }
+}
+
+async function testGenerator(): Promise<void> {
+  const out = $("test-generator-out");
+  out.textContent = "Saving and asking…";
+  if (!(await saveAll())) { out.textContent = "Fix the save first."; return; }
+  try {
+    const t0 = performance.now();
+    const r = await invoke<{ result: { output: string; text?: string; model?: string } }>("daemon_run_action", { action: "paste-summary", input: { text: TEST_SENTENCE, fresh: true } });
+    out.textContent = `${r.result.model ?? "model"} · ${Math.round(performance.now() - t0)} ms: ${r.result.text ?? ""}`;
+    out.className = "help ok";
+  } catch (e) {
+    const err = isPasteError(e) ? e : { kind: "error", message: String(e) };
+    const h = humanError(err.kind, err.message);
+    out.textContent = `${h.title} ${h.detail}`;
+    out.className = "help err";
+  }
+}
+
+// ---- actions ----
+function renderActions(info: ActionsInfo): void {
+  const body = $("actions-table").querySelector("tbody")!;
+  const reports = new Map(info.hotkeys.map((h) => [h.action, h]));
+  body.replaceChildren(...info.actions.map((a) => {
+    const tr = el("tr");
+    const name = el("td");
+    name.append(el("div", "", a.name), el("div", "help mono", a.id));
+    if (a.description) name.title = a.description;
+    const hk = el("td");
+    const r: HotkeyReport | undefined = reports.get(a.id);
+    const key = a.needs === "decider" ? hotkey.value : a.trigger?.hotkey;
+    if (key) {
+      hk.append(el("span", "mono", key));
+      if (r && !r.ok) { const p = el("div", "help err", r.problem ?? "not registered"); hk.append(p); }
+      else if (r?.ok) hk.append(el("span", "pill ok tiny", "on"));
+    } else hk.textContent = "—";
+    const source = a.builtin ? "built-in" : a.pack ? `pack ${a.pack}` : "your file";
+    tr.append(name, el("td", "", a.needs), el("td", "", a.output), hk, el("td", "", source));
+    return tr;
+  }));
+  const problems = $("actions-problems");
+  problems.replaceChildren(...info.problems.map((p) => el("li", "err", `${p.file}: ${p.message}`)));
+  $("actions-status").textContent = `${info.actions.length} action(s) · ${info.folder}`;
+}
+
+async function refreshActions(reload = false): Promise<void> {
+  try {
+    renderActions(await invoke<ActionsInfo>(reload ? "actions_reload" : "actions_list"));
+  } catch (e) {
+    $("actions-status").textContent = String(e);
+  }
+}
+
+// ---- privacy ----
+const PRIVACY_ROWS: { data: string; stored: string; leaves: string; sw: string; pane?: string }[] = [
+  { data: "clipboard text, RTF, HTML", stored: "encrypted SQLite in App Support; key in Keychain", leaves: "only as part of a decider question or a generator prompt, and only for the item you act on", sw: "decider/generator = none, or Offline", pane: "providers" },
+  { data: "images, files copied", stored: "thumbnail + original under App Support (encrypted)", leaves: "never", sw: "retention / clear all", pane: "exclusions" },
+  { data: "app bundle id per item", stored: "with the item", leaves: "as part of the pick question's state (bundle id only)", sw: "decider = none", pane: "providers" },
+  { data: "focused field context (role, label, text around the caret)", stored: "never", leaves: "as part of the pick question, redacted per level", sw: "smart paste off, or decider = none", pane: "general" },
+  { data: "history search queries", stored: "never", leaves: "never", sw: "—" },
+  { data: "provider credentials", stored: "Keychain", leaves: "to the provider they belong to", sw: "—", pane: "providers" },
+  { data: "egress log (host, purpose, bytes, status)", stored: "App Support/egress.log", leaves: "never", sw: "Clear log (below)" },
+  { data: "answer cache (decider answers keyed by text hash)", stored: "App Support/answers/", leaves: "never", sw: "Clear answer cache (below)" },
+  { data: "emoji codepoints", stored: "cached PNGs", leaves: "to jsdelivr on first use of an emoji not in the bundled set", sw: "ship the bundled set" },
+];
+
+function renderPrivacyTable(): void {
+  const body = $("privacy-table").querySelector("tbody")!;
+  body.replaceChildren(...PRIVACY_ROWS.map((r) => {
+    const tr = el("tr");
+    const sw = el("td");
+    if (r.pane) {
+      const b = el("button", "link", r.sw);
+      const pane = r.pane;
+      b.addEventListener("click", () => showPane(pane));
+      sw.append(b);
+    } else sw.textContent = r.sw;
+    tr.append(el("td", "", r.data), el("td", "", r.stored), el("td", "", r.leaves), sw);
+    return tr;
+  }));
+}
+
+async function refreshPrivacy(): Promise<void> {
+  try {
+    const p = await invoke<PrivacyInfo>("privacy_info");
+    $("destinations").replaceChildren(...p.destinations.map((d) => el("li", "", d)));
+    $("egress-path").textContent = p.egress_log;
+    $("egress-log").textContent = p.egress_lines.length ? p.egress_lines.join("\n") : "(empty — nothing has left this Mac)";
+    offlinePrivacy.checked = p.offline;
+  } catch (e) {
+    $("privacy-status").textContent = String(e);
+  }
+}
+
+// ---- exclusions ----
+function renderBlacklist(): void {
+  blacklistEl.replaceChildren(...blacklist.map((b) => {
+    const li = el("li");
+    li.append(el("span", "mono", b));
+    const x = el("button", "icon", "×");
+    x.title = "Remove";
+    x.addEventListener("click", () => { blacklist = blacklist.filter((v) => v !== b); renderBlacklist(); });
+    li.append(x);
+    return li;
+  }));
+}
+
+function addBlacklist(): void {
+  const v = blacklistAdd.value.trim();
+  if (!v) return;
+  if (!blacklist.includes(v)) blacklist.push(v);
+  blacklistAdd.value = "";
+  renderBlacklist();
+}
+
+async function refreshHistoryStatus(): Promise<void> {
+  try {
+    const s = await invoke<HistoryStatus>("history_status");
+    $("history-status").textContent = s.state === "ok" ? `${s.items} item(s) in the encrypted history.` : s.state === "locked" ? `History locked: ${s.detail}` : s.state === "opening" ? "Opening the history…" : "History is kept in memory only (no Keychain key).";
+  } catch { /* fine */ }
+}
+
+// ---- save ----
 function collect(): Settings {
   return {
     hotkey: hotkey.value.trim() || DEFAULTS.hotkey,
     aspect: aspect.value as Aspect,
-    provider_kind: providerKind.value as Settings["provider_kind"],
-    provider_url: providerUrl.value.trim(),
     sidecar_mode: sidecarMode.value as Settings["sidecar_mode"],
     dev_repo_path: devRepo.value.trim() || DEFAULTS.dev_repo_path,
     onboarded: true,
+    retention_days: Math.max(0, Math.min(3650, Number.parseInt(retention.value, 10) || 0)),
+    blacklist: [...blacklist],
+    smart_paste: smartPaste.checked,
   };
 }
 
@@ -76,12 +299,26 @@ async function saveAll(): Promise<boolean> {
   const s = collect();
   for (const [k, v] of Object.entries(s)) await store.set(k, v);
   await store.save();
-  await invoke("secret_set", { name: "provider_token", value: providerToken.value });
+  const restart = s.sidecar_mode !== loaded.sidecar_mode || s.dev_repo_path !== loaded.dev_repo_path;
+  loaded = s;
   let ok = true;
+  say("Saving…");
   try {
-    await invoke("apply_hotkey", { hotkey: s.hotkey });
+    await invoke("providers_set", { form: readProvidersForm() });
   } catch (e) {
-    say(`Saved, but the shortcut could not be registered: ${e}`, "err");
+    const err = isPasteError(e) ? e : { kind: "error", message: String(e) };
+    say(`Saved, but Core rejected the providers: ${err.message}`, "err");
+    ok = false;
+  }
+  try {
+    const reports = await invoke<HotkeyReport[]>("settings_apply", { restart });
+    const bad = reports.filter((r) => !r.ok);
+    if (bad.length) {
+      say(`Saved. Shortcut problems: ${bad.map((b) => `${b.action} (${b.hotkey}): ${b.problem}`).join("; ")}`, "err");
+      ok = false;
+    }
+  } catch (e) {
+    say(`Saved, but applying failed: ${isPasteError(e) ? e.message : e}`, "err");
     ok = false;
   }
   try {
@@ -94,27 +331,10 @@ async function saveAll(): Promise<boolean> {
   intro.hidden = true;
   if (ok) say("Saved", "ok");
   void refreshInfo();
+  void refreshDaemon();
+  void refreshActions();
+  void refreshHistoryStatus();
   return ok;
-}
-
-async function test(): Promise<void> {
-  await saveAll();
-  say("Rendering…");
-  testResult.hidden = false;
-  testCard.hidden = true;
-  testText.textContent = "";
-  try {
-    const r = await invoke<PasteResult>("render_test", { text: "Hello, pocket-paste" });
-    testCard.src = convertFileSrc(r.path);
-    testCard.hidden = false;
-    testText.textContent = `${r.format} · ${r.size}px · ${r.frames} frame${r.frames === 1 ? "" : "s"} · ${r.ms.total ?? "?"} ms · ${r.decided.provider ?? ""}\n${r.path}`;
-    say("Rendered", "ok");
-  } catch (e) {
-    const err = e as PasteError;
-    const h = humanError(err.kind ?? "error", err.message ?? String(e));
-    testText.textContent = `${h.title} ${h.detail}`;
-    say("Failed", "err");
-  }
 }
 
 // --- hotkey capture ---
@@ -145,31 +365,67 @@ hotkey.addEventListener("keydown", (e) => {
 });
 
 // --- wiring ---
-providerKind.addEventListener("change", syncVisibility);
+deciderKind.addEventListener("change", syncVisibility);
+generatorKind.addEventListener("change", syncVisibility);
 sidecarMode.addEventListener("change", syncVisibility);
+offline.addEventListener("change", () => { offlinePrivacy.checked = offline.checked; });
+offlinePrivacy.addEventListener("change", () => { offline.checked = offlinePrivacy.checked; });
 $("save").addEventListener("click", () => void saveAll());
-$("test").addEventListener("click", () => void test());
+$("test-decider").addEventListener("click", () => void testDecider());
+$("test-generator").addEventListener("click", () => void testGenerator());
 $("ax-recheck").addEventListener("click", () => void refreshAccessibility());
 $("ax-allow").addEventListener("click", async () => {
   await invoke("accessibility_prompt");
   window.setTimeout(() => void refreshAccessibility(), 800);
 });
 $("ax-open").addEventListener("click", () => void openUrl(ACCESSIBILITY_URL));
-void getCurrentWindow().onFocusChanged(({ payload }) => { if (payload) void refreshAccessibility(); });
+$("ax-probe").addEventListener("click", async () => {
+  const out = $("ax-probe-out");
+  out.textContent = "…";
+  try {
+    const c = await invoke<Context>("context_probe");
+    out.textContent = `level ${c.level} · ${c.appName ?? c.appBundleId}${c.role ? ` · ${c.role}` : ""}${c.label ? ` “${c.label}”` : ""}${c.secure ? " · secure" : ""}${c.before !== undefined ? ` · ${c.before.length}+${(c.after ?? "").length} chars around the caret` : ""}`;
+  } catch (e) {
+    out.textContent = String(e);
+  }
+});
+$("daemon-restart").addEventListener("click", async () => { await invoke("daemon_restart"); window.setTimeout(() => void refreshDaemon(), 1500); });
+$("daemon-refresh").addEventListener("click", () => void refreshDaemon());
+$("actions-folder").addEventListener("click", () => void invoke("actions_open_folder").catch((e) => { $("actions-status").textContent = String(e); }));
+$("actions-new").addEventListener("click", () => void invoke<string>("actions_new").then((p) => { $("actions-status").textContent = `Created ${p} — save it, then Reload.`; }).catch((e) => { $("actions-status").textContent = String(e); }));
+$("actions-reload").addEventListener("click", () => void refreshActions(true));
+$("egress-refresh").addEventListener("click", () => void refreshPrivacy());
+$("egress-clear").addEventListener("click", async () => { await invoke("egress_log_clear"); await refreshPrivacy(); $("privacy-status").textContent = "Log cleared."; });
+$("cache-clear").addEventListener("click", async () => { const n = await invoke<number>("answer_cache_clear"); $("privacy-status").textContent = `Answer cache cleared (${n} entr${n === 1 ? "y" : "ies"}).`; });
+$("blacklist-add-btn").addEventListener("click", addBlacklist);
+blacklistAdd.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addBlacklist(); } });
+$("blacklist-reset").addEventListener("click", () => { blacklist = [...DEFAULT_BLACKLIST]; renderBlacklist(); });
+void getCurrentWindow().onFocusChanged(({ payload }) => { if (payload) { void refreshAccessibility(); void refreshDaemon(); } });
 
 async function init(): Promise<void> {
   store = await openSettingsStore();
   const s = await readSettings(store);
+  loaded = s;
   hotkey.value = s.hotkey;
+  smartPaste.checked = s.smart_paste;
   aspect.value = s.aspect;
-  providerKind.value = s.provider_kind;
-  providerUrl.value = s.provider_url;
   sidecarMode.value = s.sidecar_mode;
   devRepo.value = s.dev_repo_path;
-  providerToken.value = (await invoke<string | null>("secret_get", { name: "provider_token" }).catch(() => null)) ?? "";
+  retention.value = String(s.retention_days);
+  blacklist = [...s.blacklist];
+  renderBlacklist();
+  renderPrivacyTable();
   autostart.checked = await isEnabled().catch(() => false);
   intro.hidden = s.onboarded;
+  try {
+    fillProvidersForm(await invoke<ProvidersForm>("providers_get"));
+  } catch (e) {
+    say(`Could not read providers: ${e}`, "err");
+  }
   syncVisibility();
-  await Promise.all([refreshAccessibility(), refreshInfo()]);
+  let pane = "general";
+  try { pane = localStorage.getItem("pane") ?? "general"; } catch { /* fine */ }
+  showPane(s.onboarded ? pane : "general");
+  await Promise.all([refreshAccessibility(), refreshInfo(), refreshDaemon(), refreshActions(), refreshHistoryStatus()]);
 }
 void init();

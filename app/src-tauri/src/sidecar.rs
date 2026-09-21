@@ -1,24 +1,19 @@
-//! The render sidecar: `paste` from `core/`, spoken to through its `--json`
-//! contract (one JSON line on stdout: `{ok:true, path, format, …}` or
-//! `{ok:false, kind, message}`).
+//! Where Core lives and how it is launched, in two modes chosen by the
+//! `sidecar_mode` setting:
 //!
-//! Two modes, chosen by the `sidecar_mode` setting:
-//!
-//! * `dev` runs `bun <repo>/core/src/cli.ts` against a pocket-paste checkout
+//! * `dev` runs `bun <repo>/core/src/…` against a pocket-paste checkout
 //!   (`dev_repo_path`), so the shell can be developed against live core code.
 //! * `bundled` runs the Bun executable shipped as Tauri's `paste` external
-//!   binary (next to the app binary) on `Resources/resources/core/cli.ts`, the
+//!   binary (next to the app binary) on `Resources/resources/core/…`, the
 //!   tree `scripts/bundle-sidecar.ts` assembles. The base `tauri.conf.json`
 //!   does not list the external binary — it does not exist until that script
 //!   runs — so `bun tauri dev` works without it; `tauri.sidecar.conf.json` adds
 //!   it for a bundled build. When it is missing, bundled mode fails with a
 //!   clear `sidecar` error instead of a spawn failure.
 //!
-//! The process is spawned with `std::process::Command` rather than the shell
-//! plugin's `Command`: the text goes in through stdin (`--stdin`, so text that
-//! starts with `--` is not read as a flag) and the token through the
-//! environment (`PASTE_TOKEN`, so it never shows in `ps`), neither of which
-//! the plugin's one-shot `output()` offers.
+//! The long-lived daemon (`daemon.rs`) is the normal path; `daemon_plan`
+//! says how to start it. `run_paste` is the one-shot `paste --json` CLI, kept
+//! as the fallback for renders when the daemon will not start.
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -29,7 +24,7 @@ use std::{
 };
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::settings::{Settings, TOKEN_SECRET};
+use crate::{providers, settings::Settings};
 
 /// Generous: a cold engine install in bundled mode copies a 70 MB tree first.
 const TIMEOUT: Duration = Duration::from_secs(120);
@@ -53,8 +48,10 @@ pub struct PasteResult {
     pub ms: serde_json::Value,
 }
 
-/// `kind` is the CLI's: `usage`, `provider:auth|network|timeout|model|bad-response|quota`,
-/// `compose`, `engine`, `error` — plus the shell's own `sidecar` (could not start) and `timeout`.
+/// `kind` is Core's (`ERROR_KINDS` in core/src/daemon/protocol.ts): `usage`, `input`,
+/// `provider:config|auth|network|timeout|model|bad-response|quota|offline|unavailable`,
+/// `action:spec|needs|input|run`, `compose`, `engine`, `error` — plus the shell's own
+/// `sidecar` (could not start) and `timeout`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PasteError {
     pub kind: String,
@@ -95,8 +92,8 @@ pub fn paths<R: Runtime>(app: &AppHandle<R>) -> Result<Paths, PasteError> {
 pub struct SidecarInfo {
     pub mode: String,
     pub bun: Option<String>,
-    pub dev_cli: String,
-    pub dev_cli_present: bool,
+    pub dev_daemon: String,
+    pub dev_daemon_present: bool,
     pub bundled_binary: String,
     pub bundled_present: bool,
     pub resources: String,
@@ -104,29 +101,29 @@ pub struct SidecarInfo {
 }
 
 pub fn info<R: Runtime>(app: &AppHandle<R>, s: &Settings) -> SidecarInfo {
-    let dev_cli = dev_cli_path(s);
+    let dev_daemon = dev_core_path(s, "daemon.ts");
     let bundled_binary = bundled_binary_path();
     let resources = resources_dir(app);
     SidecarInfo {
         mode: s.sidecar_mode.clone(),
         bun: find_bun().map(|p| p.display().to_string()),
-        dev_cli_present: dev_cli.is_file(),
-        dev_cli: dev_cli.display().to_string(),
+        dev_daemon_present: dev_daemon.is_file(),
+        dev_daemon: dev_daemon.display().to_string(),
         bundled_present: bundled_binary.is_file(),
         bundled_binary: bundled_binary.display().to_string(),
-        resources_present: resources.join("core/cli.ts").is_file(),
+        resources_present: resources.join("core/daemon.ts").is_file(),
         resources: resources.display().to_string(),
     }
 }
 
-struct Plan {
-    program: PathBuf,
-    args: Vec<String>,
-    env: Vec<(String, String)>,
+pub struct Plan {
+    pub program: PathBuf,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
 }
 
-fn dev_cli_path(s: &Settings) -> PathBuf {
-    Path::new(&s.dev_repo_path).join("core/src/cli.ts")
+fn dev_core_path(s: &Settings, entry: &str) -> PathBuf {
+    Path::new(&s.dev_repo_path).join("core/src").join(entry)
 }
 
 /// Tauri places external binaries next to the app binary, without the target triple.
@@ -165,100 +162,6 @@ fn find_bun() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-/// Provider flags from settings. Unknown kinds (the reserved `cloudflare` and
-/// `hosted`) render as `none` until the CLI supports them.
-fn provider_args(s: &Settings) -> (Vec<String>, bool) {
-    match s.provider_kind.as_str() {
-        "proxy" => {
-            let mut a = vec!["--provider".to_string(), "proxy".to_string()];
-            if !s.provider_url.trim().is_empty() {
-                a.push("--proxy-url".into());
-                a.push(s.provider_url.trim().into());
-            }
-            (a, true)
-        }
-        // TODO(M3): "cloudflare" (account id + token) and "hosted" (subscription credential).
-        _ => (vec!["--provider".into(), "none".into()], false),
-    }
-}
-
-fn plan<R: Runtime>(app: &AppHandle<R>, s: &Settings, a: &PasteArgs) -> Result<Plan, PasteError> {
-    let paths = paths(app)?;
-    let (provider, wants_token) = provider_args(s);
-    let mut env: Vec<(String, String)> = Vec::new();
-    if wants_token {
-        if let Some(t) = crate::secrets::get(TOKEN_SECRET).ok().flatten().filter(|t| !t.is_empty()) {
-            env.push(("PASTE_TOKEN".into(), t));
-        }
-    }
-    let common = |cli: &Path| -> Vec<String> {
-        let mut v = vec![
-            cli.display().to_string(),
-            "--stdin".into(),
-            "--json".into(),
-            "--aspect".into(),
-            a.aspect.clone(),
-            "--work".into(),
-            paths.work.display().to_string(),
-            "--app-data".into(),
-            paths.app_data.display().to_string(),
-            "--out".into(),
-            a.out.display().to_string(),
-        ];
-        v.extend(provider.iter().cloned());
-        v
-    };
-
-    match s.sidecar_mode.as_str() {
-        "bundled" => {
-            let bin = bundled_binary_path();
-            if !bin.is_file() {
-                return Err(PasteError::new(
-                    "sidecar",
-                    format!(
-                        "This build has no bundled renderer ({}). Run `bun scripts/bundle-sidecar.ts` and build with `bun run build:bundled`, or switch the sidecar to dev mode in Settings.",
-                        bin.display()
-                    ),
-                ));
-            }
-            let res = resources_dir(app);
-            let cli = res.join("core/cli.ts");
-            if !cli.is_file() {
-                return Err(PasteError::new(
-                    "sidecar",
-                    format!("The renderer's resources are missing ({}).", cli.display()),
-                ));
-            }
-            let mut args = common(&cli);
-            args.push("--engine-resources".into());
-            args.push(res.display().to_string());
-            // The engine spawns `bun` by name; the sidecar directory goes first on PATH.
-            env.push(("PATH".into(), prepend_path(bin.parent())));
-            Ok(Plan { program: bin, args, env })
-        }
-        _ => {
-            let bun = find_bun().ok_or_else(|| {
-                PasteError::new(
-                    "sidecar",
-                    "bun was not found. Install Bun (https://bun.sh) or switch the sidecar to bundled mode in Settings.",
-                )
-            })?;
-            let cli = dev_cli_path(s);
-            if !cli.is_file() {
-                return Err(PasteError::new(
-                    "sidecar",
-                    format!(
-                        "No pocket-paste checkout at {} (core/src/cli.ts is missing). Set the dev repo path in Settings.",
-                        s.dev_repo_path
-                    ),
-                ));
-            }
-            env.push(("PATH".into(), prepend_path(bun.parent())));
-            Ok(Plan { program: bun, args: common(&cli), env })
-        }
-    }
-}
-
 fn prepend_path(dir: Option<&Path>) -> String {
     let current = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin:/usr/sbin:/sbin".into());
     match dir {
@@ -267,9 +170,101 @@ fn prepend_path(dir: Option<&Path>) -> String {
     }
 }
 
-/// Run the sidecar for `args` with the given settings and parse its result.
+/// Program, entry script and environment for `entry` (`daemon.ts` or `cli.ts`)
+/// in the configured mode. `--engine-resources` is appended in bundled mode.
+fn launch<R: Runtime>(app: &AppHandle<R>, s: &Settings, entry: &str) -> Result<(Plan, PathBuf), PasteError> {
+    match s.sidecar_mode.as_str() {
+        "bundled" => {
+            let bin = bundled_binary_path();
+            if !bin.is_file() {
+                return Err(PasteError::new(
+                    "sidecar",
+                    format!(
+                        "This build has no bundled Core ({}). Run `bun scripts/bundle-sidecar.ts` and build with `bun run build:bundled`, or switch the sidecar to dev mode in Settings.",
+                        bin.display()
+                    ),
+                ));
+            }
+            let res = resources_dir(app);
+            let script = res.join("core").join(entry);
+            if !script.is_file() {
+                return Err(PasteError::new("sidecar", format!("Core's resources are missing ({}).", script.display())));
+            }
+            // The engine spawns `bun` by name; the sidecar directory goes first on PATH.
+            let env = vec![("PATH".into(), prepend_path(bin.parent()))];
+            let args = vec![script.display().to_string(), "--engine-resources".into(), res.display().to_string()];
+            Ok((Plan { program: bin, args, env }, script))
+        }
+        _ => {
+            let bun = find_bun().ok_or_else(|| {
+                PasteError::new(
+                    "sidecar",
+                    "bun was not found. Install Bun (https://bun.sh) or switch the sidecar to bundled mode in Settings.",
+                )
+            })?;
+            let script = dev_core_path(s, entry);
+            if !script.is_file() {
+                return Err(PasteError::new(
+                    "sidecar",
+                    format!("No pocket-paste checkout at {} (core/src/{entry} is missing). Set the dev repo path in Settings.", s.dev_repo_path),
+                ));
+            }
+            let env = vec![("PATH".into(), prepend_path(bun.parent()))];
+            let args = vec![script.display().to_string()];
+            Ok((Plan { program: bun, args, env }, script))
+        }
+    }
+}
+
+/// How to start `paste-daemon` for the long-lived Core.
+pub fn daemon_plan<R: Runtime>(app: &AppHandle<R>, s: &Settings) -> Result<Plan, PasteError> {
+    let paths = paths(app)?;
+    let (mut plan, _) = launch(app, s, "daemon.ts")?;
+    plan.args.extend([
+        "--app-data".to_string(),
+        paths.app_data.display().to_string(),
+        "--idle-minutes".to_string(),
+        crate::daemon::IDLE_MINUTES.to_string(),
+    ]);
+    Ok(plan)
+}
+
+/// The CLI fallback: `paste --stdin --json …`, with the proxy decider when
+/// one is configured (the CLI knows `none` and `proxy`).
+fn cli_plan<R: Runtime>(app: &AppHandle<R>, s: &Settings, a: &PasteArgs) -> Result<Plan, PasteError> {
+    let paths = paths(app)?;
+    let (mut plan, _) = launch(app, s, "cli.ts")?;
+    plan.args.extend(
+        [
+            "--stdin",
+            "--json",
+            "--aspect",
+            &a.aspect,
+            "--work",
+            &paths.work.display().to_string(),
+            "--app-data",
+            &paths.app_data.display().to_string(),
+            "--out",
+            &a.out.display().to_string(),
+        ]
+        .map(String::from),
+    );
+    match providers::load(app).decider {
+        providers::Decider::Proxy { url, .. } => {
+            plan.args.extend(["--provider".to_string(), "proxy".into(), "--proxy-url".into(), url]);
+            if let Some(t) = crate::secrets::get(providers::REF_PROXY_TOKEN).ok().flatten().filter(|t| !t.is_empty()) {
+                // Through the environment, so it never shows in `ps`.
+                plan.env.push(("PASTE_TOKEN".into(), t));
+            }
+        }
+        _ => plan.args.extend(["--provider".to_string(), "none".into()]),
+    }
+    Ok(plan)
+}
+
+/// Run the CLI for `args` with the given settings and parse its result.
 pub async fn run_paste<R: Runtime>(app: &AppHandle<R>, s: &Settings, args: PasteArgs) -> Result<PasteResult, PasteError> {
-    let plan = plan(app, s, &args)?;
+    let plan = cli_plan(app, s, &args)?;
     if let Some(dir) = args.out.parent() {
         std::fs::create_dir_all(dir).map_err(|e| PasteError::new("error", format!("cannot create {}: {e}", dir.display())))?;
     }

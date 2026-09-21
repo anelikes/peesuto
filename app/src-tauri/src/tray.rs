@@ -1,60 +1,80 @@
-//! The menu-bar item: a template icon and a four-entry menu.
+//! The menu-bar item: a template icon and a menu that lists the actions
+//! Core knows (`trigger.menu`), rebuilt whenever the registry changes.
 
 use tauri::{
     image::Image,
-    menu::{MenuBuilder, MenuItem, MenuItemBuilder},
-    tray::TrayIconBuilder,
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::{TrayIcon, TrayIconBuilder},
     AppHandle, Manager, Wry,
 };
 
-pub struct TrayHandles {
-    history_item: MenuItem<Wry>,
-}
+use crate::actions::{ActionSpec, RunOptions, Source};
 
-fn history_label(hotkey: &str) -> String {
-    format!("Show history  {}", crate::hotkeys::mac_symbols(hotkey))
-}
+const TRAY_ID: &str = "main";
+const ACTION_PREFIX: &str = "action:";
 
 pub fn build(app: &AppHandle, hotkey: &str) -> tauri::Result<()> {
-    let history_item = MenuItemBuilder::with_id("history", history_label(hotkey)).build(app)?;
-    let card_item = MenuItemBuilder::with_id("card", "Paste as card…").build(app)?;
-    let settings_item = MenuItemBuilder::with_id("settings", "Settings…").build(app)?;
-    let quit_item = MenuItemBuilder::with_id("quit", "Quit Pocket Paste").build(app)?;
-    let menu = MenuBuilder::new(app)
-        .item(&history_item)
-        .item(&card_item)
-        .item(&settings_item)
-        .separator()
-        .item(&quit_item)
-        .build()?;
-
     let icon = Image::from_bytes(include_bytes!("../icons/tray@2x.png"))?;
-    TrayIconBuilder::with_id("main")
+    let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .icon_as_template(true)
         .tooltip("Pocket Paste")
-        .menu(&menu)
+        .menu(&menu(app, hotkey, &[])?)
         .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id().0.as_str() {
-            "history" => crate::windows::show_history(app),
-            "card" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move { crate::card::card_from_clipboard(app).await });
+        .on_menu_event(|app, event| {
+            let id = event.id().0.as_str();
+            match id {
+                "history" => crate::windows::show_history(app),
+                "settings" => crate::windows::show_settings(app),
+                "quit" => app.exit(0),
+                _ => {
+                    if let Some(action) = id.strip_prefix(ACTION_PREFIX) {
+                        let app = app.clone();
+                        let action = action.to_string();
+                        tauri::async_runtime::spawn(async move {
+                            crate::actions::run(app, action, Source::Clipboard, RunOptions::default()).await;
+                        });
+                    }
+                }
             }
-            "settings" => crate::windows::show_settings(app),
-            "quit" => app.exit(0),
-            _ => {}
         })
         // The positioner plugin learns where the tray icon is from these events.
         .on_tray_icon_event(|tray, event| tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event))
         .build(app)?;
-
-    app.manage(TrayHandles { history_item });
+    app.manage(tray);
     Ok(())
 }
 
-pub fn set_hotkey_label(app: &AppHandle, hotkey: &str) {
-    if let Some(t) = app.try_state::<TrayHandles>() {
-        let _ = t.history_item.set_text(history_label(hotkey));
+fn menu(app: &AppHandle, hotkey: &str, actions: &[ActionSpec]) -> tauri::Result<tauri::menu::Menu<Wry>> {
+    let mut b = MenuBuilder::new(app)
+        .item(&MenuItemBuilder::with_id("history", format!("Show history  {}", crate::hotkeys::mac_symbols(hotkey))).build(app)?)
+        .separator();
+    let mut any = false;
+    for a in actions.iter().filter(|a| a.in_menu() && a.needs != "decider") {
+        let label = match a.hotkey() {
+            Some(h) => format!("{}  {}", a.name, crate::hotkeys::mac_symbols(h)),
+            None => a.name.clone(),
+        };
+        b = b.item(&MenuItemBuilder::with_id(format!("{ACTION_PREFIX}{}", a.id), label).build(app)?);
+        any = true;
+    }
+    if any {
+        b = b.separator();
+    }
+    b.item(&MenuItemBuilder::with_id("settings", "Settings…").build(app)?)
+        .item(&MenuItemBuilder::with_id("quit", "Quit Pocket Paste").build(app)?)
+        .build()
+}
+
+/// Rebuild the menu from the registry (and the current history shortcut).
+pub fn set_actions(app: &AppHandle, hotkey: &str, actions: &[ActionSpec]) {
+    let Some(tray) = app.try_state::<TrayIcon<Wry>>() else { return };
+    match menu(app, hotkey, actions) {
+        Ok(m) => {
+            if let Err(e) = tray.set_menu(Some(m)) {
+                crate::log::line(format!("tray: could not set the menu: {e}"));
+            }
+        }
+        Err(e) => crate::log::line(format!("tray: could not build the menu: {e}")),
     }
 }

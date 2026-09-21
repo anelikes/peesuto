@@ -1,10 +1,12 @@
 //! Secrets go to the macOS Keychain through the `keyring` crate, one generic
-//! password item per name under the app identifier as the service.
+//! password item per name under the app identifier as the service. The
+//! names are the ones `core/src/provider/config.ts` (`SECRET_REFS`) uses, so
+//! `providers.json` can refer to them and the CLI finds the same items.
 
-const SERVICE: &str = "dev.pocketpaste.app";
+pub const SERVICE: &str = "dev.pocketpaste.desktop";
 
 fn entry(name: &str) -> Result<keyring::Entry, String> {
-    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/' | '.')) {
         return Err(format!("invalid secret name {name:?}"));
     }
     keyring::Entry::new(SERVICE, name).map_err(|e| e.to_string())

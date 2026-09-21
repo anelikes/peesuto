@@ -1,19 +1,26 @@
-/** The result window: the card from "Paste as card", with aspect, retry, paste, copy, save, reveal. */
+/** The result window: what an action produced — text (paste, copy, the model) or a card (aspect, another take, paste, copy, save, reveal). */
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { $, ASPECTS, humanError, isPasteFailure, type Aspect, type ResultState } from "./shared";
 
+const title = $("title");
 const status = $("status");
 const card = $<HTMLImageElement>("card");
+const textOut = $("text-out");
 const spinner = $("spinner");
 const errorBox = $("error");
 const errorTitle = $("error-title");
 const errorDetail = $("error-detail");
 const errorSettings = $<HTMLButtonElement>("error-settings");
+const cardRow = $("card-row");
+const textRow = $("text-row");
+const model = $("model");
 const aspectGroup = $("aspect");
 const another = $<HTMLButtonElement>("another");
+const again = $<HTMLButtonElement>("again");
 const pasteBtn = $<HTMLButtonElement>("paste");
 const copyBtn = $<HTMLButtonElement>("copy");
 const saveBtn = $<HTMLButtonElement>("save");
@@ -38,23 +45,34 @@ function setAspect(aspect: Aspect): void {
 function apply(st: ResultState | null): void {
   current = st;
   const working = st?.state === "working";
-  const ready = st?.state === "ready";
+  const isCard = st?.state === "card";
+  const isText = st?.state === "text";
+  const rendersCard = !!st && (st.action.output === "image" || st.action.output === "gif");
   spinner.hidden = !working;
-  card.hidden = !ready;
+  card.hidden = !isCard;
+  textOut.hidden = !isText;
   errorBox.hidden = st?.state !== "error";
-  for (const b of aspectGroup.querySelectorAll("button")) b.disabled = working || !st || !st.text;
-  another.disabled = working || !st || !st.text;
-  pasteBtn.disabled = !ready;
-  copyBtn.disabled = !ready;
-  saveBtn.disabled = !ready;
-  revealBtn.disabled = !ready;
+  cardRow.hidden = !rendersCard;
+  textRow.hidden = rendersCard || !st;
+  for (const b of aspectGroup.querySelectorAll("button")) b.disabled = working || !st || !st.input;
+  another.disabled = working || !st || !st.input;
+  again.disabled = working || !st || !st.input;
+  pasteBtn.disabled = !(isCard || isText);
+  copyBtn.disabled = !(isCard || isText);
+  saveBtn.disabled = !isCard;
+  revealBtn.disabled = !isCard;
+  saveBtn.hidden = !rendersCard;
+  revealBtn.hidden = !rendersCard;
   timing.textContent = "";
+  model.textContent = "";
+  title.textContent = st ? st.action.name : "Result";
   if (!st) { say("", true); return; }
-  setAspect(st.aspect);
 
   if (st.state === "working") {
-    say("Rendering…", true);
-  } else if (st.state === "ready") {
+    setAspect(st.aspect);
+    say(rendersCard ? "Rendering…" : "Working…", true);
+  } else if (st.state === "card") {
+    setAspect(st.aspect);
     const r = st.result;
     card.src = convertFileSrc(r.path);
     say({ image: "Copied as image", file: "GIF copied as file", path: "Path copied", none: "Not copied" }[st.copied], true);
@@ -62,13 +80,18 @@ function apply(st: ResultState | null): void {
     const total = ms.total ?? 0;
     const parts = [
       `${(total / 1000).toFixed(1)} s`,
-      ms.compose !== undefined ? `compose ${ms.compose}` : "",
-      ms.build !== undefined ? `build ${ms.build}` : "",
-      ms.frame !== undefined ? `${r.format} ${ms.frame}` : "",
+      ms.compose !== undefined && ms.compose !== null ? `compose ${ms.compose}` : "",
+      ms.build !== undefined && ms.build !== null ? `build ${ms.build}` : "",
+      ms.frame !== undefined && ms.frame !== null ? `${r.format} ${ms.frame}` : "",
     ].filter(Boolean);
-    const provider = r.decided.provider ? ` · ${r.decided.provider}${r.decided.jevMs ? ` ${r.decided.jevMs} ms` : ""}` : "";
+    const provider = r.decided?.provider ? ` · ${r.decided.provider}${r.decided.jevMs ? ` ${r.decided.jevMs} ms` : ""}` : "";
     timing.textContent = `${parts.join(" · ")} ms${provider} · ${r.size}px · ${r.frames} frame${r.frames === 1 ? "" : "s"}`;
+  } else if (st.state === "text") {
+    textOut.textContent = st.text;
+    model.textContent = [st.model ?? "", `${(st.ms / 1000).toFixed(1)} s`].filter(Boolean).join(" · ");
+    say("Ready", true);
   } else {
+    if (rendersCard) setAspect(st.aspect);
     const h = humanError(st.kind, st.message);
     errorTitle.textContent = h.title;
     errorDetail.textContent = h.detail;
@@ -83,38 +106,50 @@ function hide(): void {
 
 aspectGroup.addEventListener("click", (e) => {
   const aspect = (e.target as HTMLElement).closest<HTMLButtonElement>("button")?.dataset.aspect as Aspect | undefined;
-  if (!aspect || !ASPECTS.includes(aspect) || !current?.text) return;
-  void invoke("card_rerun", { aspect });
+  if (!aspect || !ASPECTS.includes(aspect) || !current?.input) return;
+  void invoke("action_rerun", { aspect });
 });
 
+// Another take bypasses the answer cache: `fresh: true` on the action input.
 another.addEventListener("click", () => {
-  // TODO: `--fresh` (bypass the answer cache) once the CLI has it; today this returns the same take.
-  if (current?.text) void invoke("card_rerun", { aspect: current.aspect });
+  if (current?.input) void invoke("action_rerun", { fresh: true });
+});
+again.addEventListener("click", () => {
+  if (current?.input) void invoke("action_rerun", { fresh: true });
 });
 
 pasteBtn.addEventListener("click", async () => {
-  if (current?.state !== "ready") return;
-  const { path, format } = current.result;
+  if (!current) return;
   try {
-    await invoke("paste_card", { path, format });
+    if (current.state === "card") {
+      const { path, format } = current.result;
+      await invoke("paste_card", { path, format });
+    } else if (current.state === "text") {
+      await invoke("paste_text", { text: current.text });
+    }
   } catch (e) {
     say(isPasteFailure(e) && e.kind === "accessibility" ? "Copied — allow Accessibility to paste automatically" : String(isPasteFailure(e) ? e.message : e), true);
   }
 });
 
 copyBtn.addEventListener("click", async () => {
-  if (current?.state !== "ready") return;
-  const { path, format } = current.result;
+  if (!current) return;
   try {
-    const how = await invoke<string>("copy_card", { path, format });
-    say(how === "image" ? "Copied" : how === "file" ? "Copied as file" : "Path copied");
+    if (current.state === "card") {
+      const { path, format } = current.result;
+      const how = await invoke<string>("copy_card", { path, format });
+      say(how === "image" ? "Copied" : how === "file" ? "Copied as file" : "Path copied");
+    } else if (current.state === "text") {
+      await writeText(current.text);
+      say("Copied");
+    }
   } catch (e) {
     say(`Copy failed: ${e}`, true);
   }
 });
 
 saveBtn.addEventListener("click", async () => {
-  if (current?.state !== "ready") return;
+  if (current?.state !== "card") return;
   const { path, format } = current.result;
   const name = path.split("/").pop() ?? `card.${format}`;
   await invoke("result_hold", { hold: true });
@@ -136,7 +171,7 @@ saveBtn.addEventListener("click", async () => {
 });
 
 revealBtn.addEventListener("click", () => {
-  if (current?.state === "ready") void revealItemInDir(current.result.path);
+  if (current?.state === "card") void revealItemInDir(current.result.path);
 });
 
 errorSettings.addEventListener("click", () => void invoke("open_settings"));

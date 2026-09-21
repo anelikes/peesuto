@@ -1,6 +1,8 @@
 //! Settings live in the store plugin's `settings.json` (shared with the
-//! settings webview, which writes it); the API token lives in the Keychain
-//! (`secrets.rs`). Missing or empty keys fall back to the defaults here.
+//! settings webview, which writes it). Provider configuration is not here:
+//! it is `providers.json` (`providers.rs`), the file Core reads, with the
+//! credentials in the Keychain. Missing or empty keys fall back to the
+//! defaults here.
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
@@ -9,21 +11,31 @@ use tauri_plugin_store::StoreExt;
 pub const STORE: &str = "settings.json";
 pub const DEFAULT_HOTKEY: &str = "CmdOrCtrl+Shift+V";
 pub const DEFAULT_REPO: &str = "/Users/nya/codes/github/pocket-paste";
-/// Keychain item that holds the provider token.
-pub const TOKEN_SECRET: &str = "provider_token";
+pub const DEFAULT_RETENTION_DAYS: u32 = 30;
+
+/// Apps whose copies never enter the history (the user list starts from these).
+pub const DEFAULT_BLACKLIST: &[&str] = &[
+    "com.1password.1password",
+    "com.agilebits.onepassword7",
+    "com.bitwarden.desktop",
+    "com.apple.keychainaccess",
+];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub hotkey: String,
     /// chat | doc | social
     pub aspect: String,
-    /// none | proxy — `cloudflare` and `hosted` are reserved and act as `none` until the CLI grows them.
-    pub provider_kind: String,
-    pub provider_url: String,
     /// dev | bundled
     pub sidecar_mode: String,
     pub dev_repo_path: String,
     pub onboarded: bool,
+    /// Days to keep unpinned items; 0 keeps everything.
+    pub retention_days: u32,
+    /// Bundle ids whose copies are never recorded.
+    pub blacklist: Vec<String>,
+    /// Run the pick when the panel opens from the hotkey.
+    pub smart_paste: bool,
 }
 
 impl Default for Settings {
@@ -31,11 +43,12 @@ impl Default for Settings {
         Settings {
             hotkey: DEFAULT_HOTKEY.into(),
             aspect: "chat".into(),
-            provider_kind: "none".into(),
-            provider_url: String::new(),
             sidecar_mode: "dev".into(),
             dev_repo_path: DEFAULT_REPO.into(),
             onboarded: false,
+            retention_days: DEFAULT_RETENTION_DAYS,
+            blacklist: DEFAULT_BLACKLIST.iter().map(|s| s.to_string()).collect(),
+            smart_paste: true,
         }
     }
 }
@@ -54,11 +67,15 @@ impl Settings {
         Settings {
             hotkey: text("hotkey", &d.hotkey),
             aspect: text("aspect", &d.aspect),
-            provider_kind: text("provider_kind", &d.provider_kind),
-            provider_url: text("provider_url", &d.provider_url),
             sidecar_mode: text("sidecar_mode", &d.sidecar_mode),
             dev_repo_path: text("dev_repo_path", &d.dev_repo_path),
             onboarded: store.get("onboarded").and_then(|v| v.as_bool()).unwrap_or(false),
+            retention_days: store.get("retention_days").and_then(|v| v.as_u64()).map(|v| v as u32).unwrap_or(d.retention_days),
+            blacklist: store
+                .get("blacklist")
+                .and_then(|v| v.as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(String::from)).collect()))
+                .unwrap_or(d.blacklist),
+            smart_paste: store.get("smart_paste").and_then(|v| v.as_bool()).unwrap_or(true),
         }
     }
 }

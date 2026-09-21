@@ -2,20 +2,26 @@
 //!
 //! The shell owns everything that needs the system — tray, global shortcut,
 //! pasteboard polling and writing, paste simulation, windows, Keychain — and
-//! delegates every judgement to the `paste` CLI in `core/`, run as a sidecar
-//! (`sidecar.rs`). Three webviews: `history` (the panel behind the shortcut),
-//! `result` (a card from the "Paste as card" action) and `settings`. They talk
-//! to the shell through the commands registered below and the events
-//! `history:changed` and `result:state`.
+//! delegates every judgement to Core (`core/`), one long-lived process spoken
+//! to over JSON lines (`daemon.rs`; `sidecar.rs` says where it lives). Three
+//! webviews: `history` (the panel behind the shortcut, with the smart pick),
+//! `result` (what an action produced) and `settings`. They talk to the shell
+//! through the commands registered below and the events `history:changed`,
+//! `history:open` and `result:state`.
 
-mod card;
+mod actions;
 mod clipboard;
+mod context;
+mod daemon;
 mod hotkeys;
+mod log;
 mod paste;
 mod pasteboard;
+mod providers;
 mod secrets;
 mod settings;
 mod sidecar;
+mod store;
 mod tray;
 mod windows;
 
@@ -37,51 +43,79 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(hotkeys::plugin())
         .plugin(tauri_plugin_opener::init())
-        .manage(card::CardState::default())
-        .manage(clipboard::History::new())
+        .manage(actions::ResultWindow::default())
         .manage(paste::Focus::default())
+        .manage(daemon::Shared::default())
+        .manage(actions::Registry::default())
+        .manage(context::Current::default())
         .invoke_handler(tauri::generate_handler![
             clipboard::history_list,
+            clipboard::history_get,
+            clipboard::history_recent,
             clipboard::history_delete,
             clipboard::history_pin,
             clipboard::history_clear,
+            clipboard::history_thumbnail,
+            clipboard::history_status,
+            clipboard::history_start_fresh,
             paste::paste_item,
             paste::paste_text,
             paste::paste_file,
             paste::paste_card,
             paste::accessibility_status,
             paste::accessibility_prompt,
-            card::card_now,
-            card::card_from_item,
-            card::card_rerun,
-            card::render_test,
-            card::copy_card,
-            card::save_card,
-            card::result_state,
-            card::result_hold,
-            card::app_info,
+            context::pick_session,
+            context::context_probe,
+            actions::action_run,
+            actions::action_rerun,
+            actions::actions_list,
+            actions::actions_reload,
+            actions::actions_open_folder,
+            actions::actions_new,
+            actions::copy_card,
+            actions::save_card,
+            actions::result_state,
+            actions::result_hold,
+            actions::app_info,
+            actions::settings_apply,
             windows::hide_history_cmd,
             windows::hide_result,
             windows::open_settings,
-            hotkeys::apply_hotkey,
             secrets::secret_get,
             secrets::secret_set,
+            daemon::daemon_status,
+            daemon::daemon_health,
+            daemon::daemon_pick,
+            daemon::daemon_run_action,
+            daemon::daemon_actions,
+            daemon::daemon_apply_config,
+            daemon::daemon_restart,
+            daemon::daemon_render,
+            providers::providers_get,
+            providers::providers_set,
+            providers::privacy_info,
+            providers::egress_log_clear,
+            providers::answer_cache_clear,
         ])
         .setup(|app| {
             // Menu-bar app: no Dock icon, no app switcher entry.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            if let Ok(dir) = app.path().app_data_dir() {
+                log::init(&dir);
+            }
+            app.manage(clipboard::History::pending());
             let s = settings::Settings::load(app.handle());
             tray::build(app.handle(), &s.hotkey)?;
-            if let Err(e) = hotkeys::register(app.handle(), &s.hotkey) {
-                eprintln!("pocket-paste: could not register {}: {e}", s.hotkey);
-            }
+            // The history shortcut now; the action hotkeys once Core lists the actions.
+            actions::apply_triggers(app.handle());
             clipboard::start(app.handle());
+            daemon::start(app.handle());
             if !s.onboarded {
                 windows::show_settings(app.handle());
             }
-            card::autorun_if_requested(app.handle());
+            actions::autorun_if_requested(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -97,7 +131,7 @@ pub fn run() {
                 let _ = window.hide();
             }
             WindowEvent::Focused(false) if window.label() == windows::RESULT => {
-                if !window.state::<card::CardState>().hold.load(Ordering::SeqCst) {
+                if !window.state::<actions::ResultWindow>().hold.load(Ordering::SeqCst) {
                     let _ = window.hide();
                 }
             }
@@ -106,10 +140,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|_app, event| {
+    app.run(|app, event| match event {
         // With every window hidden Tauri would exit; the tray keeps us alive.
-        if let RunEvent::ExitRequested { code: None, api, .. } = event {
-            api.prevent_exit();
-        }
+        RunEvent::ExitRequested { code: None, api, .. } => api.prevent_exit(),
+        RunEvent::Exit => app.state::<daemon::Shared>().stop(),
+        _ => {}
     });
 }

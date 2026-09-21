@@ -180,3 +180,62 @@ section { display: flex; flex-direction: column; gap: 8px; }
 .sticky { position: sticky; bottom: 0; padding: 10px 0; background: var(--bg); }
 .sticky .status { flex: 1; text-align: right; }
 .settings .row.actions button { flex: 0 0 auto; }
+
+/* ---- round 2: pick, thumbnails, text results, settings panes ---- */
+.tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 1px 6px; border-radius: 999px; background: var(--hover); color: var(--muted);
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.hi { background: var(--ok); }
+.dot.mid { background: var(--warn); }
+.dot.lo { background: var(--muted); }
+.spinner.tiny { width: 12px; height: 12px; border-width: 2px; flex: none; }
+.banner.info { background: var(--selected); }
+.spacer { flex: 1; }
+.item .thumb {
+  width: 40px; height: 40px; object-fit: cover; border-radius: 5px; flex: none;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.text-out {
+  margin: 0; padding: 12px 14px; width: 100%; height: 100%; overflow: auto;
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  white-space: pre-wrap; word-break: break-word; text-align: left;
+  user-select: text; -webkit-user-select: text;
+}
+.help.ok { color: var(--ok); }
+.help.err { color: var(--danger); }
+.err { color: var(--danger); }
+.short { width: 80px; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; background: var(--hover); padding: 1px 4px; border-radius: 4px; }
+
+.tabs {
+  display: flex; gap: 2px; padding: 10px 24px 0; position: sticky; top: 0; z-index: 3;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.tabs button {
+  border: none; background: transparent; border-radius: 6px 6px 0 0; padding: 7px 12px; color: var(--muted);
+}
+.tabs button[aria-selected="true"] { color: var(--fg); background: var(--panel); box-shadow: inset 0 -2px 0 var(--accent); }
+.pane { display: flex; flex-direction: column; gap: 22px; }
+.settings main { padding-top: 16px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.table th, .table td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.table th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.table tr:last-child td { border-bottom: none; }
+.table .link { padding: 0; }
+.pill.tiny { font-size: 10px; padding: 1px 6px; margin-left: 6px; }
+.problems { margin: 0; padding-left: 18px; font-size: 12px; }
+.problems:empty { display: none; }
+.plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.plain li { display: flex; align-items: center; gap: 8px; }
+.editable { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.editable li { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; border-radius: 6px; }
+.editable li:hover { background: var(--hover); }
+.editable:empty::after { content: "No apps excluded."; color: var(--muted); padding: 4px 6px; font-size: 12px; }
+.log {
+  margin: 0; padding: 8px 10px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; white-space: pre; user-select: text; -webkit-user-select: text;
+}
+.field-row input[type="text"], .field-row input[type="url"] { flex: 1; }

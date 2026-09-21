@@ -8,99 +8,250 @@
     <script type="module" src="/src/settings.ts" defer></script>
   </head>
   <body class="settings">
+    <nav class="tabs" role="tablist">
+      <button data-pane="general" role="tab" aria-selected="true">General</button>
+      <button data-pane="providers" role="tab">Providers</button>
+      <button data-pane="actions" role="tab">Actions</button>
+      <button data-pane="privacy" role="tab">Privacy</button>
+      <button data-pane="exclusions" role="tab">Exclusions</button>
+    </nav>
     <main>
       <section id="intro" class="intro" hidden>
         <h1>Welcome to Pocket Paste</h1>
-        <p>Everything you copy shows up in a panel behind one shortcut. Pick an item, press ⏎, and it is pasted where you were. Actions such as <em>Paste as card</em> turn the text into something else first.</p>
-        <p>Pocket Paste needs <strong>Accessibility</strong> access to paste for you (it presses ⌘V on your behalf) and, later, to see what you are typing into.</p>
+        <p>Everything you copy shows up in a panel behind one shortcut. Press it in any text field: the item that fits where you are is preselected, ⏎ pastes it. Actions such as <em>Paste as card</em> or <em>Paste summary</em> turn the text into something else first.</p>
+        <p><strong>Accessibility access is required.</strong> Pocket Paste presses ⌘V on your behalf and reads the focused field (its role, label and the text around the caret) to pick the right item. Without it the history still works, but pasting and smart paste do not.</p>
       </section>
 
-      <section>
-        <h2>Accessibility</h2>
-        <div class="field-row">
-          <span id="ax-status" class="pill">Checking…</span>
-          <button id="ax-recheck">Re-check</button>
-          <button id="ax-allow">Allow…</button>
-          <button id="ax-open" class="ghost">Open System Settings</button>
-        </div>
-        <p class="help">System Settings → Privacy &amp; Security → Accessibility → turn on Pocket Paste. Required for pasting; the shortcut works without it.</p>
-      </section>
+      <!-- ===== General ===== -->
+      <div id="pane-general" class="pane">
+        <section>
+          <h2>Accessibility</h2>
+          <div class="field-row">
+            <span id="ax-status" class="pill">Checking…</span>
+            <button id="ax-recheck">Re-check</button>
+            <button id="ax-allow">Allow…</button>
+            <button id="ax-open" class="ghost">Open System Settings</button>
+          </div>
+          <p class="help">System Settings → Privacy &amp; Security → Accessibility → turn on Pocket Paste. Required for pasting and for smart paste; the panel opens without it.</p>
+          <div class="field-row">
+            <button id="ax-probe" class="ghost">What can be seen right now?</button>
+            <span id="ax-probe-out" class="help mono"></span>
+          </div>
+        </section>
 
-      <section>
-        <h2>Shortcut</h2>
-        <label class="field">
-          <span>Open history</span>
-          <input id="hotkey" type="text" readonly placeholder="Press keys…" />
-        </label>
-        <p class="help">Click the field and press a combination with ⌘, ⌃ or ⌥.</p>
-      </section>
-
-      <section>
-        <h2>Decisions</h2>
-        <label class="field">
-          <span>Provider</span>
-          <select id="provider-kind">
-            <option value="none">None — plain cards, nothing leaves this Mac</option>
-            <option value="proxy">Proxy — a Jev proxy worker (URL + token)</option>
-            <option value="cloudflare" disabled>Cloudflare Workers AI (soon)</option>
-            <option value="hosted" disabled>Hosted (soon)</option>
-          </select>
-        </label>
-        <div id="provider-proxy" hidden>
+        <section>
+          <h2>Shortcut</h2>
           <label class="field">
-            <span>Proxy URL</span>
-            <input id="provider-url" type="url" placeholder="http://localhost:8787/" spellcheck="false" />
+            <span>Smart paste</span>
+            <input id="hotkey" type="text" readonly placeholder="Press keys…" />
           </label>
+          <p class="help">Click the field and press a combination with ⌘, ⌃ or ⌥. Opens the history with the pick.</p>
+          <label class="check">
+            <input id="smart-paste" type="checkbox" />
+            <span>Pick the best item when the panel opens (reads the focused field)</span>
+          </label>
+        </section>
+
+        <section>
+          <h2>Cards</h2>
           <label class="field">
-            <span>Token</span>
-            <input id="provider-token" type="password" placeholder="Stored in the Keychain" autocomplete="off" />
+            <span>Default aspect</span>
+            <select id="aspect">
+              <option value="chat">Chat</option>
+              <option value="doc">Doc</option>
+              <option value="social">Social</option>
+            </select>
           </label>
-        </div>
-      </section>
+        </section>
 
-      <section>
-        <h2>Cards</h2>
-        <label class="field">
-          <span>Default aspect</span>
-          <select id="aspect">
-            <option value="chat">Chat</option>
-            <option value="doc">Doc</option>
-            <option value="social">Social</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Renderer</span>
-          <select id="sidecar-mode">
-            <option value="dev">Dev — bun on a pocket-paste checkout</option>
-            <option value="bundled">Bundled — the sidecar shipped with the app</option>
-          </select>
-        </label>
-        <label class="field" id="repo-field">
-          <span>Checkout</span>
-          <input id="dev-repo" type="text" spellcheck="false" />
-        </label>
-        <p id="sidecar-info" class="help mono"></p>
-      </section>
+        <section>
+          <h2>Core</h2>
+          <label class="field">
+            <span>Sidecar</span>
+            <select id="sidecar-mode">
+              <option value="dev">Dev — bun on a pocket-paste checkout</option>
+              <option value="bundled">Bundled — the Core shipped with the app</option>
+            </select>
+          </label>
+          <label class="field" id="repo-field">
+            <span>Checkout</span>
+            <input id="dev-repo" type="text" spellcheck="false" />
+          </label>
+          <div class="field-row">
+            <span id="daemon-status" class="pill">…</span>
+            <button id="daemon-restart" class="ghost">Restart Core</button>
+            <button id="daemon-refresh" class="ghost">Refresh</button>
+          </div>
+          <p id="sidecar-info" class="help mono"></p>
+        </section>
 
-      <section>
-        <h2>General</h2>
-        <label class="check">
-          <input id="autostart" type="checkbox" />
-          <span>Launch at login</span>
-        </label>
-      </section>
+        <section>
+          <h2>General</h2>
+          <label class="check">
+            <input id="autostart" type="checkbox" />
+            <span>Launch at login</span>
+          </label>
+          <p id="app-info" class="help mono"></p>
+        </section>
+      </div>
+
+      <!-- ===== Providers ===== -->
+      <div id="pane-providers" class="pane" hidden>
+        <section>
+          <h2>Decider — picks and card decisions (Jev)</h2>
+          <label class="field">
+            <span>Kind</span>
+            <select id="decider-kind">
+              <option value="none">None — heuristic only, nothing leaves this Mac</option>
+              <option value="proxy">Proxy — a self-hosted Jev worker (URL + token)</option>
+              <option value="cloudflare">Cloudflare Workers AI — your account id + token</option>
+              <option value="hosted">Hosted — a Pocket Paste subscription token</option>
+            </select>
+          </label>
+          <div data-decider="proxy" hidden>
+            <label class="field"><span>URL</span><input id="proxy-url" type="url" placeholder="http://localhost:8787/" spellcheck="false" /></label>
+            <label class="field"><span>Token</span><input id="proxy-token" type="password" placeholder="Optional · stored in the Keychain" autocomplete="off" /></label>
+          </div>
+          <div data-decider="cloudflare" hidden>
+            <label class="field"><span>Account id</span><input id="cf-account" type="text" spellcheck="false" /></label>
+            <label class="field"><span>API token</span><input id="cf-token" type="password" placeholder="Stored in the Keychain" autocomplete="off" /></label>
+          </div>
+          <div data-decider="hosted" hidden>
+            <label class="field"><span>Token</span><input id="hosted-token" type="password" placeholder="Subscription token · stored in the Keychain" autocomplete="off" /></label>
+            <label class="field"><span>Base URL</span><input id="hosted-url" type="url" placeholder="https://jev.pocketpaste.dev (default)" spellcheck="false" /></label>
+          </div>
+          <div class="field-row">
+            <button id="test-decider">Test decider</button>
+            <span id="test-decider-out" class="help"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Generator — translations, summaries, your prompts</h2>
+          <label class="field">
+            <span>Kind</span>
+            <select id="generator-kind">
+              <option value="none">None — generator actions are disabled</option>
+              <option value="openai-compatible">OpenAI-compatible — Ollama, vLLM, LM Studio, any cloud</option>
+              <option value="anthropic">Anthropic — your API key</option>
+              <option value="hosted">Hosted — a Pocket Paste subscription token</option>
+            </select>
+          </label>
+          <div data-generator="openai-compatible" hidden>
+            <label class="field"><span>Base URL</span><input id="oai-url" type="url" placeholder="http://localhost:11434/v1" spellcheck="false" /></label>
+            <label class="field"><span>Model</span><input id="oai-model" type="text" placeholder="llama3.1" spellcheck="false" /></label>
+            <label class="field"><span>API key</span><input id="oai-key" type="password" placeholder="Optional · stored in the Keychain" autocomplete="off" /></label>
+          </div>
+          <div data-generator="anthropic" hidden>
+            <label class="field"><span>API key</span><input id="anthropic-key" type="password" placeholder="Stored in the Keychain" autocomplete="off" /></label>
+            <label class="field"><span>Model</span><input id="anthropic-model" type="text" placeholder="Optional" spellcheck="false" /></label>
+          </div>
+          <div data-generator="hosted" hidden>
+            <label class="field"><span>Token</span><input id="gen-hosted-token" type="password" placeholder="Subscription token · shared with the decider" autocomplete="off" /></label>
+            <label class="field"><span>Base URL</span><input id="gen-hosted-url" type="url" placeholder="https://jev.pocketpaste.dev (default)" spellcheck="false" /></label>
+          </div>
+          <div class="field-row">
+            <button id="test-generator">Test generator</button>
+            <span id="test-generator-out" class="help"></span>
+          </div>
+        </section>
+
+        <section>
+          <h2>Offline</h2>
+          <label class="check">
+            <input id="offline" type="checkbox" />
+            <span>Offline mode — no request leaves this Mac, local endpoints included</span>
+          </label>
+          <p class="help">Credentials are kept in the macOS Keychain; <code>providers.json</code> only names them.</p>
+        </section>
+      </div>
+
+      <!-- ===== Actions ===== -->
+      <div id="pane-actions" class="pane" hidden>
+        <section>
+          <h2>Actions</h2>
+          <div class="field-row">
+            <button id="actions-folder">Open actions folder</button>
+            <button id="actions-new">New action…</button>
+            <button id="actions-reload" class="ghost">Reload</button>
+            <span id="actions-status" class="help"></span>
+          </div>
+          <div class="table-wrap">
+            <table id="actions-table" class="table">
+              <thead><tr><th>Name</th><th>Needs</th><th>Output</th><th>Hotkey</th><th>Source</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <ul id="actions-problems" class="problems"></ul>
+          <p class="help">A file in the actions folder is one action; the format is in <code>docs/actions.md</code>. Built-ins can be overridden by id. <em>Smart paste</em> uses the shortcut from General.</p>
+        </section>
+      </div>
+
+      <!-- ===== Privacy ===== -->
+      <div id="pane-privacy" class="pane" hidden>
+        <section>
+          <h2>Where each kind of data goes</h2>
+          <div class="table-wrap">
+            <table id="privacy-table" class="table">
+              <thead><tr><th>Data</th><th>Stored</th><th>Leaves the machine</th><th>Switch</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+        <section>
+          <h2>Current destinations</h2>
+          <ul id="destinations" class="plain"></ul>
+          <label class="check">
+            <input id="offline-privacy" type="checkbox" />
+            <span>Offline mode (same switch as in Providers)</span>
+          </label>
+        </section>
+        <section>
+          <h2>Egress log</h2>
+          <p class="help">One line per request Core made: when, host, purpose, bytes, status. Never a body. <span id="egress-path" class="mono"></span></p>
+          <pre id="egress-log" class="log"></pre>
+          <div class="field-row">
+            <button id="egress-refresh" class="ghost">Refresh</button>
+            <button id="egress-clear" class="danger">Clear log</button>
+            <button id="cache-clear" class="danger">Clear answer cache</button>
+            <span id="privacy-status" class="help"></span>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== Exclusions ===== -->
+      <div id="pane-exclusions" class="pane" hidden>
+        <section>
+          <h2>Never record from these apps</h2>
+          <ul id="blacklist" class="editable"></ul>
+          <div class="field-row">
+            <input id="blacklist-add" type="text" placeholder="com.example.app (bundle id)" spellcheck="false" />
+            <button id="blacklist-add-btn">Add</button>
+            <button id="blacklist-reset" class="ghost">Reset to defaults</button>
+          </div>
+        </section>
+        <section>
+          <h2>Always excluded</h2>
+          <ul class="plain">
+            <li><span class="pill ok">on</span> Pasteboard items marked <code>org.nspasteboard.ConcealedType</code> (password managers, Safari autofill)</li>
+            <li><span class="pill ok">on</span> Pasteboard items marked <code>org.nspasteboard.TransientType</code></li>
+            <li><span class="pill ok">on</span> Secure text fields: no context is read and smart paste stays off there</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Retention</h2>
+          <label class="field">
+            <span>Keep for</span>
+            <span class="field-row"><input id="retention" type="number" min="0" max="3650" step="1" class="short" /> days (0 keeps everything; pinned items always stay)</span>
+          </label>
+          <p id="history-status" class="help"></p>
+        </section>
+      </div>
 
       <div class="row actions sticky">
         <button id="save" class="primary">Save</button>
-        <button id="test">Save &amp; Test</button>
         <span id="status" class="status"></span>
       </div>
-
-      <section id="test-result" hidden>
-        <h2>Test</h2>
-        <div class="stage small"><img id="test-card" alt="" hidden /></div>
-        <p id="test-text" class="help mono"></p>
-      </section>
     </main>
   </body>
 </html>

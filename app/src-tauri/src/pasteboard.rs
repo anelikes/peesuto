@@ -13,6 +13,8 @@ pub struct Snapshot {
     /// Raw UTIs present, e.g. `public.utf8-plain-text`, `public.rtf`, `public.file-url`.
     pub types: Vec<String>,
     pub file_paths: Vec<String>,
+    /// PNG or TIFF bytes, read only when the pasteboard carries no text.
+    pub image: Option<Vec<u8>>,
     /// `org.nspasteboard.ConcealedType`: password managers mark secrets with it.
     pub concealed: bool,
     /// `org.nspasteboard.TransientType`: not meant for history.
@@ -41,8 +43,8 @@ mod macos {
     use objc2::rc::{autoreleasepool, Retained};
     use objc2::runtime::ProtocolObject;
     use objc2_app_kit::{
-        NSApplicationActivationOptions, NSPasteboard, NSPasteboardItem, NSPasteboardTypeFileURL, NSPasteboardTypeString,
-        NSPasteboardWriting, NSRunningApplication, NSWorkspace,
+        NSApplicationActivationOptions, NSPasteboard, NSPasteboardItem, NSPasteboardTypeFileURL, NSPasteboardTypePNG,
+        NSPasteboardTypeString, NSPasteboardTypeTIFF, NSPasteboardWriting, NSRunningApplication, NSWorkspace,
     };
     use objc2_foundation::{NSArray, NSData, NSString, NSURL};
 
@@ -71,6 +73,18 @@ mod macos {
                     }
                 }
             }
+            let no_text = s.text.as_deref().map(str::trim).map(str::is_empty).unwrap_or(true);
+            if no_text && s.file_paths.is_empty() && !s.concealed && !s.transient {
+                // SAFETY: AppKit string constants; the data is copied out before the pool drains.
+                let data = if s.types.iter().any(|t| t == "public.png") {
+                    unsafe { pb.dataForType(NSPasteboardTypePNG) }
+                } else if s.types.iter().any(|t| t == "public.tiff") {
+                    unsafe { pb.dataForType(NSPasteboardTypeTIFF) }
+                } else {
+                    None
+                };
+                s.image = data.map(|d| d.to_vec());
+            }
             s
         })
     }
@@ -80,6 +94,14 @@ mod macos {
             let pb = NSPasteboard::generalPasteboard();
             pb.clearContents();
             unsafe { pb.setString_forType(&NSString::from_str(text), NSPasteboardTypeString) }
+        })
+    }
+
+    pub fn write_png(bytes: &[u8]) -> bool {
+        autoreleasepool(|_| {
+            let pb = NSPasteboard::generalPasteboard();
+            pb.clearContents();
+            unsafe { pb.setData_forType(Some(&NSData::with_bytes(bytes)), NSPasteboardTypePNG) }
         })
     }
 
@@ -115,6 +137,17 @@ mod macos {
         })
     }
 
+    pub fn app_for_pid(pid: i32) -> Option<FrontApp> {
+        autoreleasepool(|_| {
+            let app = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)?;
+            Some(FrontApp {
+                pid,
+                bundle_id: app.bundleIdentifier().map(|s| s.to_string()),
+                name: app.localizedName().map(|s| s.to_string()),
+            })
+        })
+    }
+
     // The flag is a no-op since macOS 14 (cooperative activation), harmless before.
     #[allow(deprecated)]
     pub fn activate_pid(pid: i32) -> bool {
@@ -131,7 +164,9 @@ mod stub {
     pub fn change_count() -> i64 { 0 }
     pub fn snapshot() -> Snapshot { Snapshot::default() }
     pub fn write_text(_text: &str) -> bool { false }
+    pub fn write_png(_bytes: &[u8]) -> bool { false }
     pub fn write_file(_path: &Path, _extra_uti: Option<&str>) -> bool { false }
     pub fn frontmost_app() -> Option<FrontApp> { None }
+    pub fn app_for_pid(_pid: i32) -> Option<FrontApp> { None }
     pub fn activate_pid(_pid: i32) -> bool { false }
 }
