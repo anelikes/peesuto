@@ -1,0 +1,7 @@
+Error: ENOENT: no such file or directory, open '/srv/paste/config/actions.json'
+    at Object.openSync (node:fs:601:3)
+    at readFileSync (node:fs:469:35)
+    at loadActions (/srv/paste/core/src/actions/load.ts:18:22)
+    at async runAction (/srv/paste/core/src/actions/run.ts:41:19)
+    at async handle (/srv/paste/core/src/daemon/server.ts:77:12)
+    at async Server.fetch (/srv/paste/core/src/daemon.ts:23:5)

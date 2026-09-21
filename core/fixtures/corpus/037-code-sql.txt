@@ -1,0 +1,8 @@
+SELECT u.id, u.email, COUNT(p.id) AS pastes
+FROM users u
+JOIN pastes p ON p.user_id = u.id
+WHERE p.created_at >= NOW() - INTERVAL '30 days'
+  AND p.kind = 'card'
+GROUP BY u.id, u.email
+HAVING COUNT(p.id) > 5
+ORDER BY pastes DESC;

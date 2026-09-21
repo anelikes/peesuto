@@ -1,0 +1,7 @@
+{
+  "id": "paste-card",
+  "name": "粘贴为卡片",
+  "trigger": { "hotkey": "Cmd+Shift+V" },
+  "needs": "render",
+  "output": "image"
+}

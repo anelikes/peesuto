@@ -1,0 +1,1 @@
+find . -name "*.log" -mtime +7 -print0 | xargs -0 grep -l "ERROR" | xargs -I{} gzip -9 {}

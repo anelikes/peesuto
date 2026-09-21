@@ -1,0 +1,5 @@
+- [x] migrate the store to SQLite
+- [x] encrypt the text column
+- [ ] warm the measurement cache on deploy
+- [ ] write the privacy page
+- [ ] record the thirty picker scenarios

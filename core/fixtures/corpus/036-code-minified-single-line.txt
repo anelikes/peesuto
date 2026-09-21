@@ -1,0 +1,1 @@
+!function(e,t){"use strict";var n=e.document,r=[],o=n.querySelectorAll(".card");for(var i=0;i<o.length;i++){var a=o[i],c=a.getAttribute("data-id");c&&r.push({id:c,el:a})}e.__cards=r;e.addEventListener("resize",function(){for(var e=0;e<r.length;e++)r[e].el.style.width=Math.min(t.innerWidth-32,640)+"px"})}(window,window);

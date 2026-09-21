@@ -1,0 +1,2 @@
+Sep 21 14:03:12 node-3 kernel: [812345.678901] eth0: link up, 10000 Mbps, full duplex
+Sep 21 14:03:14 node-3 render[2231]: job 8f1c2a failed after 3 attempts: upstream https://cdn.example.com/upload returned 503 Service Unavailable (retry-after 30) while sending 4821 bytes of card.png; queue depth 4012, workers 12/12 busy, oldest job age 118s, lock holder pid 2240 in measure bake for charset miss (3 codepoints outside gb2312-l1)

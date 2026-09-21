@@ -1,0 +1,13 @@
+from dataclasses import dataclass, field
+from datetime import datetime
+
+
+@dataclass
+class ClipItem:
+    text: str
+    copied_at: datetime = field(default_factory=datetime.now)
+    pinned: bool = False
+
+    def preview(self, width: int = 40) -> str:
+        head = self.text.strip().splitlines()[0] if self.text.strip() else ""
+        return head if len(head) <= width else head[: width - 1] + "…"

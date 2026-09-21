@@ -1,0 +1,1 @@
+Spent the weekend making our card renderer deterministic: same text, same machine, same bytes, every time. The trick was measuring text at build time against the engine's own glyph tables instead of letting the renderer guess. Write-up soon. #buildinpublic @pocketpaste

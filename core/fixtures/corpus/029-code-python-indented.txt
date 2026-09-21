@@ -1,0 +1,7 @@
+for batch in batches:
+    if not batch:
+        continue
+    rows = [normalize(r) for r in batch if r.get("text")]
+    for row in rows:
+        if row["chars"] > 2000:
+            skipped.append(row["id"])

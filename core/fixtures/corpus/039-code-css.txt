@@ -1,0 +1,10 @@
+.card {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--bg);
+}
+@media (max-width: 640px) {
+  .card { padding: 16px; gap: 8px; }
+}

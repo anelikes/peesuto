@@ -1,0 +1,1 @@
+把 `useEffect` 换成 `useLayoutEffect` 试试，首帧闪一下的问题应该就没了。

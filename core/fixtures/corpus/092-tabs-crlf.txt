@@ -1,0 +1,4 @@
+名称	count	备注
+history	12	历史面板
+picker	7	smart pick
+actions	5	内置动作

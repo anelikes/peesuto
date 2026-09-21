@@ -1,0 +1,1 @@
+A clipboard manager is the kind of tool nobody thinks they need until they have used one for a week. The clipboard is the most used and least respected feature of any operating system: it remembers exactly one thing, and it forgets that thing the moment you copy the next one. Keeping a history is a small change with an outsized effect.

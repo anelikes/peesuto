@@ -1,0 +1,1 @@
+接口文档在这里 https://docs.example.com/api/v2/clipboard#history-endpoints ，字段说明看第三节，有问题直接在文档里评论。

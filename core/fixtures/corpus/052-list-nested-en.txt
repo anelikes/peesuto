@@ -1,0 +1,7 @@
+- Storage
+  - SQLite with field-level encryption
+  - Thumbnails kept beside the database
+- Picker
+  - Recent first when there is no model
+  - Model answer reorders the list
+- Actions

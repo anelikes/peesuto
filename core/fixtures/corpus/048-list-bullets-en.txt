@@ -1,0 +1,5 @@
+- Warm the measurement cache at deploy time
+- Emit a metric on every charset miss
+- Route slow jobs to their own pool
+- Watch queue wait time, not CPU
+- Write the apology to the campaign team

@@ -1,0 +1,3 @@
+203.0.113.42 - - [21/Sep/2026:14:03:12 +0800] "GET /api/history?limit=20 HTTP/1.1" 200 4821 "https://app.example.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+203.0.113.42 - - [21/Sep/2026:14:03:13 +0800] "POST /api/render HTTP/1.1" 202 118 "https://app.example.com/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+198.51.100.7 - - [21/Sep/2026:14:03:15 +0800] "GET /api/render/8f1c2a HTTP/1.1" 404 61 "-" "curl/8.6.0"

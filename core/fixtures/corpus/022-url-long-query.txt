@@ -1,0 +1,1 @@
+https://analytics.example.com/dashboards/42/explore?range=last_30_days&granularity=day&segment=returning_users&metric=session_duration_p50&compare=previous_period&utm_source=newsletter&utm_medium=email&utm_campaign=q3_launch&utm_content=cta_top&token=eyJhbGciOiJIUzI1NiJ9.eyJ1aWQiOjQyLCJleHAiOjE3OTAwMDAwMDB9.k3n8sQx2vT9pL0mRwZ

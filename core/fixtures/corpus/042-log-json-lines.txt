@@ -1,0 +1,4 @@
+{"ts":"2026-09-21T06:03:12.481Z","level":"info","msg":"render queued","job":{"id":"8f1c2a","kind":"card"}}
+{"ts":"2026-09-21T06:03:12.902Z","level":"info","msg":"measure cache hit","job":{"id":"8f1c2a","charset":"gb2312-l1"}}
+{"ts":"2026-09-21T06:03:14.117Z","level":"warn","msg":"frame slow","job":{"id":"8f1c2a","ms":1210}}
+{"ts":"2026-09-21T06:03:14.120Z","level":"error","msg":"upload failed","job":{"id":"8f1c2a","status":503}}

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/srv/etl/run.py", line 88, in <module>
+    main()
+  File "/srv/etl/run.py", line 61, in main
+    rows = parse(path)
+  File "/srv/etl/parse.py", line 27, in parse
+    return int(cells[2])
+ValueError: invalid literal for int() with base 10: '1,204'

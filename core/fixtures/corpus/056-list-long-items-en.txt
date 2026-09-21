@@ -1,0 +1,3 @@
+- The panel has to open within a hundred milliseconds no matter what the model is doing, and a late answer only reorders the list instead of delaying it
+- Everything that leaves the machine is the result of an explicit choice by the user and is written to a local log that records the destination and the byte count but never the content
+- Content copied from password managers, concealed pasteboard types and any app on the user's block list never enters the history, and there is no switch for that

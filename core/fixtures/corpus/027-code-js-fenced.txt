@@ -1,0 +1,8 @@
+```js
+const res = await fetch("/api/history?limit=20");
+if (!res.ok) throw new Error("history: " + res.status);
+const { items } = await res.json();
+for (const item of items) {
+  render(item);
+}
+```

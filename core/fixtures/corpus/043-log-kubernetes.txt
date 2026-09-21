@@ -1,0 +1,5 @@
+Normal   Scheduled  2m14s  default-scheduler  Successfully assigned paste/render-7d9f6c8b5-x2k4q to node-3
+Normal   Pulling    2m13s  kubelet            Pulling image "ghcr.io/example/render:1.4.2"
+Normal   Pulled     2m01s  kubelet            Successfully pulled image in 11.8s
+Normal   Started    2m00s  kubelet            Started container render
+Warning  BackOff    41s    kubelet            Back-off restarting failed container render in pod render-7d9f6c8b5-x2k4q

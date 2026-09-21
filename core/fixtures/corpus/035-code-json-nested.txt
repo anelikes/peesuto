@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "actions": [
+    {
+      "id": "translate-en",
+      "name": "粘贴译文",
+      "trigger": { "hotkey": "Cmd+Alt+V" },
+      "needs": "generator",
+      "prompt": "Translate to English. Output only the translation.\n\n{{input}}",
+      "output": "text"
+    },
+    {
+      "id": "summary",
+      "name": "粘贴摘要",
+      "trigger": { "hotkey": "Cmd+Alt+S" },
+      "needs": "generator",
+      "limits": { "maxChars": 2000, "timeoutMs": 8000 },
+      "output": "text"
+    }
+  ],
+  "exclude": ["com.1password.1password", "com.bitwarden.desktop"]
+}

@@ -1,0 +1,5 @@
+1. Pull the latest main and run the migrations
+2. Rotate the staging API token before the demo
+3. Check the render queue depth on the dashboard
+4. Update the changelog with the three fixes from Friday
+5. Tag v0.4.2 and push the tag

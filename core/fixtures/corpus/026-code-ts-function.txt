@@ -1,0 +1,8 @@
+async function loadPage<T>(url: string, parse: (raw: unknown) => T): Promise<T[]> {
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    throw new Error(`loadPage: ${url} answered ${res.status}`);
+  }
+  const body = (await res.json()) as { items: unknown[] };
+  return body.items.map(parse);
+}

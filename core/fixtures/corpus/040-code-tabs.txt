@@ -1,0 +1,8 @@
+func (s *Store) Recent(n int) []Clip {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if n > len(s.items) {
+		n = len(s.items)
+	}
+	return s.items[len(s.items)-n:]
+}

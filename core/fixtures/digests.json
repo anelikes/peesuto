@@ -1,5 +1,5 @@
 {
-  "_note": "sha256 of frame PNGs rendered from core/fixtures/<name>.json at the engine pinned in engine.json; keys are frame indices",
+  "_note": "sha256 of frame PNGs rendered from core/fixtures/<name>.json at the engine pinned in engine.json; keys are frame indices. plain re-recorded 2026-09-22: emphasis now indexes Jev's word list (segmentWords), fixture points at \u58f0\u660e.",
   "frames": {
     "code": {
       "0": "234524438df843d45f2d6b1a80a8fb8050f2908ed48d5dd257d1c0ed46928002"
@@ -9,7 +9,7 @@
       "0": "47a89da7d9e40965c065d508e2222081d0b4ca5a17f22acae9b29c501e002103"
     },
     "plain": {
-      "0": "27b7b2cff4bb2e38a3750b4a25beee57b6d2ddea17cf480e1070cac5fc4bb8ad"
+      "0": "ee897f897970f218cf94f5eead9cb34594f8ae9c29f89eb610f306109937a740"
     },
     "quote": {
       "41": "8d4d5befd12b7cd2f165c9ee92aa792a0c79526c01401fb64cb3855822dcf8fd",

@@ -1,0 +1,1 @@
+docker run -d --name paste-proxy --restart unless-stopped -p 8787:8787 -e NODE_ENV=production -e PASTE_TOKEN=abc123def456 -e UPSTREAM_URL=https://api.example.com/v1 -v /srv/paste/config:/app/config:ro -v /srv/paste/logs:/app/logs --memory 512m --cpus 0.5 --log-opt max-size=10m --log-opt max-file=3 ghcr.io/example/paste-proxy:1.4.2

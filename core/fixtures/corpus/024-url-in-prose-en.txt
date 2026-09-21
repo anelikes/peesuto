@@ -1,0 +1,1 @@
+The full write-up of the incident, including the timeline and the follow-ups we agreed on, is at https://wiki.example.com/postmortems/2026-09-18-queue-backlog

@@ -1,0 +1,13 @@
+struct Clip {
+    text: String,
+    pinned: bool,
+}
+
+impl Clip {
+    fn label(&self) -> &str {
+        match self.text.lines().next() {
+            Some(first) if !first.is_empty() => first,
+            _ => "(empty)",
+        }
+    }
+}
