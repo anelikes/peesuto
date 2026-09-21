@@ -1,6 +1,32 @@
+# jev-proxy: one worker, two modes. See README.md.
 name = "jev-proxy"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
 [ai]
+binding = "AI"
+
+# Default (top-level) environment: `wrangler dev --port 8787`.
+# Unauthenticated, localhost only; the AI binding is served remotely with
+# wrangler's own login.
+[vars]
+MODE = "dev"
+GEN_MODEL = "@cf/meta/llama-3.1-8b-instruct"   # text model behind POST /v1/generate
+
+# The subscription: `wrangler deploy --env hosted`.
+# One-time setup, run by the account owner (nothing here is created automatically):
+#   bunx wrangler kv namespace create SUBS --env hosted     # then paste the id below
+#   bunx wrangler secret put ADMIN_SECRET --env hosted
+#   bunx wrangler secret put BILLING_WEBHOOK_SECRET --env hosted
+# Local rehearsal: `wrangler dev --env hosted` uses a simulated KV under
+# .wrangler/ (the placeholder id is fine there) and reads secrets from
+# proxy/.dev.vars (ADMIN_SECRET=..., BILLING_WEBHOOK_SECRET=...).
+[env.hosted]
+vars = { MODE = "hosted", GEN_MODEL = "@cf/meta/llama-3.1-8b-instruct" }
+
+[[env.hosted.kv_namespaces]]
+binding = "SUBS"
+id = "REPLACE_ME"
+
+[env.hosted.ai]
 binding = "AI"
