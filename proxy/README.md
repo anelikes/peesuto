@@ -17,10 +17,13 @@ for free-form generation. One worker, two modes, chosen by the `MODE` var.
 |---|---|---|
 | `POST /v1/ask` (dev also `POST /`) | both | Validate, forward to Jev. Hosted: needs a bearer token; 401 unknown/inactive, 402 quota `{error:"quota", used, quota, resetsAt}`, 429 over 60 calls/min. Success adds `x-quota-used` / `x-quota-limit` headers. |
 | `POST /v1/generate` | both | Text generation through the model in the `GEN_MODEL` var (default `@cf/meta/llama-3.1-8b-instruct`). Same auth, quota and rate limit as `/v1/ask`. Body `{prompt, system?, maxTokens?, temperature?}` → `{text, model, ms, usage?: {in, out}}`. |
+| `GET /v1/me` | hosted | Bearer token. `{plan, quota, used, resetsAt, label?, active: true}` for the caller — what the Settings pane shows. Rate-limited, not billed. |
+| `GET /v1/packs` | hosted | Bearer token. `{packs: [...]}` — the pack index filtered to what the caller's plan may install. Rate-limited, not billed. |
 | `GET /healthz` | both | `{mode}` |
 | `POST /admin/tokens` | hosted | Bearer `ADMIN_SECRET`. Body `{token?, plan, quota, resetDay?, label?}`. Mints a random 32-byte base64url token (or upserts the given one). Returns `{token, hash, plan, quota}` — the only response that ever contains the plaintext token. |
 | `GET /admin/tokens/<hash>` | hosted | The record plus `{used, period, resetsAt}` for the current period. |
 | `DELETE /admin/tokens/<hash>` | hosted | Deactivates (the record is kept). |
+| `PUT /admin/packs` | hosted | Bearer `ADMIN_SECRET`. Body = the whole pack index `{packs: [...]}`; replaces it. `GET /admin/packs` reads it back unfiltered. |
 | `POST /webhooks/billing` | hosted | `X-Signature: <hex HMAC-SHA256 of the raw body, key BILLING_WEBHOOK_SECRET>`. Body `{event: "subscription.activated" \| "subscription.cancelled", token_hash, plan, quota, resetDay?, label?}`. Provider-agnostic; Paddle/LemonSqueezy adapters map onto it later. |
 
 Anything else is 404; a known route with the wrong method is 405. No CORS:
@@ -47,10 +50,31 @@ and `temperature` (0–1; the model's default when omitted). Upstream it is
 the model's `response` string comes back as `text`, and its `usage`
 (`prompt_tokens`/`completion_tokens`) as `usage: {in, out}` when present.
 
+### Packs
+
+`GET /v1/packs` returns entries of the form
+
+```
+{id, name, version, kind: "actions" | "styles", minApp, bytes, sha256, url, requiresPlan?}
+```
+
+The app downloads the zip at `url` (wherever it is hosted — R2 later; the
+proxy never serves pack bytes), checks it against `sha256`, and unpacks it
+into `App Support/packs/<id>/`. `requiresPlan` lists the plans that may
+install the pack (`["pro", "team"]`); absent means every plan. Plans are
+plain strings, compared exactly against the caller's record.
+
+`PUT /admin/packs` validates every entry: `id` is 1–64 of `[a-z0-9-]` and
+unique, `kind` is `actions` or `styles`, `bytes` a non-negative integer,
+`sha256` 64 hex characters (stored lowercase), `url` https, `requiresPlan`
+a non-empty array of plan names when present; unknown keys are rejected.
+At most 200 packs.
+
 ### Quota accounting
 
 An ask and a generate call each count as one call against the same
-per-period quota, and both share the 60/min rate limit. Pricing may weight
+per-period quota. Every authenticated `/v1/*` request, including `/v1/me`
+and `/v1/packs`, counts against the 60/min rate limit. Pricing may weight
 them differently later (a generate call is far more expensive upstream);
 the counter would then move from calls to units, but the records and routes
 stay the same.
@@ -61,6 +85,7 @@ stay the same.
 tok:<sha256hex(token)>       {"plan":"solo","quota":1000,"resetDay":1,"active":true,"label":"…","createdAt":…,"updatedAt":…}
 use:<tokenhash>:<YYYY-MM>    "17"        calls in that billing period (UTC); expires after 70 days
 rl:<tokenhash>:<unixMinute>  "3"         calls in that minute; expires after 120 s
+packs:index                  {"packs":[…],"updatedAt":…}   written by PUT /admin/packs
 ```
 
 Tokens are stored only as SHA-256 hashes. A billing period starts on

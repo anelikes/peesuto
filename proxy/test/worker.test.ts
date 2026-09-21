@@ -497,6 +497,150 @@ describe("generate", () => {
   });
 });
 
+// ---------------------------------------------------------------- me + packs
+
+describe("GET /v1/me", () => {
+  test("401 without or with an unknown token; 404 in dev mode", async () => {
+    const w = world("hosted");
+    expect((await w.call("GET", "/v1/me")).status).toBe(401);
+    expect((await w.call("GET", "/v1/me", undefined, w.bearer("nope"))).status).toBe(401);
+    expect((await world("dev").call("GET", "/v1/me")).status).toBe(404);
+    expect((await w.call("POST", "/v1/me", {}, w.bearer("x"))).status).toBe(405);
+  });
+  test("the caller's plan and usage, no hash, not billed", async () => {
+    const w = world("hosted");
+    const { token, hash } = await w.mint({ quota: 1, label: "alice" });
+    const before = await w.call("GET", "/v1/me", undefined, w.bearer(token));
+    expect(before.status).toBe(200);
+    expect(await before.json()).toEqual({ plan: "solo", quota: 1, used: 0, resetsAt: "2026-10-01T00:00:00.000Z", label: "alice", active: true });
+    expect((await w.call("POST", "/v1/ask", askBody(), w.bearer(token))).status).toBe(200);
+    const after = await w.call("GET", "/v1/me", undefined, w.bearer(token));
+    expect(await after.json()).toEqual({ plan: "solo", quota: 1, used: 1, resetsAt: "2026-10-01T00:00:00.000Z", label: "alice", active: true });
+    expect((await w.call("POST", "/v1/ask", askBody(), w.bearer(token))).status).toBe(402);
+    // Still readable once the quota is spent; still used=1.
+    expect((await w.call("GET", "/v1/me", undefined, w.bearer(token))).status).toBe(200);
+    expect(w.kv.store.get(`use:${hash}:2026-09`)).toBe("1");
+    expect(JSON.stringify(await (await w.call("GET", "/v1/me", undefined, w.bearer(token))).json())).not.toContain(hash);
+  });
+  test("label is omitted when the record has none; a cancelled token is 401", async () => {
+    const w = world("hosted");
+    const { token, hash } = await w.mint();
+    expect(await (await w.call("GET", "/v1/me", undefined, w.bearer(token))).json()).toEqual({ plan: "solo", quota: 1000, used: 0, resetsAt: "2026-10-01T00:00:00.000Z", active: true });
+    await w.call("DELETE", `/admin/tokens/${hash}`, undefined, w.bearer(ADMIN));
+    expect((await w.call("GET", "/v1/me", undefined, w.bearer(token))).status).toBe(401);
+  });
+});
+
+describe("packs", () => {
+  const SHA = "ab".repeat(32);
+  const pack = (id: string, extra: Record<string, unknown> = {}) => ({
+    id, name: `Pack ${id}`, version: "1.0.0", kind: "styles", minApp: "0.2.0", bytes: 1234, sha256: SHA, url: `https://packs.example.com/${id}.zip`, ...extra,
+  });
+  const INDEX = { packs: [pack("free"), pack("pro-only", { kind: "actions", requiresPlan: ["pro", "team"] }), pack("team-only", { requiresPlan: ["team"] })] };
+
+  test("GET /v1/packs: 401 without a token, empty index → {packs: []}, 404 in dev", async () => {
+    const w = world("hosted");
+    expect((await w.call("GET", "/v1/packs")).status).toBe(401);
+    const { token } = await w.mint();
+    const res = await w.call("GET", "/v1/packs", undefined, w.bearer(token));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ packs: [] });
+    expect((await world("dev").call("GET", "/v1/packs")).status).toBe(404);
+    expect((await world("dev").call("PUT", "/admin/packs", INDEX, w.bearer(ADMIN))).status).toBe(404);
+  });
+  test("admin PUT stores the index; each plan sees only the packs it may install", async () => {
+    const w = world("hosted");
+    const put = await w.call("PUT", "/admin/packs", INDEX, w.bearer(ADMIN));
+    expect(put.status).toBe(200);
+    expect(await put.json()).toEqual({ ok: true, count: 3 });
+    expect(JSON.parse(w.kv.store.get("packs:index")!)).toEqual({ ...INDEX, updatedAt: "2026-09-22T12:30:15.000Z" });
+
+    const ids = async (plan: string) => {
+      const { token } = await w.mint({ plan });
+      const res = await w.call("GET", "/v1/packs", undefined, w.bearer(token));
+      expect(res.status).toBe(200);
+      return ((await res.json()) as { packs: { id: string }[] }).packs.map((p) => p.id);
+    };
+    expect(await ids("solo")).toEqual(["free"]);
+    expect(await ids("pro")).toEqual(["free", "pro-only"]);
+    expect(await ids("team")).toEqual(["free", "pro-only", "team-only"]);
+
+    // The full entry comes through untouched for an allowed pack.
+    const { token } = await w.mint({ plan: "pro" });
+    const got = ((await (await w.call("GET", "/v1/packs", undefined, w.bearer(token))).json()) as { packs: unknown[] }).packs[1];
+    expect(got).toEqual(pack("pro-only", { kind: "actions", requiresPlan: ["pro", "team"] }));
+
+    // Admin GET is the unfiltered readback; a second PUT replaces, not merges.
+    const all = await w.call("GET", "/admin/packs", undefined, w.bearer(ADMIN));
+    expect(((await all.json()) as { packs: unknown[] }).packs.length).toBe(3);
+    expect((await w.call("PUT", "/admin/packs", { packs: [pack("only")] }, w.bearer(ADMIN))).status).toBe(200);
+    expect(await ids("team")).toEqual(["only"]);
+  });
+  test("sha256 is stored lowercase; PUT needs the admin secret; other methods are 405", async () => {
+    const w = world("hosted");
+    expect((await w.call("PUT", "/admin/packs", { packs: [pack("a", { sha256: SHA.toUpperCase() })] }, w.bearer(ADMIN))).status).toBe(200);
+    expect((JSON.parse(w.kv.store.get("packs:index")!) as { packs: { sha256: string }[] }).packs[0]!.sha256).toBe(SHA);
+    expect((await w.call("PUT", "/admin/packs", INDEX)).status).toBe(401);
+    expect((await w.call("PUT", "/admin/packs", INDEX, w.bearer("wrong"))).status).toBe(401);
+    expect((await w.call("POST", "/admin/packs", INDEX, w.bearer(ADMIN))).status).toBe(405);
+  });
+
+  const bad: [string, unknown, string][] = [
+    ["packs not an array", { packs: {} }, "array"],
+    ["extra top-level key", { packs: [], note: "x" }, "top-level"],
+    ["uppercase id", { packs: [pack("Bad")] }, "id"],
+    ["underscore id", { packs: [pack("bad_id")] }, "id"],
+    ["duplicate id", { packs: [pack("dup"), pack("dup")] }, "duplicates"],
+    ["missing name", { packs: [{ ...pack("a"), name: undefined }] }, "name"],
+    ["bad kind", { packs: [pack("a", { kind: "fonts" })] }, "kind"],
+    ["missing minApp", { packs: [{ ...pack("a"), minApp: 1 }] }, "minApp"],
+    ["negative bytes", { packs: [pack("a", { bytes: -1 })] }, "bytes"],
+    ["fractional bytes", { packs: [pack("a", { bytes: 1.5 })] }, "bytes"],
+    ["sha256 too short", { packs: [pack("a", { sha256: SHA.slice(1) })] }, "sha256"],
+    ["sha256 not hex", { packs: [pack("a", { sha256: "zz".repeat(32) })] }, "sha256"],
+    ["http url", { packs: [pack("a", { url: "http://packs.example.com/a.zip" })] }, "https"],
+    ["not a url", { packs: [pack("a", { url: "packs/a.zip" })] }, "https"],
+    ["requiresPlan not an array", { packs: [pack("a", { requiresPlan: "pro" })] }, "requiresPlan"],
+    ["requiresPlan empty", { packs: [pack("a", { requiresPlan: [] })] }, "requiresPlan"],
+    ["requiresPlan with a non-string", { packs: [pack("a", { requiresPlan: ["pro", 3] })] }, "requiresPlan"],
+    ["unknown pack key", { packs: [pack("a", { size: 1 })] }, "unknown key"],
+    ["not json", "{", "json"],
+  ];
+  for (const [name, body, snippet] of bad) {
+    test(`PUT /admin/packs 400 on ${name}`, async () => {
+      const w = world("hosted");
+      const res = await w.call("PUT", "/admin/packs", body, w.bearer(ADMIN));
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { error: string }).error).toContain(snippet);
+      expect(w.kv.store.has("packs:index")).toBe(false);
+    });
+  }
+
+  test("/v1/me and /v1/packs share the per-minute rate limit with ask", async () => {
+    const w = world("hosted");
+    const { token, hash } = await w.mint({ quota: 1000 });
+    for (let i = 0; i < 58; i++) expect((await w.call("POST", "/v1/ask", askBody(), w.bearer(token))).status).toBe(200);
+    expect((await w.call("GET", "/v1/me", undefined, w.bearer(token))).status).toBe(200);
+    expect((await w.call("GET", "/v1/packs", undefined, w.bearer(token))).status).toBe(200);
+    expect((await w.call("GET", "/v1/me", undefined, w.bearer(token))).status).toBe(429);
+    expect((await w.call("GET", "/v1/packs", undefined, w.bearer(token))).status).toBe(429);
+    expect((await w.call("POST", "/v1/ask", askBody(), w.bearer(token))).status).toBe(429);
+    expect(w.kv.store.get(`use:${hash}:2026-09`)).toBe("58");
+  });
+  test("the log line carries the hash prefix, never the token", async () => {
+    const w = world("hosted");
+    const { token, hash } = await w.mint();
+    logged = [];
+    await w.call("GET", "/v1/me", undefined, w.bearer(token));
+    await w.call("GET", "/v1/packs", undefined, w.bearer(token));
+    expect(logged).toEqual([
+      expect.stringMatching(new RegExp(`^GET /v1/me 200 \\d+ms ${hash.slice(0, 8)}$`)),
+      expect.stringMatching(new RegExp(`^GET /v1/packs 200 \\d+ms ${hash.slice(0, 8)}$`)),
+    ]);
+    expect(logged.join("\n")).not.toContain(token);
+  });
+});
+
 // ---------------------------------------------------------------- privacy + periods
 
 describe("privacy", () => {

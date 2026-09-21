@@ -8,10 +8,13 @@
  *             `{ms, ...result}`. `POST /v1/generate` with `{prompt, system?,
  *             maxTokens?, temperature?}` runs the text model in `GEN_MODEL`
  *             and returns `{text, model, ms, usage?}`.
- *   hosted  — the subscription. Both `/v1/*` routes need `Authorization:
+ *   hosted  — the subscription. Every `/v1/*` route needs `Authorization:
  *             Bearer <token>`; subscribers, monthly usage and a per-minute
- *             rate limit live in the `SUBS` KV namespace. Admin and
- *             billing-webhook routes maintain the subscriber records.
+ *             rate limit live in the `SUBS` KV namespace. `GET /v1/me` shows
+ *             the caller's plan and usage, `GET /v1/packs` the pack index
+ *             their plan may install (neither is billed). Admin and
+ *             billing-webhook routes maintain the subscriber records and
+ *             the pack index.
  *
  * Validation is the same in both modes: `/v1/ask` is pinned to the seven
  * questions a paste asks (core/src/questions.ts), so the worker cannot be
@@ -27,6 +30,7 @@
  *   tok:<sha256hex(token)>     {plan, quota, resetDay?, active, label?, createdAt, updatedAt}
  *   use:<tokenhash>:<YYYY-MM>  calls made in that billing period (UTC)
  *   rl:<tokenhash>:<minute>    calls in that unix minute, TTL 120 s
+ *   packs:index                {packs: Pack[], updatedAt} written by PUT /admin/packs
  *
  * KV counters are eventually consistent: two edge locations can each read
  * `n` and both write `n + 1`, so a subscriber may get a handful of calls
@@ -70,6 +74,26 @@ export interface SubscriberRecord {
   updatedAt?: string;
 }
 
+/** One entry of the pack index the app installs from. The zip lives at `url` (R2 later); nothing here serves bytes. */
+export interface Pack {
+  /** `[a-z0-9-]`, the directory name under App Support/packs/. */
+  id: string;
+  name: string;
+  version: string;
+  kind: "actions" | "styles";
+  /** Lowest app version that can load it. */
+  minApp: string;
+  bytes: number;
+  /** Hex SHA-256 of the zip; the app verifies the download against it. */
+  sha256: string;
+  /** https URL of the zip. */
+  url: string;
+  /** Plans that may install it; absent = every plan. */
+  requiresPlan?: string[];
+}
+
+export const PACKS_KEY = "packs:index";
+export const MAX_PACKS = 200;
 export const JEV_MODEL = "typesafe/jev";
 export const DEFAULT_GEN_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 export const MAX_BODY_BYTES = 64 * 1024;
@@ -181,6 +205,43 @@ export function validateGenerateBody(raw: ArrayBuffer): GenerateBody {
     out.temperature = temperature;
   }
   return out;
+}
+
+const isHttpsUrl = (u: string): boolean => {
+  if (u.length > 2048) return false;
+  try { return new URL(u).protocol === "https:"; } catch { return false; }
+};
+
+/** Validate a whole pack index (`{packs: [...]}`) as PUT by the admin. Throws HttpError(400). */
+export function validatePackIndex(body: Record<string, unknown>): Pack[] {
+  const { packs, ...rest } = body;
+  if (Object.keys(rest).length) throw bad("unknown top-level key");
+  if (!Array.isArray(packs)) throw bad("packs must be an array");
+  if (packs.length > MAX_PACKS) throw bad(`more than ${MAX_PACKS} packs`);
+  const seen = new Set<string>();
+  return packs.map((p, i): Pack => {
+    const at = `packs[${i}]`;
+    if (!isObject(p)) throw bad(`${at} must be an object`);
+    const { id, name, version, kind, minApp, bytes, sha256, url, requiresPlan, ...more } = p;
+    if (Object.keys(more).length) throw bad(`${at} has an unknown key`);
+    if (typeof id !== "string" || !/^[a-z0-9-]{1,64}$/.test(id)) throw bad(`${at}.id must be 1–64 of [a-z0-9-]`);
+    if (seen.has(id)) throw bad(`${at}.id duplicates ${id}`);
+    seen.add(id);
+    const str = (v: unknown, what: string, max: number): string => {
+      if (typeof v !== "string" || !v || v.length > max) throw bad(`${at}.${what} must be a string of 1–${max} characters`);
+      return v;
+    };
+    if (kind !== "actions" && kind !== "styles") throw bad(`${at}.kind must be actions or styles`);
+    if (typeof bytes !== "number" || !Number.isInteger(bytes) || bytes < 0) throw bad(`${at}.bytes must be a non-negative integer`);
+    if (typeof sha256 !== "string" || !isHash(sha256.toLowerCase())) throw bad(`${at}.sha256 must be 64 hex characters`);
+    if (typeof url !== "string" || !isHttpsUrl(url)) throw bad(`${at}.url must be an https URL`);
+    const out: Pack = { id, name: str(name, "name", 200), version: str(version, "version", 64), kind, minApp: str(minApp, "minApp", 64), bytes, sha256: sha256.toLowerCase(), url };
+    if (requiresPlan !== undefined) {
+      if (!Array.isArray(requiresPlan) || !requiresPlan.length || !requiresPlan.every((x) => typeof x === "string" && x && x.length <= 64)) throw bad(`${at}.requiresPlan must be a non-empty array of plan names`);
+      out.requiresPlan = requiresPlan as string[];
+    }
+    return out;
+  });
 }
 
 // ---------------------------------------------------------------- crypto helpers
@@ -407,6 +468,55 @@ async function generate(req: Request, c: Ctx): Promise<Response> {
   return json(200, { text, model, ms, ...(usage ? { usage } : {}) }, headers);
 }
 
+/** A hosted-only route's caller: authenticate never yields null there, but the type does not know the route. */
+async function subscriber(req: Request, c: Ctx): Promise<Subscriber> {
+  const s = await authenticate(req, c);
+  if (!s) throw new HttpError(404, { error: "not found" });
+  return s;
+}
+
+/** GET /v1/me — the caller's plan and this period's usage; rate-limited, never billed. */
+async function me(req: Request, c: Ctx): Promise<Response> {
+  const s = await subscriber(req, c);
+  const u = await usage(s.kv, s.hash, s.rec, c.now);
+  return json(200, { plan: s.rec.plan, quota: s.rec.quota, used: u.used, resetsAt: u.resetsAt, ...(s.rec.label !== undefined ? { label: s.rec.label } : {}), active: true });
+}
+
+async function readPackIndex(kv: Kv): Promise<{ packs: Pack[]; updatedAt?: string }> {
+  const raw = await kv.get(PACKS_KEY);
+  if (!raw) return { packs: [] };
+  try {
+    const j: unknown = JSON.parse(raw);
+    if (isObject(j) && Array.isArray(j.packs)) return { packs: j.packs as Pack[], ...(typeof j.updatedAt === "string" ? { updatedAt: j.updatedAt } : {}) };
+  } catch { /* fall through */ }
+  return { packs: [] };
+}
+
+/** A pack with no `requiresPlan` is for every plan; otherwise the caller's plan must be listed. */
+const packAllowed = (p: Pack, plan: string): boolean => !Array.isArray(p.requiresPlan) || p.requiresPlan.length === 0 || p.requiresPlan.includes(plan);
+
+/** GET /v1/packs — the index filtered to what the caller's plan may install; rate-limited, never billed. */
+async function packs(req: Request, c: Ctx): Promise<Response> {
+  const s = await subscriber(req, c);
+  const index = await readPackIndex(s.kv);
+  return json(200, { packs: index.packs.filter((p) => packAllowed(p, s.rec.plan)) });
+}
+
+/** PUT /admin/packs — replace the whole pack index. */
+async function adminPutPacks(req: Request, c: Ctx): Promise<Response> {
+  await requireAdmin(req, c.env);
+  const kv = subs(c.env);
+  const list = validatePackIndex(await readJsonObject(req));
+  await kv.put(PACKS_KEY, JSON.stringify({ packs: list, updatedAt: c.now.toISOString() }));
+  return json(200, { ok: true, count: list.length });
+}
+
+/** GET /admin/packs — the stored index, unfiltered. */
+async function adminGetPacks(req: Request, c: Ctx): Promise<Response> {
+  await requireAdmin(req, c.env);
+  return json(200, await readPackIndex(subs(c.env)));
+}
+
 async function requireAdmin(req: Request, env: Env): Promise<void> {
   const given = bearer(req);
   if (!env.ADMIN_SECRET || !given || !(await secretEquals(given, env.ADMIN_SECRET))) throw new HttpError(401, { error: "admin secret required" });
@@ -520,6 +630,13 @@ function route(req: Request, c: Ctx): Promise<Response> | Response {
   if (path === "/v1/generate") return only("POST", () => generate(req, c));
 
   if (c.mode === "hosted") {
+    if (path === "/v1/me") return only("GET", () => me(req, c));
+    if (path === "/v1/packs") return only("GET", () => packs(req, c));
+    if (path === "/admin/packs") {
+      if (method === "PUT") return adminPutPacks(req, c);
+      if (method === "GET") return adminGetPacks(req, c);
+      return new HttpError(405, { error: "use PUT or GET" }, { allow: "PUT, GET" }).toResponse();
+    }
     if (path === "/admin/tokens") return only("POST", () => adminCreate(req, c));
     const m = /^\/admin\/tokens\/([0-9a-f]{64})$/.exec(path);
     if (m) {
