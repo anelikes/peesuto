@@ -147,7 +147,12 @@ GIF 改为进程内编码（gifenc，帧间差分，体积是 ffmpeg 版的一�
 随包集，再查缓存，最后才联网）。Cloudflare REST provider 已实现并有桩测试，
 真实调用待用户提供 API token（本会话不读取 wrangler 的 OAuth 凭证文件）。
 
-### M1 剪贴板历史（壳）
+### M1 剪贴板历史（壳，已完成 2026-09-22）
+
+`clipboard.rs` 轮询与排除、`store.rs` AES-256-GCM 字段加密的 SQLite（密钥在
+Keychain）、图片与缩略图加密落盘、保留期清理、锁定态与重新开始；
+`paste.rs` 粘贴模拟；历史面板搜索、方向键、回车、置顶、删除、清空。
+cargo 测试 12 个，原文件扫描无明文。待人工：连续复制一百次、密码管理器实测。
 
 - `clipboard.rs`：轮询 changeCount，类型识别，排除规则，去重。
 - `store.rs`：SQLite 加密存储，保留策略，缩略图。
@@ -190,10 +195,13 @@ Cloudflare token 验证 REST；本机 Ollama 验证翻译。
 - 动作包目录格式与文档。
 - 验收：v1 定义第 3 条。
 
-### M5 GUI 整合与引导（Core 侧 daemon 已完成 2026-09-22）
+### M5 GUI 整合与引导（已完成 2026-09-22，bundled 端到端验证进行中）
 
-`core/src/daemon.ts` 与 `docs/daemon.md`：JSON 行协议，冒烟通过（health、
-pick、run-action 出 PNG 与 GIF）。壳侧整合进行中。
+`core/src/daemon.ts` 与 `docs/daemon.md`：JSON 行协议。壳侧 `daemon.rs`
+常驻接入、`context.rs` 辅助功能采集、智能挑选面板、动作菜单与结果视图、
+五个设置面板（通用、双轨 Provider、动作、隐私、排除）、引导；标识符改为
+`dev.pocketpaste.desktop`。dev 模式无人值守跑通挑选与动作；截图与真实模型
+调用受本机权限与凭证限制未做。
 
 - 托盘、历史面板、挑选确认条、动作结果视图、设置（双轨 Provider、隐私、
   排除、快捷键、动作）、引导（辅助功能权限是必需项：粘贴模拟与上下文采集
