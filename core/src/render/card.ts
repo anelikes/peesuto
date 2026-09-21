@@ -12,6 +12,7 @@ export interface RenderOptions {
   readonly engine: string;
   readonly work: string;
   readonly emojiCache: string;
+  readonly emojiBundle?: string;
   /** Output path; defaults to `<outDir>/card.png|gif`. */
   readonly out?: string;
   readonly outDir?: string;
@@ -28,7 +29,7 @@ export async function prepareCard(dsl: Dsl, o: RenderOptions): Promise<ComposeRe
   await ensureWorkTree(o.engine, o.work);
   await mkdir(join(o.work, "compositions/paste"), { recursive: true });
   const t0 = performance.now();
-  const composed = await composeCard(dsl, { engine: o.engine, work: o.work, emojiCache: o.emojiCache });
+  const composed = await composeCard(dsl, { engine: o.engine, work: o.work, emojiCache: o.emojiCache, emojiBundle: o.emojiBundle });
   const t1 = performance.now();
   await runEngine(o.work, ["build", "compositions/paste"]);
   const t2 = performance.now();

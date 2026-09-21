@@ -1,12 +1,17 @@
-import { proxyProvider } from "./proxy.ts";
-import type { Provider } from "./types.ts";
+/**
+ * The subscription: our deployed proxy/ in hosted mode, gated by a
+ * subscriber token. One base URL serves both tracks — deciders POST
+ * `/v1/ask`, generators POST `/v1/generate`.
+ */
+export const DEFAULT_HOSTED_URL = "https://jev.pocketpaste.dev";
+
+export type HostedRoute = "ask" | "generate";
 
 /**
- * The subscription: our deployed proxy, gated by a subscriber token. Same
- * wire shape as the dev proxy, so `proxy/` serves both.
+ * The URL for one route. `base` is an origin or a base path; a full route
+ * URL from an older config (`…/v1/ask`) is accepted and re-routed.
  */
-export const DEFAULT_HOSTED_URL = "https://jev.pocketpaste.dev/v1/ask";
-
-export function hostedProvider(token: string, url = DEFAULT_HOSTED_URL): Provider {
-  return proxyProvider(url, token, "hosted");
+export function hostedUrl(base: string | undefined, route: HostedRoute): string {
+  const b = (base ?? DEFAULT_HOSTED_URL).replace(/\/+$/, "").replace(/\/v1\/(ask|generate)$/, "");
+  return `${b}/v1/${route}`;
 }

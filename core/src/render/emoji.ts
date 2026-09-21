@@ -40,22 +40,31 @@ export const stripEmoji = (s: string): string => s.replace(EMOJI, "");
 export const countEmoji = (s: string): number => (s.match(EMOJI) ?? []).length;
 
 /**
- * Fetch every distinct emoji's PNG into `cacheDir` (once) and copy it beside
- * the composition as `e_<key>.png`. Returns the file names, for images.json.
- * A key Noto does not ship (a brand-new emoji) is reported, not guessed.
+ * Stage every distinct emoji's PNG beside the composition as `e_<key>.png`
+ * and return the file names, for images.json. The picture comes from, in
+ * order: a bundled set (`bundleDir/emoji_u<key>.png`, the whole of Noto
+ * Emoji 128 px as `scripts/fetch-emoji.ts` lays it out — the app ships it),
+ * the per-user cache (`cacheDir/<key>.png`), or a fetch from the CDN into
+ * that cache. Offline with nothing bundled or cached, the error names the
+ * emoji. A key Noto does not ship (a brand-new emoji) is reported, not
+ * guessed.
  */
-export async function stageEmoji(keys: Iterable<string>, cacheDir: string, compositionDir: string): Promise<string[]> {
+export async function stageEmoji(keys: Iterable<string>, cacheDir: string, compositionDir: string, bundleDir?: string): Promise<string[]> {
   await mkdir(cacheDir, { recursive: true });
   const names: string[] = [];
   for (const key of new Set(keys)) {
+    const bundled = bundleDir ? join(bundleDir, `emoji_u${key}.png`) : undefined;
     const cached = join(cacheDir, `${key}.png`);
-    if (!existsSync(cached)) {
-      const res = await fetch(NOTO_URL(key));
+    let source = bundled && existsSync(bundled) ? bundled : cached;
+    if (!existsSync(source)) {
+      let res: Response;
+      try { res = await fetch(NOTO_URL(key)); } catch (e) { throw new Error(`paste: emoji U+${key.toUpperCase().replaceAll("_", " U+")} is not bundled or cached and could not be fetched (${(e as Error).message})`); }
       if (!res.ok) throw new Error(`paste: Noto Emoji ${NOTO_TAG} has no png/128/emoji_u${key}.png (HTTP ${res.status})`);
       await Bun.write(cached, await res.arrayBuffer());
+      source = cached;
     }
     const name = `e_${key}.png`;
-    await copyFile(cached, join(compositionDir, name));
+    await copyFile(source, join(compositionDir, name));
     names.push(name);
   }
   return names;

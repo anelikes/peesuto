@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { cloudflareProvider } from "../src/provider/cloudflare.ts";
+import { cloudflareDecider } from "../src/provider/decider/cloudflare.ts";
 import { ProviderError } from "../src/provider/types.ts";
 import { buildRequest } from "../src/questions.ts";
 
@@ -25,7 +25,7 @@ afterAll(() => server.stop(true));
 
 // The provider builds the real Cloudflare URL; point fetch at the stub by
 // rewriting the host through a tiny wrapper.
-const withStub = (p: ReturnType<typeof cloudflareProvider>) => ({
+const withStub = (p: ReturnType<typeof cloudflareDecider>) => ({
   ...p,
   ask: async (body: ReturnType<typeof buildRequest>["body"]) => {
     const real = globalThis.fetch;
@@ -35,7 +35,7 @@ const withStub = (p: ReturnType<typeof cloudflareProvider>) => ({
 });
 
 describe("cloudflare provider", () => {
-  const p = withStub(cloudflareProvider("acct-123", "tok-abc"));
+  const p = withStub(cloudflareDecider("acct-123", "tok-abc"));
   const body = buildRequest("hello world").body;
   test("posts to /accounts/<id>/ai/run/typesafe/jev with a bearer token and unwraps result.answers", async () => {
     mode = "ok";

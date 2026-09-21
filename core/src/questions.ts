@@ -14,7 +14,24 @@ export interface JevRequest {
   readonly questions: Record<string, unknown>;
 }
 
-export interface Answers {
+/**
+ * One answer as a decider gives it. Which fields are set follows the
+ * question's type: a Choice names a criterion (and the probability it saw
+ * for each), a Score is a position on the ordered list, a Noul is the
+ * calibrated probability of "yes".
+ */
+export interface JevAnswer {
+  readonly choice?: string;
+  readonly probabilities?: Record<string, number>;
+  readonly score?: number;
+  readonly noul?: number;
+}
+
+/** Answers keyed by question name, one per entry of `JevRequest.questions`. */
+export type JevAnswers = Record<string, JevAnswer>;
+
+/** The card path's seven answers: every question present and of the right type. */
+export type Answers = {
   readonly kind: { readonly choice: string; readonly probabilities?: Record<string, number> };
   readonly layout: { readonly choice: string };
   readonly palette: { readonly choice: string };
@@ -22,6 +39,18 @@ export interface Answers {
   readonly tone: { readonly score: number };
   readonly animate: { readonly noul: number };
   readonly emphasis: { readonly choice: string };
+};
+
+/** Whether a decider's answers cover the seven card questions, each in its expected shape. */
+export function isCardAnswers(a: unknown): a is Answers {
+  if (!a || typeof a !== "object" || Array.isArray(a)) return false;
+  const r = a as Record<string, JevAnswer | undefined>;
+  const choice = (k: string) => typeof r[k]?.choice === "string";
+  const num = (k: string, f: "score" | "noul") => Number.isFinite(r[k]?.[f]);
+  const p = r.kind?.probabilities;
+  return choice("kind") && (p === undefined || (typeof p === "object" && p !== null))
+    && choice("layout") && choice("palette") && choice("emphasis")
+    && num("scale", "score") && num("tone", "score") && num("animate", "noul");
 }
 
 /** Words as Jev may name them: segmented for zh-CN, letters or digits only. */

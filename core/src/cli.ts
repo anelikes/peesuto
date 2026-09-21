@@ -12,6 +12,9 @@
  * --account-id, --token, --hosted-url; or the environment PASTE_PROVIDER,
  * PASTE_PROXY_URL, PASTE_CF_ACCOUNT_ID, PASTE_CF_TOKEN, PASTE_TOKEN,
  * PASTE_HOSTED_URL. Answers are cached by text (--fresh asks again).
+ * PASTE_OFFLINE=1 refuses every network request. With --app-data, every
+ * request that leaves the machine is logged to <app-data>/egress.log
+ * (destination, purpose and byte counts; never content).
  * Engine: POCKET_ENGINE, else <repo>/engine, else ../pocketjs-motion.
  * Work tree: --work (default <repo>/.work/tree). --json prints the result
  * as one JSON object for a host program.
@@ -21,11 +24,11 @@
  * (or POCKET_ENGINE_RESOURCES) names the read-only sidecar resource tree the
  * engine is installed from on first run.
  */
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { isAspect, parseDsl, type Dsl } from "./dsl.ts";
 import { assertEngine, bunIsOnPath, bunOnPath, engineRoot, EngineError, installEngine, REPO_ROOT } from "./engine.ts";
-import { cachedProvider, createProvider, DEV_PROXY_URL, PROVIDER_KINDS, providerFromEnv, ProviderConfigError, ProviderError, type ProviderConfig } from "./provider/index.ts";
-import { answersToDsl, buildRequest, fallbackDsl } from "./questions.ts";
+import { cachedProvider, createProvider, DEV_PROXY_URL, PROVIDER_KINDS, providerFromEnv, ProviderConfigError, ProviderError, setEgressLog, type ProviderConfig } from "./provider/index.ts";
+import { answersToDsl, buildRequest, fallbackDsl, isCardAnswers } from "./questions.ts";
 import { ComposeError } from "./render/compose.ts";
 import { renderCard } from "./render/card.ts";
 
@@ -47,7 +50,8 @@ function parseArgv(argv: readonly string[]) {
 export async function main(argv: readonly string[]): Promise<number> {
   const { flags, positional, str } = parseArgv(argv);
   if (flags.has("help")) { console.log(USAGE); return 0; }
-  const appData = str("app-data") ?? process.env.PASTE_APP_DATA;
+  const appDataRaw = str("app-data") ?? process.env.PASTE_APP_DATA;
+  const appData = appDataRaw ? resolve(appDataRaw) : undefined;
 
   // The engine and the measurer spawn `bun` by name. Packaged, the executable
   // is called `paste` and nothing on PATH is called bun, so run once more
@@ -57,6 +61,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     const p = Bun.spawn([process.execPath, ...process.argv.slice(1)], { stdio: ["inherit", "inherit", "inherit"], env: { ...process.env, PATH, PASTE_REEXEC: "1" } });
     return await p.exited;
   }
+  if (appData) setEgressLog(join(appData, "egress.log"));
   const json = flags.has("json");
   const log = (s: string) => { if (!json) console.log(s); };
 
@@ -83,6 +88,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     const answers = await provider.ask(body);
     const jevMs = Math.round(performance.now() - t0);
     if (answers) {
+      if (!isCardAnswers(answers)) throw new ProviderError("bad-response", `${provider.name}: the answers do not cover the seven card questions`);
       const r = answersToDsl(text, answers, aspect);
       dsl = r.dsl;
       decided = { provider: provider.name, kindP: r.kindP, jevMs };
@@ -98,9 +104,10 @@ export async function main(argv: readonly string[]): Promise<number> {
   const resources = str("engine-resources") ?? process.env.POCKET_ENGINE_RESOURCES;
   const engine = resources ? await installEngine(resources, appData ?? join(REPO_ROOT, ".work")) : engineRoot();
   assertEngine(engine);
-  const work = str("work") ?? (appData ? join(appData, "work") : join(REPO_ROOT, ".work/tree"));
+  const work = resolve(str("work") ?? (appData ? join(appData, "work") : join(REPO_ROOT, ".work/tree")));
   const t1 = performance.now();
-  const r = await renderCard(dsl, { engine, work, emojiCache: appData ? join(appData, "emoji") : join(work, "..", "emoji"), out: str("out"), outDir: appData ? join(appData, "cards") : join(REPO_ROOT, "out") });
+  const emojiBundle = resources ? join(resources, "emoji") : join(REPO_ROOT, ".work/emoji-all");
+  const r = await renderCard(dsl, { engine, work, emojiCache: appData ? join(appData, "emoji") : join(work, "..", "emoji"), emojiBundle, out: str("out"), outDir: appData ? join(appData, "cards") : join(REPO_ROOT, "out") });
   const total = Math.round(performance.now() - t1);
   log(`paste: ${dsl.kind}/${dsl.layout}/${dsl.palette}/${dsl.aspect} scale=${dsl.scale} tone=${dsl.tone} → ${r.lines} line(s) at ${r.size}px, ${r.frames} frame(s)${r.emoji ? `, ${r.emoji} emoji` : ""}`);
   log(`render ${total} ms (compose ${r.ms.compose}, build ${r.ms.build}, ${r.format} ${r.ms.frame}) → ${r.path}`);

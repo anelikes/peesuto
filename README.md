@@ -1,29 +1,53 @@
 # pocket-paste
 
-Copy text anywhere, get a card back: a PNG, or a short GIF when the text has
-an order worth revealing.
+A smart clipboard for macOS, and a way into AI actions through the thing you
+already do a hundred times a day: copy, paste.
 
-Jev (TypeSafe AI, reached through Cloudflare Workers AI) answers typed
-questions about the text — what kind it is, which layout, palette, size,
-tone, which word to emphasise, whether motion would reveal a sequence. Every
-answer is a choice from a fixed set. Pocket Motion renders the card from
-those choices; line breaks and sizes are measured, never guessed.
+- **History.** Everything you copy is kept locally, encrypted, searchable,
+  one hotkey away. Password managers and concealed pasteboard content are
+  excluded by default.
+- **Smart paste.** When you paste into a field, the app reads where you are
+  (through macOS Accessibility) and a small decision model preselects the
+  history item that fits. You confirm with Enter; nothing is pasted for you.
+- **Actions.** Paste as a card or a GIF (rendered deterministically by
+  Pocket Motion), paste a translation, paste a summary, or paste the result
+  of your own prompt. Actions are JSON files; packs of them can be shared.
+- **Your models.** Two tracks, each self-hostable: a decider (Jev through
+  your own Cloudflare account, any compatible endpoint including the proxy in
+  this repository, or none) and a generator (any OpenAI-compatible endpoint
+  such as Ollama, vLLM or LM Studio, Anthropic, or none). One egress layer,
+  one offline switch, a log of where bytes went and never of what they were.
 
-The core is open source. Text leaves your machine only to answer those
-questions, and only through the provider you configure (below).
+Everything here is MIT. A subscription, when it exists, buys hosted model
+calls that need no setup and official style and action packs; the formats
+stay open.
+
+## The card
+
+The first action, and where the project started: copy text, paste a card.
+Jev (TypeSafe AI) answers typed questions about the text — what kind it is,
+which layout, palette, size, tone, which word to emphasise, whether motion
+would reveal a sequence. Every answer is a choice from a fixed set. Pocket
+Motion renders the card from those choices; line breaks and sizes are
+measured, never guessed.
 
 ## Layout
 
 ```
-core/        the render chain (Bun + TypeScript): text → decisions → DSL → card
-  src/cli.ts       `paste`, the command line and the desktop app's sidecar
-  src/catalog.ts   every name Jev may choose, with the numbers behind it
-  src/questions.ts the seven questions and answers → DSL
-  src/provider/    where the questions go: none | proxy | (cloudflare, hosted)
+core/        Core (Bun + TypeScript): the judgement — pick, actions, providers, render
+  src/cli.ts       `paste`, the command line for the card chain
+  src/daemon/      the long-lived sidecar the app talks to (JSON lines)
+  src/pick/        smart paste: context levels, the pick question, the heuristic
+  src/actions/     action format, loading, the five built-ins, the runtime
+  src/provider/    decider and generator tracks behind one egress layer
+  src/catalog.ts   every name the decider may choose for a card, with the numbers behind it
+  src/questions.ts the card's seven questions and answers → DSL
   src/render/      composition generation, emoji, engine driver, GIF
   fixtures/        five DSL fixtures and the digests they render to
-app/         the macOS menu-bar app (Tauri 2), a shell around `paste`
-proxy/       a Cloudflare Worker that forwards questions to Jev
+app/         the macOS menu-bar app (Tauri 2): history, paste simulation,
+             context capture, encrypted store, Keychain, windows
+proxy/       a self-hostable Cloudflare Worker that forwards questions to Jev
+docs/        actions format, releasing
 scripts/     engine setup, sidecar bundling, probes
 engine.json  the pinned Pocket Motion commit
 ```
@@ -77,8 +101,23 @@ bun run typecheck
 render to at the pinned engine; a change there is either a deliberate
 re-recording or a regression.
 
+## Privacy
+
+What leaves the machine, and only when you chose that provider:
+
+| provider | what is sent | to |
+|---|---|---|
+| decider `none` | nothing | — |
+| decider `cloudflare` | the typed questions and the text they are about | your own Workers AI account |
+| decider `endpoint` | the same | the URL you set (your own proxy, or ours) |
+| generator `openai-compatible` / `anthropic` | the filled prompt | the base URL you set |
+| generator `hosted` | the filled prompt | our proxy, which does not store it |
+
+The offline switch in Settings closes the single egress path for everything
+above. Emoji pictures are fetched by codepoint from a CDN once and cached;
+that reveals which emoji, not the text. History is stored encrypted with a
+key in your Keychain. See `SECURITY.md`.
+
 ## Status
 
-Work in progress towards v1: a menu-bar app, an open-source CLI with your own
-Cloudflare credentials, and a hosted subscription that needs no setup. The
-plan is `PLAN.md`.
+Work in progress towards v1; the plan and its milestones are `PLAN.md`.

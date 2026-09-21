@@ -84,6 +84,12 @@ await rm(join(engineOut, "vendor/pocketjs/framework/src/styles.generated.ts"), {
 
 await cp(join(REPO_ROOT, "core/src"), join(resources, "core"), { recursive: true });
 
+// Noto Emoji 128 px, the whole set (3,583 files, 19 MiB): `scripts/fetch-emoji.ts`
+// fills .work/emoji-all once; without it the app falls back to fetching per emoji.
+const emojiAll = join(REPO_ROOT, ".work/emoji-all");
+if (existsSync(emojiAll)) await cp(emojiAll, join(resources, "emoji"), { recursive: true, filter: (f) => !/\/\.DS_Store$/.test(f) });
+else console.warn("bundle: no .work/emoji-all — run `bun scripts/fetch-emoji.ts` to ship the emoji set");
+
 const sha = async (cwd: string) => { const p = Bun.spawn(["git", "rev-parse", "HEAD"], { cwd, stdout: "pipe", stderr: "pipe" }); return (await new Response(p.stdout).text()).trim() || "unknown"; };
 /** Content digest of the resource tree, so a rebuilt bundle with the same shas still reinstalls. */
 async function treeDigest(dir: string): Promise<string> {

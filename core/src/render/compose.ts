@@ -8,6 +8,7 @@
  * imported from the engine checkout at run time, so this file has no
  * compile-time dependency on where the engine is.
  */
+import { resolve } from "node:path";
 import { BASE_CATALOG, type Catalog } from "../catalog.ts";
 import type { Dsl, Aspect } from "../dsl.ts";
 import { splitEmoji, stageEmoji, stripEmoji } from "./emoji.ts";
@@ -44,6 +45,8 @@ export interface ComposeOptions {
   readonly work: string;
   /** Where fetched emoji PNGs are cached across pastes. */
   readonly emojiCache: string;
+  /** A bundled Noto Emoji set (`emoji_u<key>.png`), consulted before the cache. */
+  readonly emojiBundle?: string;
   readonly catalog?: Catalog;
 }
 
@@ -80,7 +83,10 @@ export async function composeCard(dsl: Dsl, o: ComposeOptions): Promise<ComposeR
   const fitApi = (await import(`${o.engine}/src/text/fit.ts`)) as FitApi;
   const measureApi = (await import(`${o.engine}/src/text/measure.ts`)) as MeasureApi;
   const catalog = o.catalog ?? BASE_CATALOG;
-  const dir = `${o.work}/compositions/paste`;
+  // Absolute: the engine's measurement build runs with the engine as cwd, so
+  // a relative work tree would be resolved against the wrong root.
+  const work = resolve(o.work);
+  const dir = `${work}/compositions/paste`;
   const DIR = `${dir}/`;
   const view = VIEW[dsl.aspect];
   const palEntry = catalog.palettes[dsl.palette];
@@ -119,7 +125,7 @@ export async function composeCard(dsl: Dsl, o: ComposeOptions): Promise<ComposeR
     face: { regular: `${o.engine}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${o.engine}/assets/fonts/NotoSansSC-Bold.otf` },
     sizes: sizes.flatMap((s) => [{ px: s, bold: true }, { px: s, bold: false }]),
     texts, density: 1,
-    cache: { charset: await charset(), dir: `${o.work}/dist/.measure` },
+    cache: { charset: await charset(), dir: `${work}/dist/.measure` },
   });
   try {
     /** A width function that measures text runs with the atlas and emoji as `px` each. */
@@ -190,7 +196,7 @@ export async function composeCard(dsl: Dsl, o: ComposeOptions): Promise<ComposeR
     if (attribution) parts.push(`        <View class="h-[${Math.round(lh * 0.6)}px]" /><View debugName="attribution" class="flex-row items-center${rise(lines.length * STAGGER_MS + 120)}">${plainRuns("— " + attribution, "text-[32px]", pal.muted)}</View>`);
 
     // --- emoji pictures beside the composition, declared linear for the downscale ---
-    const emojiFiles = await stageEmoji(emojiKeys, o.emojiCache, dir);
+    const emojiFiles = await stageEmoji(emojiKeys, o.emojiCache, dir, o.emojiBundle);
     await Bun.write(`${DIR}images.json`, JSON.stringify(Object.fromEntries(emojiFiles.map((f) => [f, { linear: true }])), null, 2) + "\n");
 
     const column = dsl.layout === "split"

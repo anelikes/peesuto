@@ -11,8 +11,8 @@
  * A text whose ask fails prints an ERR line and the run goes on; the exit
  * status is 1 when any text failed. This never starts the proxy itself.
  */
-import { createProvider, DEV_PROXY_URL, ProviderError, providerFromEnv } from "../core/src/provider/index.ts";
-import { answersToDsl, buildRequest, fallbackDsl, type Answers } from "../core/src/questions.ts";
+import { createProvider, DEV_PROXY_URL, ProviderError, providerFromEnv, type JevAnswers } from "../core/src/provider/index.ts";
+import { answersToDsl, buildRequest, fallbackDsl, isCardAnswers } from "../core/src/questions.ts";
 
 const TEXTS = [
   "“过早的优化是万恶之源。” —— Donald Knuth",
@@ -42,7 +42,7 @@ let failed = 0;
 for (const text of TEXTS) {
   const { body, words } = buildRequest(text);
   const t0 = performance.now();
-  let answers: Answers | null;
+  let answers: JevAnswers | null;
   try {
     answers = await provider.ask(body);
   } catch (e) {
@@ -54,7 +54,7 @@ for (const text of TEXTS) {
     continue;
   }
   const took = ms(t0);
-  if (answers === null) {
+  if (answers === null || !isCardAnswers(answers)) {
     const d = fallbackDsl(text, ASPECT);
     console.log(`[${took}] ${label(text)}  no decision (provider ${provider.name}); fallback kind=${d.kind}  layout=${d.layout}  scale=${d.scale}`);
     continue;
