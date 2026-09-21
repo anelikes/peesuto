@@ -91,3 +91,15 @@ template's checklist is what reviewers go through.
 
 Code: TypeScript strict, `.ts` extensions on imports, no new dependency
 without a sentence in the PR on why the standard library is not enough.
+
+## One engine build at a time
+
+Every engine build rewrites one file inside the engine checkout
+(`vendor/pocketjs/framework/src/styles.generated.ts`, reached through the
+work tree's symlink) and the host reads it when it boots a bundle. Two
+work trees building against the same checkout at the same time race on it,
+and the loser fails its frame with "unknown class … not in the compiled
+style table". Run `bun test`, `scripts/corpus.ts` and the app one at a time
+against one engine, or point them at separate checkouts with
+`POCKET_ENGINE`. The daemon serialises its own requests, so a packaged
+install never hits this.

@@ -201,7 +201,12 @@ pick、run-action 出 PNG 与 GIF）。壳侧整合进行中。
 - Core 改为长驻 sidecar；CLI 保留。
 - 验收：从 DMG 安装后走完引导，六个动作各用一次。
 
-### M6 长尾与隐私审计
+### M6 长尾与隐私审计（语料侧已完成 2026-09-22；隐私实测待壳）
+
+一百条语料：94 渲染、13 截断、6 明确拒绝（不支持的文字系统）、0 崩溃，
+verify 零活动 finding（`baselines/corpus.md`，`scripts/corpus.ts` 可重跑）。
+隐私审计清单在 `docs/privacy-audit.md`，剪贴板探针在
+`scripts/pasteboard-probe.swift`；逐项实测在壳的存储与排除落地后进行。
 
 - 卡片语料一百条，`verify` 零 finding 或明确拒绝。
 - 隐私审计清单：每类数据去向、关闭方法、验证步骤；对 1Password、Bitwarden、
