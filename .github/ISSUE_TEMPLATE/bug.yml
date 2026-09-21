@@ -1,0 +1,71 @@
+name: Bug report
+description: A card renders wrong, something crashes, or the README lies
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do not paste clipboard contents you would not want public;
+        a short stand-in that shows the same problem is enough.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Menu-bar app
+        - CLI (`bun run paste` / `paste`)
+        - Proxy worker (`proxy/`)
+        - Engine setup (`bun run setup`)
+        - Build, packaging or CI
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The app version from the menu, or for a checkout the commit (`git rev-parse --short HEAD`) and the engine pin (`bun run setup --status`).
+      placeholder: "0.1.0, or a30e48e with engine ca3c0763"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      placeholder: "macOS 15.6, Apple M2"
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Decision provider
+      options:
+        - none
+        - proxy (wrangler dev)
+        - cloudflare
+        - hosted
+        - not sure
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got. Attach the card (PNG or GIF) if it rendered wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The text (or a stand-in), the aspect, the flags. The DSL from `--json` output is ideal.
+      render: shell
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or logs
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched the existing issues.
+        - label: The text above contains nothing private.
+          required: true

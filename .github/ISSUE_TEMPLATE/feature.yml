@@ -1,0 +1,46 @@
+name: Feature request
+description: An action, a provider, a style, or a change to how pasting works
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The plan is `PLAN.md`; a look at its milestones first saves a round trip.
+        Privacy is a hard constraint: a feature that sends more off the machine has to say so.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Clipboard history
+        - Smart pick
+        - Actions (built-in or custom)
+        - Providers (decider or generator)
+        - Cards and rendering
+        - CLI
+        - Settings and privacy
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The situation, not the solution. What do you copy, where do you paste, what is missing.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: This sends nothing off the machine that stays local today, or the request above says exactly what would leave and where to.

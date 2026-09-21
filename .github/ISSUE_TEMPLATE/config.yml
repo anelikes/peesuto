@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/qianiaoo/pocket-paste/security/advisories/new
+    about: Report privately, not as an issue. SECURITY.md has the details.

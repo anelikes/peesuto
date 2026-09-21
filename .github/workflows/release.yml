@@ -1,0 +1,141 @@
+# Release: a macOS (Apple silicon) DMG, as a draft GitHub Release.
+#
+# Triggers
+#   push of a tag v*     build, then create a DRAFT release "Pocket Paste v…"
+#                        with the DMG attached; publish it by hand (docs/RELEASING.md)
+#   workflow_dispatch    build only; the DMG is a workflow artifact and no
+#                        release is created or touched
+#
+# Secrets
+#   Unsigned draft (what runs today):
+#     ENGINE_TOKEN    read-only PAT for the private engine pin in engine.json,
+#                     the same secret ci.yml uses; the job fails early without it
+#     GITHUB_TOKEN    provided by Actions; creates the draft release
+#
+#   Signed and notarized release (add these; the workflow itself does not change):
+#     APPLE_CERTIFICATE             Developer ID Application certificate, the .p12 as base64
+#     APPLE_CERTIFICATE_PASSWORD    the .p12 password
+#     APPLE_SIGNING_IDENTITY        "Developer ID Application: <name> (<team id>)"
+#     APPLE_ID                      the Apple ID that owns the certificate
+#     APPLE_PASSWORD                an app-specific password for that Apple ID
+#     APPLE_TEAM_ID                 the ten-character team id
+#
+#   Updater (once app/src-tauri/tauri.conf.json enables plugins.updater and
+#   bundle.createUpdaterArtifacts; from then on both are required):
+#     TAURI_SIGNING_PRIVATE_KEY           from `bunx tauri signer generate`
+#     TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password; leave the secret unset if the key has none
+#   The matching PUBLIC key is not a secret: the user puts it into
+#   app/src-tauri/tauri.conf.json under plugins.updater.pubkey.
+#
+# Without a signing identity Tauri ad-hoc signs the app; without APPLE_ID,
+# APPLE_PASSWORD and APPLE_TEAM_ID it skips notarization. Such a DMG opens
+# only through right-click → Open or after removing the quarantine attribute;
+# docs/RELEASING.md says how.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS DMG (aarch64-apple-darwin)
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,wasm32-unknown-unknown
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - run: bun install --frozen-lockfile
+
+      - name: engine token present
+        if: ${{ env.ENGINE_TOKEN == '' }}
+        run: |
+          echo "::error::ENGINE_TOKEN is not set. engine.json pins a private repository; add a read-only personal access token as the ENGINE_TOKEN repository secret (Settings → Secrets and variables → Actions) and re-run."
+          exit 1
+
+      # Same step as ci.yml, verbatim.
+      - name: engine
+        if: ${{ env.ENGINE_TOKEN != '' }}
+        run: |
+          git config --global url."https://x-access-token:${ENGINE_TOKEN}@github.com/".insteadOf "https://github.com/"
+          bun scripts/engine.ts
+
+      - name: sidecar
+        run: bun scripts/bundle-sidecar.ts --out app/src-tauri --target aarch64-apple-darwin
+
+      - name: app dependencies
+        run: bun install --frozen-lockfile
+        working-directory: app
+
+      # Tauri reads the signing and notarization settings from the environment
+      # and treats a variable that is present but empty as configured (an
+      # empty certificate to import, an empty identity to sign with). A secret
+      # that is not set expands to an empty string, so only the ones with a
+      # value are exported to the following steps. Values are still masked.
+      - name: signing secrets
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID \
+                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            if [ -n "${!name}" ]; then
+              { echo "${name}<<__PP_EOF__"; printf '%s\n' "${!name}"; echo "__PP_EOF__"; } >> "$GITHUB_ENV"
+              echo "${name}: set"
+            else
+              echo "${name}: not set"
+            fi
+          done
+
+      - name: build (and on a tag, the draft release)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tauriScript: bun run tauri
+          # On a tag push, a draft release named after it. On workflow_dispatch
+          # tagName is empty, so tauri-action only builds and the DMG comes out
+          # as the workflow artifact below.
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: "${{ github.ref_type == 'tag' && format('Pocket Paste {0}', github.ref_name) || '' }}"
+          releaseBody: "See CHANGELOG.md for what changed."
+          releaseDraft: true
+          prerelease: false
+          args: --target aarch64-apple-darwin
+
+      - name: DMG as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocket-paste-aarch64-apple-darwin-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
+          path: |
+            app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+            app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: error
