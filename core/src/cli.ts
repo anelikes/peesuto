@@ -25,9 +25,10 @@
  * engine is installed from on first run.
  */
 import { join, resolve } from "node:path";
-import { isAspect, parseDsl, type Dsl } from "./dsl.ts";
+import { isAspect, parseDsl, type Aspect, type Dsl } from "./dsl.ts";
 import { assertEngine, bunIsOnPath, bunOnPath, engineRoot, EngineError, installEngine, REPO_ROOT } from "./engine.ts";
-import { cachedProvider, createProvider, DEV_PROXY_URL, PROVIDER_KINDS, providerFromEnv, ProviderConfigError, ProviderError, setEgressLog, type ProviderConfig } from "./provider/index.ts";
+import { cachedProvider, createGenerator, createProvider, DEV_PROXY_URL, generatorFromEnv, PROVIDER_KINDS, providerFromEnv, ProviderConfigError, ProviderError, setEgressLog, type ProviderConfig } from "./provider/index.ts";
+import { ActionError, loadActions, runAction } from "./actions/index.ts";
 import { answersToDsl, buildRequest, fallbackDsl, isCardAnswers } from "./questions.ts";
 import { ComposeError } from "./render/compose.ts";
 import { renderCard } from "./render/card.ts";
@@ -69,6 +70,28 @@ export async function main(argv: readonly string[]): Promise<number> {
   if (!isAspect(aspectRaw)) throw new UsageError(`--aspect must be chat, doc or social`);
   const aspect = aspectRaw;
 
+  // --- an action instead of the card chain ---
+  const actionId = str("action");
+  if (actionId) {
+    const text = flags.has("stdin") ? await Bun.stdin.text() : positional[0];
+    if (!text?.trim()) throw new UsageError("no text: pass it as an argument or --stdin");
+    const { actions, problems } = await loadActions(appData ? { userDir: join(appData, "actions"), packsDir: join(appData, "packs") } : {});
+    for (const p of problems) console.error(`action file skipped: ${p.file}: ${p.message}`);
+    const spec = actions.find((a) => a.id === actionId);
+    if (!spec) throw new UsageError(`no action ${actionId}; have ${actions.map((a) => a.id).join(", ")}`);
+    const cfg = providerConfig(str, flags.has("provider") ? undefined : process.env);
+    const cacheDir = str("cache-dir") ?? join(appData ?? join(REPO_ROOT, ".work"), "answers");
+    const decider = cfg.kind === "none" ? null : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") });
+    const genCfg = generatorFromEnv(process.env);
+    const generator = genCfg.kind === "none" ? null : createGenerator(genCfg);
+    const render = spec.needs === "render" ? await renderDeps(str, appData) : null;
+    const result = await runAction(spec, { text, aspect: isAspect(str("aspect")) ? str("aspect") as Aspect : undefined, fresh: flags.has("fresh") }, { decider, generator, render });
+    if (json) console.log(JSON.stringify({ ok: true, action: spec.id, result }));
+    else if (result.output === "text") console.log(result.text);
+    else console.log(`${spec.id}: ${result.format} → ${result.path} (${result.ms} ms)`);
+    return 0;
+  }
+
   // --- what to render ---
   let dsl: Dsl;
   let decided: { provider: string; kindP?: number; jevMs?: number } = { provider: "dsl" };
@@ -101,18 +124,22 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 
   // --- render ---
-  const resources = str("engine-resources") ?? process.env.POCKET_ENGINE_RESOURCES;
-  const engine = resources ? await installEngine(resources, appData ?? join(REPO_ROOT, ".work")) : engineRoot();
-  assertEngine(engine);
-  const work = resolve(str("work") ?? (appData ? join(appData, "work") : join(REPO_ROOT, ".work/tree")));
-  const t1 = performance.now();
-  const emojiBundle = resources ? join(resources, "emoji") : join(REPO_ROOT, ".work/emoji-all");
-  const r = await renderCard(dsl, { engine, work, emojiCache: appData ? join(appData, "emoji") : join(work, "..", "emoji"), emojiBundle, out: str("out"), outDir: appData ? join(appData, "cards") : join(REPO_ROOT, "out") });
-  const total = Math.round(performance.now() - t1);
+  const r = await renderCard(dsl, { ...(await renderDeps(str, appData)), out: str("out") });
+  const total = r.ms.compose + r.ms.build + r.ms.frame;
   log(`paste: ${dsl.kind}/${dsl.layout}/${dsl.palette}/${dsl.aspect} scale=${dsl.scale} tone=${dsl.tone} → ${r.lines} line(s) at ${r.size}px, ${r.frames} frame(s)${r.emoji ? `, ${r.emoji} emoji` : ""}`);
   log(`render ${total} ms (compose ${r.ms.compose}, build ${r.ms.build}, ${r.format} ${r.ms.frame}) → ${r.path}`);
   if (json) console.log(JSON.stringify({ ok: true, path: r.path, format: r.format, frames: r.frames, lines: r.lines, size: r.size, dsl, decided, ms: { ...r.ms, total } }));
   return 0;
+}
+
+/** Engine, work tree, caches and output directory, from --work/--app-data/--engine-resources. */
+async function renderDeps(str: (n: string) => string | undefined, appData: string | undefined) {
+  const resources = str("engine-resources") ?? process.env.POCKET_ENGINE_RESOURCES;
+  const engine = resources ? await installEngine(resources, appData ?? join(REPO_ROOT, ".work")) : engineRoot();
+  assertEngine(engine);
+  const work = resolve(str("work") ?? (appData ? join(appData, "work") : join(REPO_ROOT, ".work/tree")));
+  const emojiBundle = resources ? join(resources, "emoji") : join(REPO_ROOT, ".work/emoji-all");
+  return { engine, work, emojiCache: appData ? join(appData, "emoji") : join(work, "..", "emoji"), emojiBundle, outDir: appData ? join(appData, "cards") : join(REPO_ROOT, "out") };
 }
 
 /** Longer than this and it is a document, not a card. */
@@ -143,6 +170,7 @@ export class UsageError extends Error {}
 export class InputError extends Error {}
 
 const USAGE = `paste "text" [--aspect chat|doc|social] [--out file] [--json] [--fresh]
+paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY
       [--provider none|proxy|cloudflare|hosted] [--proxy-url URL] [--account-id ID] [--token T] [--hosted-url URL]
       [--work DIR] [--app-data DIR] [--engine-resources DIR] [--cache-dir DIR]
 pbpaste | paste --stdin
@@ -153,7 +181,7 @@ if (import.meta.main) {
     process.exit(await main(process.argv.slice(2)));
   } catch (e) {
     const json = process.argv.includes("--json");
-    const kind = e instanceof UsageError ? "usage" : e instanceof InputError ? "input" : e instanceof ProviderConfigError ? "provider:config"
+    const kind = e instanceof UsageError ? "usage" : e instanceof InputError ? "input" : e instanceof ProviderConfigError ? "provider:config" : e instanceof ActionError ? `action:${e.kind}`
       : e instanceof ProviderError ? `provider:${e.code}` : e instanceof ComposeError ? "compose" : e instanceof EngineError ? "engine" : "error";
     const message = e instanceof Error ? e.message : String(e);
     if (json) console.log(JSON.stringify({ ok: false, kind, message }));
