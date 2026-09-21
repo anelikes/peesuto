@@ -1,1 +1,8 @@
-{"name":"jev-proxy","private":true,"type":"module"}
+{
+  "name": "jev-proxy",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "wrangler": "4"
+  }
+}

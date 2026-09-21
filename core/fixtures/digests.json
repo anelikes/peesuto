@@ -1,0 +1,23 @@
+{
+  "_note": "sha256 of frame PNGs rendered from core/fixtures/<name>.json at the engine pinned in engine.json; keys are frame indices",
+  "frames": {
+    "code": {
+      "0": "234524438df843d45f2d6b1a80a8fb8050f2908ed48d5dd257d1c0ed46928002"
+    },
+    "list": {
+      "48": "7a12817e4541e8add3bc481c44b016713cd7740217ab42700fda62227f5fe09b",
+      "0": "47a89da7d9e40965c065d508e2222081d0b4ca5a17f22acae9b29c501e002103"
+    },
+    "plain": {
+      "0": "27b7b2cff4bb2e38a3750b4a25beee57b6d2ddea17cf480e1070cac5fc4bb8ad"
+    },
+    "quote": {
+      "41": "8d4d5befd12b7cd2f165c9ee92aa792a0c79526c01401fb64cb3855822dcf8fd",
+      "0": "68ac744d855e06d91826032b9b67bdd6cd9ff0ed5e09c3c6e27e1085c952bb44"
+    },
+    "stat": {
+      "46": "6e3e6a306264afbbd53d88eb25f50bd096dd6c5d10e5ba793220d3ca481bb264",
+      "0": "1f4bd707ff02220143c16aefe2eaff49c12828512a1bf3beda005d38a1cf1bd4"
+    }
+  }
+}

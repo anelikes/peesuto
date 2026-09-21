@@ -1,6 +1,8 @@
 .work/
 out/
 node_modules/
-jev-proxy/dev.log
-jev-proxy/.wrangler/
+/engine/
+proxy/dev.log
+proxy/.wrangler/
 .env*
+.DS_Store

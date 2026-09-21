@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    name: unit tests (no engine)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test core/tests
+
+  render:
+    name: fixtures render at the pinned engine (macOS)
+    runs-on: macos-14
+    # The engine pin is a private repository until the branch stack lands in
+    # the public pocket-motion; this job needs ENGINE_TOKEN (a read-only PAT)
+    # and is skipped without it.
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+    env:
+      ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: bun install --frozen-lockfile
+      - name: engine
+        if: ${{ env.ENGINE_TOKEN != '' }}
+        run: |
+          git config --global url."https://x-access-token:${ENGINE_TOKEN}@github.com/".insteadOf "https://github.com/"
+          bun scripts/engine.ts
+      - name: fixtures
+        if: ${{ env.ENGINE_TOKEN != '' }}
+        run: bun test core/tests/fixtures.test.ts

@@ -1,0 +1,6 @@
+{
+  "repo": "https://github.com/qianiaoo/pocketjs-motion.git",
+  "ref": "feat/transparent-clear",
+  "sha": "ca3c07632017898d90a46f44bde788c5c075cda8",
+  "note": "Patches 0014 (transparent clear) and 0015 (metrics-only measure cache) are not yet in the public anelikes/pocket-motion (v0.1.0 stops at 0012). Repoint to a public tag once the branch stack is merged."
+}

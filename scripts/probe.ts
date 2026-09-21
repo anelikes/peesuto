@@ -1,4 +1,19 @@
-// Ask Jev the paste questions for a few clipboard texts through the local proxy.
+#!/usr/bin/env bun
+/**
+ * Ask Jev the paste questions for six sample texts and print, one line per
+ * text, what came back and the DSL it becomes. The questions go through the
+ * provider the environment selects (PASTE_PROVIDER, PASTE_PROXY_URL,
+ * PASTE_TOKEN; see core/src/provider/index.ts), by default the dev proxy:
+ *
+ *   cd proxy && npx wrangler dev --port 8787    # in another terminal
+ *   bun run probe
+ *
+ * A text whose ask fails prints an ERR line and the run goes on; the exit
+ * status is 1 when any text failed. This never starts the proxy itself.
+ */
+import { createProvider, DEV_PROXY_URL, ProviderError, providerFromEnv } from "../core/src/provider/index.ts";
+import { answersToDsl, buildRequest, fallbackDsl, type Answers } from "../core/src/questions.ts";
+
 const TEXTS = [
   "“过早的优化是万恶之源。” —— Donald Knuth",
   "本季度活跃用户增长了 37%，是过去三年最快的一次。",
@@ -7,36 +22,50 @@ const TEXTS = [
   "确定性不是靠 lint 扫出来的，是把能动像素的每一个输入都写进声明里，然后在另一台机器上把同一张图算出来。",
   "周四下午 3 点，会议室 B，带上上季度的报表。",
 ];
-const seg = (t: string) => [...new Intl.Segmenter("zh-CN", { granularity: "word" }).segment(t)].map((s) => s.segment).filter((w) => /[\p{L}\p{N}]/u.test(w));
-for (const text of TEXTS) {
-  const words = seg(text).slice(0, 200);
-  const wordCriteria = Object.fromEntries(words.map((w, i) => [`w${i}`, w]));
-  wordCriteria["none"] = "no single word deserves emphasis";
-  const body = {
-    state: { clipboard: text },
-    questions: {
-      kind: { type: "choice", instructions: "What kind of text is on the clipboard?", criteria: {
-        quote: "a quotation or aphorism, often with an attribution", code: "source code, a shell command or a log line",
-        stat: "a sentence whose point is one number", list: "several items or numbered steps",
-        event: "a time, a place, an appointment", plain: "ordinary prose that fits none of the above" } },
-      layout: { type: "choice", instructions: "Which layout suits it as a card?", criteria: {
-        center: "one short thought, centred", left: "a left-aligned stack, good for several lines", split: "an accent rule on the left and text beside it" } },
-      palette: { type: "choice", instructions: "Which palette suits the content's mood?", criteria: {
-        ink: "neutral dark, technical", paper: "warm light, literary", cyan: "cool dark, business or data", amber: "warm dark, emphatic" } },
-      scale: { type: "score", instructions: "How large should the type be, given how much text there is?", criteria: ["small: many lines", "medium", "large: a few lines", "huge: a few words"] },
-      tone: { type: "score", instructions: "How emphatic should the entrance animation be?", criteria: ["none: static or informational", "gentle", "emphatic", "dramatic"] },
-      animate: { type: "noul", instructions: "Does the content read in a sequence that motion would reveal (steps, a count, typing)?", criteria: { true: "yes, it has an intrinsic order", false: "no, it is one static thought" } },
-      emphasis: { type: "choice", instructions: "Which single word carries the point and should be coloured?", criteria: wordCriteria },
-    },
-  };
-  const t0 = performance.now();
-  const r = await fetch("http://localhost:8787/", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  const raw: any = await r.json(); const j: any = raw.result ? { ms: raw.ms, ...raw.result } : raw;
-  const ms = Math.round(performance.now() - t0);
-  if (j.error || !j.answers) { console.log("ERR", r.status, JSON.stringify(j).slice(0, 600)); continue; }
-  const a = j.answers;
-  const pick = (q: any) => q.choice ?? q.score?.toFixed?.(2) ?? q.noul?.toFixed?.(2) ?? JSON.stringify(q);
-  const emph = a.emphasis?.choice; const emphWord = emph && emph !== "none" ? words[Number(emph.slice(1))] : "-";
-  console.log(`\n[${ms} ms client / ${j.ms} ms worker, model ${j.model}, in ${j.usage?.input_tokens} tok] ${JSON.stringify(text.slice(0, 40))}`);
-  console.log(`  kind=${pick(a.kind)} (${(a.kind.probabilities?.[a.kind.choice] ?? 0).toFixed(2)})  layout=${pick(a.layout)}  palette=${pick(a.palette)}  scale=${pick(a.scale)}  tone=${pick(a.tone)}  animate=${pick(a.animate)}  emphasis=${emphWord}`);
+const ASPECT = "chat";
+
+function configure() {
+  try { return providerFromEnv(); } catch (e) {
+    console.error(`probe: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(2);
+  }
 }
+const cfg = configure();
+const provider = createProvider(cfg);
+console.log(`provider: ${provider.name}${cfg.kind === "proxy" ? ` at ${cfg.url}` : ""}`);
+
+const num = (v: unknown): string => (typeof v === "number" ? v.toFixed(2) : JSON.stringify(v));
+const label = (t: string): string => JSON.stringify([...t].length > 40 ? [...t].slice(0, 40).join("") + "…" : t);
+const ms = (t0: number): string => `${String(Math.round(performance.now() - t0)).padStart(5)} ms`;
+
+let failed = 0;
+for (const text of TEXTS) {
+  const { body, words } = buildRequest(text);
+  const t0 = performance.now();
+  let answers: Answers | null;
+  try {
+    answers = await provider.ask(body);
+  } catch (e) {
+    failed++;
+    const why = e instanceof ProviderError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : String(e);
+    const hint = e instanceof ProviderError && e.code === "network" && cfg.kind === "proxy" && cfg.url === DEV_PROXY_URL
+      ? "  (is the dev proxy running? `cd proxy && npx wrangler dev --port 8787`)" : "";
+    console.log(`[${ms(t0)}] ${label(text)}  ERR ${why}${hint}`);
+    continue;
+  }
+  const took = ms(t0);
+  if (answers === null) {
+    const d = fallbackDsl(text, ASPECT);
+    console.log(`[${took}] ${label(text)}  no decision (provider ${provider.name}); fallback kind=${d.kind}  layout=${d.layout}  scale=${d.scale}`);
+    continue;
+  }
+  const { dsl, kindP } = answersToDsl(text, answers, ASPECT);
+  const kind = dsl.kind === answers.kind.choice ? dsl.kind : `${answers.kind.choice}→${dsl.kind}`;
+  const emphasis = dsl.emphasis >= 0 ? words[dsl.emphasis] ?? `w${dsl.emphasis}` : "-";
+  console.log(
+    `[${took}] ${label(text)}  kind=${kind} (${kindP.toFixed(2)})  layout=${dsl.layout}  palette=${dsl.palette}` +
+    `  scale=${num(answers.scale.score)}→${dsl.scale}  tone=${num(answers.tone.score)}→${dsl.tone}` +
+    `  animate=${num(answers.animate.noul)}→${dsl.animate ? "yes" : "no"}  emphasis=${emphasis}`,
+  );
+}
+process.exit(failed > 0 ? 1 : 0);

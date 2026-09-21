@@ -18,9 +18,9 @@ export const EMOJI = /(?:\p{Extended_Pictographic}|[0-9#*]️?⃣)(?:️|[\u{1F3
 
 export type Run = { readonly text: string } | { readonly emoji: string; readonly key: string };
 
-/** Noto's file key: codepoints in hex joined by `_`, VS16 dropped. */
+/** Noto's file key: codepoints in lowercase hex, at least four digits, joined by `_`, VS16 dropped. */
 export function notoKey(emoji: string): string {
-  return [...emoji].map((c) => c.codePointAt(0)!).filter((cp) => cp !== 0xfe0f).map((cp) => cp.toString(16)).join("_");
+  return [...emoji].map((c) => c.codePointAt(0)!).filter((cp) => cp !== 0xfe0f).map((cp) => cp.toString(16).padStart(4, "0")).join("_");
 }
 
 /** Split a line into text runs and emoji runs, in order. */

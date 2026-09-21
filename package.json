@@ -1,0 +1,21 @@
+{
+  "name": "pocket-paste",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "paste": "bun core/src/cli.ts",
+    "setup": "bun scripts/engine.ts",
+    "probe": "bun scripts/probe.ts",
+    "test": "bun test core/tests",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "gifenc": "^1.0.3"
+  }
+}
