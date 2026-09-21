@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createHandler, hmacHex, period, sha256Hex, validateBody, validateGenerateBody, type Env, type Kv } from "../src/index.ts";
+import { createHandler, hmacHex, period, sha256Hex, validateBody, validateGenerateBody, type CardState, type Env, type Kv } from "../src/index.ts";
 
 // ---------------------------------------------------------------- stubs
 
@@ -80,6 +80,22 @@ function askBody(clipboard = "hello", o: { emphasisWords?: number } = {}) {
   };
 }
 
+/** A smart-pick request, as core/src/pick/question.ts buildPickRequest shapes it (L2 context). */
+function pickBody(o: { candidates?: number; state?: Record<string, unknown>; criteria?: number; questions?: Record<string, unknown> } = {}) {
+  const n = o.candidates ?? 3;
+  const candidates = Array.from({ length: n }, (_, i) => ({ i, summary: `text: candidate ${i}` }));
+  const criteria: Record<string, string> = Object.fromEntries(Array.from({ length: o.criteria ?? n }, (_, i) => [`c${i}`, `text: candidate ${i}`]));
+  criteria["none"] = "nothing here fits; the user will choose";
+  return {
+    state: { app: "Mail", role: "AXTextArea", label: "Message body", before: "Hi Sam, here is the ", after: " — let me know.", candidates, ...o.state },
+    questions: {
+      pick: { type: "choice", instructions: "Which clipboard item is the user about to paste here?", criteria },
+      paste: { type: "noul", instructions: "Is this a place where pasting makes sense?", criteria: { true: "yes", false: "no" } },
+      ...o.questions,
+    },
+  };
+}
+
 // Silence the worker's one-line log during tests, but keep every line for the privacy check.
 let logged: string[] = [];
 const realLog = console.log;
@@ -154,7 +170,7 @@ describe("request validation", () => {
   }
   test("2000 astral code points is exactly the limit (UTF-16 length is irrelevant)", () => {
     const b = askBody("😀".repeat(2000));
-    expect(validateBody(new TextEncoder().encode(JSON.stringify(b)).buffer as ArrayBuffer).state.clipboard.length).toBe(4000);
+    expect((validateBody(new TextEncoder().encode(JSON.stringify(b)).buffer as ArrayBuffer).state as CardState).clipboard.length).toBe(4000);
   });
   test("201 emphasis criteria (200 words + none) passes", async () => {
     const w = world("dev");
@@ -172,6 +188,97 @@ describe("request validation", () => {
     const res = await w.call("POST", "/v1/ask", askBody("😀".repeat(2001)), w.bearer(token));
     expect(res.status).toBe(400);
     expect(w.ai.calls.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------- pick shape
+
+describe("pick requests", () => {
+  test("dev: a full L2 pick is forwarded verbatim on / and /v1/ask", async () => {
+    const w = world("dev");
+    const body = pickBody();
+    const res = await w.call("POST", "/", body);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { answers: unknown }).answers).toEqual(ANSWERS);
+    expect((await w.call("POST", "/v1/ask", body)).status).toBe(200);
+    expect(w.ai.calls).toEqual([{ model: "typesafe/jev", input: body }, { model: "typesafe/jev", input: body }]);
+  });
+  test("an L0 pick (app + candidates only) and an empty candidate list are fine", async () => {
+    const w = world("dev");
+    const l0 = { state: { app: "com.apple.Notes", candidates: [{ i: 0, summary: "url: example.com" }] }, questions: pickBody().questions };
+    expect((await w.call("POST", "/v1/ask", l0)).status).toBe(200);
+    expect((await w.call("POST", "/v1/ask", pickBody({ candidates: 0 }))).status).toBe(200);
+  });
+  test("hosted: accepted with a token and billed like a card ask", async () => {
+    const w = world("hosted");
+    const { token, hash } = await w.mint({ quota: 2 });
+    expect((await w.call("POST", "/v1/ask", pickBody())).status).toBe(401);
+    const ok = await w.call("POST", "/v1/ask", pickBody(), w.bearer(token));
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("x-quota-used")).toBe("1");
+    expect((await w.call("POST", "/v1/ask", askBody(), w.bearer(token))).status).toBe(200);
+    expect((await w.call("POST", "/v1/ask", pickBody(), w.bearer(token))).status).toBe(402);
+    expect(w.kv.store.get(`use:${hash}:2026-09`)).toBe("2");
+  });
+  test("exactly at the caps passes: 9 candidates, 10 criteria, every string at its limit", async () => {
+    const w = world("dev");
+    const s = (n: number) => "😀".repeat(n);
+    const body = pickBody({ candidates: 9, state: { app: s(128), role: s(64), label: s(200), before: s(200), after: s(200) } });
+    body.state.candidates = body.state.candidates.map((c) => ({ ...c, summary: s(120) }));
+    expect(Object.keys(body.questions.pick.criteria).length).toBe(10);
+    expect((await w.call("POST", "/v1/ask", body)).status).toBe(200);
+  });
+
+  const MARK = "ZZSECRET";
+  const over = (n: number) => MARK + "x".repeat(n);
+  const cases: [string, unknown, string][] = [
+    ["app of 129 characters", pickBody({ state: { app: over(121) } }), "app"],
+    ["missing app", pickBody({ state: { app: undefined } }), "app"],
+    ["role of 65", pickBody({ state: { role: over(57) } }), "role"],
+    ["label of 201", pickBody({ state: { label: over(193) } }), "label"],
+    ["before of 201", pickBody({ state: { before: over(193) } }), "before"],
+    ["after of 201", pickBody({ state: { after: over(193) } }), "after"],
+    ["role not a string", pickBody({ state: { role: 3 } }), "role"],
+    ["10 candidates", pickBody({ candidates: 10, criteria: 9 }), "candidates has more than 9"],
+    ["candidates not an array", pickBody({ state: { candidates: {} } }), "candidates must be an array"],
+    ["summary of 121", pickBody({ state: { candidates: [{ i: 0, summary: over(113) }] } }), "summary"],
+    ["summary not a string", pickBody({ state: { candidates: [{ i: 0, summary: 1 }] } }), "summary"],
+    ["candidate i negative", pickBody({ state: { candidates: [{ i: -1, summary: "s" }] } }), "].i"],
+    ["candidate i fractional", pickBody({ state: { candidates: [{ i: 0.5, summary: "s" }] } }), "].i"],
+    ["candidate with an extra key", pickBody({ state: { candidates: [{ i: 0, summary: "s", text: MARK }] } }), "unknown key"],
+    ["candidate not an object", pickBody({ state: { candidates: ["s"] } }), "must be an object"],
+    ["unknown state key", pickBody({ state: { windowTitle: MARK } }), "unknown state key"],
+    ["11 pick criteria", pickBody({ criteria: 10 }), "pick.criteria has more than 10"],
+    ["pick criteria not an object", pickBody({ questions: { pick: { type: "choice", criteria: "c0" } } }), "pick.criteria"],
+    ["pick with the wrong type", pickBody({ questions: { pick: { type: "score", criteria: [] } } }), "type choice"],
+    ["paste with the wrong type", pickBody({ questions: { paste: { type: "choice", criteria: {} } } }), "type noul"],
+    ["missing paste", pickBody({ questions: { paste: undefined } }), "missing question: paste"],
+    ["missing pick", pickBody({ questions: { pick: undefined } }), "missing question: pick"],
+    ["mixed: a card question next to pick and paste", pickBody({ questions: { kind: askBody().questions.kind } }), "unknown question: kind"],
+    ["mixed: card questions over a pick state", { state: pickBody().state, questions: askBody().questions }, "unknown question"],
+    ["mixed: pick questions over a card state", { state: { clipboard: "x" }, questions: pickBody().questions }, "unknown question: pick"],
+    ["mixed: clipboard and candidates in one state", { ...pickBody(), state: { ...pickBody().state, clipboard: MARK } }, "unknown state key"],
+    ["neither shape", { state: { app: "Mail" }, questions: pickBody().questions }, "card {clipboard} or a pick"],
+  ];
+  for (const [name, body, snippet] of cases) {
+    test(`400 on ${name}`, async () => {
+      const w = world("dev");
+      const res = await w.call("POST", "/v1/ask", body);
+      expect(res.status).toBe(400);
+      const out = (await res.json()) as { error: string };
+      expect(out.error).toContain(snippet);
+      expect(out.error).not.toContain(MARK);
+      expect(w.ai.calls.length).toBe(0);
+    });
+  }
+  test("the log line never contains summaries or caret context", async () => {
+    const w = world("hosted");
+    const { token, hash } = await w.mint();
+    const body = pickBody({ state: { before: "BEFORE-SECRET-4d1", after: "AFTER-SECRET-9c2", label: "LABEL-SECRET", candidates: [{ i: 0, summary: "SUMMARY-SECRET-77" }] } });
+    logged = [];
+    await w.call("POST", "/v1/ask", body, w.bearer(token));
+    expect(logged).toEqual([expect.stringMatching(new RegExp(`^POST /v1/ask 200 \\d+ms ${hash.slice(0, 8)}$`))]);
+    expect(logged[0]).not.toContain("SECRET");
   });
 });
 

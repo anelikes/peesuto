@@ -16,11 +16,13 @@
  *             billing-webhook routes maintain the subscriber records and
  *             the pack index.
  *
- * Validation is the same in both modes: `/v1/ask` is pinned to the seven
- * questions a paste asks (core/src/questions.ts), so the worker cannot be
- * used as a general Jev relay; `/v1/generate` bounds prompt, system, token
- * and temperature values. Ask and generate each count as one call against
- * the same quota.
+ * Validation is the same in both modes: `/v1/ask` admits exactly two
+ * request shapes — the card (the seven questions of core/src/questions.ts
+ * over `{clipboard}`) and the smart pick (the two questions of
+ * core/src/pick/question.ts over `{app, candidates, …}`) — so the worker
+ * cannot be used as a general Jev relay; `/v1/generate` bounds prompt,
+ * system, token and temperature values. Ask and generate each count as one
+ * call against the same quota.
  *
  * Privacy: request bodies and clipboard text are never logged. Each request
  * writes exactly one log line: method, path, status, ms and the first eight
@@ -106,13 +108,33 @@ export const DEFAULT_GEN_TOKENS = 512;
 export const RATE_LIMIT_PER_MINUTE = 60;
 export const USAGE_KEY_TTL_S = 70 * 24 * 3600;
 
-/** The seven questions and the Jev question type each must carry. */
-export const QUESTION_TYPES: Readonly<Record<string, "choice" | "score" | "noul">> = {
+type QuestionType = "choice" | "score" | "noul";
+
+/** The card: the seven questions and the Jev question type each must carry; any subset, no others. */
+export const QUESTION_TYPES: Readonly<Record<string, QuestionType>> = {
   kind: "choice", layout: "choice", palette: "choice", scale: "score", tone: "score", animate: "noul", emphasis: "choice",
 };
 
+/** The smart pick: exactly these two questions. */
+export const PICK_QUESTION_TYPES: Readonly<Record<string, QuestionType>> = { pick: "choice", paste: "noul" };
+export const MAX_PICK_CANDIDATES = 9;
+/** The candidates plus `none`. */
+export const MAX_PICK_CRITERIA = 10;
+/** Code-point caps on the pick state's strings (core/src/pick/types.ts: CONTEXT_CHARS 200, summaries 120). */
+export const PICK_CHARS = { app: 128, role: 64, label: 200, before: 200, after: 200, summary: 120 } as const;
+
+export interface CardState { clipboard: string }
+export interface PickState {
+  app: string;
+  role?: string;
+  label?: string;
+  before?: string;
+  after?: string;
+  candidates: { i: number; summary: string }[];
+}
+
 export interface AskBody {
-  state: { clipboard: string };
+  state: CardState | PickState;
   questions: Record<string, { type: string; [k: string]: unknown }>;
 }
 
@@ -153,35 +175,91 @@ const parseJsonObject = (raw: ArrayBuffer): Record<string, unknown> => {
   return parsed;
 };
 
+/** Entries in a Jev criteria value (an object of names or an ordered list); -1 when it is neither. */
+const criteriaCount = (c: unknown): number => (Array.isArray(c) ? c.length : isObject(c) ? Object.keys(c).length : -1);
+
 /**
- * Parse and validate a raw request body into the exact shape a paste sends.
- * Throws HttpError(400) with a short `{error}`; never echoes the input back.
+ * The questions of one shape: only keys in `types`, each an object whose
+ * `type` matches, with a criteria cap where `caps` has one. `all` demands
+ * every key of `types` be present. Error text names keys, never content.
+ */
+function validateQuestions(questions: Record<string, unknown>, types: Readonly<Record<string, QuestionType>>, caps: Readonly<Record<string, number>>, all: boolean): AskBody["questions"] {
+  const keys = Object.keys(questions);
+  if (keys.length === 0) throw bad("no questions");
+  for (const key of keys) {
+    const want = types[key];
+    if (!want) throw bad(`unknown question: ${key.slice(0, 32)}`);
+    const q = questions[key];
+    if (!isObject(q)) throw bad(`question ${key} must be an object`);
+    if (q.type !== want) throw bad(`question ${key} must have type ${want}`);
+    const cap = caps[key];
+    if (cap !== undefined) {
+      const count = criteriaCount(q.criteria);
+      if (count < 0) throw bad(`${key}.criteria must be an object`);
+      if (count > cap) throw bad(`${key}.criteria has more than ${cap} entries`);
+    }
+  }
+  if (all) for (const key of Object.keys(types)) if (!(key in questions)) throw bad(`missing question: ${key}`);
+  return questions as AskBody["questions"];
+}
+
+/** A card state: `{clipboard}` and nothing else. */
+function validateCardState(state: Record<string, unknown>): CardState {
+  const { clipboard, ...rest } = state;
+  if (Object.keys(rest).length) throw bad("unknown state key");
+  if (typeof clipboard !== "string") throw bad("state.clipboard must be a string");
+  if (longerThan(clipboard, MAX_CLIPBOARD_CHARS)) throw bad(`state.clipboard longer than ${MAX_CLIPBOARD_CHARS} characters`);
+  return { clipboard };
+}
+
+/** A pick state as core/src/pick/question.ts builds it, every string capped; candidate summaries and caret context are user content. */
+function validatePickState(state: Record<string, unknown>): PickState {
+  const { app, role, label, before, after, candidates, ...rest } = state;
+  if (Object.keys(rest).length) throw bad("unknown state key");
+  const str = (v: unknown, what: keyof typeof PICK_CHARS): string => {
+    if (typeof v !== "string") throw bad(`state.${what} must be a string`);
+    if (longerThan(v, PICK_CHARS[what])) throw bad(`state.${what} longer than ${PICK_CHARS[what]} characters`);
+    return v;
+  };
+  const out: PickState = { app: str(app, "app"), candidates: [] };
+  if (role !== undefined) out.role = str(role, "role");
+  if (label !== undefined) out.label = str(label, "label");
+  if (before !== undefined) out.before = str(before, "before");
+  if (after !== undefined) out.after = str(after, "after");
+  if (!Array.isArray(candidates)) throw bad("state.candidates must be an array");
+  if (candidates.length > MAX_PICK_CANDIDATES) throw bad(`state.candidates has more than ${MAX_PICK_CANDIDATES} entries`);
+  out.candidates = candidates.map((c, n) => {
+    if (!isObject(c)) throw bad(`state.candidates[${n}] must be an object`);
+    const { i, summary, ...more } = c;
+    if (Object.keys(more).length) throw bad(`state.candidates[${n}] has an unknown key`);
+    if (typeof i !== "number" || !Number.isInteger(i) || i < 0) throw bad(`state.candidates[${n}].i must be a non-negative integer`);
+    if (typeof summary !== "string") throw bad(`state.candidates[${n}].summary must be a string`);
+    if (longerThan(summary, PICK_CHARS.summary)) throw bad(`state.candidates[${n}].summary longer than ${PICK_CHARS.summary} characters`);
+    return { i, summary };
+  });
+  return out;
+}
+
+/**
+ * Parse and validate a raw /v1/ask body into one of the two shapes the app
+ * sends: a card (`state.clipboard`, up to the seven card questions) or a
+ * smart pick (`state.candidates`, exactly `pick` and `paste`). The state
+ * decides the shape; the questions must then belong to it, so a mix is
+ * refused. Throws HttpError(400) with a short `{error}` that names keys
+ * and limits, never the text.
  */
 export function validateBody(raw: ArrayBuffer): AskBody {
   const { state, questions, ...rest } = parseJsonObject(raw);
   if (Object.keys(rest).length) throw bad("unknown top-level key");
   if (!isObject(state)) throw bad("state must be an object");
-  const { clipboard, ...stateRest } = state;
-  if (Object.keys(stateRest).length) throw bad("unknown state key");
-  if (typeof clipboard !== "string") throw bad("state.clipboard must be a string");
-  if (longerThan(clipboard, MAX_CLIPBOARD_CHARS)) throw bad(`state.clipboard longer than ${MAX_CLIPBOARD_CHARS} characters`);
   if (!isObject(questions)) throw bad("questions must be an object");
-  const keys = Object.keys(questions);
-  if (keys.length === 0) throw bad("no questions");
-  for (const key of keys) {
-    const want = QUESTION_TYPES[key];
-    if (!want) throw bad(`unknown question: ${key.slice(0, 32)}`);
-    const q = questions[key];
-    if (!isObject(q)) throw bad(`question ${key} must be an object`);
-    if (q.type !== want) throw bad(`question ${key} must have type ${want}`);
-    if (key === "emphasis") {
-      const c = q.criteria;
-      const count = Array.isArray(c) ? c.length : isObject(c) ? Object.keys(c).length : -1;
-      if (count < 0) throw bad("emphasis.criteria must be an object");
-      if (count > MAX_EMPHASIS_CRITERIA) throw bad(`emphasis.criteria has more than ${MAX_EMPHASIS_CRITERIA} entries`);
-    }
+  if ("clipboard" in state) {
+    return { state: validateCardState(state), questions: validateQuestions(questions, QUESTION_TYPES, { emphasis: MAX_EMPHASIS_CRITERIA }, false) };
   }
-  return { state: { clipboard }, questions: questions as AskBody["questions"] };
+  if ("candidates" in state) {
+    return { state: validatePickState(state), questions: validateQuestions(questions, PICK_QUESTION_TYPES, { pick: MAX_PICK_CRITERIA }, true) };
+  }
+  throw bad("state must be a card {clipboard} or a pick {app, candidates}");
 }
 
 /** Parse and validate a /v1/generate body. Throws HttpError(400); never echoes the prompt. */

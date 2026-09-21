@@ -36,12 +36,25 @@ that answers `{response}`), both set per environment in `wrangler.toml`.
 
 Every body is at most 64 KB of JSON; anything off-shape is `400 {error}`.
 
-`/v1/ask` must be shaped exactly like `core/src/questions.ts` `buildRequest`
-produces: `state.clipboard` is a string of at most 2000 characters (code
-points), `questions` contains only `kind|layout|palette|emphasis`
-(`type: "choice"`), `scale|tone` (`type: "score"`), `animate`
-(`type: "noul"`), and `emphasis.criteria` has at most 201 entries (200 words
-plus `none`). This is what keeps the worker from being a general Jev relay.
+`/v1/ask` admits exactly two shapes, told apart by the state; the questions
+must then belong to that shape, so a mix of the two is refused. All character
+limits count code points. This is what keeps the worker from being a general
+Jev relay.
+
+- **Card** (`core/src/questions.ts` `buildRequest`): `state` is
+  `{clipboard}`, a string of at most 2000 characters; `questions` contains
+  only `kind|layout|palette|emphasis` (`type: "choice"`), `scale|tone`
+  (`type: "score"`), `animate` (`type: "noul"`), and `emphasis.criteria` has
+  at most 201 entries (200 words plus `none`).
+- **Smart pick** (`core/src/pick/question.ts` `buildPickRequest`): `state` is
+  `{app ≤ 128, role? ≤ 64, label? ≤ 200, before? ≤ 200, after? ≤ 200,
+  candidates}` where `candidates` is at most 9 of `{i: integer ≥ 0,
+  summary ≤ 120}`; `questions` is exactly `pick` (`type: "choice"`, at most
+  10 criteria — the candidates plus `none`) and `paste` (`type: "noul"`).
+
+Extra keys anywhere are refused. Error bodies name the offending key and
+the limit, never the text; candidate summaries and caret context are user
+content and are treated like the clipboard.
 
 `/v1/generate` takes `prompt` (non-empty, at most 8000 code points),
 optional `system` (at most 2000), `maxTokens` (integer 1–2048, default 512)
@@ -141,8 +154,9 @@ BILLING_WEBHOOK_SECRET=dev-hook
 
 ## Privacy
 
-Clipboard text and generation prompts pass through to the model and are
-never stored or logged. Each request writes one log line — method, path,
+Clipboard text, pick context (candidate summaries, the text around the
+caret) and generation prompts pass through to the model and are never
+stored or logged. Each request writes one log line — method, path,
 status, milliseconds, and the first eight characters of the token hash — and
 nothing else. Tokens exist in plaintext only in the admin response that mints
 them and on the subscriber's machine.
