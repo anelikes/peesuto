@@ -10,6 +10,7 @@
  */
 import { existsSync, realpathSync } from "node:fs";
 import { cp, mkdir, readdir, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -64,7 +65,7 @@ export function assertEngine(root: string): void {
 export async function installEngine(resources: string, appData: string): Promise<string> {
   const version = (await readFile(join(resources, "VERSION"), "utf8")).trim();
   const key = version.replace(/[^A-Za-z0-9.]+/g, "-");
-  const root = join(appData, "engine", key);
+  const root = join(engineInstallBase(appData), key);
   const done = join(root, ".installed");
   if (existsSync(done)) return root;
   await rm(root, { recursive: true, force: true });
@@ -72,6 +73,20 @@ export async function installEngine(resources: string, appData: string): Promise
   await cp(join(resources, "engine"), root, { recursive: true });
   await writeFile(done, version + "\n");
   return root;
+}
+
+/**
+ * Where installed engines live. The engine derives file paths with
+ * `new URL(…, import.meta.url).pathname`, which percent-encodes a space, so
+ * an engine under `~/Library/Application Support/…` cannot find its own
+ * files. Until the engine switches those sites to `fileURLToPath`
+ * (src/runtime/boot.ts, src/render/parallel.ts, src/render/build-record.ts,
+ * src/text/measure.ts, vendor/pocketjs/framework/compiler/jsx-plugin.ts), an
+ * app-data path that would encode falls back to `~/.pocket-paste/engine`.
+ */
+export function engineInstallBase(appData: string): string {
+  const preferred = join(appData, "engine");
+  return encodeURI(preferred) === preferred ? preferred : join(homedir(), ".pocket-paste", "engine");
 }
 
 const MARKER = ".pocket-paste-work";

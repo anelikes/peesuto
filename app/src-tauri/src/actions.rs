@@ -258,6 +258,7 @@ pub async fn run(app: AppHandle, action: String, source: Source, opts: RunOption
             Source::Clipboard => "Copy some text first.".to_string(),
             Source::Item(_) => "That item has no text.".to_string(),
         };
+        log::line(format!("action {}: nothing to work on ({message})", spec.id));
         publish(&app, ResultState::Error { action: meta, input: String::new(), aspect, kind: "empty".into(), message });
         windows::show_result(&app);
         return;
@@ -373,8 +374,10 @@ pub fn copy_to_clipboard(app: &AppHandle, path: &Path, format: &str) -> Result<&
     Ok("image")
 }
 
-/// Dev aid: `POCKET_PASTE_AUTORUN=history|card|action:<id>[:<ms>] bun tauri dev`
-/// drives the app shortly after launch, so a window can be checked without the shortcut.
+/// Dev aid: `POCKET_PASTE_AUTORUN=history|card|action:<id>|delete-newest|clear[:<ms>]`
+/// drives the app shortly after launch, so a window can be checked without the
+/// shortcut; `POCKET_PASTE_AUTORUN_REPEAT=n` runs an action n times in a row
+/// (cold and warm timings). Debug builds only.
 pub fn autorun_if_requested(app: &AppHandle) {
     let Some(spec) = std::env::var("POCKET_PASTE_AUTORUN").ok().filter(|_| cfg!(debug_assertions)) else { return };
     let mut parts = spec.splitn(3, ':');
@@ -387,15 +390,35 @@ pub fn autorun_if_requested(app: &AppHandle) {
         },
         _ => (String::new(), 2500),
     };
+    let repeat = std::env::var("POCKET_PASTE_AUTORUN_REPEAT").ok().and_then(|r| r.parse::<u32>().ok()).unwrap_or(1).max(1);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_millis(delay))).await;
         match mode.as_str() {
             "card" => {
-                let _ = app.clipboard().write_text(TEST_TEXT);
-                run(app, "paste-card".into(), Source::Clipboard, RunOptions::default()).await;
+                // A finished card replaces the clipboard text with the image, so re-copy per run.
+                for _ in 0..repeat {
+                    let _ = app.clipboard().write_text(TEST_TEXT);
+                    run(app.clone(), "paste-card".into(), Source::Clipboard, RunOptions::default()).await;
+                }
             }
-            "action" => run(app, arg, Source::Clipboard, RunOptions::default()).await,
+            "action" => {
+                for _ in 0..repeat {
+                    run(app.clone(), arg.clone(), Source::Clipboard, RunOptions::default()).await;
+                }
+            }
+            "delete-newest" => {
+                let history = app.state::<History>();
+                let newest = history.recent(1).into_iter().next();
+                let ok = newest.as_ref().map(|it| history.with(|s| s.delete(&it.id)).unwrap_or(false)).unwrap_or(false);
+                log::line(format!("autorun: delete newest {} → {ok}", newest.map(|i| i.id).unwrap_or_else(|| "(none)".into())));
+                crate::clipboard::notify(&app);
+            }
+            "clear" => {
+                app.state::<History>().with(|s| s.clear());
+                log::line("autorun: history cleared");
+                crate::clipboard::notify(&app);
+            }
             _ => windows::show_history(&app),
         }
     });

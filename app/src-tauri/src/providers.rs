@@ -110,13 +110,17 @@ pub fn load<R: Runtime>(app: &AppHandle<R>) -> ProvidersConfig {
     }
 }
 
+fn in_keychain(name: &str) -> bool {
+    secrets::get(name).ok().flatten().map(|v| !v.is_empty()).unwrap_or(false)
+}
+
 /// Write the file owner-readable only. Refs are normalised to the conventional names first.
 pub fn save<R: Runtime>(app: &AppHandle<R>, cfg: &ProvidersConfig) -> Result<(), String> {
     let path = file_path(app).ok_or("no application data directory")?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let text = serde_json::to_string_pretty(&normalised(cfg)).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&normalised(cfg, in_keychain)).map_err(|e| e.to_string())?;
     std::fs::write(&path, format!("{text}\n")).map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
@@ -127,11 +131,15 @@ pub fn save<R: Runtime>(app: &AppHandle<R>, cfg: &ProvidersConfig) -> Result<(),
 }
 
 /// The refs a config should carry: always the conventional names, so the
-/// file and the Keychain agree whatever the settings window sent.
-pub fn normalised(cfg: &ProvidersConfig) -> ProvidersConfig {
+/// file and the Keychain agree whatever the settings window sent. The two
+/// optional credentials (proxy token, OpenAI-compatible key) are named only
+/// when `has(ref)` says the Keychain holds them — Core treats a named ref
+/// with no secret behind it as a configuration error.
+pub fn normalised(cfg: &ProvidersConfig, has: impl Fn(&str) -> bool) -> ProvidersConfig {
+    let optional = |name: &str| has(name).then(|| name.to_string());
     let decider = match &cfg.decider {
         Decider::None => Decider::None,
-        Decider::Proxy { url, .. } => Decider::Proxy { url: url.trim().to_string(), token_ref: Some(REF_PROXY_TOKEN.into()) },
+        Decider::Proxy { url, .. } => Decider::Proxy { url: url.trim().to_string(), token_ref: optional(REF_PROXY_TOKEN) },
         Decider::Cloudflare { account_id, .. } => Decider::Cloudflare { account_id: account_id.trim().to_string(), token_ref: REF_CLOUDFLARE_TOKEN.into() },
         Decider::Hosted { url, .. } => Decider::Hosted { token_ref: REF_HOSTED_TOKEN.into(), url: clean(url) },
     };
@@ -140,7 +148,7 @@ pub fn normalised(cfg: &ProvidersConfig) -> ProvidersConfig {
         Generator::OpenaiCompatible { base_url, model, .. } => Generator::OpenaiCompatible {
             base_url: base_url.trim().to_string(),
             model: model.trim().to_string(),
-            api_key_ref: Some(REF_GENERATOR_API_KEY.into()),
+            api_key_ref: optional(REF_GENERATOR_API_KEY),
         },
         Generator::Anthropic { model, .. } => Generator::Anthropic { api_key_ref: REF_GENERATOR_API_KEY.into(), model: clean(model) },
         Generator::Hosted { url, .. } => Generator::Hosted { token_ref: REF_HOSTED_TOKEN.into(), url: clean(url) },
@@ -178,7 +186,7 @@ pub fn secrets_for(cfg: &ProvidersConfig) -> serde_json::Map<String, Value> {
 
 /// The `config.set` request body for Core.
 pub fn core_config<R: Runtime>(app: &AppHandle<R>) -> Value {
-    let cfg = normalised(&load(app));
+    let cfg = normalised(&load(app), in_keychain);
     let egress = app.path().app_data_dir().ok().map(|d| d.join(EGRESS_LOG).display().to_string());
     json!({
         "cmd": "config.set",
@@ -331,9 +339,14 @@ mod tests {
             generator: Generator::Anthropic { api_key_ref: "whatever".into(), model: Some(" ".into()) },
             offline: false,
         };
-        let n = normalised(&cfg);
+        let n = normalised(&cfg, |_| true);
         assert_eq!(n.decider, Decider::Proxy { url: "http://localhost:8787/".into(), token_ref: Some(REF_PROXY_TOKEN.into()) });
         assert_eq!(n.generator, Generator::Anthropic { api_key_ref: REF_GENERATOR_API_KEY.into(), model: None });
+        // Without the optional secrets in the Keychain the refs are left out (Core would reject a dangling ref).
+        let n = normalised(&cfg, |_| false);
+        assert_eq!(n.decider, Decider::Proxy { url: "http://localhost:8787/".into(), token_ref: None });
+        let oai = ProvidersConfig { generator: Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "m".into(), api_key_ref: Some("x".into()) }, ..ProvidersConfig::default() };
+        assert_eq!(normalised(&oai, |_| false).generator, Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "m".into(), api_key_ref: None });
         let text = serde_json::to_string(&n).unwrap();
         for k in ["\"token\"", "\"apiKey\"", "\"api_key\"", "\"secret\"", "\"password\""] {
             assert!(!text.contains(k), "{k} in {text}");

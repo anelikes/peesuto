@@ -10,8 +10,9 @@ three windows — `history` (the panel behind ⌘⇧V, with the smart pick),
     bun run build:bundled         # after `bun ../scripts/bundle-sidecar.ts`: ships Core + Bun
     cargo test                    # in src-tauri: store, providers, context
 
-`POCKET_PASTE_AUTORUN=history|card|action:<id>[:<ms>] bun tauri dev` drives
-the app shortly after launch (debug builds only). Every rebuilt dev binary is
+`POCKET_PASTE_AUTORUN=history|card|action:<id>|delete-newest|clear[:<ms>] bun tauri dev`
+drives the app shortly after launch (debug builds only; `POCKET_PASTE_AUTORUN_REPEAT=n`
+runs `card`/`action` n times for cold and warm timings). Every rebuilt dev binary is
 a new identity to the Keychain, so reading the history key prompts; for an
 unattended run set `POCKET_PASTE_HISTORY_KEY=<base64 of 32 bytes>` (debug
 builds only) and the Keychain is not touched. Icons: `bun run icons`.

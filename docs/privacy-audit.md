@@ -66,3 +66,11 @@ Run each and confirm nothing lands in history:
 
 - [ ] The Privacy pane lists the same table as section 1, with each row's
       switch, and the current provider destinations by host.
+
+## Verified 2026-09-22
+
+The automatable parts of §2 (plain / concealed / transient, the app blacklist), §3
+(offline switch, egress log without text) and §4 (raw-file scan, delete, clear all)
+passed against the bundled debug build; the results, the method and the list of
+manual checks still open (1Password, Bitwarden, Keychain Access, `AXSecureTextField`,
+the Accessibility prompt flow) are in [`baselines/privacy-0.1.0.md`](../baselines/privacy-0.1.0.md).

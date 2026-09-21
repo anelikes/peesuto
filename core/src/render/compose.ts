@@ -256,7 +256,9 @@ export const LIST_MARKER = /^\s*(?:[-*•·]\s*(?:\[[ xX]\])?|\d+[.、)）]|[一
 
 let charsetCache: string | undefined;
 async function charset(): Promise<string> {
-  charsetCache ??= await Bun.file(new URL("./charset.txt", import.meta.url).pathname).text();
+  // `Bun.file` takes the URL itself: `.pathname` would percent-encode a space
+  // in the path (`Pocket Paste.app`, `Application Support`).
+  charsetCache ??= await Bun.file(new URL("./charset.txt", import.meta.url)).text();
   return charsetCache;
 }
 
