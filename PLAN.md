@@ -195,13 +195,15 @@ Cloudflare token 验证 REST；本机 Ollama 验证翻译。
 - 动作包目录格式与文档。
 - 验收：v1 定义第 3 条。
 
-### M5 GUI 整合与引导（已完成 2026-09-22，bundled 端到端验证进行中）
+### M5 GUI 整合与引导（已完成 2026-09-22，bundled 端到端已验证）
 
 `core/src/daemon.ts` 与 `docs/daemon.md`：JSON 行协议。壳侧 `daemon.rs`
 常驻接入、`context.rs` 辅助功能采集、智能挑选面板、动作菜单与结果视图、
 五个设置面板（通用、双轨 Provider、动作、隐私、排除）、引导；标识符改为
-`dev.pocketpaste.desktop`。dev 模式无人值守跑通挑选与动作；截图与真实模型
-调用受本机权限与凭证限制未做。
+`dev.pocketpaste.desktop`。dev 模式无人值守跑通挑选与动作；打包路径：daemon 从
+Contents/Resources 启动，引擎 190 ms 安装（APFS clone），卡片冷 1.5 s、热
+0.55 s；debug 包 203 MB（未 strip 的二进制 46 MB，Bun 58 MB，资源 98 MB）。
+截图与真实模型调用受本机权限与凭证限制未做。
 
 - 托盘、历史面板、挑选确认条、动作结果视图、设置（双轨 Provider、隐私、
   排除、快捷键、动作）、引导（辅助功能权限是必需项：粘贴模拟与上下文采集
@@ -209,12 +211,15 @@ Cloudflare token 验证 REST；本机 Ollama 验证翻译。
 - Core 改为长驻 sidecar；CLI 保留。
 - 验收：从 DMG 安装后走完引导，六个动作各用一次。
 
-### M6 长尾与隐私审计（语料侧已完成 2026-09-22；隐私实测待壳）
+### M6 长尾与隐私审计（已完成可自动化部分 2026-09-22；人工项待用户）
 
 一百条语料：94 渲染、13 截断、6 明确拒绝（不支持的文字系统）、0 崩溃，
 verify 零活动 finding（`baselines/corpus.md`，`scripts/corpus.ts` 可重跑）。
 隐私审计清单在 `docs/privacy-audit.md`，剪贴板探针在
-`scripts/pasteboard-probe.swift`；逐项实测在壳的存储与排除落地后进行。
+`scripts/pasteboard-probe.swift`；五项自动实测全部通过
+（`baselines/privacy-0.1.0.md`）：Concealed/Transient 不入库、黑名单应用跳过、
+原文件无明文、离线不出网且日志无内容、删除与清空真正删文件。待人工：密码
+管理器真机、AXSecureTextField、辅助功能授权流程。
 
 - 卡片语料一百条，`verify` 零 finding 或明确拒绝。
 - 隐私审计清单：每类数据去向、关闭方法、验证步骤；对 1Password、Bitwarden、
@@ -262,6 +267,11 @@ LICENSE、CONTRIBUTING、SECURITY、隐私说明；GitHub Actions 出未签名 D
 0. 一个 Cloudflare API token（Workers AI 读权限），用于验证 `typesafe/jev`
    的 REST 路径：`PASTE_PROVIDER=cloudflare PASTE_CF_ACCOUNT_ID=… PASTE_CF_TOKEN=…
    bun run paste "…"`。
-1. 引擎分支栈合并与公开 tag（不阻塞 M1 到 M6）。
+1. 引擎分支栈合并与公开 tag（不阻塞 M1 到 M6）。合并时顺手修一处：引擎在
+   `src/runtime/boot.ts:30`、`src/render/parallel.ts:65`、
+   `src/render/build-record.ts:49`、`src/text/measure.ts:272,314` 与 vendored
+   的 `framework/compiler/jsx-plugin.ts` 用 `new URL(…, import.meta.url).pathname`
+   取文件路径，路径含空格（`Application Support`）时会 ENOENT；应改为
+   `fileURLToPath`。pocket-paste 目前把引擎装到 `~/.pocket-paste/engine` 绕开。
 2. M7：Apple Developer 账号、证书、Notarization、updater 密钥。
 3. M8：Cloudflare 部署与域名、计费平台、条款审阅。
