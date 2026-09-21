@@ -79,6 +79,7 @@ if (!existsSync(WORK)) {
 const comp = join(WORK, "compositions/paste");
 await mkdir(comp, { recursive: true });
 await copyFile(join(HERE, "paste/gen.ts"), join(comp, "gen.ts"));
+await copyFile(join(HERE, "paste/charset.txt"), join(comp, "charset.txt"));
 await Bun.write(join(comp, "job.json"), JSON.stringify(dsl, null, 2));
 
 // --- 4. gen → build → render ---

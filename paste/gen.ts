@@ -81,10 +81,16 @@ async function main() {
   const words = segments(body, "zh-CN");
   const texts = [body, attribution, heroNum, ...words, ...body.split("\n"), "“", "”", "·"].filter(Boolean);
 
+  // `charset.txt` beside this file: ASCII, CJK punctuation and the 3755
+  // level-1 GB2312 characters. With it the measurement is a cached
+  // metrics-only bake booted per paste instead of a build per paste; a
+  // clipboard with a character outside it falls back to the build.
+  const charset = await Bun.file(new URL("./charset.txt", import.meta.url).pathname).text();
   const m = await openMeasurer({
     face: { regular: `${ROOT}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${ROOT}/assets/fonts/NotoSansSC-Bold.otf` },
     sizes: sizes.flatMap((s) => [{ px: s, bold: true }, { px: s, bold: false }]),
     texts, density: 1,
+    cache: { charset },
   });
   try {
     // --- fit the body ---
