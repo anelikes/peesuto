@@ -33,7 +33,12 @@ binary.
 
 A pack is a directory: `pack.json` (`id`, `name`, `version`, `kind:
 "actions" | "styles"`, `minApp`) plus `actions/*.json` or a catalog fragment
-(`catalog.json`, merged by `mergeCatalog`). The app fetches the pack index
+(`catalog.json`, merged by `mergeCatalog`; today it carries `palettes`, each
+with a one-sentence `description` the decider reads and five `#rrggbb`
+`colors`: bg, bg2, ink, muted, accent). `docs/packs/example-neon/` is a
+complete styles pack: copy it into `App Support/packs/` and the two
+palettes appear in the decider's choices and in the card. Later packs win
+by name, so a pack may also restyle a base palette. The app fetches the pack index
 from the hosted proxy (`GET /v1/packs`, to add), downloads a zip, verifies
 its SHA-256 from the index, and unpacks into `App Support/packs/<id>/`.
 Anyone can put a pack there by hand.

@@ -11,7 +11,9 @@ export const ASPECTS = ["chat", "doc", "social"] as const;
 
 export type Kind = (typeof KINDS)[number];
 export type Layout = (typeof LAYOUTS)[number];
-export type Palette = (typeof PALETTES)[number];
+/** A palette is a catalog name: the four base ones, or one a style pack adds. */
+export type Palette = string;
+export const isPaletteName = (v: unknown): v is Palette => typeof v === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/.test(v);
 export type Aspect = (typeof ASPECTS)[number];
 export type Level = 0 | 1 | 2 | 3;
 
@@ -39,7 +41,7 @@ export function parseDsl(raw: unknown): Dsl {
   if (typeof r.text !== "string" || !r.text.trim()) bad("text must be a non-empty string");
   if (!oneOf(KINDS, r.kind)) bad(`kind must be one of ${KINDS.join("|")}`);
   if (!oneOf(LAYOUTS, r.layout)) bad(`layout must be one of ${LAYOUTS.join("|")}`);
-  if (!oneOf(PALETTES, r.palette)) bad(`palette must be one of ${PALETTES.join("|")}`);
+  if (!isPaletteName(r.palette)) bad(`palette must be a catalog name (${PALETTES.join("|")} or one from a style pack)`);
   if (!oneOf(ASPECTS, r.aspect)) bad(`aspect must be one of ${ASPECTS.join("|")}`);
   for (const k of ["scale", "tone"]) if (![0, 1, 2, 3].includes(r[k] as number)) bad(`${k} must be 0..3`);
   if (!Number.isInteger(r.emphasis) || (r.emphasis as number) < -1) bad("emphasis must be -1 or a word index");

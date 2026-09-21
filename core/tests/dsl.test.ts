@@ -17,7 +17,7 @@ describe("parseDsl accepts every fixture", () => {
       expect(dsl).toEqual(raw as Dsl);
       expect(KINDS).toContain(dsl.kind);
       expect(LAYOUTS).toContain(dsl.layout);
-      expect(PALETTES).toContain(dsl.palette);
+      expect(PALETTES as readonly string[]).toContain(dsl.palette);
       expect(ASPECTS).toContain(dsl.aspect);
     });
   }

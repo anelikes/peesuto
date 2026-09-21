@@ -1,0 +1,12 @@
+{
+  "palettes": {
+    "neon": {
+      "description": "deep blue with a magenta glow, for launches and announcements",
+      "colors": { "bg": "#050014", "bg2": "#12003a", "ink": "#f5f0ff", "muted": "#b39ddb", "accent": "#ff2d95" }
+    },
+    "mint": {
+      "description": "pale green, calm and fresh, for tips and reminders",
+      "colors": { "bg": "#eef8f2", "bg2": "#dff1e6", "ink": "#12301f", "muted": "#5c7a68", "accent": "#0f9d58" }
+    }
+  }
+}
