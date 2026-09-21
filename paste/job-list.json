@@ -1,0 +1,1 @@
+{ "text": "1. 先量，再改\n2. 一次只改一个变量\n3. 把结果写进 baseline\n4. 让 CI 在另一台机器上复现", "kind": "list", "layout": "left", "palette": "ink", "aspect": "social", "scale": 1, "tone": 1, "emphasis": -1, "animate": true }

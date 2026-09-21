@@ -1,0 +1,1 @@
+{ "text": "const digest = await trace(comp, { frames: 60 });\nif (digest !== baseline) {\n  throw new Error(\"frame moved: \" + digest);\n}", "kind": "code", "layout": "left", "palette": "ink", "aspect": "doc", "scale": 0, "tone": 0, "emphasis": -1, "animate": false }

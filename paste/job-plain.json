@@ -1,0 +1,1 @@
+{ "text": "确定性不是靠 lint 扫出来的，是把能动像素的每一个输入都写进声明里，然后在另一台机器上把同一张图算出来。", "kind": "plain", "layout": "center", "palette": "amber", "aspect": "chat", "scale": 1, "tone": 1, "emphasis": 7, "animate": false }

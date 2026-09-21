@@ -1,0 +1,6 @@
+.work/
+out/
+node_modules/
+jev-proxy/dev.log
+jev-proxy/.wrangler/
+.env*
