@@ -80,6 +80,21 @@ JSON object with the path, the DSL and timings, which is how the app drives
 it. Rendering happens in a symlink tree under `.work/` — the engine checkout
 is never written to.
 
+## The app
+
+```bash
+cd app && bun install
+bun tauri dev                     # dev mode: Core runs from this checkout
+bun scripts/fetch-emoji.ts        # once, from the repo root: the emoji set
+bun scripts/bundle-sidecar.ts --out app/src-tauri
+cd app && bun run build:bundled   # a .app carrying Bun, the engine and Core
+```
+
+`app/README.md` describes the shell: the history panel and smart paste,
+the encrypted store, Accessibility context capture, the daemon lifecycle
+and the settings panes. Accessibility permission is required for paste
+simulation and context capture.
+
 ## How a paste is measured
 
 Text is measured against a cached metrics-only bake of
