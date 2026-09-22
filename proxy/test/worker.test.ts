@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createHandler, hmacHex, period, sha256Hex, validateBody, validateGenerateBody, type CardState, type Env, type Kv } from "../src/index.ts";
+import { createHandler, hmacHex, period, sha256Hex, validateBody, validateGenerateBody, type CardState, type Env, type Kv } from "../src/worker.ts";
 
 // ---------------------------------------------------------------- stubs
 
