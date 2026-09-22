@@ -1,23 +1,35 @@
 # The Core daemon
 
-The desktop app does not shell out per paste. It starts one Core process at
-launch (`paste-daemon`, the Bun sidecar) and talks to it over stdin/stdout
-in JSON lines: one request per line, one response per line, matched by
-`id`. Requests are served one at a time in order, so a render in flight
-delays a pick behind it by about a second; the shell should show that.
+This document describes the **currently implemented protocol**. The
+SwiftUI + AppKit desktop retains this Bun Core; the
+[native migration plan](native-migration.md) defines the target lifecycle and
+protocol improvements. The first Swift client now exists at
+`native/Sources/PeesutoKit/CoreClient.swift`; the original request/response
+format is preserved, with optional task lifecycle events for new callers.
+
+The native desktop starts Core on demand (`paste-daemon`, the Bun sidecar)
+and reuses it across tasks. It talks over stdin/stdout in JSON lines: one
+request per line and one final response per request, matched by `id`.
+Opted-in requests may also receive lifecycle event lines before their final
+response. Requests are served one at a time in order, so a render or model call delays
+all requests behind it for its remaining duration. Native migration must
+remove this scheduling limitation rather than merely displaying a spinner.
 
 ```
-paste-daemon --app-data ~/Library/Application\ Support/pocket-paste \
+paste-daemon --app-data ~/Library/Application\ Support/com.peesuto.desktop \
              --engine-resources <app bundle>/Contents/Resources/resources \
              --idle-minutes 10
 ```
 
 The first line out is `{"id":0,"ok":true,"cmd":"ready","version":…,"engine":…}`.
+The current ready message has no protocol capability negotiation.
 `engine` is null when rendering is unavailable (the install carries no
 engine, or it failed to set up); the daemon still serves pick and generator
 actions. The process exits when stdin closes, on `shutdown`, or after
-`--idle-minutes` of silence; the shell restarts it on the next request.
-Nothing but responses is written to stdout; diagnostics go to stderr.
+`--idle-minutes` with no active request; the shell restarts it on the next request.
+The idle timer is suspended while handling a request and restarted after its
+response. A slow model/render task is not idle just because stdin is silent.
+Only responses and opted-in lifecycle events are written to stdout; diagnostics go to stderr.
 
 ## Commands
 
@@ -27,12 +39,41 @@ Nothing but responses is written to stdout; diagnostics go to stderr.
 | `config.set` | `decider`, `generator` (provider configs), `offline`, `secrets {name: value}`, `egressLog` | `providers` |
 | `pick` | `context`, `candidates[]`, `fresh?` | `result {ranked[], shouldPaste, source}` |
 | `actions.list` / `actions.reload` | — | `actions[]`, `problems[]` |
-| `run-action` | `action` (id), `input {text, item?, context?, aspect?, fresh?}`, `candidates?[]` | `result` (text, or path+format for pictures), `pick?` |
-| `render` | `dsl`, `out?` | `path`, `format`, `frames`, `ms` |
+| `run-action` | `action` (id), `input {text, item?, context?, aspect?, fresh?}`, `candidates?[]`, `events?` | `result` (text, or path+format for image/GIF/video), `pick?` |
+| `render` | `dsl`, `out?`, `events?` | `path`, `format`, `frames`, `ms` |
 | `shutdown` | — | — |
 
 Errors: `{"id":n,"ok":false,"kind":"provider:auth","message":"…"}`. The
 kinds are the CLI's (`core/src/daemon/protocol.ts`, `ERROR_KINDS`).
+
+## Optional task lifecycle events
+
+Set `events: true` on `run-action` or `render` to receive content-free task
+lifecycle notifications for the same request ID:
+
+```json
+{"id":7,"cmd":"run-action","action":"paste-card","input":{"text":"Example"},"events":true}
+```
+
+```json
+{"id":7,"event":"task","cmd":"run-action","state":"accepted"}
+{"id":7,"event":"task","cmd":"run-action","state":"running"}
+{"id":7,"event":"task","cmd":"run-action","state":"completed"}
+```
+
+The normal final response follows these events. On failure the terminal event
+is `failed`, followed by the original `ok: false` error response. Events do
+not contain an `ok` field, clipboard content, credentials or percentages.
+`accepted` means the request reached the handler; `running` means handling
+started. These are not renderer sub-stages, queue-depth estimates or encoding
+progress. A process killed during cancellation/crash cannot emit its terminal
+event; the client settles the pending request as an error.
+
+Requests without `events: true` receive no extra lines, preserving compatibility
+with the old Tauri client. Swift's optional `runAction(..., onState:)` enables
+the extension and delivers `CoreTaskState` values. Events do not consume the
+final response continuation or extend its deadline. Unknown future states are
+ignored, and a legacy daemon that only sends a final response remains usable.
 
 ## Secrets
 
@@ -47,4 +88,33 @@ therefore always begins with `config.set`.
 `Context`, `ClipItem`, `PickResult`, `ActionSpec`, `ActionInput`,
 `ActionResult` are defined in `core/src/pick/types.ts` and
 `core/src/actions/types.ts`; the Rust side mirrors them with serde structs
-(`app/src-tauri/src/sidecar.rs`).
+(`app/src-tauri/src/sidecar.rs`). The native client mirrors these in
+`native/Sources/PeesutoKit/CoreModels.swift`; tests cover response matching,
+configuration barriers, timeouts, crashes, cancellation and worker cleanup.
+
+## Native client status
+
+The Swift client starts Core on demand, waits for ready/configuration, keeps
+secrets in memory and reapplies them after restart. Pipe writes are off the
+actor so a full pipe cannot block deadline handling. The bundled
+`PeesutoCoreHost` establishes a private process group; cancellation, timeout
+and shutdown stop that Core and its workers. This currently fails all pending
+requests, not only one independently cancellable task. Requests are not
+silently replayed, and the native UI remains responsive while awaiting work.
+The native direct-action path shows a nonactivating status panel and checks
+the original target and clipboard generation before automatic delivery;
+Core only returns an output and never simulates the paste itself.
+
+## Remaining protocol and lifecycle work
+
+- Version/capability negotiation, detailed rendering progress, independent
+  task cancellation and complete error-code/localization coverage. The command
+  table above remains the current API; lifecycle events are implemented, but
+  there is no per-task cancel command or percentage-based progress protocol.
+- Separate long rendering work from light requests while serializing builds
+  against shared engine resources or isolating those resources completely.
+- Extend the current process-group cancellation with task-specific cleanup
+  and partial-output policy without weakening late-result protection or
+  silently replaying model requests and paste operations after a crash.
+
+The migration is partially complete; the remaining items above are not implemented.

@@ -4,6 +4,16 @@ pocket-paste watches the clipboard, so the burden of proof is on it. This
 list is what a release must pass, step by step, so anyone can repeat it.
 Date, version and result go into `baselines/privacy-<version>.md`.
 
+## Native migration acceptance
+
+The recorded baseline below belongs to the existing Tauri build, not the
+planned SwiftUI + AppKit replacement. Re-run this checklist against the
+actual native `.app`, including imported encrypted history/images, existing
+Keychain credentials, permission denial, Core crashes and task cancellation.
+Use synthetic data and a separate data directory for migration tests; do not
+run both desktop versions against the production store at the same time.
+See the [migration compatibility requirements](native-migration.md).
+
 ## 1. Data classes and where each one goes
 
 | data | stored | leaves the machine | switch |

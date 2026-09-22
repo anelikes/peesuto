@@ -4,6 +4,25 @@ A release is a tag `vX.Y.Z` on `main`. `.github/workflows/release.yml` builds
 the macOS (Apple silicon) DMG from it and opens a draft GitHub Release; you
 check the draft and publish it. Nothing is published automatically.
 
+## Native migration status
+
+The steps below release the **current Tauri app**. The agreed target is
+SwiftUI + AppKit with bundled Bun Core and Pocket Motion; a local native `.app` builder is available in
+[the native README](../native/README.md), but release/update cutover is incomplete. See [N5 acceptance](native-migration.md).
+
+Before switching releases, add and verify native build/DMG tooling, CI,
+signing/notarization of the app and nested executables, and a native updater.
+Define an upgrade bridge from existing Tauri installations or document a
+manual replacement path. Tauri updater keys, signatures and `latest.json`
+are specific to the current update mechanism and must not be assumed to
+work with the replacement. Retain the old release artifacts for rollback.
+
+Acceptance requires launching the exact built `.app` outside the checkout
+without a system Bun, checking its version and language selector, migrating
+test history/settings/credentials and exercising its actions. A Vite build
+or browser preview is not an application build. Do not remove the existing
+release workflow until the replacement passes these checks.
+
 ## Cutting a release
 
 1. `main` is green in CI, and `engine.json` points at the engine you want to

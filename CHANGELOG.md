@@ -7,6 +7,14 @@ section here becomes one.
 
 ## Unreleased
 
+- Native media shortcuts: configurable `⌘⌥1` image, `⌘⌥2` GIF and `⌘⌥3` video operate on copied text without opening history. Includes a key recorder, conflict rollback, task status window and conservative automatic paste with focus/clipboard guards. Added the `paste-video` MP4 action (requires locally installed ffmpeg), native video playback, unique result files and opt-in Core lifecycle events; active tasks no longer trigger the daemon idle timeout.
+
+- First SwiftUI + AppKit desktop implementation in `native/`, retaining Bun Core and Pocket Motion without a UI WebView. Includes native history/results/settings, English and Simplified Chinese, compatible encrypted storage/Keychain, system integration, a process-safe Core client and actual `.app` build/smoke commands. Full desktop migration and release cutover remain incomplete.
+
+- Documented the native desktop direction: SwiftUI + AppKit will replace Tauri and the UI WebView while retaining Bun Core and Pocket Motion. Image/GIF/video generation is a core product capability. The migration plan includes data compatibility, task lifecycle, a simpler bilingual GUI and actual `.app` acceptance; the first native implementation is now available; complete migration remains unfinished.
+
+- English and Simplified Chinese UI, with a persistent language selector in Settings → General (system default). Changes update all windows, built-in action labels, the tray and updater dialogs without a restart or discarding unsaved settings. User content and custom action names stay unchanged.
+
 - The app is called Peesuto: productName, window titles, tray, dialogs, onboarding, the Homebrew cask (`peesuto`) and the release title. The identifier stays com.peesuto.desktop; the repository and internal paths keep the name pocket-paste.
 - Cloudflare decider: posts to Workers AI's `/ai/run` with `{model, input}`
   and unwraps the run record `{state, result: {answers}}`; the old per-model

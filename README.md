@@ -9,7 +9,7 @@ already do a hundred times a day: copy, paste.
 - **Smart paste.** When you paste into a field, the app reads where you are
   (through macOS Accessibility) and a small decision model preselects the
   history item that fits. You confirm with Enter; nothing is pasted for you.
-- **Actions.** Paste as a card or a GIF (rendered deterministically by
+- **Actions.** Paste as a card, GIF or video (rendered by
   Pocket Motion), paste a translation, paste a summary, or paste the result
   of your own prompt. Actions are JSON files; packs of them can be shared.
 - **Your models.** Two tracks, each self-hostable: a decider (Jev through
@@ -29,6 +29,29 @@ Everything here is MIT. A subscription, when it exists, buys hosted model
 calls that need no setup and official style and action packs; the formats
 stay open.
 
+## Desktop architecture direction
+
+The agreed target is **SwiftUI + AppKit for the macOS desktop, retaining the
+TypeScript/Bun Core and the independent Pocket Motion engine**. Tauri and the
+UI WebView will be removed; Electron is not part of the design. Bun remains a
+local business/render runtime, not a UI runtime. Image, GIF and video generation
+are core product capabilities. PNG/GIF and MP4 actions are implemented; MP4
+requires locally installed ffmpeg, which is not bundled or installed automatically.
+
+**The first native build is implemented; migration is incomplete.**
+[`native/`](native/README.md) builds a standalone SwiftUI + AppKit `.app`, with
+encrypted history, bundled Core, PNG/GIF/MP4 actions and bilingual settings.
+The native app can transform the current clipboard directly with configurable
+`⌘⌥1` (image), `⌘⌥2` (GIF) and `⌘⌥3` (video). Change or disable bindings in
+Settings → Shortcuts. It pastes automatically only when the original insertion
+point can still be verified; newer clipboard contents are preserved.
+`app/` and its commands still build the Tauri version for comparison.
+The native UI replaces its system layer
+as well as its HTML interface, while preserving history, credentials, actions,
+providers, packs and English/Simplified Chinese support. See
+[PLAN.md](PLAN.md) and the [native migration plan](docs/native-migration.md)
+for the scope, task protocol work and actual `.app` acceptance requirements.
+
 ## The card
 
 The first action, and where the project started: copy text, paste a card.
@@ -38,20 +61,21 @@ would reveal a sequence. Every answer is a choice from a fixed set. Pocket
 Motion renders the card from those choices; line breaks and sizes are
 measured, never guessed.
 
-## Layout
+## Current layout
 
 ```
 core/        Core (Bun + TypeScript): the judgement — pick, actions, providers, render
   src/cli.ts       `paste`, the command line for the card chain
   src/daemon/      the long-lived sidecar the app talks to (JSON lines)
   src/pick/        smart paste: context levels, the pick question, the heuristic
-  src/actions/     action format, loading, the five built-ins, the runtime
+  src/actions/     action format, loading, the six built-ins, the runtime
   src/provider/    decider and generator tracks behind one egress layer
   src/catalog.ts   every name the decider may choose for a card, with the numbers behind it
   src/questions.ts the card's seven questions and answers → DSL
-  src/render/      composition generation, emoji, engine driver, GIF
+  src/render/      composition generation, emoji, engine driver, GIF/MP4
   fixtures/        five DSL fixtures and the digests they render to
-app/         the macOS menu-bar app (Tauri 2): history, paste simulation,
+native/      the new SwiftUI + AppKit desktop, compatibility modules and tests
+app/         the existing menu-bar app (Tauri 2): history, paste simulation,
              context capture, encrypted store, Keychain, windows
 proxy/       a self-hostable Cloudflare Worker that forwards questions to Jev
 docs/        actions format, releasing
@@ -83,19 +107,29 @@ bun run paste --dsl core/fixtures/quote.json --out out/quote.gif
 ```
 
 Output lands in `out/` unless `--out` says otherwise. `--json` prints one
-JSON object with the path, the DSL and timings, which is how the app drives
-it. Rendering happens in a symlink tree under `.work/` — the engine checkout
-is never written to.
+JSON object with the path, the DSL and timings for CLI consumers. The desktop
+normally uses the persistent [daemon protocol](docs/daemon.md). Rendering happens
+in a symlink tree under `.work/`; see the engine build isolation rules in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-## The app
+## The current app (Tauri, pending native replacement)
+
+From the repository root, start the current development app:
 
 ```bash
-cd app && bun install
-bun tauri dev                     # dev mode: Core runs from this checkout
-bun scripts/fetch-emoji.ts        # once, from the repo root: the emoji set
-bun scripts/bundle-sidecar.ts --out app/src-tauri
-cd app && bun run build:bundled   # a .app carrying Bun, the engine and Core
+(cd app && bun install && bun tauri dev)
 ```
+
+Or build the current bundled app, also starting at the repository root:
+
+```bash
+bun scripts/fetch-emoji.ts        # once: the bundled emoji set
+bun scripts/bundle-sidecar.ts --out app/src-tauri
+(cd app && bun install && bun run build:bundled)
+```
+
+These are Tauri commands, not native Swift build instructions. The native
+build entry point is documented in [native/README.md](native/README.md).
 
 `app/README.md` describes the shell: the history panel and smart paste,
 the encrypted store, Accessibility context capture, the daemon lifecycle
@@ -144,4 +178,4 @@ key in your Keychain. See `SECURITY.md`.
 
 ## Status
 
-Work in progress towards v1; the plan and its milestones are `PLAN.md`.
+The v1 migration is incomplete; the plan and its milestones are `PLAN.md`.

@@ -1,8 +1,13 @@
 # Contributing
 
-pocket-paste is a macOS menu-bar app (Tauri 2, `app/`) around an open-source
-render chain (`core/`) that turns clipboard text into a card through Jev and
-Pocket Motion. Bug fixes and small improvements: open a pull request.
+Peesuto is a macOS clipboard and AI-action app whose image, GIF and video
+rendering capabilities are central to the product. The current desktop is
+Tauri 2 (`app/`). The agreed replacement is SwiftUI + AppKit, retaining
+TypeScript/Bun Core and the independent Pocket Motion engine. See the
+[native migration plan](docs/native-migration.md); the first implementation and build instructions are in
+[native/README.md](native/README.md). The setup below still covers the old app.
+
+Bug fixes and small improvements: open a pull request.
 Anything that changes what a card looks like, what leaves the machine, or the
 shape of a provider or an action: open an issue first, so the direction is
 agreed before the work is done.
@@ -22,13 +27,29 @@ bun run setup --status    # where the engine is, whether it matches the pin, wha
 
 Already have a pocket-motion checkout? Point `POCKET_ENGINE` at it, or keep
 it as a sibling `../pocketjs-motion`. `bun run setup` then only reports;
-`bun run setup --fix` runs the missing steps inside it. Until the engine's
-branch stack lands in the public pocket-motion, the pinned repository is
-private: ask for read access if the clone is refused.
+`bun run setup --fix` runs the missing steps inside it. The pinned
+`anelikes/pocket-motion` repository is public; cloning it needs no credentials.
 
 For the app: `bun scripts/bundle-sidecar.ts --out app/src-tauri` assembles
 the sidecar the app ships (a Bun binary plus the engine subset), then
 `cd app && bun install && bun run tauri dev`.
+
+## Native migration boundaries
+
+- Keep Core, CLI, action/pack formats, provider adapters and Pocket Motion.
+  Do not translate business logic into Swift as part of the desktop rewrite.
+- Port the existing Rust desktop responsibilities, including encrypted
+  storage and Keychain compatibility; replacing HTML alone is insufficient.
+- Keep the old app and checks until the native `.app` passes end-to-end
+  acceptance. Add native build/test instructions with the actual project,
+  then retire the Tauri-only tooling at cutover.
+- Preserve the engine pin and frame digests unless an engine/render change
+  explicitly requires otherwise. Rust remains an engine build dependency
+  even after the Rust desktop layer is removed.
+- Protocol extensions must distinguish progress from final responses and
+  preserve the transition client contract. Rendering must not block light
+  requests, but builds sharing generated engine files must stay serialized
+  or use isolated resources.
 
 ## Tests
 
@@ -101,5 +122,6 @@ work trees building against the same checkout at the same time race on it,
 and the loser fails its frame with "unknown class … not in the compiled
 style table". Run `bun test`, `scripts/corpus.ts` and the app one at a time
 against one engine, or point them at separate checkouts with
-`POCKET_ENGINE`. The daemon serialises its own requests, so a packaged
-install never hits this.
+`POCKET_ENGINE`. The current daemon serialises its own requests. The native
+migration must preserve build exclusion even when request handling becomes concurrent;
+separate output directories alone do not isolate shared generated files.

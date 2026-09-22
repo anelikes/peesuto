@@ -1,5 +1,13 @@
 # Peesuto — desktop shell
 
+**Current implementation; native replacement planned.** The agreed target is
+SwiftUI + AppKit with the existing Bun Core and Pocket Motion. Tauri, its Rust
+desktop layer and the UI WebView will be replaced after native acceptance;
+this directory remains runnable until then. See the
+[native migration plan](../docs/native-migration.md). The first native app and build command are now available in
+[native/README.md](../native/README.md); full migration is not complete. All commands and file descriptions below concern
+the current implementation, including the language feature already added.
+
 Tauri 2 (Rust) + vanilla TypeScript/Vite. A menu-bar clipboard with actions:
 three windows — `history` (the panel behind ⌘⇧V, with the smart pick),
 `result` (what an action produced: text or a card) and `settings`.
@@ -81,3 +89,32 @@ folder…* (`docs/packs/example-neon` is a complete styles pack) and the
 `images/`, `providers.json` (no secrets), `settings.json`, `egress.log`,
 `answers/` (decider cache), `actions/` (your action files), `packs/`,
 `cards/`, `work/`, `app.log`. Keychain service `com.peesuto.desktop`.
+
+## Language
+
+Settings → General → Language offers **Follow system**, **简体中文**, and
+**English**. The default follows the first macOS preferred language: Chinese
+variants use Simplified Chinese; other languages fall back to English. An
+explicit choice is saved immediately in `settings.json` as `language` and
+updates all three windows, tray menus and updater dialogs without restarting.
+It does not save or reset other pending edits in Settings. Interface language
+does not change clipboard text, generated text, custom action names or prompts
+(the built-in translation action still targets English).
+
+UI strings use English source messages as keys in `src/locales/zh-CN.json`;
+unknown technical diagnostics keep their original text. `src/i18n.ts` handles
+explicit DOM markers and interpolated messages; `src/locale.ts` receives the
+native `locale:changed` event. `src-tauri/src/locale.rs` owns the preference,
+reads macOS preferred languages and embeds the same catalog for native UI.
+Never translate arbitrary DOM text or use translated text as an action ID,
+provider kind, keyboard key or other protocol value.
+
+Validation: `bun run test` checks locale fallback, placeholder parity, catalog
+coverage and custom action names. `cargo test` in `src-tauri` also tests native
+language resolution and interpolation. For browser QA, run `bun run dev` and
+open `/tests/i18n-preview.html?page=settings` (also `history` and `result`).
+This development-only harness uses Tauri's mock APIs and synthetic data; it
+never reads the real clipboard, Keychain or app settings. Open all three pages,
+switch language, reload to check persistence, and verify that unsaved inputs
+and the sample content named `Settings` remain unchanged. The harness is not
+included in the production build.
