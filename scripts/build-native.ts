@@ -1,0 +1,70 @@
+#!/usr/bin/env bun
+/** Builds a real native .app. --preview uses isolated synthetic data and no clipboard capture.
+ * bun scripts/build-native.ts --engine <prepared pinned checkout> [--preview] [--skip-resources]
+ */
+import { existsSync } from "node:fs";
+import { cp, mkdir, rm, chmod } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { engineRoot, REPO_ROOT } from "../core/src/engine.ts";
+
+const args = process.argv.slice(2);
+const flag = (name: string) => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
+const preview = args.includes("--preview");
+const native = join(REPO_ROOT, "native");
+const stage = join(native, ".bundle");
+const target = `${process.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
+async function run(command: string[], cwd = REPO_ROOT): Promise<void> {
+  const p = Bun.spawn(command, { cwd, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+  if (await p.exited !== 0) throw new Error(`Native build failed: ${command[0]}`);
+}
+if (!args.includes("--skip-resources")) {
+  const engine = resolve(flag("--engine") ?? engineRoot());
+  const pin = await Bun.file(join(REPO_ROOT, "engine.json")).json();
+  const p = Bun.spawn(["git", "-C", engine, "rev-parse", "HEAD"], { stdout: "pipe", stderr: "pipe" });
+  const sha = (await new Response(p.stdout).text()).trim();
+  if (await p.exited !== 0 || sha !== pin.sha) throw new Error("Prepare the engine.json pinned checkout and pass --engine <path>. Refusing to bundle a different engine.");
+  await run([process.execPath, "scripts/bundle-sidecar.ts", "--engine", engine, "--out", stage, "--target", target]);
+} else {
+  if (!existsSync(join(stage, "resources/core/daemon.ts")) || !existsSync(join(stage, "binaries", `paste-${target}`))) throw new Error("No staged resources. Build once without --skip-resources.");
+  console.log("Reusing staged Core/engine resources (--skip-resources).");
+}
+await run(["swift", "build", "--package-path", native, "-c", "release"]);
+const name = preview ? "Peesuto Preview" : "Peesuto";
+const app = join(native, "dist", `${name}.app`);
+await rm(app, { recursive: true, force: true });
+const macos = join(app, "Contents/MacOS");
+const resources = join(app, "Contents/Resources");
+await mkdir(macos, { recursive: true });
+await mkdir(resources, { recursive: true });
+for (const binary of ["Peesuto", "PeesutoCoreHost"]) {
+  await cp(join(native, ".build/release", binary), join(macos, binary));
+  await chmod(join(macos, binary), 0o755);
+}
+await cp(join(stage, "binaries", `paste-${target}`), join(macos, "paste"));
+await chmod(join(macos, "paste"), 0o755);
+await cp(join(stage, "resources"), join(resources, "resources"), { recursive: true });
+await cp(join(native, "Resources/AppIcon.icns"), join(resources, "AppIcon.icns"));
+const version = (await Bun.file(join(REPO_ROOT, "package.json")).json()).version;
+await Bun.write(join(app, "Contents/Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>${name}</string>
+<key>CFBundleDisplayName</key><string>${name}</string>
+<key>CFBundleIdentifier</key><string>com.peesuto.desktop${preview ? ".preview" : ""}</string>
+<key>CFBundleExecutable</key><string>Peesuto</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>${version}</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>LSUIElement</key><true/>
+<key>NSHighResolutionCapable</key><true/>
+<key>PeesutoPreview</key><${preview ? "true" : "false"}/>
+</dict></plist>
+`);
+// Local development signature only. Developer ID/notarization remains N5 work.
+await run(["codesign", "--force", "--sign", "-", "--entitlements", join(native, "Resources/Bun.entitlements.plist"), join(macos, "paste")]);
+await run(["codesign", "--force", "--sign", "-", join(macos, "PeesutoCoreHost")]);
+await run(["codesign", "--force", "--sign", "-", app]);
+await run(["codesign", "--verify", "--deep", "--strict", app]);
+console.log(`Built native app: ${app}`);

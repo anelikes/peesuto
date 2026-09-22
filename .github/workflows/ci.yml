@@ -54,5 +54,13 @@ jobs:
         with:
           workspaces: app/src-tauri
       - run: cd app && bun install --frozen-lockfile
+      - run: cd app && bun run test
       - run: cd app && bun run build
       - run: cd app/src-tauri && cargo test
+
+  native:
+    name: native Swift desktop (macOS)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --package-path native
