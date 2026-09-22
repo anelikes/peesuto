@@ -47,8 +47,12 @@ core-foundation = "0.10"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
-codegen-units = 1
-lto = true
+# Thin LTO with a few codegen units: fat LTO at codegen-units = 1 needed more
+# memory than a 7 GB GitHub macOS runner has (and was OOM-killed once locally);
+# the shell is 11 MB next to a 58 MB Bun and 98 MB of resources, so the size
+# difference does not matter.
+codegen-units = 4
+lto = "thin"
 opt-level = 3
 panic = "abort"
 strip = true

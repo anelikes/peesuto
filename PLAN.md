@@ -225,15 +225,23 @@ verify 零活动 finding（`baselines/corpus.md`，`scripts/corpus.ts` 可重跑
 - 隐私审计清单：每类数据去向、关闭方法、验证步骤；对 1Password、Bitwarden、
   Keychain Access 与 Concealed 类型逐一实测。
 
-### M7 发布工程
+### M7 发布工程（已完成可做部分 2026-09-22；签名公证待用户）
 
-LICENSE、CONTRIBUTING、SECURITY、隐私说明；GitHub Actions 出未签名 DMG；签名
-公证与 updater 密钥待用户提供；Homebrew cask。
+LICENSE、CONTRIBUTING、SECURITY、issue 与 PR 模板、`docs/RELEASING.md`、
+Homebrew cask 骨架；`release.yml` 由 tag 或手动触发，在 macOS runner 上取引擎、
+打 sidecar、`tauri build`；没有签名私钥时自动关闭 updater 产物。本机 release
+构建：.app 167 MB、DMG 141 MB，未签名应用可启动（首次需右键打开）。updater
+在配置公钥后启用，30 s 后与每日检查一次。待用户：Apple 证书与公证、updater
+密钥对、GitHub 仓库与 secrets。
 
-### M8 订阅（代理侧已完成 2026-09-22，部署与计费待用户）
+### M8 订阅（代码侧已完成 2026-09-22，部署与计费待用户）
 
 `proxy/` hosted 模式：订阅 token、月配额、限流、`/v1/ask`、`/v1/generate`、
 `/v1/me`、`/v1/packs`、admin 与计费 webhook，126 个测试；`docs/subscription.md`。
+应用侧：订阅面板（许可证密钥入 Keychain、`/v1/me` 显示、一键双轨托管）、
+风格包浏览、安装（SHA-256 校验、zip-slip 防护）、移除；Core 侧风格包目录片段
+合并进目录并直达 Jev 的选项与卡片（`docs/packs/example-neon`）。对假代理验证
+通过；真实端点待部署。
 
 托管 decider 与 generator 代理（鉴权、计量、限流、不记内容）；许可证密钥与
 应用内授权；风格包与动作包分发；计费用 merchant of record；官网与条款。

@@ -15,6 +15,8 @@ section here becomes one.
 - Release engineering docs and workflow; privacy audit checklist.
 - macOS shell: history panel with smart paste, encrypted history, Accessibility context, actions in tray and hotkeys, settings for both provider tracks, privacy and exclusions.
 - Card corpus of 100 samples; composer truncation, wrapping, script refusal, emphasis by the decider's word list.
+- Style packs: catalog fragments merged at load; subscription pane with license key, /v1/me and pack install; updater wired behind a public key; release DMG build.
+- Privacy baseline 0.1.0: five automated checks pass; manual list recorded.
 
 The foundation — M0 of `PLAN.md`, which was M1 to M3 of the plan's first
 edition: the render chain as a package, the engine as a pinned dependency,

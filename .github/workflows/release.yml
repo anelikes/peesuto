@@ -113,6 +113,15 @@ jobs:
             fi
           done
 
+      - name: updater artifacts only with the signing key
+        run: |
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo 'UPDATER_ARGS=--config {"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
+            echo "::notice::TAURI_SIGNING_PRIVATE_KEY is not set; building without updater artifacts"
+          else
+            echo "UPDATER_ARGS=" >> "$GITHUB_ENV"
+          fi
+
       - name: build (and on a tag, the draft release)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -128,8 +137,10 @@ jobs:
           releaseBody: "See CHANGELOG.md for what changed."
           releaseDraft: true
           prerelease: false
-          # The sidecar config adds externalBin + resources produced by bundle-sidecar.ts.
-          args: --config src-tauri/tauri.sidecar.conf.json --target aarch64-apple-darwin
+          # The sidecar config adds externalBin + resources produced by bundle-sidecar.ts,
+          # and turns on updater artifacts; without the signing key those must be off
+          # or the CLI aborts ("public key found, no private key").
+          args: --config src-tauri/tauri.sidecar.conf.json ${{ env.UPDATER_ARGS }} --target aarch64-apple-darwin
 
       - name: DMG as a workflow artifact
         uses: actions/upload-artifact@v4
