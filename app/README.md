@@ -1,4 +1,4 @@
-# Pocket Paste — desktop shell
+# Peesuto — desktop shell
 
 Tauri 2 (Rust) + vanilla TypeScript/Vite. A menu-bar clipboard with actions:
 three windows — `history` (the panel behind ⌘⇧V, with the smart pick),
@@ -59,7 +59,7 @@ unsigned builds never contact the endpoint; when it is on, a check runs
 either way ("Updates are not configured in this build." otherwise).
 
 An unsigned `.app`/DMG is refused by Gatekeeper on first launch: right-click
-→ Open, or `xattr -dr com.apple.quarantine "/Applications/Pocket Paste.app"`.
+→ Open, or `xattr -dr com.apple.quarantine "/Applications/Peesuto.app"`.
 
 Settings → Subscription (`subscription.rs`): the license key goes to the
 Keychain as `pocket-paste/hosted`, the base URL to Settings; *Activate* calls

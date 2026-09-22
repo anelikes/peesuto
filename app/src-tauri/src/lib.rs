@@ -1,4 +1,4 @@
-//! Pocket Paste's shell: a menu-bar clipboard with actions.
+//! Peesuto's shell: a menu-bar clipboard with actions.
 //!
 //! The shell owns everything that needs the system — tray, global shortcut,
 //! pasteboard polling and writing, paste simulation, windows, Keychain — and

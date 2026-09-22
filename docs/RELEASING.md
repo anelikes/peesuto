@@ -21,21 +21,21 @@ check the draft and publish it. Nothing is published automatically.
 5. Tag and push both:
 
    ```bash
-   git tag -a vX.Y.Z -m "Pocket Paste vX.Y.Z"
+   git tag -a vX.Y.Z -m "Peesuto vX.Y.Z"
    git push origin main vX.Y.Z
    ```
 
 6. Watch *Actions → release*. The Rust build takes a while the first time;
    later runs reuse the cargo cache.
-7. Open *Releases*. The draft "Pocket Paste vX.Y.Z" carries the DMG (and,
+7. Open *Releases*. The draft "Peesuto vX.Y.Z" carries the DMG (and,
    once the updater is enabled, `.app.tar.gz`, its `.sig` and `latest.json`).
    Install the DMG on a machine or a fresh user account that has never run
    the app, walk through onboarding, paste once with each action.
 8. Paste the relevant part of `CHANGELOG.md` into the release notes and
    press *Publish release*. The updater (once enabled) sees a release only
    after it is published.
-9. Homebrew: in `anelikes/homebrew-tap`, update `Casks/pocket-paste.rb` from
-   the skeleton in `docs/homebrew/pocket-paste.rb` with the new version and
+9. Homebrew: in `anelikes/homebrew-tap`, update `Casks/peesuto.rb` from
+   the skeleton in `docs/homebrew/peesuto.rb` with the new version and
    `shasum -a 256 <the DMG>`.
 
 A run started by hand (*Actions → release → Run workflow*) builds the same
@@ -50,7 +50,7 @@ right-click → *Open*, or on macOS 15 via *System Settings → Privacy &
 Security → Open Anyway*, or with
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Pocket Paste.app"
+xattr -dr com.apple.quarantine "/Applications/Peesuto.app"
 ```
 
 Say so in the release notes of every unsigned release.
@@ -127,15 +127,15 @@ From then on every release needs both secrets; the build fails without them.
 
 ## Homebrew cask
 
-`docs/homebrew/pocket-paste.rb` is the skeleton for `anelikes/homebrew-tap`
-(`Casks/pocket-paste.rb` in that repository). Per release, update `version`
+`docs/homebrew/peesuto.rb` is the skeleton for `anelikes/homebrew-tap`
+(`Casks/peesuto.rb` in that repository). Per release, update `version`
 and `sha256`. The asset name in the `url` comes from `productName` and
 `version` in `tauri.conf.json` (Tauri names the DMG
-`<productName>_<version>_aarch64.dmg`, and GitHub replaces spaces in asset
-names with dots), so copy it from the release page the first time. Users
+`<productName>_<version>_aarch64.dmg`, so `Peesuto_1.0.0_aarch64.dmg`); check
+it against the release page the first time. Users
 install with
 
 ```bash
 brew tap anelikes/tap
-brew install --cask pocket-paste
+brew install --cask peesuto
 ```

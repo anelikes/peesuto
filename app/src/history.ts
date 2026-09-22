@@ -302,7 +302,7 @@ async function checkStatus(): Promise<void> {
   locked.hidden = !isLocked;
   $("locked-fresh").hidden = status?.state !== "locked";
   if (status?.state === "locked") lockedText.textContent = status.detail;
-  if (status?.state === "opening") lockedText.textContent = "Unlocking the history… (the Keychain may be asking you to allow Pocket Paste)";
+  if (status?.state === "opening") lockedText.textContent = "Unlocking the history… (the Keychain may be asking you to allow Peesuto)";
 }
 
 async function loadActions(): Promise<void> {

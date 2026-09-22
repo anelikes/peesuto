@@ -62,7 +62,7 @@ pub async fn check(app: AppHandle, manual: bool) {
     let cfg = app.state::<UpdaterConfig>().inner().clone();
     if !cfg.enabled {
         if manual {
-            tell(&app, "Pocket Paste", "Updates are not configured in this build.");
+            tell(&app, "Peesuto", "Updates are not configured in this build.");
         }
         return;
     }
@@ -74,7 +74,7 @@ pub async fn check(app: AppHandle, manual: bool) {
             Err(e) => {
                 log::line(format!("updater: {e}"));
                 if manual {
-                    tell(&app, "Pocket Paste", format!("Could not check for updates: {e}"));
+                    tell(&app, "Peesuto", format!("Could not check for updates: {e}"));
                 }
                 return;
             }
@@ -86,7 +86,7 @@ pub async fn check(app: AppHandle, manual: bool) {
             log::line(format!("updater: {version} available (running {current})"));
             let app2 = app.clone();
             app.dialog()
-                .message(format!("Pocket Paste {version} is available; you have {current}.\n\nInstall it and relaunch?"))
+                .message(format!("Peesuto {version} is available; you have {current}.\n\nInstall it and relaunch?"))
                 .title("Update available")
                 .buttons(MessageDialogButtons::OkCancelCustom("Install and relaunch".into(), "Later".into()))
                 .show(move |ok| {
@@ -110,13 +110,13 @@ pub async fn check(app: AppHandle, manual: bool) {
         Ok(None) => {
             log::line(format!("updater: up to date ({current})"));
             if manual {
-                tell(&app, "Pocket Paste", format!("You have the latest version ({current})."));
+                tell(&app, "Peesuto", format!("You have the latest version ({current})."));
             }
         }
         Err(e) => {
             log::line(format!("updater: check failed: {e}"));
             if manual {
-                tell(&app, "Pocket Paste", format!("Could not check for updates: {e}"));
+                tell(&app, "Peesuto", format!("Could not check for updates: {e}"));
             }
         }
     }

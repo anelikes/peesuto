@@ -18,7 +18,7 @@ pub fn build(app: &AppHandle, hotkey: &str) -> tauri::Result<()> {
     let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .icon_as_template(true)
-        .tooltip("Pocket Paste")
+        .tooltip("Peesuto")
         .menu(&menu(app, hotkey, &[])?)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| {
@@ -67,7 +67,7 @@ fn menu(app: &AppHandle, hotkey: &str, actions: &[ActionSpec]) -> tauri::Result<
     }
     b.item(&MenuItemBuilder::with_id("settings", "Settings…").build(app)?)
         .item(&MenuItemBuilder::with_id("updates", "Check for updates…").build(app)?)
-        .item(&MenuItemBuilder::with_id("quit", "Quit Pocket Paste").build(app)?)
+        .item(&MenuItemBuilder::with_id("quit", "Quit Peesuto").build(app)?)
         .build()
 }
 

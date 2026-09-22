@@ -1,5 +1,5 @@
 /**
- * jev-proxy: the worker behind Pocket Paste's `proxy` (dev) and `hosted`
+ * jev-proxy: the worker behind Peesuto's `proxy` (dev) and `hosted`
  * providers. One worker, two modes, selected by the `MODE` var:
  *
  *   dev     — `wrangler dev` on localhost. No auth. POST `/` or `/v1/ask`

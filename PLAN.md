@@ -352,4 +352,5 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
    Account Holder 签发，再导出 .p12。六个 Apple secrets 与 notarytool 凭证的命令
    见 docs/RELEASING.md。updater 密钥对已生成并写入 secret（2026-09-22）。
 3. M8：Cloudflare 部署与域名（peesuto.com，托管默认 api.peesuto.com）、计费平台、
-   条款审阅。应用对用户可见的名字（Pocket Paste 还是 Peesuto）待定。
+   条款审阅。应用对用户可见的名字定为 Peesuto（2026-09-22，productName、窗口、托盘、
+   对话框、cask 都已改；内部名与路径仍是 pocket-paste）。

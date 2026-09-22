@@ -156,7 +156,7 @@ function fillProvidersForm(f: ProvidersForm): void {
   if (!$<HTMLInputElement>("oai-url").value) $<HTMLInputElement>("oai-url").value = DEFAULT_OPENAI_BASE_URL;
 }
 
-const TEST_SENTENCE = "Pocket Paste keeps what you copy and pastes what fits.";
+const TEST_SENTENCE = "Peesuto keeps what you copy and pastes what fits.";
 const LAYA_GUIDE_URL = "https://github.com/anelikes/peesuto/blob/main/docs/laya.md";
 
 async function testDecider(): Promise<void> {

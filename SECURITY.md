@@ -2,7 +2,7 @@
 
 ## What leaves your machine
 
-Pocket Paste is local-first. Clipboard text, the answer cache and every
+Peesuto is local-first. Clipboard text, the answer cache and every
 rendered card stay on disk under your user account. Two kinds of request can
 go over the network, and both depend on what you configured.
 

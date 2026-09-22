@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pocket Paste</title>
+    <title>Peesuto</title>
     <link rel="stylesheet" href="/src/styles.css" />
     <script type="module" src="/src/settings.ts" defer></script>
   </head>
@@ -18,9 +18,9 @@
     </nav>
     <main>
       <section id="intro" class="intro" hidden>
-        <h1>Welcome to Pocket Paste</h1>
+        <h1>Welcome to Peesuto</h1>
         <p>Everything you copy shows up in a panel behind one shortcut. Press it in any text field: the item that fits where you are is preselected, ⏎ pastes it. Actions such as <em>Paste as card</em> or <em>Paste summary</em> turn the text into something else first.</p>
-        <p><strong>Accessibility access is required.</strong> Pocket Paste presses ⌘V on your behalf and reads the focused field (its role, label and the text around the caret) to pick the right item. Without it the history still works, but pasting and smart paste do not.</p>
+        <p><strong>Accessibility access is required.</strong> Peesuto presses ⌘V on your behalf and reads the focused field (its role, label and the text around the caret) to pick the right item. Without it the history still works, but pasting and smart paste do not.</p>
       </section>
 
       <!-- ===== General ===== -->
@@ -33,7 +33,7 @@
             <button id="ax-allow">Allow…</button>
             <button id="ax-open" class="ghost">Open System Settings</button>
           </div>
-          <p class="help">System Settings → Privacy &amp; Security → Accessibility → turn on Pocket Paste. Required for pasting and for smart paste; the panel opens without it.</p>
+          <p class="help">System Settings → Privacy &amp; Security → Accessibility → turn on Peesuto. Required for pasting and for smart paste; the panel opens without it.</p>
           <div class="field-row">
             <button id="ax-probe" class="ghost">What can be seen right now?</button>
             <span id="ax-probe-out" class="help mono"></span>
@@ -108,7 +108,7 @@
               <option value="laya">Laya — a local model through laya-mlx, nothing leaves this Mac</option>
               <option value="proxy">Proxy — a self-hosted Jev worker (URL + token)</option>
               <option value="cloudflare">Cloudflare Workers AI — your account id + token</option>
-              <option value="hosted">Hosted — a Pocket Paste subscription token</option>
+              <option value="hosted">Hosted — a Peesuto subscription token</option>
             </select>
           </label>
           <div data-decider="laya" hidden>
@@ -141,7 +141,7 @@
               <option value="none">None — generator actions are disabled</option>
               <option value="openai-compatible">OpenAI-compatible — Ollama, vLLM, LM Studio, any cloud</option>
               <option value="anthropic">Anthropic — your API key</option>
-              <option value="hosted">Hosted — a Pocket Paste subscription token</option>
+              <option value="hosted">Hosted — a Peesuto subscription token</option>
             </select>
           </label>
           <div data-generator="openai-compatible" hidden>

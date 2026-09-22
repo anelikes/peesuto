@@ -1,7 +1,7 @@
 # Release: a macOS (Apple silicon) DMG, as a draft GitHub Release.
 #
 # Triggers
-#   push of a tag v*     build, then create a DRAFT release "Pocket Paste v…"
+#   push of a tag v*     build, then create a DRAFT release "Peesuto v…"
 #                        with the DMG attached; publish it by hand (docs/RELEASING.md)
 #   workflow_dispatch    build only; the DMG is a workflow artifact and no
 #                        release is created or touched
@@ -124,7 +124,7 @@ jobs:
           # tagName is empty, so tauri-action only builds and the DMG comes out
           # as the workflow artifact below.
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: "${{ github.ref_type == 'tag' && format('Pocket Paste {0}', github.ref_name) || '' }}"
+          releaseName: "${{ github.ref_type == 'tag' && format('Peesuto {0}', github.ref_name) || '' }}"
           releaseBody: "See CHANGELOG.md for what changed."
           releaseDraft: true
           prerelease: false

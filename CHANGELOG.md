@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- The app is called Peesuto: productName, window titles, tray, dialogs, onboarding, the Homebrew cask (`peesuto`) and the release title. The identifier stays com.peesuto.desktop; the repository and internal paths keep the name pocket-paste.
 - Cloudflare decider: posts to Workers AI's `/ai/run` with `{model, input}`
   and unwraps the run record `{state, result: {answers}}`; the old per-model
   path answered "No route for that URI". First verified against the real

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pocket Paste",
+  "productName": "Peesuto",
   "version": "0.1.0",
   "identifier": "com.peesuto.desktop",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "history",
-        "title": "Pocket Paste",
+        "title": "Peesuto",
         "url": "index.html",
         "width": 440,
         "height": 520,
@@ -29,7 +29,7 @@
       },
       {
         "label": "result",
-        "title": "Pocket Paste",
+        "title": "Peesuto",
         "url": "result.html",
         "width": 400,
         "height": 468,
@@ -44,7 +44,7 @@
       },
       {
         "label": "settings",
-        "title": "Pocket Paste",
+        "title": "Peesuto",
         "url": "settings.html",
         "width": 520,
         "height": 760,

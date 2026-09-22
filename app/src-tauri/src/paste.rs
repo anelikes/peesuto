@@ -63,7 +63,7 @@ async fn deliver(app: AppHandle, panel: &'static str, write: impl FnOnce() -> bo
         if !accessibility_trusted() {
             return Err(fail(
                 "accessibility",
-                "It is on the clipboard, but pasting for you needs Accessibility access. Press ⌘V yourself, or allow Pocket Paste in System Settings → Privacy & Security → Accessibility.",
+                "It is on the clipboard, but pasting for you needs Accessibility access. Press ⌘V yourself, or allow Peesuto in System Settings → Privacy & Security → Accessibility.",
             ));
         }
         windows::hide(&app, panel);

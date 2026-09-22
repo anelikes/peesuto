@@ -1,6 +1,6 @@
 # jev-proxy
 
-The Cloudflare Worker behind Pocket Paste's decision providers. It takes a
+The Cloudflare Worker behind Peesuto's decision providers. It takes a
 paste's seven typed questions (`{state: {clipboard}, questions}`), forwards
 them to Workers AI `typesafe/jev`, and returns `{ms, ...result}` where
 `result` carries Jev's `answers`. A second route runs a Workers AI text model
