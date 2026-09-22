@@ -5,9 +5,9 @@
  *   paste-daemon --app-data <dir> [--engine-resources <dir>] [--idle-minutes 10]
  *
  * JSON lines in on stdin, JSON lines out on stdout (protocol.ts). Exits when
- * stdin closes, on `shutdown`, or after `--idle-minutes` without a request
+ * stdin closes, on `shutdown`, or after `--idle-minutes` without pending work
  * (the shell restarts it on demand). Logs go to stderr only; stdout carries
- * nothing but responses.
+ * nothing but responses and explicitly requested task lifecycle events.
  */
 import { join, resolve } from "node:path";
 import { Daemon, parseRequest, type DaemonHost } from "./daemon/server.ts";
@@ -63,7 +63,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stop: (code: number) => void = () => {};
   const done = new Promise<number>((resolve) => { stop = resolve; });
-  const touch = () => { if (timer) clearTimeout(timer); if (idleMs > 0) timer = setTimeout(() => { console.error("daemon: idle, exiting"); stop(0); }, idleMs); };
+  const pauseIdle = () => { if (timer) clearTimeout(timer); timer = undefined; };
+  const touch = () => { pauseIdle(); if (idleMs > 0) timer = setTimeout(() => { console.error("daemon: idle, exiting"); stop(0); }, idleMs); };
   touch();
 
   const out = (o: unknown) => { process.stdout.write(JSON.stringify(o) + "\n"); };
@@ -82,18 +83,22 @@ export async function main(argv: readonly string[]): Promise<number> {
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
         if (!line) continue;
-        touch();
+        // A model/render task is active work even while it awaits a child or
+        // network response. Start the idle deadline only after it finishes.
+        pauseIdle();
         const req = parseRequest(line);
-        if ("ok" in req) { out(req); continue; }
-        const res = await daemon.handle(req);
+        if ("ok" in req) { out(req); touch(); continue; }
+        const res = await daemon.handle(req, out);
         out(res);
         if (req.cmd === "shutdown") { stop(0); return; }
+        touch();
       }
     }
     stop(0);
   })().catch((e) => { console.error(`daemon: ${(e as Error).message}`); stop(1); });
 
-  return done;
+  try { return await done; }
+  finally { pauseIdle(); }
 }
 
 if (import.meta.main) process.exit(await main(process.argv.slice(2)));

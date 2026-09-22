@@ -12,7 +12,7 @@ import { pick } from "../pick/index.ts";
 import { ComposeError } from "../render/compose.ts";
 import { renderCard, type RenderOptions } from "../render/card.ts";
 import { ProviderError } from "../provider/types.ts";
-import type { Request, Response } from "./protocol.ts";
+import type { Request, Response, TaskEvent } from "./protocol.ts";
 
 export interface DaemonHost {
   readonly version: string;
@@ -54,7 +54,21 @@ export class Daemon {
     return s;
   }
 
-  async handle(req: Request): Promise<Response> {
+  async handle(req: Request, emit?: (event: TaskEvent) => void): Promise<Response> {
+    // Existing clients receive no additional output unless they opt in.
+    const notify = (state: TaskEvent["state"]) => {
+      if ((req.cmd === "run-action" || req.cmd === "render") && req.events === true) {
+        emit?.({ id: req.id, event: "task", cmd: req.cmd, state });
+      }
+    };
+    notify("accepted");
+    notify("running");
+    const response = await this.execute(req);
+    notify(response.ok ? "completed" : "failed");
+    return response;
+  }
+
+  private async execute(req: Request): Promise<Response> {
     const id = req.id;
     try {
       switch (req.cmd) {

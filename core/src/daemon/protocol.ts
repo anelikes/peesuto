@@ -1,7 +1,8 @@
 /**
  * The daemon protocol: JSON lines over stdin/stdout between the shell and
  * a long-lived Core. One request per line, one response per line, matched
- * by `id`. Requests are handled one at a time, in order.
+ * by `id`. Requests are handled one at a time, in order. Long tasks may opt
+ * into lifecycle events with `events: true`; their final response is unchanged.
  *
  *   → {"id":1,"cmd":"health"}
  *   ← {"id":1,"ok":true,"version":"0.1.0","engine":"…","providers":{…}}
@@ -22,8 +23,8 @@ export type Request =
   | { id: number; cmd: "pick"; context: Context; candidates: ClipItem[]; fresh?: boolean }
   | { id: number; cmd: "actions.list" }
   | { id: number; cmd: "actions.reload" }
-  | { id: number; cmd: "run-action"; action: string; input: ActionInput; candidates?: ClipItem[] }
-  | { id: number; cmd: "render"; dsl: Dsl; out?: string }
+  | { id: number; cmd: "run-action"; action: string; input: ActionInput; candidates?: ClipItem[]; events?: boolean }
+  | { id: number; cmd: "render"; dsl: Dsl; out?: string; events?: boolean }
   | { id: number; cmd: "shutdown" };
 
 export type Response =
@@ -35,6 +36,14 @@ export type Response =
   | { id: number; ok: true; cmd: "render"; path: string; format: string; frames: number; ms: Record<string, number> }
   | { id: number; ok: true; cmd: "shutdown" }
   | { id: number; ok: false; cmd?: string; kind: string; message: string };
+
+/** Opt-in, content-free task lifecycle. No percentage or render-stage estimate. */
+export interface TaskEvent {
+  readonly id: number;
+  readonly event: "task";
+  readonly cmd: "run-action" | "render";
+  readonly state: "accepted" | "running" | "completed" | "failed";
+}
 
 /** `kind` values a shell can map to messages; the same as the CLI's. */
 export const ERROR_KINDS = ["usage", "input", "provider:config", "provider:auth", "provider:network", "provider:timeout", "provider:model", "provider:bad-response", "provider:quota", "provider:offline", "provider:unavailable", "action:spec", "action:needs", "action:input", "action:run", "compose", "engine", "error"] as const;

@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Daemon, parseRequest, type DaemonHost } from "../src/daemon/server.ts";
+import type { TaskEvent } from "../src/daemon/protocol.ts";
 
 const host = async (): Promise<DaemonHost> => ({
   version: "test", appData: await mkdtemp(join(tmpdir(), "paste-daemon-")), engine: null,
@@ -46,4 +47,65 @@ describe("daemon", () => {
     expect(parseRequest('{"cmd":"health"}')).toMatchObject({ id: -1, ok: false });
     expect(parseRequest('{"id":7,"cmd":"health"}')).toMatchObject({ id: 7, cmd: "health" });
   });
+
+  test("task events are opt-in, content-free, and preserve the final response", async () => {
+    const d = new Daemon(await host()); await d.init();
+    await d.handle({ id: 1, cmd: "config.set", generator: { kind: "stub" } });
+    const events: TaskEvent[] = [];
+    const request = { id: 2, cmd: "run-action" as const, action: "paste-summary", input: { text: "synthetic private content" } };
+    const legacy = await d.handle(request, (event) => events.push(event));
+    expect(events).toEqual([]);
+    const response = await d.handle({ ...request, events: true }, (event) => events.push(event));
+    expect(response).toMatchObject({ id: 2, cmd: "run-action", ok: true });
+    expect(legacy.ok && response.ok && legacy.cmd === "run-action" && response.cmd === "run-action" && legacy.result.output === "text" && response.result.output === "text" && legacy.result.text === response.result.text).toBe(true);
+    expect(events).toEqual((["accepted", "running", "completed"] as const).map((state) => ({ id: 2, cmd: "run-action", event: "task", state })));
+    expect(JSON.stringify(events)).not.toContain("synthetic private content");
+    events.length = 0;
+    const failure = await d.handle({ ...request, action: "missing-action", events: true }, (event) => events.push(event));
+    expect(failure).toMatchObject({ id: 2, ok: false, kind: "action:spec" });
+    expect(events.map((event) => event.state)).toEqual(["accepted", "running", "failed"]);
+  });
+
+  test("render failures emit terminal lifecycle without changing their error", async () => {
+    const d = new Daemon(await host()); await d.init();
+    const events: TaskEvent[] = [];
+    expect(await d.handle({ id: 9, cmd: "render", dsl: {} as never, events: true }, (event) => events.push(event)))
+      .toMatchObject({ id: 9, ok: false, kind: "engine" });
+    expect(events.map((event) => [event.cmd, event.state])).toEqual([
+      ["render", "accepted"], ["render", "running"], ["render", "failed"],
+    ]);
+  });
+
+  test("daemon does not idle-exit during a slow request, then exits when idle", async () => {
+    const appData = await mkdtemp(join(tmpdir(), "paste-daemon-idle-"));
+    const server = Bun.serve({
+      hostname: "127.0.0.1", port: 0,
+      async fetch() {
+        await Bun.sleep(450);
+        return Response.json({ choices: [{ message: { content: "synthetic delayed summary" } }], model: "fixture" });
+      },
+    });
+    const process = Bun.spawn([Bun.which("bun") ?? "bun", join(import.meta.dir, "../src/daemon.ts"), "--app-data", appData, "--idle-minutes", "0.002"], {
+      stdin: "pipe", stdout: "pipe", stderr: "pipe",
+      env: { ...Bun.env, POCKET_ENGINE: join(appData, "missing-engine"), PASTE_REEXEC: "1" },
+    });
+    try {
+      process.stdin.write([
+        { id: 1, cmd: "config.set", decider: { kind: "rules" }, generator: { kind: "openai-compatible", baseUrl: `http://127.0.0.1:${server.port}/v1`, model: "fixture" }, offline: false },
+        { id: 2, cmd: "run-action", action: "paste-summary", input: { text: "synthetic request" }, events: true },
+      ].map((request) => JSON.stringify(request) + "\n").join(""));
+      // Keep stdin open: process termination must come from the *post-task*
+      // idle deadline, not EOF or an explicit shutdown request.
+      const [code, stdout, stderr] = await Promise.all([process.exited, new Response(process.stdout).text(), new Response(process.stderr).text()]);
+      expect(code).toBe(0);
+      const lines = stdout.trim().split("\n").map((line) => JSON.parse(line));
+      expect(lines.find((line) => line.id === 2 && line.ok === true)).toMatchObject({ cmd: "run-action", result: { text: "synthetic delayed summary" } });
+      expect(lines.filter((line) => line.event === "task").map((line) => line.state)).toEqual(["accepted", "running", "completed"]);
+      expect(stderr).toContain("daemon: idle, exiting");
+    } finally {
+      if (process.exitCode === null) process.kill();
+      server.stop(true);
+      await rm(appData, { recursive: true, force: true });
+    }
+  }, 10_000);
 });
