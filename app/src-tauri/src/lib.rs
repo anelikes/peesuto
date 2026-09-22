@@ -15,6 +15,7 @@ mod context;
 mod daemon;
 mod hotkeys;
 mod log;
+mod locale;
 mod paste;
 mod pasteboard;
 mod providers;
@@ -59,6 +60,8 @@ pub fn run() {
         .manage(actions::Registry::default())
         .manage(context::Current::default())
         .invoke_handler(tauri::generate_handler![
+            locale::locale_get,
+            locale::locale_set,
             clipboard::history_list,
             clipboard::history_get,
             clipboard::history_recent,

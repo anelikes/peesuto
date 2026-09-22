@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "icons": "bun scripts/icons.ts && tauri icon app-icon.png && rm -rf src-tauri/icons/android src-tauri/icons/ios",
-    "build:bundled": "tauri build --config src-tauri/tauri.sidecar.conf.json"
+    "build:bundled": "tauri build --config src-tauri/tauri.sidecar.conf.json",
+    "test": "bun test tests"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

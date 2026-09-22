@@ -166,6 +166,7 @@ pub fn apply_triggers(app: &AppHandle) {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionMeta {
+    pub builtin: bool,
     pub id: String,
     pub name: String,
     pub needs: String,
@@ -174,7 +175,7 @@ pub struct ActionMeta {
 
 impl From<&ActionSpec> for ActionMeta {
     fn from(s: &ActionSpec) -> Self {
-        ActionMeta { id: s.id.clone(), name: s.name.clone(), needs: s.needs.clone(), output: s.output.clone() }
+        ActionMeta { builtin: s.builtin == Some(true), id: s.id.clone(), name: s.name.clone(), needs: s.needs.clone(), output: s.output.clone() }
     }
 }
 
@@ -229,7 +230,7 @@ pub struct RunOptions {
 }
 
 fn unknown(id: &str) -> ActionMeta {
-    ActionMeta { id: id.into(), name: id.into(), needs: "none".into(), output: "text".into() }
+    ActionMeta { builtin: false, id: id.into(), name: id.into(), needs: "none".into(), output: "text".into() }
 }
 
 /// Run `action` on `source` and show the result window. Smart paste opens the panel instead.

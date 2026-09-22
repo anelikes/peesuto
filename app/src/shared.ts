@@ -1,4 +1,5 @@
 /** Types and helpers shared by the three pages. The Core-facing shapes mirror core/src/pick/types.ts and core/src/actions/types.ts. */
+import { t, getLocale } from "./i18n";
 import { load, type Store } from "@tauri-apps/plugin-store";
 
 export type Aspect = "chat" | "doc" | "social";
@@ -91,6 +92,7 @@ export function isPasteError(e: unknown): e is PasteError {
 }
 
 export interface ActionMeta {
+  builtin?: boolean;
   id: string;
   name: string;
   needs: "decider" | "generator" | "render" | "none";
@@ -307,37 +309,38 @@ export async function readSettings(store: Store): Promise<Settings> {
 
 /** Core's error kinds (plus the shell's own) as short sentences. */
 export function humanError(kind: string, message: string): { title: string; detail: string; settings: boolean } {
+  message = t(message);
   switch (kind) {
-    case "empty": return { title: "Nothing to work on", detail: message || "Copy some text, then try again.", settings: false };
-    case "usage": case "input": case "action:input": return { title: "This text could not be used.", detail: message, settings: false };
-    case "provider:config": return { title: "The provider is not set up.", detail: message, settings: true };
-    case "provider:auth": return { title: "Your API credential was rejected.", detail: "Check Settings → Providers.", settings: true };
-    case "provider:network": return { title: "The provider could not be reached.", detail: "Check your connection and the URL in Settings → Providers.", settings: true };
-    case "provider:timeout": return { title: "The provider took too long.", detail: "Try again in a moment.", settings: false };
-    case "provider:model": return { title: "The model is unavailable right now.", detail: message, settings: false };
-    case "provider:bad-response": return { title: "The provider answered with something unexpected.", detail: message, settings: false };
-    case "provider:quota": return { title: "Your quota is used up.", detail: "Check your plan, or switch providers in Settings.", settings: true };
-    case "provider:offline": return { title: "Offline mode is on.", detail: "Nothing is sent to any provider while it is on. Turn it off in Settings → Privacy.", settings: true };
-    case "provider:unavailable": return { title: "No provider for this.", detail: message, settings: true };
-    case "action:needs": return { title: "This action needs a provider.", detail: `${message}. Configure one in Settings → Providers.`, settings: true };
-    case "action:spec": return { title: "This action is not valid.", detail: message, settings: true };
-    case "action:run": return { title: "The action did not finish.", detail: message, settings: false };
-    case "compose": return { title: "This text does not fit a card.", detail: message, settings: false };
-    case "engine": return { title: "The render engine is not set up.", detail: message, settings: true };
-    case "sidecar": return { title: "Core could not start.", detail: message, settings: true };
-    case "timeout": return { title: "It took too long.", detail: message || "It was stopped. Try again.", settings: false };
-    default: return { title: "Something went wrong.", detail: message, settings: false };
+    case "empty": return { title: t("Nothing to work on"), detail: message || t("Copy some text, then try again."), settings: false };
+    case "usage": case "input": case "action:input": return { title: t("This text could not be used."), detail: message, settings: false };
+    case "provider:config": return { title: t("The provider is not set up."), detail: message, settings: true };
+    case "provider:auth": return { title: t("Your API credential was rejected."), detail: t("Check Settings → Providers."), settings: true };
+    case "provider:network": return { title: t("The provider could not be reached."), detail: t("Check your connection and the URL in Settings → Providers."), settings: true };
+    case "provider:timeout": return { title: t("The provider took too long."), detail: t("Try again in a moment."), settings: false };
+    case "provider:model": return { title: t("The model is unavailable right now."), detail: message, settings: false };
+    case "provider:bad-response": return { title: t("The provider answered with something unexpected."), detail: message, settings: false };
+    case "provider:quota": return { title: t("Your quota is used up."), detail: t("Check your plan, or switch providers in Settings."), settings: true };
+    case "provider:offline": return { title: t("Offline mode is on."), detail: t("Nothing is sent to any provider while it is on. Turn it off in Settings → Privacy."), settings: true };
+    case "provider:unavailable": return { title: t("No provider for this."), detail: message, settings: true };
+    case "action:needs": return { title: t("This action needs a provider."), detail: t("{0}. Configure one in Settings → Providers.", [message]), settings: true };
+    case "action:spec": return { title: t("This action is not valid."), detail: message, settings: true };
+    case "action:run": return { title: t("The action did not finish."), detail: message, settings: false };
+    case "compose": return { title: t("This text does not fit a card."), detail: message, settings: false };
+    case "engine": return { title: t("The render engine is not set up."), detail: message, settings: true };
+    case "sidecar": return { title: t("Core could not start."), detail: message, settings: true };
+    case "timeout": return { title: t("It took too long."), detail: message || t("It was stopped. Try again."), settings: false };
+    default: return { title: t("Something went wrong."), detail: message, settings: false };
   }
 }
 
 export function relativeTime(ms: number): string {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (s < 45) return "just now";
+  if (s < 45) return t("just now");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return t("{0} min ago", [m]);
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
-  return new Date(ms).toLocaleDateString();
+  if (h < 24) return t("{0} h ago", [h]);
+  return new Date(ms).toLocaleDateString(getLocale());
 }
 
 export function formatBytes(n: number): string {

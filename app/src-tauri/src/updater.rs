@@ -9,7 +9,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-use crate::log;
+use crate::{log, locale::{tr, format as localize}};
 
 const FIRST_CHECK: Duration = Duration::from_secs(30);
 const EVERY: Duration = Duration::from_secs(24 * 60 * 60);
@@ -34,7 +34,7 @@ pub fn configured(config: &tauri::Config) -> UpdaterConfig {
 }
 
 fn tell(app: &AppHandle, title: &str, text: impl Into<String>) {
-    app.dialog().message(text).title(title).kind(MessageDialogKind::Info).show(|_| {});
+    app.dialog().message(text).title(tr(app, title)).kind(MessageDialogKind::Info).show(|_| {});
 }
 
 /// Launch: the first check after a short delay, then daily. Silent when disabled.
@@ -62,7 +62,7 @@ pub async fn check(app: AppHandle, manual: bool) {
     let cfg = app.state::<UpdaterConfig>().inner().clone();
     if !cfg.enabled {
         if manual {
-            tell(&app, "Peesuto", "Updates are not configured in this build.");
+            tell(&app, "Peesuto", tr(&app, "Updates are not configured in this build."));
         }
         return;
     }
@@ -74,7 +74,7 @@ pub async fn check(app: AppHandle, manual: bool) {
             Err(e) => {
                 log::line(format!("updater: {e}"));
                 if manual {
-                    tell(&app, "Peesuto", format!("Could not check for updates: {e}"));
+                    tell(&app, "Peesuto", localize(&app, "Could not check for updates: {0}", &[&e.to_string()]));
                 }
                 return;
             }
@@ -86,9 +86,9 @@ pub async fn check(app: AppHandle, manual: bool) {
             log::line(format!("updater: {version} available (running {current})"));
             let app2 = app.clone();
             app.dialog()
-                .message(format!("Peesuto {version} is available; you have {current}.\n\nInstall it and relaunch?"))
-                .title("Update available")
-                .buttons(MessageDialogButtons::OkCancelCustom("Install and relaunch".into(), "Later".into()))
+                .message(localize(&app, "Peesuto {0} is available; you have {1}.\n\nInstall it and relaunch?", &[&version, &current]))
+                .title(tr(&app, "Update available"))
+                .buttons(MessageDialogButtons::OkCancelCustom(tr(&app, "Install and relaunch"), tr(&app, "Later")))
                 .show(move |ok| {
                     if !ok {
                         return;
@@ -101,7 +101,7 @@ pub async fn check(app: AppHandle, manual: bool) {
                             }
                             Err(e) => {
                                 log::line(format!("updater: install failed: {e}"));
-                                tell(&app2, "Update failed", format!("The update could not be installed: {e}"));
+                                tell(&app2, "Update failed", localize(&app2, "The update could not be installed: {0}", &[&e.to_string()]));
                             }
                         }
                     });
@@ -110,13 +110,13 @@ pub async fn check(app: AppHandle, manual: bool) {
         Ok(None) => {
             log::line(format!("updater: up to date ({current})"));
             if manual {
-                tell(&app, "Peesuto", format!("You have the latest version ({current})."));
+                tell(&app, "Peesuto", localize(&app, "You have the latest version ({0}).", &[&current]));
             }
         }
         Err(e) => {
             log::line(format!("updater: check failed: {e}"));
             if manual {
-                tell(&app, "Peesuto", format!("Could not check for updates: {e}"));
+                tell(&app, "Peesuto", localize(&app, "Could not check for updates: {0}", &[&e.to_string()]));
             }
         }
     }

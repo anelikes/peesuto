@@ -1,4 +1,6 @@
 /** The result window: what an action produced — text (paste, copy, the model) or a card (aspect, another take, paste, copy, save, reveal). */
+import { t, actionName } from "./i18n";
+import { initLocale, onLocaleChange } from "./locale";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -65,31 +67,31 @@ function apply(st: ResultState | null): void {
   revealBtn.hidden = !rendersCard;
   timing.textContent = "";
   model.textContent = "";
-  title.textContent = st ? st.action.name : "Result";
+  title.textContent = st ? actionName(st.action) : t("Result");
   if (!st) { say("", true); return; }
 
   if (st.state === "working") {
     setAspect(st.aspect);
-    say(rendersCard ? "Rendering…" : "Working…", true);
+    say(rendersCard ? t("Rendering…") : t("Working…"), true);
   } else if (st.state === "card") {
     setAspect(st.aspect);
     const r = st.result;
     card.src = convertFileSrc(r.path);
-    say({ image: "Copied as image", file: "GIF copied as file", path: "Path copied", none: "Not copied" }[st.copied], true);
+    say({ image: t("Copied as image"), file: t("GIF copied as file"), path: t("Path copied"), none: t("Not copied") }[st.copied], true);
     const ms = r.ms;
     const total = ms.total ?? 0;
     const parts = [
       `${(total / 1000).toFixed(1)} s`,
-      ms.compose !== undefined && ms.compose !== null ? `compose ${ms.compose}` : "",
-      ms.build !== undefined && ms.build !== null ? `build ${ms.build}` : "",
+      ms.compose !== undefined && ms.compose !== null ? t("compose {0}", [ms.compose]) : "",
+      ms.build !== undefined && ms.build !== null ? t("build {0}", [ms.build]) : "",
       ms.frame !== undefined && ms.frame !== null ? `${r.format} ${ms.frame}` : "",
     ].filter(Boolean);
     const provider = r.decided?.provider ? ` · ${r.decided.provider}${r.decided.jevMs ? ` ${r.decided.jevMs} ms` : ""}` : "";
-    timing.textContent = `${parts.join(" · ")} ms${provider} · ${r.size}px · ${r.frames} frame${r.frames === 1 ? "" : "s"}`;
+    timing.textContent = t("{0} ms{1} · {2}px · {3} frames", [parts.join(" · "), provider, r.size, r.frames]);
   } else if (st.state === "text") {
     textOut.textContent = st.text;
     model.textContent = [st.model ?? "", `${(st.ms / 1000).toFixed(1)} s`].filter(Boolean).join(" · ");
-    say("Ready", true);
+    say(t("Ready"), true);
   } else {
     if (rendersCard) setAspect(st.aspect);
     const h = humanError(st.kind, st.message);
@@ -128,7 +130,7 @@ pasteBtn.addEventListener("click", async () => {
       await invoke("paste_text", { text: current.text });
     }
   } catch (e) {
-    say(isPasteFailure(e) && e.kind === "accessibility" ? "Copied — allow Accessibility to paste automatically" : String(isPasteFailure(e) ? e.message : e), true);
+    say(isPasteFailure(e) && e.kind === "accessibility" ? t("Copied — allow Accessibility to paste automatically") : String(isPasteFailure(e) ? t(e.message) : e), true);
   }
 });
 
@@ -138,13 +140,13 @@ copyBtn.addEventListener("click", async () => {
     if (current.state === "card") {
       const { path, format } = current.result;
       const how = await invoke<string>("copy_card", { path, format });
-      say(how === "image" ? "Copied" : how === "file" ? "Copied as file" : "Path copied");
+      say(how === "image" ? t("Copied") : how === "file" ? t("Copied as file") : t("Path copied"));
     } else if (current.state === "text") {
       await writeText(current.text);
-      say("Copied");
+      say(t("Copied"));
     }
   } catch (e) {
-    say(`Copy failed: ${e}`, true);
+    say(t("Copy failed: {0}", [e]), true);
   }
 });
 
@@ -155,16 +157,16 @@ saveBtn.addEventListener("click", async () => {
   await invoke("result_hold", { hold: true });
   try {
     const dest = await save({
-      title: "Save card",
+      title: t("Save card"),
       defaultPath: `pocket-paste-${name}`,
-      filters: [{ name: format === "gif" ? "GIF" : "PNG image", extensions: [format] }],
+      filters: [{ name: format === "gif" ? "GIF" : t("PNG image"), extensions: [format] }],
     });
     if (dest) {
       await invoke("save_card", { path, dest });
-      say("Saved");
+      say(t("Saved"));
     }
   } catch (e) {
-    say(`Save failed: ${e}`, true);
+    say(t("Save failed: {0}", [e]), true);
   } finally {
     await invoke("result_hold", { hold: false });
   }
@@ -181,4 +183,5 @@ document.addEventListener("keydown", (e) => {
 });
 
 void listen<ResultState>("result:state", (e) => apply(e.payload));
-void invoke<ResultState | null>("result_state").then(apply);
+onLocaleChange(() => apply(current));
+void initLocale().then(() => invoke<ResultState | null>("result_state")).then(apply);

@@ -1,3 +1,5 @@
+import { t, actionName } from "./i18n";
+import { initLocale, onLocaleChange } from "./locale";
 /**
  * The history panel: search, arrow keys, ⏎ pastes, ⌘⌫ deletes — and, when
  * it was opened by the hotkey, the smart pick: the items are reordered by
@@ -43,6 +45,8 @@ let pickToken = 0;
 let itemActions: ActionSpec[] = [];
 const thumbs = new Map<string, string>();
 let status: HistoryStatus | null = null;
+let lastSession: Session | null = null;
+let lastPick: PickResult | null = null;
 
 async function refresh(): Promise<void> {
   const fetched = await invoke<ClipItem[]>("history_list", { query: search.value });
@@ -62,10 +66,10 @@ function render(): void {
   list.replaceChildren(...items.map(row));
   const isLocked = status?.state === "locked" || status?.state === "opening";
   empty.hidden = items.length > 0 || isLocked;
-  empty.textContent = search.value ? "No match." : "Nothing copied yet.";
+  empty.textContent = search.value ? t("No match.") : t("Nothing copied yet.");
   confirmBar.classList.toggle("muted", items.length === 0);
   const cur = items[selected];
-  confirmText.textContent = cur ? cur.preview : isLocked ? "history locked" : "nothing yet";
+  confirmText.textContent = cur ? (cur.kind === "image" ? t("Image") : cur.preview) : isLocked ? t("history locked") : t("nothing yet");
   list.querySelector(".selected")?.scrollIntoView({ block: "nearest" });
 }
 
@@ -79,7 +83,7 @@ function iconButton(title: string, glyph: string, onClick: () => void): HTMLButt
 
 function thumbnail(it: ClipItem): HTMLElement {
   const img = el("img", "thumb");
-  img.alt = it.preview;
+  img.alt = it.kind === "image" ? t("Image") : it.preview;
   const cached = thumbs.get(it.id);
   if (cached) img.src = cached;
   else {
@@ -97,18 +101,18 @@ function row(it: ClipItem, i: number): HTMLLIElement {
 
   if (it.kind === "image") li.append(thumbnail(it));
   const main = el("div", "item-main");
-  const text = el("div", "item-text", it.preview || "(empty)");
+  const text = el("div", "item-text", (it.kind === "image" ? t("Image") : it.preview) || t("(empty)"));
   const meta = el("div", "item-meta");
   const badges = it.types.filter((t) => t !== "file-url" && !(it.kind === "image" && t === "image")).map((t) => t.toUpperCase());
-  if (it.kind === "file") badges.unshift("FILE");
+  if (it.kind === "file") badges.unshift(t("FILE"));
   if (it.kind === "image") badges.unshift(formatBytes(it.bytes));
   meta.textContent = [it.appName ?? it.appBundleId ?? "", relativeTime(it.createdAt), ...badges].filter(Boolean).join(" · ");
   main.append(text, meta);
 
   const tools = el("div", "item-tools");
-  tools.append(iconButton(it.pinned ? "Unpin" : "Pin", it.pinned ? "★" : "☆", () => void invoke("history_pin", { id: it.id, pinned: !it.pinned })));
-  if (it.kind !== "image") tools.append(iconButton("Actions", "▸", () => { const r = li.getBoundingClientRect(); selected = i; render(); openContext(r.right - 160, r.bottom, it); }));
-  tools.append(iconButton("Delete", "×", () => void invoke("history_delete", { id: it.id })));
+  tools.append(iconButton(it.pinned ? t("Unpin") : t("Pin"), it.pinned ? "★" : "☆", () => void invoke("history_pin", { id: it.id, pinned: !it.pinned })));
+  if (it.kind !== "image") tools.append(iconButton(t("Actions"), "▸", () => { const r = li.getBoundingClientRect(); selected = i; render(); openContext(r.right - 160, r.bottom, it); }));
+  tools.append(iconButton(t("Delete"), "×", () => void invoke("history_delete", { id: it.id })));
 
   li.append(main, tools);
   li.addEventListener("click", () => { selected = i; render(); });
@@ -136,7 +140,7 @@ async function paste(it: ClipItem | undefined): Promise<void> {
     if (isPasteFailure(e) && e.kind === "accessibility") {
       axBanner.hidden = false;
     } else {
-      confirmText.textContent = isPasteFailure(e) ? e.message : String(e);
+      confirmText.textContent = isPasteFailure(e) ? t(e.message) : String(e);
     }
   }
 }
@@ -144,15 +148,16 @@ async function paste(it: ClipItem | undefined): Promise<void> {
 // ---- the smart pick ----
 
 function showPick(state: "idle" | "working" | "done", result?: PickResult): void {
+  lastPick = state === "done" ? result ?? null : null;
   pickSpinner.hidden = state !== "working";
   pickSource.hidden = state !== "done";
   pickDot.hidden = state !== "done";
   if (state === "done" && result) {
-    pickSource.textContent = result.source;
+    pickSource.textContent = t(result.source);
     pickSource.title = result.ranked[0]?.reason ?? "";
     const p = result.shouldPaste;
     pickDot.className = `dot ${p >= 0.6 ? "hi" : p >= 0.3 ? "mid" : "lo"}`;
-    pickDot.title = `Looks like a place to paste: ${(p * 100).toFixed(0)} %`;
+    pickDot.title = t("Looks like a place to paste: {0} %", [(p * 100).toFixed(0)]);
   }
 }
 
@@ -184,7 +189,8 @@ async function startPick(s: Session): Promise<void> {
 
 function onOpen(s: Session): void {
   note.hidden = !s.note;
-  noteText.textContent = s.note ?? "";
+  lastSession = s;
+  noteText.textContent = t(s.note ?? "");
   if (s.smart) void startPick(s);
   else cancelPick();
 }
@@ -205,11 +211,11 @@ function closeMenus(): void {
 function openContext(x: number, y: number, it: ClipItem): void {
   contextItem = it;
   const pin = context.querySelector<HTMLButtonElement>('[data-action="pin"]');
-  if (pin) pin.textContent = it.pinned ? "Unpin" : "Pin";
+  if (pin) pin.textContent = it.pinned ? t("Unpin") : t("Pin");
   contextActions.replaceChildren(...(it.kind === "image" ? [] : itemActions.map((a) => {
-    const b = el("button", "", a.name);
+    const b = el("button", "", actionName(a));
     b.dataset.action = `run:${a.id}`;
-    b.title = a.description ?? "";
+    b.title = a.builtin ? t(a.description ?? "") : a.description ?? "";
     return b;
   })));
   context.hidden = false;
@@ -250,7 +256,7 @@ $("fresh-yes").addEventListener("click", async () => {
   try {
     await invoke("history_start_fresh");
   } catch (e) {
-    lockedText.textContent = `Could not start fresh: ${e}`;
+    lockedText.textContent = t("Could not start fresh: {0}", [e]);
   }
   await checkStatus();
   await refresh();
@@ -301,8 +307,8 @@ async function checkStatus(): Promise<void> {
   const isLocked = status?.state === "locked" || status?.state === "opening";
   locked.hidden = !isLocked;
   $("locked-fresh").hidden = status?.state !== "locked";
-  if (status?.state === "locked") lockedText.textContent = status.detail;
-  if (status?.state === "opening") lockedText.textContent = "Unlocking the history… (the Keychain may be asking you to allow Peesuto)";
+  if (status?.state === "locked") lockedText.textContent = t(status.detail);
+  if (status?.state === "opening") lockedText.textContent = t("Unlocking the history… (the Keychain may be asking you to allow Peesuto)");
 }
 
 async function loadActions(): Promise<void> {
@@ -336,7 +342,17 @@ void win.onFocusChanged(({ payload: focused }) => {
   }
 });
 
-void checkStatus().then(refresh);
-void checkAccessibility();
-void loadActions();
-search.focus();
+onLocaleChange(() => {
+  render();
+  if (lastSession) noteText.textContent = t(lastSession.note ?? "");
+  if (lastPick) showPick("done", lastPick);
+  closeMenus();
+  void checkStatus();
+});
+void initLocale().then(async () => {
+  await checkStatus();
+  await refresh();
+  await checkAccessibility();
+  await loadActions();
+  search.focus();
+});

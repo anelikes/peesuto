@@ -8,6 +8,7 @@ use tauri::{
     AppHandle, Manager, Wry,
 };
 
+use crate::locale::tr;
 use crate::actions::{ActionSpec, RunOptions, Source};
 
 const TRAY_ID: &str = "main";
@@ -51,13 +52,14 @@ pub fn build(app: &AppHandle, hotkey: &str) -> tauri::Result<()> {
 
 fn menu(app: &AppHandle, hotkey: &str, actions: &[ActionSpec]) -> tauri::Result<tauri::menu::Menu<Wry>> {
     let mut b = MenuBuilder::new(app)
-        .item(&MenuItemBuilder::with_id("history", format!("Show history  {}", crate::hotkeys::mac_symbols(hotkey))).build(app)?)
+        .item(&MenuItemBuilder::with_id("history", format!("{}  {}", tr(app, "Show history"), crate::hotkeys::mac_symbols(hotkey))).build(app)?)
         .separator();
     let mut any = false;
     for a in actions.iter().filter(|a| a.in_menu() && a.needs != "decider") {
+        let name = if a.builtin == Some(true) { tr(app, &a.name) } else { a.name.clone() };
         let label = match a.hotkey() {
-            Some(h) => format!("{}  {}", a.name, crate::hotkeys::mac_symbols(h)),
-            None => a.name.clone(),
+            Some(h) => format!("{}  {}", name, crate::hotkeys::mac_symbols(h)),
+            None => name,
         };
         b = b.item(&MenuItemBuilder::with_id(format!("{ACTION_PREFIX}{}", a.id), label).build(app)?);
         any = true;
@@ -65,9 +67,9 @@ fn menu(app: &AppHandle, hotkey: &str, actions: &[ActionSpec]) -> tauri::Result<
     if any {
         b = b.separator();
     }
-    b.item(&MenuItemBuilder::with_id("settings", "Settings…").build(app)?)
-        .item(&MenuItemBuilder::with_id("updates", "Check for updates…").build(app)?)
-        .item(&MenuItemBuilder::with_id("quit", "Quit Peesuto").build(app)?)
+    b.item(&MenuItemBuilder::with_id("settings", tr(app, "Settings…")).build(app)?)
+        .item(&MenuItemBuilder::with_id("updates", tr(app, "Check for updates…")).build(app)?)
+        .item(&MenuItemBuilder::with_id("quit", tr(app, "Quit Peesuto")).build(app)?)
         .build()
 }
 

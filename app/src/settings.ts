@@ -1,4 +1,6 @@
 /** Settings and first-run onboarding: General, Providers (two tracks), Actions, Privacy, Exclusions. */
+import { t, actionName, getLocale, type Language } from "./i18n";
+import { initLocale, onLocaleChange, localeState, changeLanguage } from "./locale";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
@@ -67,7 +69,7 @@ function syncVisibility(): void {
 // ---- general ----
 async function refreshAccessibility(): Promise<void> {
   const trusted = await invoke<boolean>("accessibility_status").catch(() => false);
-  axStatus.textContent = trusted ? "Allowed" : "Not allowed";
+  axStatus.textContent = trusted ? t("Allowed") : t("Not allowed");
   axStatus.className = `pill ${trusted ? "ok" : "warn"}`;
 }
 
@@ -77,10 +79,10 @@ async function refreshInfo(): Promise<void> {
     const s = info.sidecar;
     const mark = (ok: boolean) => (ok ? "✓" : "✗");
     sidecarInfo.textContent = [
-      `dev: bun ${s.bun ?? "not found"} · ${mark(s.dev_daemon_present)} ${s.dev_daemon}`,
-      `bundled: ${mark(s.bundled_present)} ${s.bundled_binary} · ${mark(s.resources_present)} ${s.resources}`,
+      t("dev: bun {0} · {1} {2}", [s.bun ?? t("not found"), mark(s.dev_daemon_present), s.dev_daemon]),
+      t("bundled: {0} {1} · {2} {3}", [mark(s.bundled_present), s.bundled_binary, mark(s.resources_present), s.resources]),
     ].join("\n");
-    appInfo.textContent = `${info.identifier} ${info.version}${info.debug ? " (debug)" : ""}\ndata: ${info.app_data}\nlog: ${info.log}\nupdates: ${info.updater.enabled ? info.updater.endpoint : "not configured in this build"}`;
+    appInfo.textContent = t("{0} {1}{2}\ndata: {3}\nlog: {4}\nupdates: {5}", [info.identifier, info.version, info.debug ? t(" (debug)") : "", info.app_data, info.log, info.updater.enabled ? info.updater.endpoint : t("not configured in this build")]);
     $("packs-from-folder").hidden = !info.debug;
   } catch (e) {
     sidecarInfo.textContent = String(e);
@@ -90,7 +92,7 @@ async function refreshInfo(): Promise<void> {
 async function refreshDaemon(): Promise<void> {
   try {
     const d = await invoke<DaemonStatus>("daemon_status");
-    const label = d.fallback ? "Core: gave up (CLI fallback)" : d.ready ? `Core: ready${d.version ? ` ${d.version}` : ""}${d.engine ? "" : " · no engine"}` : d.alive ? "Core: starting…" : "Core: idle (starts on demand)";
+    const label = d.fallback ? t("Core: gave up (CLI fallback)") : d.ready ? t("Core: ready{0}{1}", [d.version ? ` ${d.version}` : "", d.engine ? "" : t(" · no engine")]) : d.alive ? t("Core: starting…") : t("Core: idle (starts on demand)");
     daemonStatus.textContent = label;
     daemonStatus.className = `pill ${d.fallback ? "warn" : d.ready ? "ok" : ""}`;
   } catch (e) {
@@ -161,8 +163,8 @@ const LAYA_GUIDE_URL = "https://github.com/anelikes/peesuto/blob/main/docs/laya.
 
 async function testDecider(): Promise<void> {
   const out = $("test-decider-out");
-  out.textContent = "Saving and asking…";
-  if (!(await saveAll())) { out.textContent = "Fix the save first."; return; }
+  out.textContent = t("Saving and asking…");
+  if (!(await saveAll())) { out.textContent = t("Fix the save first."); return; }
   const now = Date.now();
   const candidates: ClipItem[] = [
     { id: "t1", kind: "text", text: "https://example.com/report.pdf", preview: "https://example.com/report.pdf", createdAt: now - 60_000, pinned: false, bytes: 30, types: [] },
@@ -174,8 +176,8 @@ async function testDecider(): Promise<void> {
     const r = await invoke<PickResult>("daemon_pick", { context, candidates, fresh: true });
     const top = r.ranked[0];
     // Rules only decides cards (the pick keeps its heuristic), so say so rather than look unused.
-    const note = deciderKind.value === "rules" ? "rules decide cards locally · pick " : "";
-    out.textContent = `${note}${r.source} · top: “${top?.item.preview ?? "?"}” (${top?.reason ?? ""}) · shouldPaste ${(r.shouldPaste * 100).toFixed(0)} % · ${Math.round(performance.now() - t0)} ms`;
+    const note = deciderKind.value === "rules" ? t("rules decide cards locally · pick ") : "";
+    out.textContent = t("{0}{1} · top: “{2}” ({3}) · shouldPaste {4} % · {5} ms", [note, t(r.source), top?.item.preview ?? "?", top?.reason ?? "", (r.shouldPaste * 100).toFixed(0), Math.round(performance.now() - t0)]);
     out.className = "help ok";
   } catch (e) {
     const err = isPasteError(e) ? e : { kind: "error", message: String(e) };
@@ -187,8 +189,8 @@ async function testDecider(): Promise<void> {
 
 async function testGenerator(): Promise<void> {
   const out = $("test-generator-out");
-  out.textContent = "Saving and asking…";
-  if (!(await saveAll())) { out.textContent = "Fix the save first."; return; }
+  out.textContent = t("Saving and asking…");
+  if (!(await saveAll())) { out.textContent = t("Fix the save first."); return; }
   try {
     const t0 = performance.now();
     const r = await invoke<{ result: { output: string; text?: string; model?: string } }>("daemon_run_action", { action: "paste-summary", input: { text: TEST_SENTENCE, fresh: true } });
@@ -209,23 +211,23 @@ function renderActions(info: ActionsInfo): void {
   body.replaceChildren(...info.actions.map((a) => {
     const tr = el("tr");
     const name = el("td");
-    name.append(el("div", "", a.name), el("div", "help mono", a.id));
-    if (a.description) name.title = a.description;
+    name.append(el("div", "", actionName(a)), el("div", "help mono", a.id));
+    if (a.description) name.title = a.builtin ? t(a.description) : a.description;
     const hk = el("td");
     const r: HotkeyReport | undefined = reports.get(a.id);
     const key = a.needs === "decider" ? hotkey.value : a.trigger?.hotkey;
     if (key) {
       hk.append(el("span", "mono", key));
-      if (r && !r.ok) { const p = el("div", "help err", r.problem ?? "not registered"); hk.append(p); }
-      else if (r?.ok) hk.append(el("span", "pill ok tiny", "on"));
+      if (r && !r.ok) { const p = el("div", "help err", t(r.problem ?? "not registered")); hk.append(p); }
+      else if (r?.ok) hk.append(el("span", "pill ok tiny", t("on")));
     } else hk.textContent = "—";
-    const source = a.builtin ? "built-in" : a.pack ? `pack ${a.pack}` : "your file";
-    tr.append(name, el("td", "", a.needs), el("td", "", a.output), hk, el("td", "", source));
+    const source = a.builtin ? t("built-in") : a.pack ? t("pack {0}", [a.pack]) : t("your file");
+    tr.append(name, el("td", "", t(a.needs)), el("td", "", t(a.output)), hk, el("td", "", source));
     return tr;
   }));
   const problems = $("actions-problems");
   problems.replaceChildren(...info.problems.map((p) => el("li", "err", `${p.file}: ${p.message}`)));
-  $("actions-status").textContent = `${info.actions.length} action(s) · ${info.folder}`;
+  $("actions-status").textContent = t("{0} action(s) · {1}", [info.actions.length, info.folder]);
 }
 
 async function refreshActions(reload = false): Promise<void> {
@@ -255,12 +257,12 @@ function renderPrivacyTable(): void {
     const tr = el("tr");
     const sw = el("td");
     if (r.pane) {
-      const b = el("button", "link", r.sw);
+      const b = el("button", "link", t(r.sw));
       const pane = r.pane;
       b.addEventListener("click", () => showPane(pane));
       sw.append(b);
-    } else sw.textContent = r.sw;
-    tr.append(el("td", "", r.data), el("td", "", r.stored), el("td", "", r.leaves), sw);
+    } else sw.textContent = t(r.sw);
+    tr.append(el("td", "", t(r.data)), el("td", "", t(r.stored)), el("td", "", t(r.leaves)), sw);
     return tr;
   }));
 }
@@ -268,9 +270,12 @@ function renderPrivacyTable(): void {
 async function refreshPrivacy(): Promise<void> {
   try {
     const p = await invoke<PrivacyInfo>("privacy_info");
-    $("destinations").replaceChildren(...p.destinations.map((d) => el("li", "", d)));
+    $("destinations").replaceChildren(...p.destinations.map((d) => {
+      const [kind, ...host] = d.split(" → ");
+      return el("li", "", host.length ? `${t(kind)} → ${t(host.join(" → "))}` : d);
+    }));
     $("egress-path").textContent = p.egress_log;
-    $("egress-log").textContent = p.egress_lines.length ? p.egress_lines.join("\n") : "(empty — nothing has left this Mac)";
+    $("egress-log").textContent = p.egress_lines.length ? p.egress_lines.join("\n") : t("(empty — nothing has left this Mac)");
     offlinePrivacy.checked = p.offline;
   } catch (e) {
     $("privacy-status").textContent = String(e);
@@ -283,7 +288,7 @@ function renderBlacklist(): void {
     const li = el("li");
     li.append(el("span", "mono", b));
     const x = el("button", "icon", "×");
-    x.title = "Remove";
+    x.title = t("Remove");
     x.addEventListener("click", () => { blacklist = blacklist.filter((v) => v !== b); renderBlacklist(); });
     li.append(x);
     return li;
@@ -301,7 +306,7 @@ function addBlacklist(): void {
 async function refreshHistoryStatus(): Promise<void> {
   try {
     const s = await invoke<HistoryStatus>("history_status");
-    $("history-status").textContent = s.state === "ok" ? `${s.items} item(s) in the encrypted history.` : s.state === "locked" ? `History locked: ${s.detail}` : s.state === "opening" ? "Opening the history…" : "History is kept in memory only (no Keychain key).";
+    $("history-status").textContent = s.state === "ok" ? t("{0} item(s) in the encrypted history.", [s.items]) : s.state === "locked" ? t("History locked: {0}", [t(s.detail)]) : s.state === "opening" ? t("Opening the history…") : t("History is kept in memory only (no Keychain key).");
   } catch { /* fine */ }
 }
 
@@ -312,6 +317,8 @@ const subStatus = $("sub-status");
 const subUseHosted = $<HTMLButtonElement>("sub-use-hosted");
 const packsStatus = $("packs-status");
 let subscription: SubscriptionForm | null = null;
+let subscriptionMe: SubscriptionMe | null = null;
+let packIndex: PackEntry[] | null = null;
 
 function errText(e: unknown): string {
   return isPasteError(e) ? e.message : String(e);
@@ -324,7 +331,7 @@ async function refreshSubscription(): Promise<void> {
     subBase.value = subscription.baseUrl;
     subBase.placeholder = subscription.defaultBaseUrl;
     subUseHosted.disabled = !subscription.key;
-    subUseHosted.textContent = subscription.hostedActive ? "Hosted is active for both tracks" : "Use hosted for both tracks";
+    subUseHosted.textContent = subscription.hostedActive ? t("Hosted is active for both tracks") : t("Use hosted for both tracks");
   } catch (e) {
     subStatus.textContent = errText(e);
   }
@@ -332,22 +339,24 @@ async function refreshSubscription(): Promise<void> {
 }
 
 function showMe(me: SubscriptionMe): void {
+  subscriptionMe = me;
   $("sub-me").hidden = false;
-  $("sub-plan").textContent = `${me.plan}${me.label ? ` (${me.label})` : ""}${me.active ? "" : " — inactive"}`;
-  $("sub-quota").textContent = `${me.used} of ${me.quota} calls used this period`;
-  $("sub-resets").textContent = me.resetsAt ? new Date(me.resetsAt).toLocaleString() : "—";
+  $("sub-plan").textContent = `${me.plan}${me.label ? ` (${me.label})` : ""}${me.active ? "" : t(" — inactive")}`;
+  $("sub-quota").textContent = t("{0} of {1} calls used this period", [me.used, me.quota]);
+  $("sub-resets").textContent = me.resetsAt ? new Date(me.resetsAt).toLocaleString(getLocale()) : "—";
 }
 
 async function activate(): Promise<void> {
-  subStatus.textContent = "Checking the key…";
+  subStatus.textContent = t("Checking the key…");
   subStatus.className = "help";
   try {
     const me = await invoke<SubscriptionMe>("subscription_activate", { key: subKey.value.trim(), baseUrl: subBase.value.trim() || subBase.placeholder });
     showMe(me);
-    subStatus.textContent = "Activated.";
+    subStatus.textContent = t("Activated.");
     subStatus.className = "help ok";
     subUseHosted.disabled = false;
   } catch (e) {
+    subscriptionMe = null;
     $("sub-me").hidden = true;
     subStatus.textContent = errText(e);
     subStatus.className = "help err";
@@ -355,12 +364,13 @@ async function activate(): Promise<void> {
 }
 
 async function useHosted(): Promise<void> {
-  subStatus.textContent = "Switching both tracks to hosted…";
+  subStatus.textContent = t("Switching both tracks to hosted…");
   try {
     const providers = await invoke<{ decider: string; generator: string; offline: boolean }>("subscription_use_hosted");
-    subStatus.textContent = `Core now uses ${providers.decider} / ${providers.generator}.`;
+    subStatus.textContent = t("Core now uses {0} / {1}.", [providers.decider, providers.generator]);
     subStatus.className = "help ok";
-    subUseHosted.textContent = "Hosted is active for both tracks";
+    if (subscription) subscription.hostedActive = true;
+    subUseHosted.textContent = t("Hosted is active for both tracks");
     try { fillProvidersForm(await invoke<ProvidersForm>("providers_get")); syncVisibility(); } catch { /* the pane refreshes on open */ }
   } catch (e) {
     subStatus.textContent = errText(e);
@@ -378,57 +388,62 @@ async function refreshInstalledPacks(): Promise<void> {
     const list = $("packs-installed");
     list.replaceChildren(...packs.map((p) => {
       const li = el("li");
-      li.append(el("span", "", `${p.name} ${p.version} · ${p.kind} `), el("span", "help mono", p.id));
-      const rm = el("button", "link danger", "Remove");
+      li.append(el("span", "", `${p.name} ${p.version} · ${t(p.kind)} `), el("span", "help mono", p.id));
+      const rm = el("button", "link danger", t("Remove"));
       rm.addEventListener("click", async () => {
-        packsStatus.textContent = `Removing ${p.id}…`;
-        try { showProblems(await invoke<{ file: string; message: string }[]>("packs_remove", { id: p.id })); packsStatus.textContent = `Removed ${p.id}.`; }
+        packsStatus.textContent = t("Removing {0}…", [p.id]);
+        try { showProblems(await invoke<{ file: string; message: string }[]>("packs_remove", { id: p.id })); packsStatus.textContent = t("Removed {0}.", [p.id]); }
         catch (e) { packsStatus.textContent = errText(e); }
         await refreshInstalledPacks();
       });
       li.append(rm);
       return li;
     }));
-    if (packs.length === 0) list.replaceChildren(el("li", "help", "No packs installed."));
+    if (packs.length === 0) list.replaceChildren(el("li", "help", t("No packs installed.")));
   } catch (e) {
     packsStatus.textContent = errText(e);
   }
 }
 
+function renderPackIndex(index: PackEntry[]): void {
+  packIndex = index;
+  const body = $("packs-index").querySelector("tbody")!;
+  body.replaceChildren(...index.map((p) => {
+    const tr = el("tr");
+    const name = el("td");
+    name.append(el("div", "", p.name), el("div", "help mono", p.id));
+    const act = el("td");
+    const b = el("button", "", t("Install"));
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      packsStatus.textContent = t("Installing {0}…", [p.name]);
+      try {
+        const r = await invoke<InstallReport>("packs_install", { id: p.id, url: p.url, sha256: p.sha256 });
+        showProblems(r.problems);
+        packsStatus.textContent = t("Installed {0}{1}.", [r.id, r.problems.length ? t(" with {0} problem(s)", [r.problems.length]) : ""]);
+        packsStatus.className = r.problems.length ? "help err" : "help ok";
+      } catch (e) {
+        packsStatus.textContent = `${p.name}: ${errText(e)}`;
+        packsStatus.className = "help err";
+      } finally {
+        b.disabled = false;
+        await refreshInstalledPacks();
+      }
+    });
+    act.append(b);
+    tr.append(name, el("td", "", p.version), el("td", "", t(p.kind)), el("td", "", formatBytes(p.bytes)), act);
+    return tr;
+  }));
+}
+
 async function browsePacks(): Promise<void> {
-  packsStatus.textContent = "Loading the pack index…";
+  packsStatus.textContent = t("Loading the pack index…");
   packsStatus.className = "help";
   try {
     const index = await invoke<PackEntry[]>("packs_index");
-    const body = $("packs-index").querySelector("tbody")!;
-    body.replaceChildren(...index.map((p) => {
-      const tr = el("tr");
-      const name = el("td");
-      name.append(el("div", "", p.name), el("div", "help mono", p.id));
-      const act = el("td");
-      const b = el("button", "", "Install");
-      b.addEventListener("click", async () => {
-        b.disabled = true;
-        packsStatus.textContent = `Installing ${p.name}…`;
-        try {
-          const r = await invoke<InstallReport>("packs_install", { id: p.id, url: p.url, sha256: p.sha256 });
-          showProblems(r.problems);
-          packsStatus.textContent = `Installed ${r.id}${r.problems.length ? ` with ${r.problems.length} problem(s)` : ""}.`;
-          packsStatus.className = r.problems.length ? "help err" : "help ok";
-        } catch (e) {
-          packsStatus.textContent = `${p.name}: ${errText(e)}`;
-          packsStatus.className = "help err";
-        } finally {
-          b.disabled = false;
-          await refreshInstalledPacks();
-        }
-      });
-      act.append(b);
-      tr.append(name, el("td", "", p.version), el("td", "", p.kind), el("td", "", formatBytes(p.bytes)), act);
-      return tr;
-    }));
+    renderPackIndex(index);
     $("packs-index-wrap").hidden = false;
-    packsStatus.textContent = `${index.length} pack(s) available.`;
+    packsStatus.textContent = t("{0} pack(s) available.", [index.length]);
   } catch (e) {
     packsStatus.textContent = errText(e);
     packsStatus.className = "help err";
@@ -436,13 +451,13 @@ async function browsePacks(): Promise<void> {
 }
 
 async function installFromFolder(): Promise<void> {
-  const dir = await pickPath({ directory: true, multiple: false, title: "Choose a pack folder (with pack.json)" });
+  const dir = await pickPath({ directory: true, multiple: false, title: t("Choose a pack folder (with pack.json)") });
   if (!dir) return;
-  packsStatus.textContent = `Installing from ${dir}…`;
+  packsStatus.textContent = t("Installing from {0}…", [dir]);
   try {
     const r = await invoke<InstallReport>("packs_install_from_folder", { path: dir });
     showProblems(r.problems);
-    packsStatus.textContent = `Installed ${r.id} → ${r.path}`;
+    packsStatus.textContent = t("Installed {0} → {1}", [r.id, r.path]);
     packsStatus.className = r.problems.length ? "help err" : "help ok";
   } catch (e) {
     packsStatus.textContent = errText(e);
@@ -479,34 +494,34 @@ async function saveAll(): Promise<boolean> {
   const restart = s.sidecar_mode !== loaded.sidecar_mode || s.dev_repo_path !== loaded.dev_repo_path;
   loaded = s;
   let ok = true;
-  say("Saving…");
+  say(t("Saving…"));
   try {
     await invoke("providers_set", { form: readProvidersForm() });
   } catch (e) {
     const err = isPasteError(e) ? e : { kind: "error", message: String(e) };
-    say(`Saved, but Core rejected the providers: ${err.message}`, "err");
+    say(t("Saved, but Core rejected the providers: {0}", [err.message]), "err");
     ok = false;
   }
   try {
     const reports = await invoke<HotkeyReport[]>("settings_apply", { restart });
     const bad = reports.filter((r) => !r.ok);
     if (bad.length) {
-      say(`Saved. Shortcut problems: ${bad.map((b) => `${b.action} (${b.hotkey}): ${b.problem}`).join("; ")}`, "err");
+      say(t("Saved. Shortcut problems: {0}", [bad.map((b) => `${b.action} (${b.hotkey}): ${b.problem}`).join("; ")]), "err");
       ok = false;
     }
   } catch (e) {
-    say(`Saved, but applying failed: ${isPasteError(e) ? e.message : e}`, "err");
+    say(t("Saved, but applying failed: {0}", [isPasteError(e) ? e.message : e]), "err");
     ok = false;
   }
   try {
     if (autostart.checked) await enable();
     else await disable();
   } catch (e) {
-    say(`Saved, but launch at login failed: ${e}`, "err");
+    say(t("Saved, but launch at login failed: {0}", [e]), "err");
     ok = false;
   }
   intro.hidden = true;
-  if (ok) say("Saved", "ok");
+  if (ok) say(t("Saved"), "ok");
   void refreshInfo();
   void refreshDaemon();
   void refreshActions();
@@ -562,7 +577,7 @@ $("ax-probe").addEventListener("click", async () => {
   out.textContent = "…";
   try {
     const c = await invoke<Context>("context_probe");
-    out.textContent = `level ${c.level} · ${c.appName ?? c.appBundleId}${c.role ? ` · ${c.role}` : ""}${c.label ? ` “${c.label}”` : ""}${c.secure ? " · secure" : ""}${c.before !== undefined ? ` · ${c.before.length}+${(c.after ?? "").length} chars around the caret` : ""}`;
+    out.textContent = t("level {0} · {1}{2}{3}{4}{5}", [c.level, c.appName ?? c.appBundleId, c.role ? ` · ${c.role}` : "", c.label ? ` “${c.label}”` : "", c.secure ? t(" · secure") : "", c.before !== undefined ? t(" · {0}+{1} chars around the caret", [c.before.length, (c.after ?? "").length]) : ""]);
   } catch (e) {
     out.textContent = String(e);
   }
@@ -570,11 +585,11 @@ $("ax-probe").addEventListener("click", async () => {
 $("daemon-restart").addEventListener("click", async () => { await invoke("daemon_restart"); window.setTimeout(() => void refreshDaemon(), 1500); });
 $("daemon-refresh").addEventListener("click", () => void refreshDaemon());
 $("actions-folder").addEventListener("click", () => void invoke("actions_open_folder").catch((e) => { $("actions-status").textContent = String(e); }));
-$("actions-new").addEventListener("click", () => void invoke<string>("actions_new").then((p) => { $("actions-status").textContent = `Created ${p} — save it, then Reload.`; }).catch((e) => { $("actions-status").textContent = String(e); }));
+$("actions-new").addEventListener("click", () => void invoke<string>("actions_new").then((p) => { $("actions-status").textContent = t("Created {0} — save it, then Reload.", [p]); }).catch((e) => { $("actions-status").textContent = String(e); }));
 $("actions-reload").addEventListener("click", () => void refreshActions(true));
 $("egress-refresh").addEventListener("click", () => void refreshPrivacy());
-$("egress-clear").addEventListener("click", async () => { await invoke("egress_log_clear"); await refreshPrivacy(); $("privacy-status").textContent = "Log cleared."; });
-$("cache-clear").addEventListener("click", async () => { const n = await invoke<number>("answer_cache_clear"); $("privacy-status").textContent = `Answer cache cleared (${n} entr${n === 1 ? "y" : "ies"}).`; });
+$("egress-clear").addEventListener("click", async () => { await invoke("egress_log_clear"); await refreshPrivacy(); $("privacy-status").textContent = t("Log cleared."); });
+$("cache-clear").addEventListener("click", async () => { const n = await invoke<number>("answer_cache_clear"); $("privacy-status").textContent = t("Answer cache cleared ({0} entries).", [n]); });
 $("blacklist-add-btn").addEventListener("click", addBlacklist);
 blacklistAdd.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addBlacklist(); } });
 $("blacklist-reset").addEventListener("click", () => { blacklist = [...DEFAULT_BLACKLIST]; renderBlacklist(); });
@@ -598,7 +613,7 @@ async function init(): Promise<void> {
   try {
     fillProvidersForm(await invoke<ProvidersForm>("providers_get"));
   } catch (e) {
-    say(`Could not read providers: ${e}`, "err");
+    say(t("Could not read providers: {0}", [e]), "err");
   }
   syncVisibility();
   let pane = "general";
@@ -606,4 +621,28 @@ async function init(): Promise<void> {
   showPane(s.onboarded ? pane : "general");
   await Promise.all([refreshAccessibility(), refreshInfo(), refreshDaemon(), refreshActions(), refreshHistoryStatus()]);
 }
-void init();
+const language = $<HTMLSelectElement>("language");
+language.addEventListener("change", async () => {
+  language.disabled = true;
+  try { await changeLanguage(language.value as Language); }
+  catch (e) { language.value = localeState().language; say(t("Failed to change language: {0}", [e]), "err"); }
+  finally { language.disabled = false; }
+});
+onLocaleChange(({ language: preference }) => {
+  language.value = preference;
+  // Re-render labels without reloading the window or overwriting unsaved inputs.
+  renderBlacklist();
+  renderPrivacyTable();
+  void refreshAccessibility();
+  void refreshInfo();
+  void refreshDaemon();
+  void refreshActions();
+  void refreshHistoryStatus();
+  void refreshInstalledPacks();
+  if (subscriptionMe) showMe(subscriptionMe);
+  if (packIndex) renderPackIndex(packIndex);
+  if (!$("pane-privacy").hidden) void refreshPrivacy();
+  subUseHosted.textContent = t(subscription?.hostedActive ? "Hosted is active for both tracks" : "Use hosted for both tracks");
+  for (const id of ["status", "test-decider-out", "test-generator-out", "ax-probe-out", "privacy-status", "sub-status", "packs-status"]) $(id).textContent = "";
+});
+void initLocale().then(init);

@@ -233,7 +233,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; 
 .editable { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .editable li { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; border-radius: 6px; }
 .editable li:hover { background: var(--hover); }
-.editable:empty::after { content: "No apps excluded."; color: var(--muted); padding: 4px 6px; font-size: 12px; }
+#blacklist:empty::after { content: attr(data-empty); color: var(--muted); padding: 4px 6px; font-size: 12px; }
 .log {
   margin: 0; padding: 8px 10px; max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px;
   background: var(--panel); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; white-space: pre; user-select: text; -webkit-user-select: text;
