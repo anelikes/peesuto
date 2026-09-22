@@ -45,7 +45,7 @@ mode with aspect toggle and "Another take" = `fresh: true`), `src/settings.ts`
     bun run build:bundled --bundles app,dmg              # release profile with the sidecar config
 
 `tauri.sidecar.conf.json` also switches the updater on: `plugins.updater`
-(endpoint `https://github.com/qianiaoo/pocket-paste/releases/latest/download/latest.json`,
+(endpoint `https://github.com/anelikes/pocket-paste/releases/latest/download/latest.json`,
 `pubkey` to fill in) and `bundle.createUpdaterArtifacts`. With that flag the
 CLI signs the `.app.tar.gz` and needs `TAURI_SIGNING_PRIVATE_KEY` (and
 `…_PASSWORD`) in the environment; without a key at hand, build with

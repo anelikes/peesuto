@@ -12,9 +12,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/qianiaoo/pocket-paste/releases/latest/download/latest.json"
+        "https://github.com/anelikes/pocket-paste/releases/latest/download/latest.json"
       ],
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk3MUI1QTFENTAyMTg1QTIKUldTaWhTRlFIVm9ibDlnU3Z1TzFnVHRVNHhmOFc4UzAreHVUdGRqR2tXZmcwcm1wT2F4dzNqekMK"
     }
   }
 }

@@ -35,7 +35,7 @@ check the draft and publish it. Nothing is published automatically.
 8. Paste the relevant part of `CHANGELOG.md` into the release notes and
    press *Publish release*. The updater (once enabled) sees a release only
    after it is published.
-9. Homebrew: in `qianiaoo/homebrew-tap`, update `Casks/pocket-paste.rb` from
+9. Homebrew: in `anelikes/homebrew-tap`, update `Casks/pocket-paste.rb` from
    the skeleton in `docs/homebrew/pocket-paste.rb` with the new version and
    `shasum -a 256 <the DMG>`.
 
@@ -117,7 +117,7 @@ given (choose a password when asked, or leave it empty).
 
 - Put the **public** key into `app/src-tauri/tauri.conf.json` under
   `plugins.updater.pubkey`, set `plugins.updater.endpoints` to
-  `https://github.com/qianiaoo/pocket-paste/releases/latest/download/latest.json`,
+  `https://github.com/anelikes/pocket-paste/releases/latest/download/latest.json`,
   and `bundle.createUpdaterArtifacts` to `true`. The public key is committed;
   it is not a secret.
 - Store the **private** key's contents as `TAURI_SIGNING_PRIVATE_KEY`
@@ -129,7 +129,7 @@ From then on every release needs both secrets; the build fails without them.
 
 ## Homebrew cask
 
-`docs/homebrew/pocket-paste.rb` is the skeleton for `qianiaoo/homebrew-tap`
+`docs/homebrew/pocket-paste.rb` is the skeleton for `anelikes/homebrew-tap`
 (`Casks/pocket-paste.rb` in that repository). Per release, update `version`
 and `sha256`. The asset name in the `url` comes from `productName` and
 `version` in `tauri.conf.json` (Tauri names the DMG
@@ -138,6 +138,6 @@ names with dots), so copy it from the release page the first time. Users
 install with
 
 ```bash
-brew tap qianiaoo/tap
+brew tap anelikes/tap
 brew install --cask pocket-paste
 ```
