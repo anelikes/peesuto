@@ -51,7 +51,9 @@ export const SECRET_REFS = {
 } as const;
 
 export type StoredProviderConfig =
+  | { readonly kind: "rules" }
   | { readonly kind: "none" }
+  | { readonly kind: "laya"; readonly url?: string }
   | { readonly kind: "proxy"; readonly url: string; readonly tokenRef?: string }
   | { readonly kind: "cloudflare"; readonly accountId: string; readonly tokenRef: string }
   | { readonly kind: "hosted"; readonly tokenRef: string; readonly url?: string };
@@ -68,7 +70,8 @@ export interface ProvidersConfig {
   readonly offline: boolean;
 }
 
-export const DEFAULT_PROVIDERS_CONFIG: ProvidersConfig = { decider: { kind: "none" }, generator: { kind: "none" }, offline: false };
+/** A fresh install: rule-based card decisions, heuristic picks, no generator, nothing leaves the machine. */
+export const DEFAULT_PROVIDERS_CONFIG: ProvidersConfig = { decider: { kind: "rules" }, generator: { kind: "none" }, offline: false };
 
 const RAW_SECRET_FIELDS = ["token", "apiKey", "api_key", "secret", "password"];
 
@@ -112,7 +115,9 @@ export function parseStoredDecider(raw: unknown): StoredProviderConfig {
   const o = section(raw, "decider");
   const kind = required(o, "kind", "decider");
   switch (kind) {
+    case "rules":
     case "none": return { kind };
+    case "laya": return { kind, ...opt("url", optional(o, "url", "decider")) };
     case "proxy": return { kind, url: required(o, "url", "decider"), ...opt("tokenRef", optional(o, "tokenRef", "decider")) };
     case "cloudflare": return { kind, accountId: required(o, "accountId", "decider"), tokenRef: required(o, "tokenRef", "decider") };
     case "hosted": return { kind, tokenRef: required(o, "tokenRef", "decider"), ...opt("url", optional(o, "url", "decider")) };
@@ -176,7 +181,9 @@ async function secret(secrets: SecretStore, ref: string, what: string): Promise<
 
 export async function deciderConfigOf(s: StoredProviderConfig, secrets: SecretStore): Promise<ProviderConfig> {
   switch (s.kind) {
+    case "rules": return { kind: "rules" };
     case "none": return { kind: "none" };
+    case "laya": return { kind: "laya", ...opt("url", s.url) };
     case "proxy": return { kind: "proxy", url: s.url, ...(s.tokenRef ? { token: await secret(secrets, s.tokenRef, "decider proxy") } : {}) };
     case "cloudflare": return { kind: "cloudflare", accountId: s.accountId, token: await secret(secrets, s.tokenRef, "decider cloudflare") };
     case "hosted": return { kind: "hosted", token: await secret(secrets, s.tokenRef, "decider hosted"), ...opt("url", s.url) };
@@ -200,14 +207,15 @@ export async function generatorConfigOf(s: StoredGeneratorConfig, secrets: Secre
 /**
  * Live providers from a stored config: secrets resolved, factories run, and
  * the offline switch set to what the config says. A track configured as
- * `none` resolves to `null`. With `cacheDir`, the decider's answers are
+ * `none` resolves to `null`. With `cacheDir`, a model decider's answers are
  * cached by content hash (cache.ts); `fresh` asks again regardless.
  */
 export async function resolveProviders(cfg: ProvidersConfig, secrets: SecretStore, o: { cacheDir?: string; fresh?: boolean } = {}): Promise<{ decider: Decider | null; generator: Generator | null }> {
   let decider: Decider | null = null;
   if (cfg.decider.kind !== "none") {
     const bare = createDecider(await deciderConfigOf(cfg.decider, secrets));
-    decider = o.cacheDir ? cachedProvider(bare, o.cacheDir, { fresh: o.fresh }) : bare;
+    // Rules answer in microseconds and never differ; caching them would only fill the directory.
+    decider = o.cacheDir && cfg.decider.kind !== "rules" ? cachedProvider(bare, o.cacheDir, { fresh: o.fresh }) : bare;
   }
   const generator = cfg.generator.kind === "none" ? null : createGenerator(await generatorConfigOf(cfg.generator, secrets));
   setOffline(cfg.offline);

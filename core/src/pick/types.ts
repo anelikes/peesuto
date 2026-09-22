@@ -97,6 +97,8 @@ export type PickAnswers = Record<string, { choice?: string; probabilities?: Reco
 export interface PickDecider {
   readonly name: string;
   ask(body: JevRequest): Promise<unknown>;
+  /** This decider's share of the blend (0..1); unset means DECIDER_WEIGHT. */
+  readonly pickWeight?: number;
 }
 
 /** A pick that must not happen (a secure field). Never thrown for a decider failure. */

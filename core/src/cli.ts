@@ -7,8 +7,8 @@
  *   paste --dsl job.json            # skip Jev, render a DSL as-is
  *   paste --provider none "text"    # no decisions: the fallback card
  *
- * Provider: --provider none|proxy|cloudflare|hosted (default proxy at
- * http://localhost:8787/, i.e. `wrangler dev` in proxy/); --proxy-url,
+ * Provider: --provider rules|none|laya|proxy|cloudflare|hosted (default proxy at
+ * http://localhost:8787/, i.e. `wrangler dev` in proxy/); --laya-url, --proxy-url,
  * --account-id, --token, --hosted-url; or the environment PASTE_PROVIDER,
  * PASTE_PROXY_URL, PASTE_CF_ACCOUNT_ID, PASTE_CF_TOKEN, PASTE_TOKEN,
  * PASTE_HOSTED_URL. Answers are cached by text (--fresh asks again).
@@ -81,7 +81,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     if (!spec) throw new UsageError(`no action ${actionId}; have ${actions.map((a) => a.id).join(", ")}`);
     const cfg = providerConfig(str, flags.has("provider") ? undefined : process.env);
     const cacheDir = str("cache-dir") ?? join(appData ?? join(REPO_ROOT, ".work"), "answers");
-    const decider = cfg.kind === "none" ? null : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") });
+    const decider = cfg.kind === "none" ? null : cfg.kind === "rules" ? createProvider(cfg) : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") });
     const genCfg = generatorFromEnv(process.env);
     const generator = genCfg.kind === "none" ? null : createGenerator(genCfg);
     const render = spec.needs === "render" ? await renderDeps(str, appData) : null;
@@ -105,7 +105,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     if (length > MAX_TEXT_CHARS) throw new InputError(`text is ${length} characters; a card takes at most ${MAX_TEXT_CHARS}`);
     const cfg = providerConfig(str, flags.has("provider") ? undefined : process.env);
     const cacheDir = str("cache-dir") ?? join(appData ?? join(REPO_ROOT, ".work"), "answers");
-    const provider = cfg.kind === "none" ? createProvider(cfg) : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") });
+    const provider = cfg.kind === "none" || cfg.kind === "rules" ? createProvider(cfg) : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") });
     const t0 = performance.now();
     const { body } = buildRequest(text);
     const answers = await provider.ask(body);
@@ -150,7 +150,9 @@ function providerConfig(str: (n: string) => string | undefined, env?: NodeJS.Pro
   const e = process.env;
   if (kind === undefined) return providerFromEnv(env ?? {});
   switch (kind) {
+    case "rules":
     case "none": return { kind };
+    case "laya": { const url = str("laya-url") ?? e.PASTE_LAYA_URL; return { kind, ...(url ? { url } : {}) }; }
     case "proxy": return { kind, url: str("proxy-url") ?? e.PASTE_PROXY_URL ?? DEV_PROXY_URL, token: str("token") ?? e.PASTE_TOKEN };
     case "cloudflare": {
       const accountId = str("account-id") ?? e.PASTE_CF_ACCOUNT_ID, token = str("token") ?? e.PASTE_CF_TOKEN;
@@ -172,7 +174,7 @@ export class InputError extends Error {}
 const USAGE = `paste "text" [--aspect chat|doc|social] [--out file] [--json] [--fresh]
 paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY,
                                            #   PASTE_GEN_REASONING (none|low|medium|high, default learn), PASTE_GEN_TIMEOUT_MS
-      [--provider none|proxy|cloudflare|hosted] [--proxy-url URL] [--account-id ID] [--token T] [--hosted-url URL]
+      [--provider rules|none|laya|proxy|cloudflare|hosted] [--laya-url URL] [--proxy-url URL] [--account-id ID] [--token T] [--hosted-url URL]
       [--work DIR] [--app-data DIR] [--engine-resources DIR] [--cache-dir DIR]
 pbpaste | paste --stdin
 paste --dsl job.json`;

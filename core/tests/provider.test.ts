@@ -197,9 +197,9 @@ describe("providers config", () => {
     offline: false,
   };
 
-  test("a missing file is the defaults: nothing configured, online", async () => {
+  test("a missing file is the defaults: rules for cards, no generator, online", async () => {
     const dir = await mkdtemp(join(tmpdir(), "paste-cfg-"));
-    expect(await readProvidersConfig(join(dir, "providers.json"))).toEqual({ decider: { kind: "none" }, generator: { kind: "none" }, offline: false });
+    expect(await readProvidersConfig(join(dir, "providers.json"))).toEqual({ decider: { kind: "rules" }, generator: { kind: "none" }, offline: false });
   });
 
   test("write → read round-trips, and the file is owner-only", async () => {
@@ -212,7 +212,7 @@ describe("providers config", () => {
   });
 
   test("a partial file fills in the defaults; a malformed one throws with the field named", () => {
-    expect(parseProvidersConfig({ offline: true })).toEqual({ decider: { kind: "none" }, generator: { kind: "none" }, offline: true });
+    expect(parseProvidersConfig({ offline: true })).toEqual({ decider: { kind: "rules" }, generator: { kind: "none" }, offline: true });
     expect(() => parseProvidersConfig({ decider: { kind: "cloudflare", accountId: "a" } })).toThrow(/decider\.tokenRef/);
     expect(() => parseProvidersConfig({ generator: { kind: "openai-compatible", baseUrl: "u" } })).toThrow(/generator\.model/);
     expect(() => parseProvidersConfig({ generator: { kind: "openai-compatible", baseUrl: "u", model: "m", reasoning: "off" } })).toThrow(/generator\.reasoning/);

@@ -191,6 +191,10 @@ Laya 评估（2026-09-22，用户提议用它做免费本地 decider）：接口
 `baselines/laya.md`。免费离线的首跑路径应是启发式挑选加规则化 kind 判定，
 生成类动作用 Ollama。Laya 若按我们的问题微调，可经 endpoint decider 直接接入。
 
+随后落地（同日）：decider 新增 `rules`（默认，规则化 kind + 长度几何，挑选走启发式）
+与 `laya`（本地模型选项，不内置，`docs/laya.md` 写安装；挑选混合权重 0.3）。
+用户的取舍：Laya 不如 Jev 聪明，但胜在本地与隐私，所以必须是一个可选项。
+
 - Decider 三种、Generator 四种实现；`egress.ts` 唯一出口，离线开关，去向日志。
 - Cloudflare REST 真实跑通；本地 Ollama 跑通翻译；凭证入 Keychain。
 - 答案缓存按内容哈希。

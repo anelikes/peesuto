@@ -22,5 +22,7 @@ bun scripts/laya/rules-kind.ts                                   # the yardstick
 ```
 
 The numbers are in `baselines/laya.md`. Zero-shot, on our questions, Laya
-does not beat the heuristics we already ship; the door stays open for a
-fine-tuned checkpoint.
+does not beat the heuristics we already ship, so the app's default decider
+is `rules`; Laya is the `laya` decider kind for people who want a local
+model anyway (`docs/laya.md`), and the door stays open for a fine-tuned
+checkpoint.

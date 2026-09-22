@@ -12,6 +12,8 @@ export type { JevAnswer, JevAnswers } from "../../questions.ts";
 export interface Decider {
   readonly name: string;
   ask(body: JevRequest): Promise<JevAnswers | null>;
+  /** How much of the pick ranking this decider's answer gets (0..1); unset means the default blend. */
+  readonly pickWeight?: number;
 }
 
 /** The card path's name for a decider. */

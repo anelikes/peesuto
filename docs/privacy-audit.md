@@ -8,10 +8,10 @@ Date, version and result go into `baselines/privacy-<version>.md`.
 
 | data | stored | leaves the machine | switch |
 |---|---|---|---|
-| clipboard text, RTF, HTML | encrypted SQLite in App Support; key in Keychain | only as part of a decider question or a generator prompt, and only for the item you act on | decider/generator = none, or Offline |
+| clipboard text, RTF, HTML | encrypted SQLite in App Support; key in Keychain | only as part of a decider question or a generator prompt, and only for the item you act on | decider = rules or none, generator = none, or Offline |
 | images, files copied | thumbnail + original under App Support | never | history off |
-| app bundle id per item | with the item | as part of the pick question's state (bundle id only) | decider = none |
-| focused field context (role, label, text around the caret) | never stored | as part of the pick question, redacted per level | smart paste off, or decider = none |
+| app bundle id per item | with the item | as part of the pick question's state (bundle id only) | decider = rules or none |
+| focused field context (role, label, text around the caret) | never stored | as part of the pick question, redacted per level | smart paste off, or decider = rules or none |
 | history search queries | never stored | never | — |
 | provider credentials | Keychain | to the provider they belong to | — |
 | egress log (host, purpose, bytes, status) | `App Support/egress.log` | never | — |
@@ -36,7 +36,7 @@ Run each and confirm nothing lands in history:
 
 - [ ] Offline switch on: run every built-in action; every provider call fails
       with `provider:offline`, and `egress.log` gains no line.
-- [ ] Offline switch off, decider = none, generator = none: paste as card
+- [ ] Offline switch off, decider = rules (the default) and then none, generator = none: paste as card
       renders; `egress.log` gains no line except jsdelivr for an unbundled emoji.
 - [ ] Decider = cloudflare: one line per question, host
       `api.cloudflare.com`, purpose `decide`; the line contains no text.

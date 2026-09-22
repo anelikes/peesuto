@@ -17,6 +17,9 @@ already do a hundred times a day: copy, paste.
   this repository, or none) and a generator (any OpenAI-compatible endpoint
   such as Ollama, vLLM or LM Studio, Anthropic, or none). One egress layer,
   one offline switch, a log of where bytes went and never of what they were.
+  A fresh install decides cards by rules and picks by the heuristic, so it
+  works with nothing configured and nothing leaving the machine; `docs/laya.md`
+  adds a local model for people who want one.
   Thinking models (Ollama's qwen3.5, gemma4, …) work out of the box: the
   generator notices an answer that was all reasoning and no text, repeats
   the request with `reasoning_effort: "none"`, and keeps doing so from then
@@ -126,7 +129,9 @@ What leaves the machine, and only when you chose that provider:
 
 | provider | what is sent | to |
 |---|---|---|
+| decider `rules` (the default) | nothing | — |
 | decider `none` | nothing | — |
+| decider `laya` | the typed questions and the text they are about | the local URL you run `scripts/laya/server.py` at, `127.0.0.1` unless you change it |
 | decider `cloudflare` | the typed questions and the text they are about | your own Workers AI account |
 | decider `endpoint` | the same | the URL you set (your own proxy, or ours) |
 | generator `openai-compatible` / `anthropic` | the filled prompt | the base URL you set |

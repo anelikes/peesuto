@@ -67,7 +67,7 @@ export async function pick(ctx: Context, candidates: readonly ClipItem[], decide
   const hs = heuristic.ranked.map((r) => r.score);
   const lo = Math.min(0, ...hs);
   const span = Math.max(...hs) - lo;
-  const w = clamp01(opts.deciderWeight ?? DECIDER_WEIGHT);
+  const w = clamp01(opts.deciderWeight ?? decider.pickWeight ?? DECIDER_WEIGHT);
 
   const ranked: RankedItem[] = heuristic.ranked
     .map((r) => {
