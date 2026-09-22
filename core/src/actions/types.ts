@@ -24,7 +24,7 @@ export interface ActionSpec {
   readonly output: ActionOutput;
   /** Render actions. */
   readonly render?: { readonly aspect?: Aspect; readonly animate?: "auto" | "always" | "never" };
-  /** Set on the five shipped actions; user files cannot claim it. */
+  /** Set on shipped actions; user files cannot claim it. */
   readonly builtin?: boolean;
   /** The pack an action came from, when it did. */
   readonly pack?: string;

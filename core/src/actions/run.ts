@@ -10,6 +10,7 @@ import type { ClipItem, Context, PickResult } from "../pick/types.ts";
 import { summarizeContext } from "../pick/summarize.ts";
 import { renderCard, type RenderOptions } from "../render/card.ts";
 import { decideCard, type CardDecider } from "../render/pipeline.ts";
+import { resolveFFmpeg, VideoUnavailableError } from "../render/video.ts";
 import { ActionError, type ActionInput, type ActionResult, type ActionSpec } from "./types.ts";
 
 export interface GeneratorLike {
@@ -51,12 +52,19 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
     }
     case "render": {
       if (!deps.render) throw new ActionError("needs", `${spec.id} needs the render engine; it is not available`);
+      if (spec.output !== "image" && spec.output !== "gif" && spec.output !== "video") throw new ActionError("spec", `${spec.id}: a render action outputs image, gif or video`);
+      let ffmpeg: string | undefined;
+      if (spec.output === "video") {
+        try { ffmpeg = resolveFFmpeg({ executable: deps.render.ffmpeg }); }
+        catch (error) {
+          if (error instanceof VideoUnavailableError) throw new ActionError("needs", error.message);
+          throw error;
+        }
+      }
       const aspect = input.aspect ?? spec.render?.aspect ?? "chat";
       const animate = spec.render?.animate === "always" ? true : spec.render?.animate === "never" ? false : undefined;
       const { dsl, decided } = await decideCard(input.text, { aspect, decider: deps.decider, force: animate === undefined ? undefined : { animate }, catalog: deps.catalog });
-      if (spec.output === "video") throw new ActionError("needs", `${spec.id}: video output needs ffmpeg and is not enabled in this build`);
-      if (spec.output !== "image" && spec.output !== "gif") throw new ActionError("spec", `${spec.id}: a render action outputs image or gif`);
-      const r = await renderCard(dsl, { ...deps.render, catalog: deps.catalog });
+      const r = await renderCard(dsl, { ...deps.render, catalog: deps.catalog, format: spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png", ffmpeg });
       if (spec.output === "gif" && r.format !== "gif") throw new ActionError("run", `${spec.id}: the card came out static`);
       return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: { dsl, decided, lines: r.lines, size: r.size, frames: r.frames, render: r.ms } };
     }

@@ -1,6 +1,6 @@
 import type { ActionSpec } from "./types.ts";
 
-/** The five shipped actions. Users may duplicate and edit; ids are reserved. */
+/** The shipped actions. Users may duplicate and edit; ids are reserved. */
 export const BUILTIN_ACTIONS: readonly ActionSpec[] = [
   {
     id: "paste-smart", name: "Smart paste", builtin: true,
@@ -19,6 +19,12 @@ export const BUILTIN_ACTIONS: readonly ActionSpec[] = [
     description: "Render the text as a short animated card (GIF).",
     trigger: { menu: true },
     input: "clipboard", needs: "render", output: "gif", render: { aspect: "chat", animate: "always" },
+  },
+  {
+    id: "paste-video", name: "Paste as video", builtin: true,
+    description: "Render the text as a short animated video (MP4). Requires ffmpeg.",
+    trigger: { menu: true },
+    input: "clipboard", needs: "render", output: "video", render: { aspect: "chat", animate: "always" },
   },
   {
     id: "paste-translate", name: "Paste translation", builtin: true,
