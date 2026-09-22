@@ -6,3 +6,4 @@ proxy/dev.log
 proxy/.wrangler/
 .env*
 .DS_Store
+/HANDOFF.md
