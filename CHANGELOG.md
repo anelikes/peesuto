@@ -17,6 +17,7 @@ section here becomes one.
 - Card corpus of 100 samples; composer truncation, wrapping, script refusal, emphasis by the decider's word list.
 - Style packs: catalog fragments merged at load; subscription pane with license key, /v1/me and pack install; updater wired behind a public key; release DMG build.
 - Privacy baseline 0.1.0: five automated checks pass; manual list recorded.
+- Generator: thinking models on Ollama (qwen3.5, gemma4) answered with empty content and the action reported success; the openai-compatible generator now detects it, retries with `reasoning_effort: "none"`, learns, and exposes `reasoning` and `timeoutMs` (settings, providers.json, env). An action whose generator returns nothing is an error.
 
 The foundation — M0 of `PLAN.md`, which was M1 to M3 of the plan's first
 edition: the render chain as a package, the engine as a pinned dependency,

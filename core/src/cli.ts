@@ -170,7 +170,8 @@ export class UsageError extends Error {}
 export class InputError extends Error {}
 
 const USAGE = `paste "text" [--aspect chat|doc|social] [--out file] [--json] [--fresh]
-paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY
+paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY,
+                                           #   PASTE_GEN_REASONING (none|low|medium|high, default learn), PASTE_GEN_TIMEOUT_MS
       [--provider none|proxy|cloudflare|hosted] [--proxy-url URL] [--account-id ID] [--token T] [--hosted-url URL]
       [--work DIR] [--app-data DIR] [--engine-resources DIR] [--cache-dir DIR]
 pbpaste | paste --stdin

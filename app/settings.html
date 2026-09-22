@@ -142,6 +142,16 @@
             <label class="field"><span>Base URL</span><input id="oai-url" type="url" placeholder="http://localhost:11434/v1" spellcheck="false" /></label>
             <label class="field"><span>Model</span><input id="oai-model" type="text" placeholder="llama3.1" spellcheck="false" /></label>
             <label class="field"><span>API key</span><input id="oai-key" type="password" placeholder="Optional · stored in the Keychain" autocomplete="off" /></label>
+            <label class="field"><span>Thinking</span>
+              <select id="oai-reasoning">
+                <option value="">Auto · detect a thinking model and switch it off</option>
+                <option value="none">Off · always send reasoning_effort none</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+            <label class="field"><span>Timeout (seconds)</span><input id="oai-timeout" type="number" min="1" step="1" placeholder="60 · raise for a slow local model" /></label>
           </div>
           <div data-generator="anthropic" hidden>
             <label class="field"><span>API key</span><input id="anthropic-key" type="password" placeholder="Stored in the Keychain" autocomplete="off" /></label>

@@ -18,6 +18,7 @@ export { answerKey, cachedProvider } from "./cache.ts";
 export { type GenerateRequest, type GenerateResult, type Generator, DEFAULT_MAX_TOKENS, DEFAULT_GENERATE_TIMEOUT_MS } from "./generator/types.ts";
 export { createGenerator, DEFAULT_OLLAMA_URL, GENERATOR_KINDS, generatorFromEnv, type GeneratorConfig } from "./generator/index.ts";
 export { DEFAULT_ANTHROPIC_MODEL } from "./generator/anthropic.ts";
+export { isReasoningEffort, REASONING_EFFORTS, type ReasoningEffort } from "./generator/openai.ts";
 
 export {
   DEFAULT_PROVIDERS_CONFIG, SECRET_REFS, deciderConfigOf, envSecretName, envSecretStore, generatorConfigOf, memorySecretStore,

@@ -55,6 +55,12 @@ pub enum Generator {
         model: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         api_key_ref: Option<String>,
+        /// `reasoning_effort` pinned for thinking models; core learns it when unset.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reasoning: Option<String>,
+        /// Per-request timeout for slow local models.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        timeout_ms: Option<u64>,
     },
     Anthropic {
         api_key_ref: String,
@@ -145,10 +151,12 @@ pub fn normalised(cfg: &ProvidersConfig, has: impl Fn(&str) -> bool) -> Provider
     };
     let generator = match &cfg.generator {
         Generator::None => Generator::None,
-        Generator::OpenaiCompatible { base_url, model, .. } => Generator::OpenaiCompatible {
+        Generator::OpenaiCompatible { base_url, model, reasoning, timeout_ms, .. } => Generator::OpenaiCompatible {
             base_url: base_url.trim().to_string(),
             model: model.trim().to_string(),
             api_key_ref: optional(REF_GENERATOR_API_KEY),
+            reasoning: clean(reasoning),
+            timeout_ms: *timeout_ms,
         },
         Generator::Anthropic { model, .. } => Generator::Anthropic { api_key_ref: REF_GENERATOR_API_KEY.into(), model: clean(model) },
         Generator::Hosted { url, .. } => Generator::Hosted { token_ref: REF_HOSTED_TOKEN.into(), url: clean(url) },
@@ -317,7 +325,7 @@ mod tests {
     fn file_shape_matches_core() {
         let cfg = ProvidersConfig {
             decider: Decider::Cloudflare { account_id: "acc".into(), token_ref: REF_CLOUDFLARE_TOKEN.into() },
-            generator: Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "llama3".into(), api_key_ref: None },
+            generator: Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "llama3".into(), api_key_ref: None, reasoning: None, timeout_ms: None },
             offline: true,
         };
         let v = serde_json::to_value(&cfg).unwrap();
@@ -345,8 +353,8 @@ mod tests {
         // Without the optional secrets in the Keychain the refs are left out (Core would reject a dangling ref).
         let n = normalised(&cfg, |_| false);
         assert_eq!(n.decider, Decider::Proxy { url: "http://localhost:8787/".into(), token_ref: None });
-        let oai = ProvidersConfig { generator: Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "m".into(), api_key_ref: Some("x".into()) }, ..ProvidersConfig::default() };
-        assert_eq!(normalised(&oai, |_| false).generator, Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "m".into(), api_key_ref: None });
+        let oai = ProvidersConfig { generator: Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "m".into(), api_key_ref: Some("x".into()), reasoning: Some(" none ".into()), timeout_ms: Some(180_000) }, ..ProvidersConfig::default() };
+        assert_eq!(normalised(&oai, |_| false).generator, Generator::OpenaiCompatible { base_url: "http://localhost:11434/v1".into(), model: "m".into(), api_key_ref: None, reasoning: Some("none".into()), timeout_ms: Some(180_000) });
         let text = serde_json::to_string(&n).unwrap();
         for k in ["\"token\"", "\"apiKey\"", "\"api_key\"", "\"secret\"", "\"password\""] {
             assert!(!text.contains(k), "{k} in {text}");

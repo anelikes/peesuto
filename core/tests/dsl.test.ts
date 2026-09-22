@@ -44,7 +44,8 @@ describe("parseDsl rejects", () => {
   });
   test("a bad layout, palette or aspect", () => {
     expect(withField("layout", "diagonal")).toThrow(DslError);
-    expect(withField("palette", "neon")).toThrow(DslError);
+    expect(withField("palette", "Neon Lights")).toThrow(DslError);
+    expect(withField("palette", "-neon")).toThrow(DslError);
     expect(withField("aspect", "square")).toThrow(DslError);
   });
   test("scale 4", () => expect(withField("scale", 4)).toThrow(DslError));

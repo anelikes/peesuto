@@ -14,6 +14,7 @@ import { createDecider, PROVIDER_KINDS, type ProviderConfig } from "./decider/in
 import type { Decider } from "./decider/types.ts";
 import { setOffline } from "./egress.ts";
 import { createGenerator, GENERATOR_KINDS, type GeneratorConfig } from "./generator/index.ts";
+import { isReasoningEffort, REASONING_EFFORTS, type ReasoningEffort } from "./generator/openai.ts";
 import type { Generator } from "./generator/types.ts";
 import { ProviderConfigError } from "./types.ts";
 
@@ -56,7 +57,7 @@ export type StoredProviderConfig =
   | { readonly kind: "hosted"; readonly tokenRef: string; readonly url?: string };
 
 export type StoredGeneratorConfig =
-  | { readonly kind: "openai-compatible"; readonly baseUrl: string; readonly model: string; readonly apiKeyRef?: string }
+  | { readonly kind: "openai-compatible"; readonly baseUrl: string; readonly model: string; readonly apiKeyRef?: string; readonly reasoning?: ReasoningEffort; readonly timeoutMs?: number }
   | { readonly kind: "anthropic"; readonly apiKeyRef: string; readonly model?: string }
   | { readonly kind: "hosted"; readonly tokenRef: string; readonly url?: string }
   | { readonly kind: "none" };
@@ -93,6 +94,20 @@ function required(o: Record<string, unknown>, k: string, where: string): string 
 
 const opt = <K extends string>(k: K, v: string | undefined): { [P in K]?: string } => (v === undefined ? {} : ({ [k]: v } as { [P in K]?: string }));
 
+/** `reasoning`, when present, is one of the reasoning_effort values. */
+function reasoningOf(v: unknown, where: string): { reasoning?: ReasoningEffort } {
+  if (v === undefined) return {};
+  if (!isReasoningEffort(v)) throw new ProviderConfigError(`${where}.reasoning must be one of ${REASONING_EFFORTS.join(", ")}`);
+  return { reasoning: v };
+}
+
+/** `timeoutMs`, when present, is a positive whole number of milliseconds. */
+function timeoutOf(v: unknown, where: string): { timeoutMs?: number } {
+  if (v === undefined) return {};
+  if (typeof v !== "number" || !Number.isInteger(v) || v <= 0) throw new ProviderConfigError(`${where}.timeoutMs must be a positive whole number of milliseconds`);
+  return { timeoutMs: v };
+}
+
 export function parseStoredDecider(raw: unknown): StoredProviderConfig {
   const o = section(raw, "decider");
   const kind = required(o, "kind", "decider");
@@ -110,7 +125,12 @@ export function parseStoredGenerator(raw: unknown): StoredGeneratorConfig {
   const kind = required(o, "kind", "generator");
   switch (kind) {
     case "none": return { kind };
-    case "openai-compatible": return { kind, baseUrl: required(o, "baseUrl", "generator"), model: required(o, "model", "generator"), ...opt("apiKeyRef", optional(o, "apiKeyRef", "generator")) };
+    case "openai-compatible": return {
+      kind, baseUrl: required(o, "baseUrl", "generator"), model: required(o, "model", "generator"),
+      ...opt("apiKeyRef", optional(o, "apiKeyRef", "generator")),
+      ...reasoningOf(o.reasoning, "generator"),
+      ...timeoutOf(o.timeoutMs, "generator"),
+    };
     case "anthropic": return { kind, apiKeyRef: required(o, "apiKeyRef", "generator"), ...opt("model", optional(o, "model", "generator")) };
     case "hosted": return { kind, tokenRef: required(o, "tokenRef", "generator"), ...opt("url", optional(o, "url", "generator")) };
     default: throw new ProviderConfigError(`generator.kind must be one of ${GENERATOR_KINDS.join(", ")}, got ${kind}`);
@@ -166,7 +186,12 @@ export async function deciderConfigOf(s: StoredProviderConfig, secrets: SecretSt
 export async function generatorConfigOf(s: StoredGeneratorConfig, secrets: SecretStore): Promise<GeneratorConfig> {
   switch (s.kind) {
     case "none": return { kind: "none" };
-    case "openai-compatible": return { kind: "openai-compatible", baseUrl: s.baseUrl, model: s.model, ...(s.apiKeyRef ? { apiKey: await secret(secrets, s.apiKeyRef, "generator openai-compatible") } : {}) };
+    case "openai-compatible": return {
+      kind: "openai-compatible", baseUrl: s.baseUrl, model: s.model,
+      ...(s.apiKeyRef ? { apiKey: await secret(secrets, s.apiKeyRef, "generator openai-compatible") } : {}),
+      ...(s.reasoning === undefined ? {} : { reasoning: s.reasoning }),
+      ...(s.timeoutMs === undefined ? {} : { timeoutMs: s.timeoutMs }),
+    };
     case "anthropic": return { kind: "anthropic", apiKey: await secret(secrets, s.apiKeyRef, "generator anthropic"), ...opt("model", s.model) };
     case "hosted": return { kind: "hosted", token: await secret(secrets, s.tokenRef, "generator hosted"), ...opt("url", s.url) };
   }

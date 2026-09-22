@@ -99,6 +99,14 @@ async function refreshDaemon(): Promise<void> {
 }
 
 // ---- providers ----
+type Reasoning = "none" | "low" | "medium" | "high";
+const isReasoning = (s: string): s is Reasoning => s === "none" || s === "low" || s === "medium" || s === "high";
+/** The timeout field is seconds for people; the config carries milliseconds. Blank or nonsense → unset. */
+function timeoutMsOf(seconds: string): number | undefined {
+  const n = Number(seconds);
+  return seconds !== "" && Number.isFinite(n) && n >= 1 ? Math.round(n) * 1000 : undefined;
+}
+
 function readProvidersForm(): ProvidersForm {
   const v = (id: string) => $<HTMLInputElement>(id).value.trim();
   const opt = (s: string) => (s ? s : undefined);
@@ -108,7 +116,11 @@ function readProvidersForm(): ProvidersForm {
     : deciderKind.value === "hosted" ? { kind: "hosted", tokenRef: "", url: opt(v("hosted-url")) }
     : { kind: "none" };
   const generator: ProvidersForm["config"]["generator"] =
-    generatorKind.value === "openai-compatible" ? { kind: "openai-compatible", baseUrl: v("oai-url") || DEFAULT_OPENAI_BASE_URL, model: v("oai-model") }
+    generatorKind.value === "openai-compatible" ? {
+      kind: "openai-compatible", baseUrl: v("oai-url") || DEFAULT_OPENAI_BASE_URL, model: v("oai-model"),
+      ...(isReasoning(v("oai-reasoning")) ? { reasoning: v("oai-reasoning") as Reasoning } : {}),
+      ...(timeoutMsOf(v("oai-timeout")) === undefined ? {} : { timeoutMs: timeoutMsOf(v("oai-timeout")) }),
+    }
     : generatorKind.value === "anthropic" ? { kind: "anthropic", apiKeyRef: "", model: opt(v("anthropic-model")) }
     : generatorKind.value === "hosted" ? { kind: "hosted", tokenRef: "", url: opt(v("gen-hosted-url")) }
     : { kind: "none" };
@@ -126,7 +138,7 @@ function fillProvidersForm(f: ProvidersForm): void {
   if (d.kind === "hosted") set("hosted-url", d.url);
   const g = f.config.generator;
   generatorKind.value = g.kind;
-  if (g.kind === "openai-compatible") { set("oai-url", g.baseUrl); set("oai-model", g.model); }
+  if (g.kind === "openai-compatible") { set("oai-url", g.baseUrl); set("oai-model", g.model); set("oai-reasoning", g.reasoning); set("oai-timeout", g.timeoutMs === undefined ? undefined : String(Math.round(g.timeoutMs / 1000))); }
   if (g.kind === "anthropic") set("anthropic-model", g.model);
   if (g.kind === "hosted") set("gen-hosted-url", g.url);
   set("proxy-token", f.proxyToken);

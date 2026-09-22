@@ -173,7 +173,7 @@ export type Decider =
 
 export type Generator =
   | { kind: "none" }
-  | { kind: "openai-compatible"; baseUrl: string; model: string; apiKeyRef?: string }
+  | { kind: "openai-compatible"; baseUrl: string; model: string; apiKeyRef?: string; reasoning?: "none" | "low" | "medium" | "high"; timeoutMs?: number }
   | { kind: "anthropic"; apiKeyRef: string; model?: string }
   | { kind: "hosted"; tokenRef: string; url?: string };
 

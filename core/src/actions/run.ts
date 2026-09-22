@@ -45,7 +45,9 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
     case "generator": {
       if (!deps.generator) throw new ActionError("needs", `${spec.id} needs a generator; none is configured`);
       const r = await deps.generator.generate({ system: spec.system, prompt: fillTemplate(spec.prompt ?? "{{input}}", input), maxTokens: spec.maxTokens });
-      return { output: "text", text: r.text.trim(), model: r.model, ms: ms() };
+      const text = r.text.trim();
+      if (text === "") throw new ActionError("run", `${spec.id}: ${r.model} returned nothing`);
+      return { output: "text", text, model: r.model, ms: ms() };
     }
     case "render": {
       if (!deps.render) throw new ActionError("needs", `${spec.id} needs the render engine; it is not available`);

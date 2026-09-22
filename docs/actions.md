@@ -67,3 +67,20 @@ others still load.
 `needs: decider` sends the typed questions to the decider. `none` and
 `render` (with the decider set to none) leave nothing on the machine's way
 out. The Settings window shows, per action, where its data goes.
+
+## Thinking models
+
+`maxTokens` is the whole answer budget. A model that reasons before it
+answers (Ollama's qwen3.5 and gemma4 defaults, DeepSeek-R1, …) spends it on
+the reasoning first, and on an action-sized budget often never reaches the
+answer: the server returns empty `content` with the thinking in
+`reasoning`. The `openai-compatible` generator treats that as a thinking
+model, retries once with `reasoning_effort: "none"`, and sends the field on
+every later request of the same session. A server that rejects the field
+(older Ollama, some hosted APIs) gets a clear `model` error instead of an
+empty paste; an action whose generator returns nothing fails with
+`<action>: <model> returned nothing` rather than pasting an empty string.
+Pin the behaviour in *Settings → Providers → Thinking* (or `reasoning` in
+`providers.json`, `PASTE_GEN_REASONING` for the CLI) to skip the detour, and
+raise *Timeout* (`timeoutMs`, `PASTE_GEN_TIMEOUT_MS`) for a large local
+model that legitimately needs more than a minute.

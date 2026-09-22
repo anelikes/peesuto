@@ -17,6 +17,10 @@ already do a hundred times a day: copy, paste.
   this repository, or none) and a generator (any OpenAI-compatible endpoint
   such as Ollama, vLLM or LM Studio, Anthropic, or none). One egress layer,
   one offline switch, a log of where bytes went and never of what they were.
+  Thinking models (Ollama's qwen3.5, gemma4, …) work out of the box: the
+  generator notices an answer that was all reasoning and no text, repeats
+  the request with `reasoning_effort: "none"`, and keeps doing so from then
+  on; *Settings → Providers → Thinking* pins that choice or a budget.
 
 Everything here is MIT. A subscription, when it exists, buys hosted model
 calls that need no setup and official style and action packs; the formats

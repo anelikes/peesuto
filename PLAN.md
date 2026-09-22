@@ -172,11 +172,17 @@ cargo 测试 12 个，原文件扫描无明文。待人工：连续复制一百�
   不入库）。
 - 验收：v1 定义第 2 条；探测表进 `baselines/pick.md`。
 
-### M3 Provider 双轨与出网层（已完成 2026-09-22，真实调用待凭证）
+### M3 Provider 双轨与出网层（已完成 2026-09-22，Jev 真实调用待凭证）
 
 decider 三种、generator 四种、`egress.ts` 唯一出口与离线开关、去向日志、
 凭证引用经 SecretStore 解析、配置文件不含明文密钥；89 个测试。待用户：
-Cloudflare token 验证 REST；本机 Ollama 验证翻译。
+Cloudflare token 验证 REST。
+
+本机 Ollama 0.30 已真实跑通翻译与摘要（qwen3.5:4b），并由此修了一个 bug：
+带思考的模型把 `maxTokens` 全花在 `reasoning` 上、`content` 为空，动作却报
+成功。生成器现在识别这种回答、用 `reasoning_effort: "none"` 重试一次并记住；
+`reasoning` 与 `timeoutMs` 可在设置、providers.json、环境变量里钉死；
+生成器返回空文本的动作按错误处理。
 
 - Decider 三种、Generator 四种实现；`egress.ts` 唯一出口，离线开关，去向日志。
 - Cloudflare REST 真实跑通；本地 Ollama 跑通翻译；凭证入 Keychain。

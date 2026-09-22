@@ -60,6 +60,11 @@ describe("runAction", () => {
     const r = await runAction(parseActionSpec(valid), { text: "hello", context: { level: 1, appBundleId: "com.apple.Notes", appName: "Notes", role: "AXTextArea" } }, deps);
     expect(r).toMatchObject({ output: "text", text: "[] SHOUT: hello", model: "stub" });
   });
+  test("a generator that answers with nothing → ActionError(run) naming the model", async () => {
+    const silent = { generate: async () => ({ text: "  \n", model: "qwen3.5:4b" }) };
+    await expect(runAction(parseActionSpec(valid), { text: "x" }, { ...deps, generator: silent })).rejects.toMatchObject({ kind: "run", message: expect.stringContaining("qwen3.5:4b returned nothing") });
+  });
+
   test("generator missing → ActionError(needs); empty input → ActionError(input)", async () => {
     await expect(runAction(parseActionSpec(valid), { text: "x" }, { ...deps, generator: null })).rejects.toMatchObject({ kind: "needs" });
     await expect(runAction(parseActionSpec(valid), { text: "  " }, deps)).rejects.toMatchObject({ kind: "input" });

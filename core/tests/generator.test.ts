@@ -5,9 +5,14 @@ import { openaiCompatibleGenerator } from "../src/provider/generator/openai.ts";
 import { DEFAULT_MAX_TOKENS, type Generator } from "../src/provider/generator/types.ts";
 import { createGenerator, DEFAULT_OLLAMA_URL, generatorFromEnv, ProviderError } from "../src/provider/index.ts";
 
-type Mode = "openai" | "parts" | "no-choices" | "anthropic" | "hosted" | "html" | number;
+type Mode = "openai" | "parts" | "no-choices" | "anthropic" | "hosted" | "html" | "thinking" | "thinking-deepseek" | "thinking-rejects" | "thinking-stubborn" | "empty" | "slow" | "slow-rejects" | number;
 let mode: Mode = "openai";
 let seen: { path: string; headers: Record<string, string>; body: Record<string, unknown> } | null = null;
+let hits = 0;
+
+const thought = (extra: Record<string, unknown> = {}) => Response.json({ model: "qwen3.5:4b", choices: [{ index: 0, message: { role: "assistant", content: "", reasoning: "We need to translate…", ...extra }, finish_reason: "length" }], usage: { prompt_tokens: 30, completion_tokens: 1024 } });
+const answered = () => Response.json({ model: "qwen3.5:4b", choices: [{ index: 0, message: { role: "assistant", content: "剪贴板" }, finish_reason: "stop" }], usage: { prompt_tokens: 30, completion_tokens: 3 } });
+const unknownArgument = () => Response.json({ error: { message: "Unrecognized request argument supplied: reasoning_effort", type: "invalid_request_error" } }, { status: 400 });
 let server: ReturnType<typeof Bun.serve>;
 
 beforeAll(() => {
@@ -16,6 +21,8 @@ beforeAll(() => {
     hostname: "127.0.0.1",
     async fetch(req) {
       seen = { path: new URL(req.url).pathname, headers: Object.fromEntries(req.headers), body: (await req.json()) as Record<string, unknown> };
+      hits++;
+      const effort = seen.body.reasoning_effort;
       if (typeof mode === "number") return Response.json({ error: { message: `stub says ${mode}`, type: "stub_error" } }, { status: mode });
       switch (mode) {
         case "openai": return Response.json({ id: "chatcmpl-1", model: "qwen3:8b", choices: [{ index: 0, message: { role: "assistant", content: "Bonjour" }, finish_reason: "stop" }], usage: { prompt_tokens: 12, completion_tokens: 3 } });
@@ -24,6 +31,13 @@ beforeAll(() => {
         case "anthropic": return Response.json({ id: "msg_1", type: "message", role: "assistant", model: "claude-sonnet-5", content: [{ type: "thinking", thinking: "" }, { type: "text", text: "Hola" }, { type: "text", text: " mundo" }], stop_reason: "end_turn", usage: { input_tokens: 20, output_tokens: 4 } });
         case "hosted": return Response.json({ text: "Hallo", model: "hosted/qwen", usage: { in: 5, out: 2 } });
         case "html": return new Response("<html>bad gateway</html>", { status: 502 });
+        case "thinking": return effort === "none" ? answered() : thought();
+        case "thinking-deepseek": return effort === "none" ? answered() : thought({ reasoning: undefined, reasoning_content: "Let me think." });
+        case "thinking-rejects": return effort === undefined ? thought() : unknownArgument();
+        case "thinking-stubborn": return thought();
+        case "empty": return Response.json({ model: "m", choices: [{ index: 0, message: { role: "assistant", content: "" }, finish_reason: "stop" }] });
+        case "slow": if (effort === "none") return answered(); await Bun.sleep(250); return answered();
+        case "slow-rejects": if (effort !== undefined) return unknownArgument(); await Bun.sleep(250); return answered();
       }
     },
   });
@@ -88,6 +102,106 @@ describe("openai-compatible generator", () => {
 
   test("connection refused → network", async () => {
     expect(await codeOf(openaiCompatibleGenerator({ baseUrl: "http://127.0.0.1:1/v1", model: "m" }).generate({ prompt: "x" }))).toBe("network");
+  });
+
+  describe("thinking models", () => {
+    const messageOf = async (p: Promise<unknown>): Promise<string> => {
+      try { await p; } catch (e) { return (e as Error).message; }
+      return "resolved";
+    };
+
+    test("empty content with reasoning → one retry with reasoning_effort none, then the field is sent up front", async () => {
+      mode = "thinking";
+      const g = gen();
+      hits = 0;
+      const r = await g.generate({ prompt: "x", maxTokens: 1024 });
+      expect(r).toEqual({ text: "剪贴板", model: "qwen3.5:4b", usage: { in: 30, out: 3 } });
+      expect(hits).toBe(2);
+      expect(seen?.body.reasoning_effort).toBe("none");
+      expect(seen?.body.max_tokens).toBe(1024);
+      hits = 0;
+      await g.generate({ prompt: "y" });
+      expect(hits).toBe(1);
+      expect(seen?.body.reasoning_effort).toBe("none");
+    });
+
+    test("a fresh generator has learned nothing", async () => {
+      mode = "thinking";
+      hits = 0;
+      await gen().generate({ prompt: "x" });
+      expect(hits).toBe(2);
+    });
+
+    test("DeepSeek's reasoning_content counts as thinking too", async () => {
+      mode = "thinking-deepseek";
+      hits = 0;
+      expect((await gen().generate({ prompt: "x" })).text).toBe("剪贴板");
+      expect(hits).toBe(2);
+    });
+
+    test("reasoning pinned in the options is sent on the first request", async () => {
+      mode = "thinking";
+      hits = 0;
+      const r = await openaiCompatibleGenerator({ baseUrl: `${base()}/v1`, model: "m", reasoning: "none" }).generate({ prompt: "x" });
+      expect(r.text).toBe("剪贴板");
+      expect(hits).toBe(1);
+      expect(seen?.body.reasoning_effort).toBe("none");
+      mode = "openai";
+      await openaiCompatibleGenerator({ baseUrl: `${base()}/v1`, model: "m", reasoning: "high" }).generate({ prompt: "x" });
+      expect(seen?.body.reasoning_effort).toBe("high");
+    });
+
+    test("the server rejects reasoning_effort → a model error that says what to do", async () => {
+      mode = "thinking-rejects";
+      const p = gen().generate({ prompt: "x" });
+      const msg = await messageOf(p);
+      expect(msg).toContain("thinking model");
+      expect(msg).toContain("rejects reasoning_effort");
+      expect(await codeOf(gen().generate({ prompt: "x" }))).toBe("model");
+    });
+
+    test("thinking off changed nothing → model error, nothing learned", async () => {
+      mode = "thinking-stubborn";
+      const g = gen();
+      expect(await messageOf(g.generate({ prompt: "x" }))).toContain('reasoning_effort "none" changed nothing');
+      hits = 0;
+      await codeOf(g.generate({ prompt: "x" }));
+      expect(hits).toBe(2);
+    });
+
+    test("pinned reasoning and still nothing → model error naming the pin", async () => {
+      mode = "thinking-stubborn";
+      expect(await messageOf(openaiCompatibleGenerator({ baseUrl: `${base()}/v1`, model: "m", reasoning: "low" }).generate({ prompt: "x" }))).toContain('even with reasoning_effort "low"');
+    });
+
+    test("empty content, finished normally, no reasoning → bad-response, no retry", async () => {
+      mode = "empty";
+      hits = 0;
+      expect(await codeOf(gen().generate({ prompt: "x" }))).toBe("bad-response");
+      expect(hits).toBe(1);
+    });
+
+    test("a timeout is retried once with the thinking off, and the answer teaches the generator", async () => {
+      mode = "slow";
+      const g = openaiCompatibleGenerator({ baseUrl: `${base()}/v1`, model: "m", timeoutMs: 60 });
+      hits = 0;
+      expect((await g.generate({ prompt: "x" })).text).toBe("剪贴板");
+      expect(hits).toBe(2);
+      hits = 0;
+      await g.generate({ prompt: "y" });
+      expect(hits).toBe(1);
+    });
+
+    test("a timeout on a server that rejects reasoning_effort stays a timeout", async () => {
+      mode = "slow-rejects";
+      const g = openaiCompatibleGenerator({ baseUrl: `${base()}/v1`, model: "m", timeoutMs: 60 });
+      expect(await codeOf(g.generate({ prompt: "x" }))).toBe("timeout");
+    });
+
+    test("the timeout option reaches the request", async () => {
+      mode = "slow";
+      expect(await codeOf(openaiCompatibleGenerator({ baseUrl: `${base()}/v1`, model: "m", timeoutMs: 60, reasoning: "high" }).generate({ prompt: "x" }))).toBe("timeout");
+    });
   });
 });
 
@@ -181,6 +295,13 @@ describe("generatorFromEnv", () => {
     expect(generatorFromEnv({ PASTE_GENERATOR: "openai-compatible", PASTE_GEN_MODEL: "qwen3:8b" })).toEqual({ kind: "openai-compatible", baseUrl: DEFAULT_OLLAMA_URL, model: "qwen3:8b" });
     expect(generatorFromEnv({ PASTE_GENERATOR: "openai-compatible", PASTE_GEN_MODEL: "gpt", PASTE_GEN_BASE_URL: "https://api.openai.com/v1", PASTE_GEN_API_KEY: "k" }))
       .toEqual({ kind: "openai-compatible", baseUrl: "https://api.openai.com/v1", model: "gpt", apiKey: "k" });
+  });
+  test("openai-compatible reasoning and timeout come from PASTE_GEN_REASONING and PASTE_GEN_TIMEOUT_MS", () => {
+    expect(generatorFromEnv({ PASTE_GENERATOR: "openai-compatible", PASTE_GEN_MODEL: "m", PASTE_GEN_REASONING: "none", PASTE_GEN_TIMEOUT_MS: "180000" }))
+      .toEqual({ kind: "openai-compatible", baseUrl: DEFAULT_OLLAMA_URL, model: "m", reasoning: "none", timeoutMs: 180000 });
+    expect(() => generatorFromEnv({ PASTE_GENERATOR: "openai-compatible", PASTE_GEN_MODEL: "m", PASTE_GEN_REASONING: "off" })).toThrow(/PASTE_GEN_REASONING/);
+    expect(() => generatorFromEnv({ PASTE_GENERATOR: "openai-compatible", PASTE_GEN_MODEL: "m", PASTE_GEN_TIMEOUT_MS: "soon" })).toThrow(/PASTE_GEN_TIMEOUT_MS/);
+    expect(() => generatorFromEnv({ PASTE_GENERATOR: "openai-compatible", PASTE_GEN_MODEL: "m", PASTE_GEN_TIMEOUT_MS: "0" })).toThrow(/PASTE_GEN_TIMEOUT_MS/);
   });
   test("anthropic needs a key; hosted needs a token; unknown kinds throw", () => {
     expect(() => generatorFromEnv({ PASTE_GENERATOR: "anthropic" })).toThrow(/PASTE_GEN_API_KEY/);

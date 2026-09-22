@@ -215,6 +215,11 @@ describe("providers config", () => {
     expect(parseProvidersConfig({ offline: true })).toEqual({ decider: { kind: "none" }, generator: { kind: "none" }, offline: true });
     expect(() => parseProvidersConfig({ decider: { kind: "cloudflare", accountId: "a" } })).toThrow(/decider\.tokenRef/);
     expect(() => parseProvidersConfig({ generator: { kind: "openai-compatible", baseUrl: "u" } })).toThrow(/generator\.model/);
+    expect(() => parseProvidersConfig({ generator: { kind: "openai-compatible", baseUrl: "u", model: "m", reasoning: "off" } })).toThrow(/generator\.reasoning/);
+    expect(() => parseProvidersConfig({ generator: { kind: "openai-compatible", baseUrl: "u", model: "m", timeoutMs: "60" } })).toThrow(/generator\.timeoutMs/);
+    expect(() => parseProvidersConfig({ generator: { kind: "openai-compatible", baseUrl: "u", model: "m", timeoutMs: 0 } })).toThrow(/generator\.timeoutMs/);
+    expect(parseProvidersConfig({ generator: { kind: "openai-compatible", baseUrl: "u", model: "m", reasoning: "none", timeoutMs: 180000 } }).generator)
+      .toEqual({ kind: "openai-compatible", baseUrl: "u", model: "m", reasoning: "none", timeoutMs: 180000 });
     expect(() => parseProvidersConfig({ generator: { kind: "bogus" } })).toThrow(/generator\.kind/);
     expect(() => parseProvidersConfig({ offline: "yes" })).toThrow(/offline/);
     expect(() => parseProvidersConfig([])).toThrow(ProviderConfigError);
