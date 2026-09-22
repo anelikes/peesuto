@@ -263,6 +263,51 @@ Homebrew cask 骨架；`release.yml` 由 tag 或手动触发，在 macOS runner 
 托管 decider 与 generator 代理（鉴权、计量、限流、不记内容）；许可证密钥与
 应用内授权；风格包与动作包分发；计费用 merchant of record；官网与条款。
 
+### M9 生命周期事件与 hooks（v1.1，方案已定 2026-09-22，未开始）
+
+来源：用户提出参考 deepseek-harness 的「一切皆插件」（Cordis：服务、带派发
+模式的类型化事件、可撤销注册、按 id 打补丁的组合）。结论是**借思想不借框架**：
+我们的主干是固定的四步（复制、入库、挑选、粘贴）跨两个进程，隐私承诺需要一个
+不可被插件绕过的特权核心，第三方插件又恰好能看到每一条复制过的密钥。所以不做
+「没有特权核心」，做一小组有名字、有派发模式的事件，加一种外部形态的 hook。
+
+**特权层先于一切事件。** 密码管理器与 Concealed/Transient 排除、密码框短路、唯一
+出网层与离线开关、历史加密，都在任何事件触发之前执行；没有事件能关掉它们；hook
+只看到已被允许的内容。这是与 harness 刻意不同的一点。
+
+**事件表**（派发模式决定 hook 能做什么）：
+
+| 事件 | 模式 | 触发方 | hook 可以 |
+|---|---|---|---|
+| `clipboard/admit` | bail | 壳的轮询器，经 daemon | 否决入库，或返回脱敏后的文本 |
+| `clipboard/stored` | emit | daemon | 只观察 |
+| `pick/candidates` | waterfall | daemon，挑选之前 | 过滤、重排候选 |
+| `paste/before` | waterfall | 壳在合成 ⌘V 之前，与挑选同一次往返 | 改写将要粘贴的文本 |
+| `paste/after` | emit | 壳 | 只观察 |
+| `action/result` | waterfall | daemon | 后处理动作输出 |
+
+**第一种外部形态：命令式 hook**，`<appData>/hooks.json`。每条声明事件名、匹配
+条件（应用 bundle id、文本正则）、一条命令、超时。事件 JSON 从 stdin 进、结果从
+stdout 出；退出码 2 是否决并带原因；其他非零视为失败不阻断，只记日志。规则参照
+harness 的 `hook-protocol`（匹配、执行、超时、结果合并、失败不阻断）。语言无关，
+进程隔离，与「动作是 JSON 声明」一致，社区可贡献。示例用途：从终端复制的东西像
+token 就不入库；粘贴到 Slack 时 Markdown 转 mrkdwn；粘贴 URL 时去掉 utm 参数。
+
+**预算。** `clipboard/admit` 总预算 200 ms，超时按「入库」处理，一个慢 hook 不能
+丢内容；`paste/before` 发生在用户确认之后，不影响面板一百毫秒弹出的目标；只观察
+的事件异步跑。
+
+**加载。** hook 与动作一样由 daemon 加载，注册带 disposer，`hooks.reload` 与
+`actions.reload` 同一套；动作包、风格包按 id 插入，用户按 id 覆盖（借它的
+bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
+
+**不做。** 进程内代码插件（daemon 加载第三方 JS）推后：Bun 没有可靠隔离，若做，
+走与官方包相同的信任路径（签名、声明权限、与订阅体系绑定）。
+
+- 验收：六个事件各有测试；`hooks.json` 三个示例各跑通；超时与否决语义有测试；
+  隐私审计清单新增「hook 看不到被排除的内容」一项；`docs/hooks.md`。
+- 规模：Core 几百行，壳两处往返改动；可交给一个子 agent。
+
 ## 5. 已定的决策
 
 - 主体是智能剪贴板，卡片是动作。（2026-09-22 用户）
@@ -275,6 +320,9 @@ Homebrew cask 骨架；`release.yml` 由 tag 或手动触发，在 macOS runner 
 - 开源核心算法与所有格式；订阅解锁托管调用与官方风格包、动作包。
 - ffmpeg 不随包：GIF 进程内编码，视频动作按 ffmpeg 存在与否启用。
 - v1 完成后不停，继续 M6 到 M8；独立模块交给子 agent 并行。
+- 扩展性借 deepseek-harness 的思想不借框架：命名事件加派发模式、命令式 hook、
+  可撤销注册；特权核心保留，隐私层先于一切事件。（2026-09-22 用户）
+- 免费本地首跑：decider 默认 `rules`；Laya 作为本地模型选项保留，不内置。（2026-09-22 用户）
 
 ## 6. 风险与退路
 
@@ -286,6 +334,7 @@ Homebrew cask 骨架；`release.yml` 由 tag 或手动触发，在 macOS runner 
 | 隐私事故 | 内容意外出网 | 唯一出网层加离线开关，日志可核，默认本地 |
 | Jev 不在 REST 端点 | M3 探测 404 | 自部署 proxy/ 作为默认路径 |
 | 长驻 sidecar 内存 | 常驻 Bun 进程 | 空闲 N 分钟后退出，下次调用再拉起 |
+| hook 拖慢或丢内容 | 慢 hook 卡住入库或粘贴 | 入库 200 ms 预算超时即存；粘贴改写只在确认后；失败不阻断 |
 
 ## 7. 用户待办
 
