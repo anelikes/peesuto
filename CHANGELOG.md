@@ -18,6 +18,7 @@ section here becomes one.
 - Style packs: catalog fragments merged at load; subscription pane with license key, /v1/me and pack install; updater wired behind a public key; release DMG build.
 - Privacy baseline 0.1.0: five automated checks pass; manual list recorded.
 - Generator: thinking models on Ollama (qwen3.5, gemma4) answered with empty content and the action reported success; the openai-compatible generator now detects it, retries with `reasoning_effort: "none"`, learns, and exposes `reasoning` and `timeoutMs` (settings, providers.json, env). An action whose generator returns nothing is an error.
+- Engine: pinned to the public anelikes/pocket-motion v0.2.1 (the private branch stack replayed, plus paths through fileURLToPath); CI and release clone it without a credential, Rust pinned to 1.97.1 for the wasm build.
 
 The foundation — M0 of `PLAN.md`, which was M1 to M3 of the plan's first
 edition: the render chain as a package, the engine as a pinned dependency,

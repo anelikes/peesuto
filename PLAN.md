@@ -279,13 +279,17 @@ Homebrew cask 骨架；`release.yml` 由 tag 或手动触发，在 macOS runner 
 ## 7. 用户待办
 
 0. 一个 Cloudflare API token（Workers AI 读权限），用于验证 `typesafe/jev`
-   的 REST 路径：`PASTE_PROVIDER=cloudflare PASTE_CF_ACCOUNT_ID=… PASTE_CF_TOKEN=…
-   bun run paste "…"`。
-1. 引擎分支栈合并与公开 tag（不阻塞 M1 到 M6）。合并时顺手修一处：引擎在
-   `src/runtime/boot.ts:30`、`src/render/parallel.ts:65`、
-   `src/render/build-record.ts:49`、`src/text/measure.ts:272,314` 与 vendored
-   的 `framework/compiler/jsx-plugin.ts` 用 `new URL(…, import.meta.url).pathname`
-   取文件路径，路径含空格（`Application Support`）时会 ENOENT；应改为
-   `fileURLToPath`。pocket-paste 目前把引擎装到 `~/.pocket-paste/engine` 绕开。
-2. M7：Apple Developer 账号、证书、Notarization、updater 密钥。
-3. M8：Cloudflare 部署与域名、计费平台、条款审阅。
+   的 REST 路径：`PASTE_PROVIDER=cloudflare PASTE_CF_ACCOUNT_ID=… PASTE_CF_TOKEN="$(pbpaste)"
+   bun run paste --json "…"`。2026-09-22 第一次尝试返回 401（错误码 10000，token
+   本身无效）；先用 `curl -H "Authorization: Bearer $(pbpaste)"
+   https://api.cloudflare.com/client/v4/user/tokens/verify` 确认 token 有效。
+1. （已完成 2026-09-22）引擎分支栈已重放到公开的 anelikes/pocket-motion：
+   v0.2.0 = 补丁 0013 到 0015，v0.2.1 = fileURLToPath 修复；engine.json 钉 v0.2.1，
+   CI 无需任何凭证。qianiaoo/pocketjs-motion 只作归档，之后的引擎迭代都在公开
+   仓库。`~/.pocket-paste/engine` 的绕行还在，等 v0.2.1 随包发布后再拆。
+2. M7：Developer ID Application 证书要由公司团队（Hangzhou Muke，Team ID
+   QVWNDXA74U）的 Account Holder 创建，用户角色是 Admin；用户本机生成 CSR 交给
+   Account Holder 签发，再导出 .p12。六个 Apple secrets 与 notarytool 凭证的命令
+   见 docs/RELEASING.md。updater 密钥对已生成并写入 secret（2026-09-22）。
+3. M8：Cloudflare 部署与域名（peesuto.com，托管默认 api.peesuto.com）、计费平台、
+   条款审阅。应用对用户可见的名字（Pocket Paste 还是 Peesuto）待定。

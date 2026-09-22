@@ -1,6 +1,6 @@
 {
   "repo": "https://github.com/anelikes/pocket-motion.git",
-  "ref": "v0.2.0",
-  "sha": "fdebd556db19f8c1125837cd6191c282b913510e",
-  "note": "v0.2.0 is the private feat/transparent-clear stack (patches 0013 to 0015) replayed onto the public v0.1.0; its code tree is byte-identical to ca3c07632017, which the fixture digests were recorded against."
+  "ref": "v0.2.1",
+  "sha": "ad6b8a600cbbd576dd46112075605dfdaf23d063",
+  "note": "v0.2.0 replayed the private feat/transparent-clear stack (patches 0013 to 0015) onto the public v0.1.0, byte-identical in code to ca3c07632017 which the fixture digests were recorded against; v0.2.1 adds the fileURLToPath fix so a checkout under a path with spaces builds. Fixtures re-verified against it."
 }
