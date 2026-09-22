@@ -19,6 +19,9 @@
       "allow": [
         {
           "url": "x-apple.systempreferences:*"
+        },
+        {
+          "url": "https://github.com/anelikes/peesuto/*"
         }
       ]
     },

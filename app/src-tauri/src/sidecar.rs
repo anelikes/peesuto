@@ -229,8 +229,9 @@ pub fn daemon_plan<R: Runtime>(app: &AppHandle<R>, s: &Settings) -> Result<Plan,
     Ok(plan)
 }
 
-/// The CLI fallback: `paste --stdin --json …`, with the proxy decider when
-/// one is configured (the CLI knows `none` and `proxy`).
+/// The CLI fallback: `paste --stdin --json …`, with the local or proxy
+/// decider when one is configured (the CLI knows `rules`, `none`, `laya`
+/// and `proxy`; the credentialed kinds fall back to `none`).
 fn cli_plan<R: Runtime>(app: &AppHandle<R>, s: &Settings, a: &PasteArgs) -> Result<Plan, PasteError> {
     let paths = paths(app)?;
     let (mut plan, _) = launch(app, s, "cli.ts")?;
@@ -250,6 +251,10 @@ fn cli_plan<R: Runtime>(app: &AppHandle<R>, s: &Settings, a: &PasteArgs) -> Resu
         .map(String::from),
     );
     match providers::load(app).decider {
+        providers::Decider::Rules => plan.args.extend(["--provider".to_string(), "rules".into()]),
+        providers::Decider::Laya { url } => {
+            plan.args.extend(["--provider".to_string(), "laya".into(), "--laya-url".into(), url.unwrap_or_else(|| providers::DEFAULT_LAYA_URL.into())]);
+        }
         providers::Decider::Proxy { url, .. } => {
             plan.args.extend(["--provider".to_string(), "proxy".into(), "--proxy-url".into(), url]);
             if let Some(t) = crate::secrets::get(providers::REF_PROXY_TOKEN).ok().flatten().filter(|t| !t.is_empty()) {

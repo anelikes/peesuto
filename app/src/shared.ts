@@ -167,6 +167,8 @@ export interface DaemonStatus {
 
 export type Decider =
   | { kind: "none" }
+  | { kind: "rules" }
+  | { kind: "laya"; url?: string }
   | { kind: "proxy"; url: string; tokenRef?: string }
   | { kind: "cloudflare"; accountId: string; tokenRef: string }
   | { kind: "hosted"; tokenRef: string; url?: string };
@@ -202,6 +204,7 @@ export const SECRET_REFS = {
 
 export const DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1";
 export const DEFAULT_HOSTED_URL = "https://api.peesuto.com";
+export const DEFAULT_LAYA_URL = "http://127.0.0.1:8790/";
 
 export interface SubscriptionForm {
   key: string;

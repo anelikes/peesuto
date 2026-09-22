@@ -103,12 +103,18 @@
           <label class="field">
             <span>Kind</span>
             <select id="decider-kind">
+              <option value="rules">Rules — local heuristics for cards, nothing leaves this Mac</option>
               <option value="none">None — heuristic only, nothing leaves this Mac</option>
+              <option value="laya">Laya — a local model through laya-mlx, nothing leaves this Mac</option>
               <option value="proxy">Proxy — a self-hosted Jev worker (URL + token)</option>
               <option value="cloudflare">Cloudflare Workers AI — your account id + token</option>
               <option value="hosted">Hosted — a Pocket Paste subscription token</option>
             </select>
           </label>
+          <div data-decider="laya" hidden>
+            <label class="field"><span>URL</span><input id="laya-url" type="url" placeholder="http://127.0.0.1:8790/ (default)" spellcheck="false" /></label>
+            <p class="help">Install laya-mlx and run <code>scripts/laya/server.py</code> from the repository, then Test. Requests go only to the URL above, normally this Mac. <button id="laya-guide" class="link">Setup guide</button></p>
+          </div>
           <div data-decider="proxy" hidden>
             <label class="field"><span>URL</span><input id="proxy-url" type="url" placeholder="http://localhost:8787/" spellcheck="false" /></label>
             <label class="field"><span>Token</span><input id="proxy-token" type="password" placeholder="Optional · stored in the Keychain" autocomplete="off" /></label>

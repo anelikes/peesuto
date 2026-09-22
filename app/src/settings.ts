@@ -110,11 +110,14 @@ function timeoutMsOf(seconds: string): number | undefined {
 function readProvidersForm(): ProvidersForm {
   const v = (id: string) => $<HTMLInputElement>(id).value.trim();
   const opt = (s: string) => (s ? s : undefined);
+  // Rules is the default, so an unknown kind (a select with no matching option) falls back to it.
   const decider: ProvidersForm["config"]["decider"] =
-    deciderKind.value === "proxy" ? { kind: "proxy", url: v("proxy-url") || "http://localhost:8787/" }
+    deciderKind.value === "none" ? { kind: "none" }
+    : deciderKind.value === "laya" ? { kind: "laya", url: opt(v("laya-url")) }
+    : deciderKind.value === "proxy" ? { kind: "proxy", url: v("proxy-url") || "http://localhost:8787/" }
     : deciderKind.value === "cloudflare" ? { kind: "cloudflare", accountId: v("cf-account"), tokenRef: "" }
     : deciderKind.value === "hosted" ? { kind: "hosted", tokenRef: "", url: opt(v("hosted-url")) }
-    : { kind: "none" };
+    : { kind: "rules" };
   const generator: ProvidersForm["config"]["generator"] =
     generatorKind.value === "openai-compatible" ? {
       kind: "openai-compatible", baseUrl: v("oai-url") || DEFAULT_OPENAI_BASE_URL, model: v("oai-model"),
@@ -133,6 +136,7 @@ function fillProvidersForm(f: ProvidersForm): void {
   const set = (id: string, value: string | undefined) => { $<HTMLInputElement>(id).value = value ?? ""; };
   const d = f.config.decider;
   deciderKind.value = d.kind;
+  if (d.kind === "laya") set("laya-url", d.url);
   if (d.kind === "proxy") set("proxy-url", d.url);
   if (d.kind === "cloudflare") set("cf-account", d.accountId);
   if (d.kind === "hosted") set("hosted-url", d.url);
@@ -153,6 +157,7 @@ function fillProvidersForm(f: ProvidersForm): void {
 }
 
 const TEST_SENTENCE = "Pocket Paste keeps what you copy and pastes what fits.";
+const LAYA_GUIDE_URL = "https://github.com/anelikes/peesuto/blob/main/docs/laya.md";
 
 async function testDecider(): Promise<void> {
   const out = $("test-decider-out");
@@ -168,7 +173,9 @@ async function testDecider(): Promise<void> {
     const t0 = performance.now();
     const r = await invoke<PickResult>("daemon_pick", { context, candidates, fresh: true });
     const top = r.ranked[0];
-    out.textContent = `${r.source} · top: “${top?.item.preview ?? "?"}” (${top?.reason ?? ""}) · shouldPaste ${(r.shouldPaste * 100).toFixed(0)} % · ${Math.round(performance.now() - t0)} ms`;
+    // Rules only decides cards (the pick keeps its heuristic), so say so rather than look unused.
+    const note = deciderKind.value === "rules" ? "rules decide cards locally · pick " : "";
+    out.textContent = `${note}${r.source} · top: “${top?.item.preview ?? "?"}” (${top?.reason ?? ""}) · shouldPaste ${(r.shouldPaste * 100).toFixed(0)} % · ${Math.round(performance.now() - t0)} ms`;
     out.className = "help ok";
   } catch (e) {
     const err = isPasteError(e) ? e : { kind: "error", message: String(e) };
@@ -231,10 +238,10 @@ async function refreshActions(reload = false): Promise<void> {
 
 // ---- privacy ----
 const PRIVACY_ROWS: { data: string; stored: string; leaves: string; sw: string; pane?: string }[] = [
-  { data: "clipboard text, RTF, HTML", stored: "encrypted SQLite in App Support; key in Keychain", leaves: "only as part of a decider question or a generator prompt, and only for the item you act on", sw: "decider/generator = none, or Offline", pane: "providers" },
+  { data: "clipboard text, RTF, HTML", stored: "encrypted SQLite in App Support; key in Keychain", leaves: "only as part of a decider question or a generator prompt, and only for the item you act on; never with decider = rules, and only to the local Laya URL with decider = laya", sw: "decider = rules or none, generator = none, or Offline", pane: "providers" },
   { data: "images, files copied", stored: "thumbnail + original under App Support (encrypted)", leaves: "never", sw: "retention / clear all", pane: "exclusions" },
-  { data: "app bundle id per item", stored: "with the item", leaves: "as part of the pick question's state (bundle id only)", sw: "decider = none", pane: "providers" },
-  { data: "focused field context (role, label, text around the caret)", stored: "never", leaves: "as part of the pick question, redacted per level", sw: "smart paste off, or decider = none", pane: "general" },
+  { data: "app bundle id per item", stored: "with the item", leaves: "as part of the pick question's state (bundle id only); the pick stays local with decider = rules or none", sw: "decider = rules or none", pane: "providers" },
+  { data: "focused field context (role, label, text around the caret)", stored: "never", leaves: "as part of the pick question, redacted per level; the pick stays local with decider = rules or none", sw: "smart paste off, or decider = rules or none", pane: "general" },
   { data: "history search queries", stored: "never", leaves: "never", sw: "—" },
   { data: "provider credentials", stored: "Keychain", leaves: "to the provider they belong to", sw: "—", pane: "providers" },
   { data: "egress log (host, purpose, bytes, status)", stored: "App Support/egress.log", leaves: "never", sw: "Clear log (below)" },
@@ -549,6 +556,7 @@ $("ax-allow").addEventListener("click", async () => {
   window.setTimeout(() => void refreshAccessibility(), 800);
 });
 $("ax-open").addEventListener("click", () => void openUrl(ACCESSIBILITY_URL));
+$("laya-guide").addEventListener("click", () => void openUrl(LAYA_GUIDE_URL));
 $("ax-probe").addEventListener("click", async () => {
   const out = $("ax-probe-out");
   out.textContent = "…";

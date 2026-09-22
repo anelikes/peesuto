@@ -23,6 +23,8 @@ pub const REF_HOSTED_TOKEN: &str = "pocket-paste/hosted";
 pub const REF_GENERATOR_API_KEY: &str = "pocket-paste/generator";
 
 pub const DEFAULT_HOSTED_URL: &str = "https://api.peesuto.com";
+/// Where `scripts/laya/server.py` listens unless the decider names another URL.
+pub const DEFAULT_LAYA_URL: &str = "http://127.0.0.1:8790/";
 pub const CLOUDFLARE_HOST: &str = "api.cloudflare.com";
 pub const ANTHROPIC_HOST: &str = "api.anthropic.com";
 
@@ -30,6 +32,9 @@ pub const ANTHROPIC_HOST: &str = "api.anthropic.com";
 #[serde(tag = "kind", rename_all = "kebab-case", rename_all_fields = "camelCase")]
 pub enum Decider {
     None,
+    /// Local rule-based card decisions (kind classifier + length heuristics);
+    /// the smart pick keeps its heuristic. Zero network, and the fresh-install default.
+    Rules,
     Proxy {
         url: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -41,6 +46,12 @@ pub enum Decider {
     },
     Hosted {
         token_ref: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        url: Option<String>,
+    },
+    /// A local Laya model behind `scripts/laya/server.py` (laya-mlx). No
+    /// token; requests go only to `url`, `DEFAULT_LAYA_URL` when unset.
+    Laya {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         url: Option<String>,
     },
@@ -85,7 +96,7 @@ pub struct ProvidersConfig {
 
 impl Default for ProvidersConfig {
     fn default() -> Self {
-        ProvidersConfig { decider: Decider::None, generator: Generator::None, offline: false }
+        ProvidersConfig { decider: Decider::Rules, generator: Generator::None, offline: false }
     }
 }
 
@@ -145,9 +156,11 @@ pub fn normalised(cfg: &ProvidersConfig, has: impl Fn(&str) -> bool) -> Provider
     let optional = |name: &str| has(name).then(|| name.to_string());
     let decider = match &cfg.decider {
         Decider::None => Decider::None,
+        Decider::Rules => Decider::Rules,
         Decider::Proxy { url, .. } => Decider::Proxy { url: url.trim().to_string(), token_ref: optional(REF_PROXY_TOKEN) },
         Decider::Cloudflare { account_id, .. } => Decider::Cloudflare { account_id: account_id.trim().to_string(), token_ref: REF_CLOUDFLARE_TOKEN.into() },
         Decider::Hosted { url, .. } => Decider::Hosted { token_ref: REF_HOSTED_TOKEN.into(), url: clean(url) },
+        Decider::Laya { url } => Decider::Laya { url: clean(url) },
     };
     let generator = match &cfg.generator {
         Generator::None => Generator::None,
@@ -181,7 +194,8 @@ pub fn secrets_for(cfg: &ProvidersConfig) -> serde_json::Map<String, Value> {
     match &cfg.decider {
         Decider::Proxy { token_ref: Some(r), .. } => take(r),
         Decider::Cloudflare { token_ref, .. } | Decider::Hosted { token_ref, .. } => take(token_ref),
-        _ => {}
+        // The local kinds carry no credential.
+        Decider::None | Decider::Rules | Decider::Proxy { token_ref: None, .. } | Decider::Laya { .. } => {}
     }
     match &cfg.generator {
         Generator::OpenaiCompatible { api_key_ref: Some(r), .. } => take(r),
@@ -216,9 +230,11 @@ pub fn destinations(cfg: &ProvidersConfig) -> Vec<(String, String)> {
     let mut out = Vec::new();
     match &cfg.decider {
         Decider::None => out.push(("decider".into(), "nowhere (heuristic)".into())),
+        Decider::Rules => out.push(("decider".into(), "nowhere (rules)".into())),
         Decider::Proxy { url, .. } => out.push(("decider".into(), host_of(url))),
         Decider::Cloudflare { .. } => out.push(("decider".into(), CLOUDFLARE_HOST.into())),
         Decider::Hosted { url, .. } => out.push(("decider".into(), host_of(url.as_deref().unwrap_or(DEFAULT_HOSTED_URL)))),
+        Decider::Laya { url } => out.push(("decider".into(), host_of(url.as_deref().unwrap_or(DEFAULT_LAYA_URL)))),
     }
     match &cfg.generator {
         Generator::None => out.push(("generator".into(), "nowhere (not configured)".into())),
@@ -341,6 +357,33 @@ mod tests {
     }
 
     #[test]
+    fn local_deciders_round_trip() {
+        // The two zero-credential kinds, in exactly the shape Core reads.
+        assert_eq!(serde_json::to_value(Decider::Rules).unwrap(), json!({ "kind": "rules" }));
+        assert_eq!(serde_json::to_value(Decider::Laya { url: None }).unwrap(), json!({ "kind": "laya" }));
+        assert_eq!(
+            serde_json::to_value(Decider::Laya { url: Some(DEFAULT_LAYA_URL.into()) }).unwrap(),
+            json!({ "kind": "laya", "url": "http://127.0.0.1:8790/" })
+        );
+        for d in [Decider::Rules, Decider::Laya { url: None }, Decider::Laya { url: Some("http://localhost:9000/".into()) }] {
+            let back: Decider = serde_json::from_value(serde_json::to_value(&d).unwrap()).unwrap();
+            assert_eq!(back, d);
+        }
+        let laya: Decider = serde_json::from_str(r#"{"kind":"laya"}"#).unwrap();
+        assert_eq!(laya, Decider::Laya { url: None });
+    }
+
+    #[test]
+    fn default_decider_is_rules() {
+        let d = ProvidersConfig::default();
+        assert_eq!(d.decider, Decider::Rules);
+        assert_eq!(d.generator, Generator::None);
+        assert!(!d.offline);
+        // A fresh install (no providers.json) must not name any host.
+        assert_eq!(destinations(&d)[0], ("decider".to_string(), "nowhere (rules)".to_string()));
+    }
+
+    #[test]
     fn normalised_pins_refs_and_never_carries_secrets() {
         let cfg = ProvidersConfig {
             decider: Decider::Proxy { url: " http://localhost:8787/ ".into(), token_ref: None },
@@ -359,6 +402,14 @@ mod tests {
         for k in ["\"token\"", "\"apiKey\"", "\"api_key\"", "\"secret\"", "\"password\""] {
             assert!(!text.contains(k), "{k} in {text}");
         }
+        // The local kinds pass through with the URL trimmed; blank means the default.
+        let rules = ProvidersConfig { decider: Decider::Rules, ..ProvidersConfig::default() };
+        assert_eq!(normalised(&rules, |_| true).decider, Decider::Rules);
+        let laya = ProvidersConfig { decider: Decider::Laya { url: Some(" http://127.0.0.1:8790/ ".into()) }, ..ProvidersConfig::default() };
+        assert_eq!(normalised(&laya, |_| true).decider, Decider::Laya { url: Some("http://127.0.0.1:8790/".into()) });
+        let laya = ProvidersConfig { decider: Decider::Laya { url: Some("  ".into()) }, ..ProvidersConfig::default() };
+        assert_eq!(normalised(&laya, |_| true).decider, Decider::Laya { url: None });
+        assert!(!serde_json::to_string(&normalised(&laya, |_| true)).unwrap().contains("Ref"));
     }
 
     #[test]
@@ -367,5 +418,11 @@ mod tests {
         assert_eq!(host_of("http://localhost:11434/v1"), "localhost:11434");
         let d = destinations(&ProvidersConfig::default());
         assert_eq!(d.len(), 2);
+        let decider_host = |decider: Decider| destinations(&ProvidersConfig { decider, ..ProvidersConfig::default() })[0].1.clone();
+        assert_eq!(decider_host(Decider::None), "nowhere (heuristic)");
+        assert_eq!(decider_host(Decider::Rules), "nowhere (rules)");
+        assert_eq!(decider_host(Decider::Laya { url: None }), "127.0.0.1:8790");
+        assert_eq!(decider_host(Decider::Laya { url: Some("http://localhost:9000/v1".into()) }), "localhost:9000");
+        assert_eq!(decider_host(Decider::Hosted { token_ref: REF_HOSTED_TOKEN.into(), url: None }), "api.peesuto.com");
     }
 }
