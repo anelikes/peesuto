@@ -7,10 +7,10 @@ const ANSWERS = { kind: { choice: "plain", probabilities: { plain: 0.9 } }, layo
 
 let server: ReturnType<typeof Bun.serve>;
 let mode = "ok";
-let seenAuth = "", seenPath = "";
+let seenAuth = "", seenPath = "", seenBody: unknown = null;
 beforeAll(() => {
-  server = Bun.serve({ port: 0, fetch(req) {
-    seenAuth = req.headers.get("authorization") ?? ""; seenPath = new URL(req.url).pathname;
+  server = Bun.serve({ port: 0, async fetch(req) {
+    seenAuth = req.headers.get("authorization") ?? ""; seenPath = new URL(req.url).pathname; seenBody = await req.json();
     switch (mode) {
       case "ok": return Response.json({ success: true, result: { answers: ANSWERS }, errors: [] });
       case "auth": return Response.json({ success: false, errors: [{ code: 10000, message: "Authentication error" }] }, { status: 401 });
@@ -37,10 +37,11 @@ const withStub = (p: ReturnType<typeof cloudflareDecider>) => ({
 describe("cloudflare provider", () => {
   const p = withStub(cloudflareDecider("acct-123", "tok-abc"));
   const body = buildRequest("hello world").body;
-  test("posts to /accounts/<id>/ai/run/typesafe/jev with a bearer token and unwraps result.answers", async () => {
+  test("posts {model, input} to /accounts/<id>/ai/run with a bearer token and unwraps result.answers", async () => {
     mode = "ok";
     expect(await p.ask(body)).toEqual(ANSWERS);
-    expect(seenPath).toBe("/client/v4/accounts/acct-123/ai/run/typesafe/jev");
+    expect(seenPath).toBe("/client/v4/accounts/acct-123/ai/run");
+    expect(seenBody).toEqual({ model: "typesafe/jev", input: body });
     expect(seenAuth).toBe("Bearer tok-abc");
   });
   const cases: [string, ProviderError["code"]][] = [["auth", "auth"], ["model", "model"], ["quota", "quota"], ["server", "model"], ["envelope-fail", "bad-response"]];
