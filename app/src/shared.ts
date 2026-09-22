@@ -201,7 +201,7 @@ export const SECRET_REFS = {
 } as const;
 
 export const DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1";
-export const DEFAULT_HOSTED_URL = "https://jev.pocketpaste.dev";
+export const DEFAULT_HOSTED_URL = "https://api.peesuto.com";
 
 export interface SubscriptionForm {
   key: string;

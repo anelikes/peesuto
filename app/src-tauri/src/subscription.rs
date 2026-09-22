@@ -466,10 +466,10 @@ mod tests {
         assert!(!valid_id("Example"));
         assert!(!valid_id("-x"));
         assert!(!valid_id(""));
-        assert_eq!(base_of("https://jev.pocketpaste.dev/"), "https://jev.pocketpaste.dev");
+        assert_eq!(base_of("https://api.peesuto.com/"), "https://api.peesuto.com");
         assert_eq!(base_of("http://127.0.0.1:8790/v1"), "http://127.0.0.1:8790");
         assert!(is_local("127.0.0.1:8790"));
-        assert!(!is_local("jev.pocketpaste.dev"));
+        assert!(!is_local("api.peesuto.com"));
     }
 
     #[test]

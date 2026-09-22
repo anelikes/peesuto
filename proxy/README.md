@@ -132,13 +132,13 @@ cd proxy
 bunx wrangler kv namespace create SUBS --env hosted      # paste the id into wrangler.toml [[env.hosted.kv_namespaces]]
 bunx wrangler secret put ADMIN_SECRET --env hosted
 bunx wrangler secret put BILLING_WEBHOOK_SECRET --env hosted
-bunx wrangler deploy --env hosted                        # then route jev.pocketpaste.dev to it
+bunx wrangler deploy --env hosted                        # then route api.peesuto.com to it
 ```
 
 Mint a subscriber:
 
 ```sh
-curl -X POST https://jev.pocketpaste.dev/admin/tokens \
+curl -X POST https://api.peesuto.com/admin/tokens \
   -H "Authorization: Bearer $ADMIN_SECRET" -H "content-type: application/json" \
   -d '{"plan":"solo","quota":1000,"label":"alice"}'
 ```

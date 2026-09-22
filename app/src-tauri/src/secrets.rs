@@ -3,7 +3,7 @@
 //! names are the ones `core/src/provider/config.ts` (`SECRET_REFS`) uses, so
 //! `providers.json` can refer to them and the CLI finds the same items.
 
-pub const SERVICE: &str = "dev.pocketpaste.desktop";
+pub const SERVICE: &str = "com.peesuto.desktop";
 
 fn entry(name: &str) -> Result<keyring::Entry, String> {
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '/' | '.')) {

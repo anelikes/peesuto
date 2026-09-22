@@ -7,10 +7,10 @@ cask "pocket-paste" do
   version "0.0.0" # TODO(release): the tagged version, without the leading v
   sha256 "0000000000000000000000000000000000000000000000000000000000000000" # TODO(release): shasum -a 256 of the DMG
 
-  url "https://github.com/anelikes/pocket-paste/releases/download/v#{version}/Pocket.Paste_#{version}_aarch64.dmg"
+  url "https://github.com/anelikes/peesuto/releases/download/v#{version}/Pocket.Paste_#{version}_aarch64.dmg"
   name "Pocket Paste"
   desc "Smart clipboard for the menu bar: paste as a card, a GIF, a translation or a summary"
-  homepage "https://github.com/anelikes/pocket-paste"
+  homepage "https://github.com/anelikes/peesuto"
 
   livecheck do
     url :url
@@ -24,10 +24,10 @@ cask "pocket-paste" do
   app "Pocket Paste.app"
 
   zap trash: [
-    "~/Library/Application Support/dev.pocketpaste.app",
-    "~/Library/Caches/dev.pocketpaste.app",
-    "~/Library/Preferences/dev.pocketpaste.app.plist",
-    "~/Library/Saved Application State/dev.pocketpaste.app.savedState",
-    "~/Library/WebKit/dev.pocketpaste.app",
+    "~/Library/Application Support/com.peesuto.desktop",
+    "~/Library/Caches/com.peesuto.desktop",
+    "~/Library/Preferences/com.peesuto.desktop.plist",
+    "~/Library/Saved Application State/com.peesuto.desktop.savedState",
+    "~/Library/WebKit/com.peesuto.desktop",
   ]
 end

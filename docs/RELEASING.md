@@ -117,7 +117,7 @@ given (choose a password when asked, or leave it empty).
 
 - Put the **public** key into `app/src-tauri/tauri.conf.json` under
   `plugins.updater.pubkey`, set `plugins.updater.endpoints` to
-  `https://github.com/anelikes/pocket-paste/releases/latest/download/latest.json`,
+  `https://github.com/anelikes/peesuto/releases/latest/download/latest.json`,
   and `bundle.createUpdaterArtifacts` to `true`. The public key is committed;
   it is not a secret.
 - Store the **private** key's contents as `TAURI_SIGNING_PRIVATE_KEY`

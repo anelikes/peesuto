@@ -22,7 +22,7 @@ pub const REF_CLOUDFLARE_TOKEN: &str = "pocket-paste/cloudflare";
 pub const REF_HOSTED_TOKEN: &str = "pocket-paste/hosted";
 pub const REF_GENERATOR_API_KEY: &str = "pocket-paste/generator";
 
-pub const DEFAULT_HOSTED_URL: &str = "https://jev.pocketpaste.dev";
+pub const DEFAULT_HOSTED_URL: &str = "https://api.peesuto.com";
 pub const CLOUDFLARE_HOST: &str = "api.cloudflare.com";
 pub const ANTHROPIC_HOST: &str = "api.anthropic.com";
 

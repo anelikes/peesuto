@@ -45,7 +45,7 @@ mode with aspect toggle and "Another take" = `fresh: true`), `src/settings.ts`
     bun run build:bundled --bundles app,dmg              # release profile with the sidecar config
 
 `tauri.sidecar.conf.json` also switches the updater on: `plugins.updater`
-(endpoint `https://github.com/anelikes/pocket-paste/releases/latest/download/latest.json`,
+(endpoint `https://github.com/anelikes/peesuto/releases/latest/download/latest.json`,
 `pubkey` set) and `bundle.createUpdaterArtifacts`. With that flag the
 CLI signs the `.app.tar.gz` and needs `TAURI_SIGNING_PRIVATE_KEY` (and
 `…_PASSWORD`) in the environment; without a key at hand, build with
@@ -77,7 +77,7 @@ folder…* (`docs/packs/example-neon` is a complete styles pack) and the
 
 ## Data on disk
 
-`~/Library/Application Support/dev.pocketpaste.desktop/`: `history.sqlite`,
+`~/Library/Application Support/com.peesuto.desktop/`: `history.sqlite`,
 `images/`, `providers.json` (no secrets), `settings.json`, `egress.log`,
 `answers/` (decider cache), `actions/` (your action files), `packs/`,
-`cards/`, `work/`, `app.log`. Keychain service `dev.pocketpaste.desktop`.
+`cards/`, `work/`, `app.log`. Keychain service `com.peesuto.desktop`.

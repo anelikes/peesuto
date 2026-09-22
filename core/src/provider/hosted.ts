@@ -3,7 +3,7 @@
  * subscriber token. One base URL serves both tracks — deciders POST
  * `/v1/ask`, generators POST `/v1/generate`.
  */
-export const DEFAULT_HOSTED_URL = "https://jev.pocketpaste.dev";
+export const DEFAULT_HOSTED_URL = "https://api.peesuto.com";
 
 export type HostedRoute = "ask" | "generate";
 

@@ -18,7 +18,7 @@ in the environment, the Provider pane in the app):
 | `none` | nowhere | no request at all; every paste gets the plain card |
 | `cloudflare` | `api.cloudflare.com`, Workers AI on your own account, model `typesafe/jev` | authenticated with your API token; subject to Cloudflare's terms for Workers AI |
 | `proxy` (the CLI default) | `http://localhost:8787/`, the worker in `proxy/` running under `wrangler dev` | the worker forwards to Workers AI through your own wrangler login and stores nothing |
-| `hosted` | our proxy (`jev.pocketpaste.dev`), which forwards to Workers AI | the proxy does not store the text; its logs carry a timestamp, the subscriber token id, byte counts and latency, never content |
+| `hosted` | our proxy (`api.peesuto.com`), which forwards to Workers AI | the proxy does not store the text; its logs carry a timestamp, the subscriber token id, byte counts and latency, never content |
 
 The request is a single HTTPS `POST` (plain HTTP only for localhost) with a
 bearer token where the provider needs one, and gives up after 8 seconds.
@@ -58,7 +58,7 @@ describes the CLI and the app as they are.
 
 Please do not open a public issue for a security problem. Either
 
-- email **security@pocketpaste.dev** — TODO(user): replace this placeholder
+- email **security@peesuto.com** — TODO(user): replace this placeholder
   with an address you read; the domain is not set up — or
 - use GitHub's private reporting on this repository: *Security → Report a
   vulnerability*.

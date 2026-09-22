@@ -206,7 +206,7 @@ Cloudflare token 验证 REST。
 `core/src/daemon.ts` 与 `docs/daemon.md`：JSON 行协议。壳侧 `daemon.rs`
 常驻接入、`context.rs` 辅助功能采集、智能挑选面板、动作菜单与结果视图、
 五个设置面板（通用、双轨 Provider、动作、隐私、排除）、引导；标识符改为
-`dev.pocketpaste.desktop`。dev 模式无人值守跑通挑选与动作；打包路径：daemon 从
+`com.peesuto.desktop`。dev 模式无人值守跑通挑选与动作；打包路径：daemon 从
 Contents/Resources 启动，引擎 190 ms 安装（APFS clone），卡片冷 1.5 s、热
 0.55 s；debug 包 203 MB（未 strip 的二进制 46 MB，Bun 58 MB，资源 98 MB）。
 截图与真实模型调用受本机权限与凭证限制未做。
