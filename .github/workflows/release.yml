@@ -8,9 +8,8 @@
 #
 # Secrets
 #   Unsigned draft (what runs today):
-#     ENGINE_TOKEN    read-only PAT for the private engine pin in engine.json,
-#                     the same secret ci.yml uses; the job fails early without it
 #     GITHUB_TOKEN    provided by Actions; creates the draft release
+#   The engine comes from the public tag engine.json pins; no credential.
 #
 #   Signed and notarized release (add these; the workflow itself does not change):
 #     APPLE_CERTIFICATE             Developer ID Application certificate, the .p12 as base64
@@ -47,8 +46,6 @@ jobs:
     name: macOS DMG (aarch64-apple-darwin)
     runs-on: macos-14
     timeout-minutes: 90
-    env:
-      ENGINE_TOKEN: ${{ secrets.ENGINE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -66,18 +63,9 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: engine token present
-        if: ${{ env.ENGINE_TOKEN == '' }}
-        run: |
-          echo "::error::ENGINE_TOKEN is not set. engine.json pins a private repository; add a read-only personal access token as the ENGINE_TOKEN repository secret (Settings → Secrets and variables → Actions) and re-run."
-          exit 1
-
-      # Same step as ci.yml, verbatim.
+      # Same step as ci.yml.
       - name: engine
-        if: ${{ env.ENGINE_TOKEN != '' }}
-        run: |
-          git config --global url."https://x-access-token:${ENGINE_TOKEN}@github.com/".insteadOf "https://github.com/"
-          bun scripts/engine.ts
+        run: bun scripts/engine.ts
 
       - name: sidecar
         run: bun scripts/bundle-sidecar.ts --out app/src-tauri --target aarch64-apple-darwin

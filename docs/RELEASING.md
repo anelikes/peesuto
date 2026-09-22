@@ -26,8 +26,7 @@ check the draft and publish it. Nothing is published automatically.
    ```
 
 6. Watch *Actions → release*. The Rust build takes a while the first time;
-   later runs reuse the cargo cache. A run that fails at the `engine token
-   present` step means the `ENGINE_TOKEN` secret is missing (below).
+   later runs reuse the cargo cache.
 7. Open *Releases*. The draft "Pocket Paste vX.Y.Z" carries the DMG (and,
    once the updater is enabled, `.app.tar.gz`, its `.sig` and `latest.json`).
    Install the DMG on a machine or a fresh user account that has never run
@@ -62,14 +61,13 @@ Everything here is per repository and done once. Add secrets under
 *Settings → Secrets and variables → Actions → New repository secret*, or with
 `gh secret set NAME < file`.
 
-### Engine access (needed today)
+### Engine access
 
-`engine.json` pins a private repository until the engine's branch stack is
-merged into the public pocket-motion. Create a fine-grained personal access
-token with *Contents: read* on that repository and store it as
-`ENGINE_TOKEN`. CI already uses the same secret. Once the pin moves to a
-public tag, delete the token; the workflow will still expect the secret until
-the `engine token present` step is removed.
+`engine.json` pins a tag of the public
+[anelikes/pocket-motion](https://github.com/anelikes/pocket-motion); the
+workflows clone it without any credential. Moving the pin is a change to
+`engine.json` plus a re-recorded `core/fixtures/digests.json` when the
+renders change.
 
 ### Code signing (Developer ID)
 
