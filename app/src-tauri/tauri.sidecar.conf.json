@@ -1,7 +1,20 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
-    "externalBin": ["binaries/paste"],
-    "resources": ["resources/**/*"]
+    "externalBin": [
+      "binaries/paste"
+    ],
+    "resources": [
+      "resources/**/*"
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/qianiaoo/pocket-paste/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
   }
 }

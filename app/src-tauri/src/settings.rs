@@ -36,6 +36,8 @@ pub struct Settings {
     pub blacklist: Vec<String>,
     /// Run the pick when the panel opens from the hotkey.
     pub smart_paste: bool,
+    /// Base URL of the hosted proxy (Settings → Subscription); empty means Core's default.
+    pub hosted_url: String,
 }
 
 impl Default for Settings {
@@ -49,6 +51,7 @@ impl Default for Settings {
             retention_days: DEFAULT_RETENTION_DAYS,
             blacklist: DEFAULT_BLACKLIST.iter().map(|s| s.to_string()).collect(),
             smart_paste: true,
+            hosted_url: String::new(),
         }
     }
 }
@@ -76,6 +79,7 @@ impl Settings {
                 .and_then(|v| v.as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(String::from)).collect()))
                 .unwrap_or(d.blacklist),
             smart_paste: store.get("smart_paste").and_then(|v| v.as_bool()).unwrap_or(true),
+            hosted_url: store.get("hosted_url").and_then(|v| v.as_str().map(String::from)).unwrap_or_default(),
         }
     }
 }

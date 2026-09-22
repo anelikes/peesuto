@@ -39,9 +39,45 @@ pick order), `src/result.ts` (text mode with Paste/Copy and the model; card
 mode with aspect toggle and "Another take" = `fresh: true`), `src/settings.ts`
 (General, Providers with a Test per track, Actions, Privacy, Exclusions).
 
+## Release build, updates, subscription
+
+    bun ../scripts/bundle-sidecar.ts --out src-tauri     # from app/: binaries/ + resources/ (gitignored)
+    bun run build:bundled --bundles app,dmg              # release profile with the sidecar config
+
+`tauri.sidecar.conf.json` also switches the updater on: `plugins.updater`
+(endpoint `https://github.com/qianiaoo/pocket-paste/releases/latest/download/latest.json`,
+`pubkey` to fill in) and `bundle.createUpdaterArtifacts`. With that flag the
+CLI signs the `.app.tar.gz` and needs `TAURI_SIGNING_PRIVATE_KEY` (and
+`…_PASSWORD`) in the environment; without a key at hand, build with
+`--config '{"bundle":{"createUpdaterArtifacts":false}}'` appended. The
+user steps — generate the keypair with `bun tauri signer generate`, paste
+the public key into `pubkey`, keep the private key as a CI secret — are in
+`docs/RELEASING.md`. In Rust (`updater.rs`) the plugin is registered only
+when the built config carries a non-empty `pubkey`, so `tauri dev` and
+unsigned builds never contact the endpoint; when it is on, a check runs
+30 s after launch and daily, and the tray's "Check for updates…" reports
+either way ("Updates are not configured in this build." otherwise).
+
+An unsigned `.app`/DMG is refused by Gatekeeper on first launch: right-click
+→ Open, or `xattr -dr com.apple.quarantine "/Applications/Pocket Paste.app"`.
+
+Settings → Subscription (`subscription.rs`): the license key goes to the
+Keychain as `pocket-paste/hosted`, the base URL to Settings; *Activate* calls
+`GET {base}/v1/me` and shows plan/quota/used/reset, *Use hosted for both
+tracks* writes `providers.json` with `hosted` on both tracks and pushes
+`config.set`. *Browse packs* lists `GET {base}/v1/packs`; *Install* downloads
+the zip, checks its SHA-256 against the index and unpacks it into
+`<app data>/packs/<id>/` (the zip root must hold `pack.json`), then asks Core
+to reload and shows its problems; *Installed packs* is Core's `health.packs`
+with Remove. These are the shell's own requests: each writes one line to
+`egress.log` in Core's shape (`purpose: "subscription"` or `"pack"`), never
+a body, and the Offline switch refuses them. Debug builds add *Install from
+folder…* (`docs/packs/example-neon` is a complete styles pack) and the
+`POCKET_PASTE_AUTORUN=pack-test:<dir>` hook.
+
 ## Data on disk
 
 `~/Library/Application Support/dev.pocketpaste.desktop/`: `history.sqlite`,
 `images/`, `providers.json` (no secrets), `settings.json`, `egress.log`,
-`answers/` (decider cache), `actions/` (your action files), `cards/`, `work/`,
-`app.log`. Keychain service `dev.pocketpaste.desktop`.
+`answers/` (decider cache), `actions/` (your action files), `packs/`,
+`cards/`, `work/`, `app.log`. Keychain service `dev.pocketpaste.desktop`.

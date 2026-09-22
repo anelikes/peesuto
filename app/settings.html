@@ -14,6 +14,7 @@
       <button data-pane="actions" role="tab">Actions</button>
       <button data-pane="privacy" role="tab">Privacy</button>
       <button data-pane="exclusions" role="tab">Exclusions</button>
+      <button data-pane="subscription" role="tab">Subscription</button>
     </nav>
     <main>
       <section id="intro" class="intro" hidden>
@@ -245,6 +246,44 @@
             <span class="field-row"><input id="retention" type="number" min="0" max="3650" step="1" class="short" /> days (0 keeps everything; pinned items always stay)</span>
           </label>
           <p id="history-status" class="help"></p>
+        </section>
+      </div>
+
+      <!-- ===== Subscription ===== -->
+      <div id="pane-subscription" class="pane" hidden>
+        <section>
+          <h2>Subscription</h2>
+          <p class="help">A license key unlocks the hosted decider and generator (no keys to create) and the official packs. The app is the same either way. The key is kept in the Keychain as <code>pocket-paste/hosted</code>.</p>
+          <label class="field"><span>License key</span><input id="sub-key" type="password" placeholder="Paste the key from your email" autocomplete="off" /></label>
+          <label class="field"><span>Base URL</span><input id="sub-base" type="url" spellcheck="false" /></label>
+          <div class="field-row">
+            <button id="sub-activate" class="primary">Activate</button>
+            <button id="sub-use-hosted" disabled>Use hosted for both tracks</button>
+            <span id="sub-status" class="help"></span>
+          </div>
+          <dl id="sub-me" class="kv" hidden>
+            <dt>Plan</dt><dd id="sub-plan"></dd>
+            <dt>Quota</dt><dd id="sub-quota"></dd>
+            <dt>Resets</dt><dd id="sub-resets"></dd>
+          </dl>
+        </section>
+        <section>
+          <h2>Packs</h2>
+          <div class="field-row">
+            <button id="packs-browse">Browse packs</button>
+            <button id="packs-folder" class="ghost">Open packs folder</button>
+            <button id="packs-from-folder" class="ghost" hidden>Install from folder…</button>
+            <span id="packs-status" class="help"></span>
+          </div>
+          <div class="table-wrap" id="packs-index-wrap" hidden>
+            <table id="packs-index" class="table">
+              <thead><tr><th>Name</th><th>Version</th><th>Kind</th><th>Size</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <h2>Installed packs</h2>
+          <ul id="packs-installed" class="editable"></ul>
+          <ul id="packs-problems" class="problems"></ul>
         </section>
       </div>
 

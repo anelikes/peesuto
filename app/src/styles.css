@@ -239,3 +239,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; 
   background: var(--panel); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; white-space: pre; user-select: text; -webkit-user-select: text;
 }
 .field-row input[type="text"], .field-row input[type="url"] { flex: 1; }
+
+.kv { display: grid; grid-template-columns: 90px 1fr; gap: 4px 10px; margin: 0; font-size: 12px; }
+.kv dt { color: var(--muted); text-align: right; }
+.kv dd { margin: 0; }

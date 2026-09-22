@@ -22,7 +22,9 @@ mod secrets;
 mod settings;
 mod sidecar;
 mod store;
+mod subscription;
 mod tray;
+mod updater;
 mod windows;
 
 use std::sync::atomic::Ordering;
@@ -30,7 +32,15 @@ use tauri::{Manager, RunEvent, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let context = tauri::generate_context!();
+    let updater_config = updater::configured(context.config());
+    let mut builder = tauri::Builder::default();
+    // Only a build whose config carries a pubkey talks to the update endpoint.
+    if updater_config.enabled {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    let app = builder
+        .manage(updater_config)
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_autostart::Builder::new()
@@ -96,6 +106,17 @@ pub fn run() {
             providers::privacy_info,
             providers::egress_log_clear,
             providers::answer_cache_clear,
+            subscription::subscription_get,
+            subscription::subscription_activate,
+            subscription::subscription_use_hosted,
+            subscription::packs_index,
+            subscription::packs_install,
+            subscription::packs_installed,
+            subscription::packs_remove,
+            subscription::packs_open_folder,
+            subscription::packs_install_from_folder,
+            updater::updates_check,
+            updater::updates_config,
         ])
         .setup(|app| {
             // Menu-bar app: no Dock icon, no app switcher entry.
@@ -112,6 +133,7 @@ pub fn run() {
             actions::apply_triggers(app.handle());
             clipboard::start(app.handle());
             daemon::start(app.handle());
+            updater::start(app.handle());
             if !s.onboarded {
                 windows::show_settings(app.handle());
             }
@@ -137,7 +159,7 @@ pub fn run() {
             }
             _ => {}
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application");
 
     app.run(|app, event| match event {

@@ -26,6 +26,10 @@ pub fn build(app: &AppHandle, hotkey: &str) -> tauri::Result<()> {
             match id {
                 "history" => crate::windows::show_history(app),
                 "settings" => crate::windows::show_settings(app),
+                "updates" => {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move { crate::updater::check(app, true).await });
+                }
                 "quit" => app.exit(0),
                 _ => {
                     if let Some(action) = id.strip_prefix(ACTION_PREFIX) {
@@ -62,6 +66,7 @@ fn menu(app: &AppHandle, hotkey: &str, actions: &[ActionSpec]) -> tauri::Result<
         b = b.separator();
     }
     b.item(&MenuItemBuilder::with_id("settings", "Settings…").build(app)?)
+        .item(&MenuItemBuilder::with_id("updates", "Check for updates…").build(app)?)
         .item(&MenuItemBuilder::with_id("quit", "Quit Pocket Paste").build(app)?)
         .build()
 }

@@ -2,12 +2,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { open as pickPath } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Store } from "@tauri-apps/plugin-store";
 import {
   $, ACCESSIBILITY_URL, DEFAULT_BLACKLIST, DEFAULT_OPENAI_BASE_URL, DEFAULTS, el, humanError, isPasteError, openSettingsStore, readSettings,
+  formatBytes,
   type ActionsInfo, type AppInfo, type Aspect, type ClipItem, type Context, type DaemonStatus, type HistoryStatus, type HotkeyReport,
-  type PickResult, type PrivacyInfo, type ProvidersForm, type Settings,
+  type InstalledPack, type InstallReport, type PackEntry, type PickResult, type PrivacyInfo, type ProvidersForm, type Settings,
+  type SubscriptionForm, type SubscriptionMe,
 } from "./shared";
 
 const intro = $("intro");
@@ -51,6 +54,7 @@ function showPane(name: string): void {
   if (name === "privacy") void refreshPrivacy();
   if (name === "actions") void refreshActions();
   if (name === "general") void refreshDaemon();
+  if (name === "subscription") void refreshSubscription();
   try { localStorage.setItem("pane", name); } catch { /* fine */ }
 }
 
@@ -76,7 +80,8 @@ async function refreshInfo(): Promise<void> {
       `dev: bun ${s.bun ?? "not found"} · ${mark(s.dev_daemon_present)} ${s.dev_daemon}`,
       `bundled: ${mark(s.bundled_present)} ${s.bundled_binary} · ${mark(s.resources_present)} ${s.resources}`,
     ].join("\n");
-    appInfo.textContent = `${info.identifier} ${info.version}\ndata: ${info.app_data}\nlog: ${info.log}`;
+    appInfo.textContent = `${info.identifier} ${info.version}${info.debug ? " (debug)" : ""}\ndata: ${info.app_data}\nlog: ${info.log}\nupdates: ${info.updater.enabled ? info.updater.endpoint : "not configured in this build"}`;
+    $("packs-from-folder").hidden = !info.debug;
   } catch (e) {
     sidecarInfo.textContent = String(e);
   }
@@ -281,6 +286,158 @@ async function refreshHistoryStatus(): Promise<void> {
   } catch { /* fine */ }
 }
 
+// ---- subscription & packs ----
+const subKey = $<HTMLInputElement>("sub-key");
+const subBase = $<HTMLInputElement>("sub-base");
+const subStatus = $("sub-status");
+const subUseHosted = $<HTMLButtonElement>("sub-use-hosted");
+const packsStatus = $("packs-status");
+let subscription: SubscriptionForm | null = null;
+
+function errText(e: unknown): string {
+  return isPasteError(e) ? e.message : String(e);
+}
+
+async function refreshSubscription(): Promise<void> {
+  try {
+    subscription = await invoke<SubscriptionForm>("subscription_get");
+    subKey.value = subscription.key;
+    subBase.value = subscription.baseUrl;
+    subBase.placeholder = subscription.defaultBaseUrl;
+    subUseHosted.disabled = !subscription.key;
+    subUseHosted.textContent = subscription.hostedActive ? "Hosted is active for both tracks" : "Use hosted for both tracks";
+  } catch (e) {
+    subStatus.textContent = errText(e);
+  }
+  await refreshInstalledPacks();
+}
+
+function showMe(me: SubscriptionMe): void {
+  $("sub-me").hidden = false;
+  $("sub-plan").textContent = `${me.plan}${me.label ? ` (${me.label})` : ""}${me.active ? "" : " — inactive"}`;
+  $("sub-quota").textContent = `${me.used} of ${me.quota} calls used this period`;
+  $("sub-resets").textContent = me.resetsAt ? new Date(me.resetsAt).toLocaleString() : "—";
+}
+
+async function activate(): Promise<void> {
+  subStatus.textContent = "Checking the key…";
+  subStatus.className = "help";
+  try {
+    const me = await invoke<SubscriptionMe>("subscription_activate", { key: subKey.value.trim(), baseUrl: subBase.value.trim() || subBase.placeholder });
+    showMe(me);
+    subStatus.textContent = "Activated.";
+    subStatus.className = "help ok";
+    subUseHosted.disabled = false;
+  } catch (e) {
+    $("sub-me").hidden = true;
+    subStatus.textContent = errText(e);
+    subStatus.className = "help err";
+  }
+}
+
+async function useHosted(): Promise<void> {
+  subStatus.textContent = "Switching both tracks to hosted…";
+  try {
+    const providers = await invoke<{ decider: string; generator: string; offline: boolean }>("subscription_use_hosted");
+    subStatus.textContent = `Core now uses ${providers.decider} / ${providers.generator}.`;
+    subStatus.className = "help ok";
+    subUseHosted.textContent = "Hosted is active for both tracks";
+    try { fillProvidersForm(await invoke<ProvidersForm>("providers_get")); syncVisibility(); } catch { /* the pane refreshes on open */ }
+  } catch (e) {
+    subStatus.textContent = errText(e);
+    subStatus.className = "help err";
+  }
+}
+
+function showProblems(problems: { file: string; message: string }[]): void {
+  $("packs-problems").replaceChildren(...problems.map((p) => el("li", "err", `${p.file}: ${p.message}`)));
+}
+
+async function refreshInstalledPacks(): Promise<void> {
+  try {
+    const packs = await invoke<InstalledPack[]>("packs_installed");
+    const list = $("packs-installed");
+    list.replaceChildren(...packs.map((p) => {
+      const li = el("li");
+      li.append(el("span", "", `${p.name} ${p.version} · ${p.kind} `), el("span", "help mono", p.id));
+      const rm = el("button", "link danger", "Remove");
+      rm.addEventListener("click", async () => {
+        packsStatus.textContent = `Removing ${p.id}…`;
+        try { showProblems(await invoke<{ file: string; message: string }[]>("packs_remove", { id: p.id })); packsStatus.textContent = `Removed ${p.id}.`; }
+        catch (e) { packsStatus.textContent = errText(e); }
+        await refreshInstalledPacks();
+      });
+      li.append(rm);
+      return li;
+    }));
+    if (packs.length === 0) list.replaceChildren(el("li", "help", "No packs installed."));
+  } catch (e) {
+    packsStatus.textContent = errText(e);
+  }
+}
+
+async function browsePacks(): Promise<void> {
+  packsStatus.textContent = "Loading the pack index…";
+  packsStatus.className = "help";
+  try {
+    const index = await invoke<PackEntry[]>("packs_index");
+    const body = $("packs-index").querySelector("tbody")!;
+    body.replaceChildren(...index.map((p) => {
+      const tr = el("tr");
+      const name = el("td");
+      name.append(el("div", "", p.name), el("div", "help mono", p.id));
+      const act = el("td");
+      const b = el("button", "", "Install");
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        packsStatus.textContent = `Installing ${p.name}…`;
+        try {
+          const r = await invoke<InstallReport>("packs_install", { id: p.id, url: p.url, sha256: p.sha256 });
+          showProblems(r.problems);
+          packsStatus.textContent = `Installed ${r.id}${r.problems.length ? ` with ${r.problems.length} problem(s)` : ""}.`;
+          packsStatus.className = r.problems.length ? "help err" : "help ok";
+        } catch (e) {
+          packsStatus.textContent = `${p.name}: ${errText(e)}`;
+          packsStatus.className = "help err";
+        } finally {
+          b.disabled = false;
+          await refreshInstalledPacks();
+        }
+      });
+      act.append(b);
+      tr.append(name, el("td", "", p.version), el("td", "", p.kind), el("td", "", formatBytes(p.bytes)), act);
+      return tr;
+    }));
+    $("packs-index-wrap").hidden = false;
+    packsStatus.textContent = `${index.length} pack(s) available.`;
+  } catch (e) {
+    packsStatus.textContent = errText(e);
+    packsStatus.className = "help err";
+  }
+}
+
+async function installFromFolder(): Promise<void> {
+  const dir = await pickPath({ directory: true, multiple: false, title: "Choose a pack folder (with pack.json)" });
+  if (!dir) return;
+  packsStatus.textContent = `Installing from ${dir}…`;
+  try {
+    const r = await invoke<InstallReport>("packs_install_from_folder", { path: dir });
+    showProblems(r.problems);
+    packsStatus.textContent = `Installed ${r.id} → ${r.path}`;
+    packsStatus.className = r.problems.length ? "help err" : "help ok";
+  } catch (e) {
+    packsStatus.textContent = errText(e);
+    packsStatus.className = "help err";
+  }
+  await refreshInstalledPacks();
+}
+
+$("sub-activate").addEventListener("click", () => void activate());
+subUseHosted.addEventListener("click", () => void useHosted());
+$("packs-browse").addEventListener("click", () => void browsePacks());
+$("packs-folder").addEventListener("click", () => void invoke("packs_open_folder").catch((e) => { packsStatus.textContent = errText(e); }));
+$("packs-from-folder").addEventListener("click", () => void installFromFolder());
+
 // ---- save ----
 function collect(): Settings {
   return {
@@ -292,6 +449,7 @@ function collect(): Settings {
     retention_days: Math.max(0, Math.min(3650, Number.parseInt(retention.value, 10) || 0)),
     blacklist: [...blacklist],
     smart_paste: smartPaste.checked,
+    hosted_url: subBase.value.trim(),
   };
 }
 

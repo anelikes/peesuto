@@ -198,7 +198,7 @@ pub fn core_config<R: Runtime>(app: &AppHandle<R>) -> Value {
     })
 }
 
-fn host_of(url: &str) -> String {
+pub fn host_of(url: &str) -> String {
     let rest = url.split("://").nth(1).unwrap_or(url);
     rest.split(['/', '?', '#']).next().unwrap_or(rest).to_string()
 }

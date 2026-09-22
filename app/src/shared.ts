@@ -141,9 +141,16 @@ export interface SidecarInfo {
   resources_present: boolean;
 }
 
+export interface UpdaterConfig {
+  enabled: boolean;
+  endpoint: string;
+}
+
 export interface AppInfo {
   version: string;
   identifier: string;
+  debug: boolean;
+  updater: UpdaterConfig;
   app_data: string;
   cards_dir: string;
   log: string;
@@ -196,6 +203,50 @@ export const SECRET_REFS = {
 export const DEFAULT_OPENAI_BASE_URL = "http://localhost:11434/v1";
 export const DEFAULT_HOSTED_URL = "https://jev.pocketpaste.dev";
 
+export interface SubscriptionForm {
+  key: string;
+  baseUrl: string;
+  defaultBaseUrl: string;
+  hostedActive: boolean;
+}
+
+/** `GET /v1/me` */
+export interface SubscriptionMe {
+  plan: string;
+  quota: number;
+  used: number;
+  resetsAt: string;
+  label?: string;
+  active: boolean;
+}
+
+/** One entry of `GET /v1/packs`. */
+export interface PackEntry {
+  id: string;
+  name: string;
+  version: string;
+  kind: "actions" | "styles";
+  minApp?: string;
+  bytes: number;
+  sha256: string;
+  url: string;
+  requiresPlan?: string[];
+}
+
+/** `health.packs` from Core. */
+export interface InstalledPack {
+  id: string;
+  name: string;
+  version: string;
+  kind: "actions" | "styles";
+}
+
+export interface InstallReport {
+  id: string;
+  path: string;
+  problems: { file: string; message: string }[];
+}
+
 export interface PrivacyInfo {
   destinations: string[];
   egress_log: string;
@@ -213,6 +264,7 @@ export interface Settings {
   retention_days: number;
   blacklist: string[];
   smart_paste: boolean;
+  hosted_url: string;
 }
 
 export const DEFAULT_BLACKLIST = [
@@ -231,6 +283,7 @@ export const DEFAULTS: Settings = {
   retention_days: 30,
   blacklist: DEFAULT_BLACKLIST,
   smart_paste: true,
+  hosted_url: "",
 };
 
 export const ACCESSIBILITY_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";

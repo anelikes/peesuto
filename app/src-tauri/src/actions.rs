@@ -374,21 +374,21 @@ pub fn copy_to_clipboard(app: &AppHandle, path: &Path, format: &str) -> Result<&
     Ok("image")
 }
 
-/// Dev aid: `POCKET_PASTE_AUTORUN=history|card|action:<id>|delete-newest|clear[:<ms>]`
+/// Dev aid: `POCKET_PASTE_AUTORUN=history|card|action:<id>|pack-test:<dir>|delete-newest|clear[:<ms>]`
 /// drives the app shortly after launch, so a window can be checked without the
 /// shortcut; `POCKET_PASTE_AUTORUN_REPEAT=n` runs an action n times in a row
 /// (cold and warm timings). Debug builds only.
 pub fn autorun_if_requested(app: &AppHandle) {
     let Some(spec) = std::env::var("POCKET_PASTE_AUTORUN").ok().filter(|_| cfg!(debug_assertions)) else { return };
-    let mut parts = spec.splitn(3, ':');
-    let mode = parts.next().unwrap_or("history").to_string();
-    let (arg, delay) = match (parts.next(), parts.next()) {
-        (Some(a), Some(d)) => (a.to_string(), d.parse::<u64>().unwrap_or(2500)),
-        (Some(a), None) => match a.parse::<u64>() {
-            Ok(d) => (String::new(), d),
-            Err(_) => (a.to_string(), 2500),
-        },
-        _ => (String::new(), 2500),
+    // `mode[:arg][:delay ms]`; the delay is the last segment when it is a number, so an
+    // argument may itself contain colons (a URL).
+    let (rest, delay) = match spec.rsplit_once(':') {
+        Some((head, tail)) if tail.parse::<u64>().is_ok() => (head.to_string(), tail.parse::<u64>().unwrap_or(2500)),
+        _ => (spec.clone(), 2500),
+    };
+    let (mode, arg) = match rest.split_once(':') {
+        Some((m, a)) => (m.to_string(), a.to_string()),
+        None => (rest.clone(), String::new()),
     };
     let repeat = std::env::var("POCKET_PASTE_AUTORUN_REPEAT").ok().and_then(|r| r.parse::<u32>().ok()).unwrap_or(1).max(1);
     let app = app.clone();
@@ -407,6 +407,8 @@ pub fn autorun_if_requested(app: &AppHandle) {
                     run(app.clone(), arg.clone(), Source::Clipboard, RunOptions::default()).await;
                 }
             }
+            "pack-test" => crate::subscription::pack_test(app, arg).await,
+            "hosted-test" => crate::subscription::hosted_test(app, arg).await,
             "delete-newest" => {
                 let history = app.state::<History>();
                 let newest = history.recent(1).into_iter().next();
@@ -524,6 +526,8 @@ pub fn result_hold(state: State<'_, ResultWindow>, hold: bool) {
 pub struct AppInfo {
     pub version: String,
     pub identifier: String,
+    pub debug: bool,
+    pub updater: crate::updater::UpdaterConfig,
     pub app_data: String,
     pub cards_dir: String,
     pub log: String,
@@ -537,6 +541,8 @@ pub fn app_info(app: AppHandle) -> Result<AppInfo, String> {
     Ok(AppInfo {
         version: app.package_info().version.to_string(),
         identifier: app.config().identifier.clone(),
+        debug: cfg!(debug_assertions),
+        updater: app.state::<crate::updater::UpdaterConfig>().inner().clone(),
         log: paths.app_data.join(crate::log::NAME).display().to_string(),
         app_data: paths.app_data.display().to_string(),
         cards_dir: paths.cards.display().to_string(),
