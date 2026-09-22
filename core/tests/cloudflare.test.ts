@@ -12,7 +12,10 @@ beforeAll(() => {
   server = Bun.serve({ port: 0, async fetch(req) {
     seenAuth = req.headers.get("authorization") ?? ""; seenPath = new URL(req.url).pathname; seenBody = await req.json();
     switch (mode) {
-      case "ok": return Response.json({ success: true, result: { answers: ANSWERS }, errors: [] });
+      case "ok": return Response.json({ success: true, result: { state: "Completed", result: { model: "jev-1.13.0", answers: ANSWERS, usage: { input_tokens: 1, output_tokens: 1 } }, gatewayMetadata: {} }, errors: [], messages: [] });
+      case "flat": return Response.json({ success: true, result: { answers: ANSWERS }, errors: [] });
+      case "pending": return Response.json({ success: true, result: { state: "Queued" }, errors: [] });
+      case "empty": return Response.json({ success: true, result: { state: "Completed", result: { model: "jev-1.13.0" } }, errors: [] });
       case "auth": return Response.json({ success: false, errors: [{ code: 10000, message: "Authentication error" }] }, { status: 401 });
       case "model": return Response.json({ success: false, errors: [{ code: 5007, message: "No such model typesafe/jev" }] }, { status: 404 });
       case "quota": return Response.json({ success: false, errors: [{ code: 3040, message: "Rate limited" }] }, { status: 429 });
@@ -37,12 +40,22 @@ const withStub = (p: ReturnType<typeof cloudflareDecider>) => ({
 describe("cloudflare provider", () => {
   const p = withStub(cloudflareDecider("acct-123", "tok-abc"));
   const body = buildRequest("hello world").body;
-  test("posts {model, input} to /accounts/<id>/ai/run with a bearer token and unwraps result.answers", async () => {
+  test("posts {model, input} to /accounts/<id>/ai/run with a bearer token and unwraps result.result.answers", async () => {
     mode = "ok";
     expect(await p.ask(body)).toEqual(ANSWERS);
     expect(seenPath).toBe("/client/v4/accounts/acct-123/ai/run");
     expect(seenBody).toEqual({ model: "typesafe/jev", input: body });
     expect(seenAuth).toBe("Bearer tok-abc");
+  });
+  test("a flat result.answers (the binding's shape) still unwraps", async () => {
+    mode = "flat";
+    expect(await p.ask(body)).toEqual(ANSWERS);
+  });
+  test("a run that is not Completed, or completed without answers, is bad-response naming what came back", async () => {
+    mode = "pending";
+    await expect(p.ask(body)).rejects.toThrow(/run state "Queued"/);
+    mode = "empty";
+    await expect(p.ask(body)).rejects.toThrow(/no answers in response: \{"model":"jev-1.13.0"\}/);
   });
   const cases: [string, ProviderError["code"]][] = [["auth", "auth"], ["model", "model"], ["quota", "quota"], ["server", "model"], ["envelope-fail", "bad-response"]];
   for (const [m, code] of cases) test(`${m} → ProviderError(${code})`, async () => {

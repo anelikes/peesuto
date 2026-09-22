@@ -30,6 +30,7 @@ export function answersOf(raw: unknown, origin: string): JevAnswers {
   const r = raw as { result?: { answers?: unknown }; answers?: unknown; error?: unknown; errors?: unknown } | null;
   const a = r?.result?.answers ?? r?.answers;
   if (isAnswers(a)) return a;
-  const why = r?.error ?? r?.errors ?? raw;
+  const errs = r?.error ?? r?.errors;
+  const why = errs && !(Array.isArray(errs) && errs.length === 0) ? errs : raw;
   throw new ProviderError("bad-response", `${origin}: no answers in response: ${(JSON.stringify(why) ?? String(why)).slice(0, 300)}`);
 }
