@@ -184,6 +184,13 @@ Cloudflare token 验证 REST。
 `reasoning` 与 `timeoutMs` 可在设置、providers.json、环境变量里钉死；
 生成器返回空文本的动作按错误处理。
 
+Laya 评估（2026-09-22，用户提议用它做免费本地 decider）：接口与 Jev 同形、
+答案字段同名，本机 M4 上一张卡片约 100 ms；但零样本质量低于现有启发式：
+卡片 kind 准确率 35–41%（规则分类器 91%），挑选 top-1 最好 57%（启发式
+63%）。结论：暂不内置；实验脚本在 `scripts/laya/`，数字在
+`baselines/laya.md`。免费离线的首跑路径应是启发式挑选加规则化 kind 判定，
+生成类动作用 Ollama。Laya 若按我们的问题微调，可经 endpoint decider 直接接入。
+
 - Decider 三种、Generator 四种实现；`egress.ts` 唯一出口，离线开关，去向日志。
 - Cloudflare REST 真实跑通；本地 Ollama 跑通翻译；凭证入 Keychain。
 - 答案缓存按内容哈希。
