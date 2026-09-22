@@ -338,11 +338,11 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
 
 ## 7. 用户待办
 
-0. 一个 Cloudflare API token（Workers AI 读权限），用于验证 `typesafe/jev`
-   的 REST 路径：`PASTE_PROVIDER=cloudflare PASTE_CF_ACCOUNT_ID=… PASTE_CF_TOKEN="$(pbpaste)"
-   bun run paste --json "…"`。2026-09-22 第一次尝试返回 401（错误码 10000，token
-   本身无效）；先用 `curl -H "Authorization: Bearer $(pbpaste)"
-   https://api.cloudflare.com/client/v4/user/tokens/verify` 确认 token 有效。
+0. （已完成 2026-09-22）Cloudflare 直连 Jev 已用真实 token 验证：Workers AI 的 REST
+   路由是 `POST /accounts/<id>/ai/run` 带 `{model, input}`，返回的 `result` 是
+   `{state: "Completed", result: {answers}}`，两处都已改；热调用 700–800 ms，四类
+   样本 kind 全对。token 放在仓库根的 `.env`（`PASTE_CF_TOKEN`、`PASTE_CF_ACCOUNT_ID`，
+   已 gitignore，Bun 自动加载），跑 `PASTE_PROVIDER=cloudflare bun run paste …` 即可。
 1. （已完成 2026-09-22）引擎分支栈已重放到公开的 anelikes/pocket-motion：
    v0.2.0 = 补丁 0013 到 0015，v0.2.1 = fileURLToPath 修复；engine.json 钉 v0.2.1，
    CI 无需任何凭证。qianiaoo/pocketjs-motion 只作归档，之后的引擎迭代都在公开

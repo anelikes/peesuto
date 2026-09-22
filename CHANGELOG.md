@@ -7,6 +7,12 @@ section here becomes one.
 
 ## Unreleased
 
+- Cloudflare decider: posts to Workers AI's `/ai/run` with `{model, input}`
+  and unwraps the run record `{state, result: {answers}}`; the old per-model
+  path answered "No route for that URI". First verified against the real
+  endpoint on 2026-09-22.
+- Proxy: the worker entry exports only the handler; `wrangler dev` refused
+  to start while string constants were exported from it.
 - Smart paste: context-levelled pick question, heuristic fallback, hit-rate probe.
 - Two-track providers (decider: cloudflare, endpoint, none; generator: openai-compatible, anthropic, hosted, none) behind one egress layer with an offline switch and a destination-only log.
 - Actions: JSON format, five built-ins, user files and packs, `paste --action`.
