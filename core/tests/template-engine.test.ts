@@ -11,7 +11,7 @@ import { frameCard } from "../src/render/card.ts";
 import { TEMPLATE_SAMPLES, samplePlan } from "./fixtures/templates.ts";
 import { documentBlocks } from "../src/templates/parse.ts";
 
-const engine = process.env.PEESUTO_TEMPLATE_ENGINE;
+const engine = process.env.PEESUTO_TEMPLATE_ENGINE ? resolve(process.env.PEESUTO_TEMPLATE_ENGINE) : undefined;
 const integration = engine ? test : test.skip;
 const output = resolve(process.env.PEESUTO_TEMPLATE_OUTPUT ?? ".work/template-samples");
 const options = { engine: engine ?? "", work: join(output, "work"), emojiCache: join(output, "emoji"), emojiBundle: resolve(".work/emoji-all") };
