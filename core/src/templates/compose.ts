@@ -46,7 +46,12 @@ export const AUTO_FRAME = {
   minRatio: { text: 0.75, stat: 0.75, quote: 0.75, qr: 1, comparison: 0.6 } as Partial<Record<TemplateId, number>>,
   defaultMinRatio: 0.5,
   /** Content that starts wider: tables with this many columns, code lines this long. */
-  wideTableColumns: 4, wideCodeLine: 56,
+  wideTableColumns: 4,
+  /** Code: pick the narrowest width whose panel holds the longest line at the
+   * floor size without wrapping. Columns are counted in half-width cells (CJK
+   * and full-width count 2); `codeCell` is a cell's advance in em (Peesuto Code
+   * Latin is 0.6 em) and `codeChrome` the horizontal space outside the text. */
+  codeCell: 0.6, codeFloor: 28, codeChrome: 240,
 } as const;
 
 /** Type steps tried largest-first for content that would otherwise leave a
@@ -439,8 +444,13 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
  * sideways diagrams begin at the second width tier. */
 function autoWidth(plan: TemplatePlan): number {
   const content = plan.content;
+  if (content.kind === "code") {
+    const cells = (line: string) => graphemes(line.replace(/\t/g, "    ")).reduce((n, g) => n + (/[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]|\p{Extended_Pictographic}/u.test(g) ? 2 : 1), 0);
+    const longest = Math.max(0, ...content.code.split("\n").map(cells));
+    const needed = longest * AUTO_FRAME.codeCell * AUTO_FRAME.codeFloor + AUTO_FRAME.codeChrome;
+    return AUTO_FRAME.widths.find((w) => w >= needed) ?? AUTO_FRAME.widths.at(-1)!;
+  }
   const wide = (content.kind === "table" && content.headers.length >= AUTO_FRAME.wideTableColumns)
-    || (content.kind === "code" && content.code.split("\n").some((line) => graphemes(line).length > AUTO_FRAME.wideCodeLine))
     || (content.kind === "diagram" && (content.direction === "LR" || content.direction === "RL"));
   return AUTO_FRAME.widths[wide ? 1 : 0]!;
 }
@@ -1036,7 +1046,7 @@ export function scrolls(motion: TemplateMotion, layoutHeight: number, viewHeight
 
 /** The one font pair a template composition is set in. */
 export type TemplateFont = "noto-sans-sc" | "peesuto-code";
-/** Peesuto Code (Sarasa Mono SC subset, SIL OFL 1.1; see render/fonts/README.md) ships with core. */
+/** Peesuto Code (Maple Mono NL CN v7.9 subset, SIL OFL 1.1; see render/fonts/README.md) ships with core. */
 export const CODE_FONT_DIR = fileURLToPath(new URL("../render/fonts/", import.meta.url));
 export const CODE_FONT = { regular: "PeesutoCode-Regular.ttf", bold: "PeesutoCode-Bold.ttf" } as const;
 /** Where a staged code font sits in the composition, relative to the work tree root. */

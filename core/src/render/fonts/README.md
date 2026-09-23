@@ -1,20 +1,25 @@
 # Peesuto Code
 
-The monospace face of the code template (`CODE_FONT` in
-`core/src/templates/compose.ts`). It ships inside `core/src`, so the native
-sidecar bundle carries it as `resources/core/render/fonts/`.
+The monospace face of the code template: a subset of **Maple Mono NL CN v7.9**
+(unhinted; the no-ligature build, so `=>` and `!=` render as typed), renamed
+"Peesuto Code" as a Modified Version under the SIL Open Font License 1.1
+(`OFL.txt`, copied from the release).
 
-- Source: [Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic) 1.0.41,
-  `SarasaMonoSC-TTF-Unhinted-1.0.41.7z`, faces Sarasa Mono SC Regular and Bold (unhinted TTF).
-- Subset (9,609 characters): Basic Latin, Latin-1, Latin Extended-A and -B,
-  Greek, Cyrillic, general punctuation, arrows, mathematical operators, box
-  drawing, geometric shapes, CJK symbols and punctuation, hiragana and
-  katakana, half-width and full-width forms, and every GB2312 character.
-- Renamed: family "Peesuto Code" (name IDs 1, 3 and 4). The PostScript name
-  still reads Sarasa-Mono-SC-*. The only Reserved Font Name in the license is
-  Adobe's "Source", which this font does not use.
-- License: SIL Open Font License 1.1, full text in [OFL.txt](OFL.txt). Do not
-  sell the font files on their own; any modified version must stay under the OFL.
+- Upstream: https://github.com/subframe7536/maple-font (v7.9,
+  `MapleMonoNL-CN-unhinted.zip`, Regular and Bold). Copyright 2022 The Maple
+  Mono Project Authors. No Reserved Font Name is declared.
+- The CN build's Chinese glyphs come from Resource Han Rounded
+  (https://github.com/CyanoHao/Resource-Han-Rounded, SIL OFL 1.1), itself
+  derived from Adobe's Source Han Sans (Reserved Font Name "Source", not
+  used here). Chinese and Latin keep an exact 2:1 width.
+- Subset (fontTools): Basic Latin, Latin-1, Latin Extended-A/B, Greek,
+  Cyrillic, General Punctuation, currency, letterlike symbols, arrows,
+  mathematical operators, miscellaneous technical, enclosed alphanumerics,
+  box drawing, block elements, geometric shapes, miscellaneous symbols,
+  dingbats, CJK symbols and punctuation, kana, half/full-width forms and all
+  of GB 2312 (8,009 characters). Layout features kept.
+- A card whose text needs a glyph outside the subset falls back to Noto Sans SC.
 
-When a code card contains a character this subset lacks (emoji aside), the
-whole card is set in Noto Sans SC instead.
+The OFL permits bundling the font with software, including commercial
+software; the font files may not be sold on their own, and this notice and
+`OFL.txt` must travel with them.

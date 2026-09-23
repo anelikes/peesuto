@@ -96,7 +96,7 @@ engine bakes; everything else is boxes and text.
 ### Code: monospace type and syntax colour
 
 - Font: the whole code card (both styles, the language label included) is set
-  in Peesuto Code, a Sarasa Mono SC 1.0.41 subset shipped in
+  in Peesuto Code, a Maple Mono NL CN v7.9 subset shipped in
   `core/src/render/fonts/` (Latin, Greek, Cyrillic, symbols, box drawing, kana,
   full-width forms and all of GB2312; see the README there). CJK is exactly two
   columns wide, so indentation and alignment hold in mixed code. The composition
@@ -246,8 +246,11 @@ Native bundle and interface acceptance is recorded in
 
 ## Third-party notices
 
-- Peesuto Code is a renamed subset of [Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic)
-  (Sarasa Mono SC 1.0.41), © 2015-2025 Renzhi Li and portions © The Inter Project Authors,
-  Adobe and Google, under the SIL Open Font License 1.1: `core/src/render/fonts/OFL.txt`.
+- Peesuto Code is a renamed subset of [Maple Mono](https://github.com/subframe7536/maple-font)
+  (Maple Mono NL CN v7.9), © 2022 The Maple Mono Project Authors, whose Chinese glyphs come
+  from [Resource Han Rounded](https://github.com/CyanoHao/Resource-Han-Rounded) (derived from
+  Adobe's Source Han Sans), all under the SIL Open Font License 1.1:
+  `core/src/render/fonts/OFL.txt`. The OFL allows bundling in commercial software; the font
+  files may not be sold on their own.
 - [highlight.js](https://highlightjs.org/) 11.12.0, © 2006 Ivan Sagalaev and contributors,
   BSD 3-Clause License (shipped with its package in the sidecar's `core/node_modules/highlight.js/LICENSE`).
