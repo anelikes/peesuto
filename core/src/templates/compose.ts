@@ -51,7 +51,7 @@ export const AUTO_FRAME = {
    * floor size without wrapping. Columns are counted in half-width cells (CJK
    * and full-width count 2); `codeCell` is a cell's advance in em (Peesuto Code
    * Latin is 0.6 em) and `codeChrome` the horizontal space outside the text. */
-  codeCell: 0.6, codeFloor: 28, codeChrome: 240,
+  codeCell: 0.6, codeFloor: 28, codeChrome: 272,
 } as const;
 
 /** Type steps tried largest-first for content that would otherwise leave a
@@ -106,13 +106,18 @@ export const QUOTE_STYLES = {
  * selectors, decorators, headings, diff deletions), punct (operators). */
 export const CODE_STYLES = {
   /** Terminal: night panel, three dots, the language (from the fence only) at top right. */
-  classic: { background: "#0e1014", panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 64, dots: { size: 16, gap: 12, colors: ["#e0625a", "#e2b340", "#4fb86a"] } },
-    outer: 64, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.0,
+  classic: { background: "#312e81",
+    /** Full-bleed layers behind the window, bottom first: a left-to-right wash, then a top-to-bottom tint fading in. */
+    backdrop: [{ dir: "r", from: "#4f46e5", to: "#0e7490" }, { dir: "b", from: "#db277700", to: "#db2777a6" }],
+    panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 80, shadow: "shadow-lg", dots: { size: 22, gap: 14, colors: ["#ff5f57", "#febc2e", "#28c840"] } },
+    lineNumbers: { color: "#5b6272", gap: 32 },
+    outer: 88, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.0,
     lang: { size: 24, bold: false, color: "#6e7482", gap: 0 },
     syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#7d8494", number: "#f4c430", function: "#f5a45d", type: "#5fd0c5",
       property: "#eaa3c9", literal: "#f4c430", meta: "#ff7b72", punct: "#a7adb9" } },
   /** Notebook: light page, green gutter bar, zebra rows. */
-  editorial: { background: "#f3f1ea", panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
+  editorial: { background: "#f3f1ea", backdrop: null, panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
+    lineNumbers: { color: "#a8a397", gap: 28 },
     ink: "#1d1d20", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.1,
     lang: { size: 28, bold: true, color: "#2f9e5f", gap: 28 },
     syntax: { keyword: "#2447c9", string: "#1d7a45", comment: "#77736a", number: "#b0501a", function: "#7a3fb0", type: "#0e7282",
@@ -228,6 +233,10 @@ export interface TemplateLine {
   colorAt?: (string | undefined)[];
 }
 export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number;
+  /** A two-stop linear gradient instead of the flat colour (the engine draws 4 directions; colours may carry alpha). */
+  gradient?: { dir: "t" | "b" | "l" | "r"; from: string; to: string };
+  /** The engine's drop shadow. */
+  shadow?: "shadow" | "shadow-md" | "shadow-lg";
   /** Reveal group; shapes without one are drawn from the first frame. */
   group?: number }
 /** A small SVG drawn scaled (arrowheads, diamonds). `src` names a file in `assets`. */
@@ -447,7 +456,8 @@ function autoWidth(plan: TemplatePlan): number {
   if (content.kind === "code") {
     const cells = (line: string) => graphemes(line.replace(/\t/g, "    ")).reduce((n, g) => n + (/[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]|\p{Extended_Pictographic}/u.test(g) ? 2 : 1), 0);
     const longest = Math.max(0, ...content.code.split("\n").map(cells));
-    const needed = longest * AUTO_FRAME.codeCell * AUTO_FRAME.codeFloor + AUTO_FRAME.codeChrome;
+    const numberCells = String(Math.max(1, content.code.split("\n").length)).length + 2; // line numbers and their gap
+    const needed = (longest + numberCells) * AUTO_FRAME.codeCell * AUTO_FRAME.codeFloor + AUTO_FRAME.codeChrome;
     return AUTO_FRAME.widths.find((w) => w >= needed) ?? AUTO_FRAME.widths.at(-1)!;
   }
   const wide = (content.kind === "table" && content.headers.length >= AUTO_FRAME.wideTableColumns)
@@ -468,6 +478,8 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   /** Shapes that settle() leaves in place (full-bleed bands). */
   const pinned = new Set<object>();
   let pinBottom: TemplateRect | undefined;
+  /** Full-bleed backdrop layers, stretched to the final canvas height. */
+  let backdropRects: TemplateRect[] = [];
   const rect = (x: number, y: number, width: number, height: number, color: string, radius = 0): TemplateRect => {
     const value = { x, y, width, height, color, radius }; layout.shapes.push(value); return value;
   };
@@ -780,33 +792,45 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const s = pickStyle(CODE_STYLES, plan.variant);
       layout.background = s.background; margin = s.outer;
       const source = normalizeText(content.code, "code").split("\n");
-      const P = s.panel, G = s.gutter;
-      const codeX = P ? margin + P.pad : margin + (G?.width ?? 0) + (G?.gap ?? 0);
-      const codeW = P ? W - 2 * margin - 2 * P.pad : W - margin - codeX - (s.zebra?.pad ?? 0);
+      const P = s.panel, G = s.gutter, LN = s.lineNumbers;
+      // Line numbers count from 1 (a clipboard does not carry the original ones).
+      const digits = String(Math.max(1, source.length)).length;
+      const gutterW = (sz: number) => LN ? Math.ceil(measure.width("0".repeat(digits), sz, false)) + LN.gap : 0;
+      const textX = P ? margin + P.pad : margin + (G?.width ?? 0) + (G?.gap ?? 0);
+      const textW = P ? W - 2 * margin - 2 * P.pad : W - margin - textX - (s.zebra?.pad ?? 0);
       const langH = content.language && !P ? lh(s.lang.size, 1.2, s.lang.bold) + s.lang.gap : 0;
       const availH = view.fit - 2 * margin - (P ? 2 * P.pad + P.header : langH);
-      const fits = (sz: number) => source.every((line) => measure.width(line, sz, false) <= codeW);
+      const fits = (sz: number) => source.every((line) => measure.width(line, sz, false) <= textW - gutterW(sz));
       // The largest size that fits without wrapping and within the frame; else
       // the largest unwrapped size at or below the floor (the canvas grows / scrolls).
       const sizes: readonly number[] = s.sizes;
       const size = sizes.find((sz) => fits(sz) && source.length * lh(sz, s.leading) <= availH)
         ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
+      const codeX = textX + gutterW(size), codeW = textW - gutterW(size);
+      const backdrop: TemplateRect[] = [];
+      for (const layer of s.backdrop ?? []) {
+        const r = rect(0, 0, W, 0, layer.to); r.gradient = layer as TemplateRect["gradient"]; pinned.add(r); backdrop.push(r);
+      }
       let y = margin; const top = y;
       let panel: TemplateRect | undefined;
       if (P) {
         panel = rect(margin, y, W - 2 * margin, 0, P.fill, P.radius);
-        P.dots.colors.forEach((color, i) => rect(margin + P.pad + i * (P.dots.size + P.dots.gap), y + P.pad, P.dots.size, P.dots.size, color, P.dots.size / 2));
-        if (content.language) block(content.language, codeX, y + P.pad + P.dots.size / 2 - lh(s.lang.size, 1) / 2, codeW, s.lang.size, s.lang.bold, s.lang.color, { align: "right", leading: 1 });
-        y += P.pad + P.header;
-      } else if (content.language) y += block(content.language, codeX, y, codeW, s.lang.size, s.lang.bold, s.lang.color, { leading: 1.2 }) + s.lang.gap;
+        panel.shadow = P.shadow;
+        const dotY = y + (P.header - P.dots.size) / 2 + P.pad / 4;
+        P.dots.colors.forEach((color, i) => rect(margin + P.pad + i * (P.dots.size + P.dots.gap), dotY, P.dots.size, P.dots.size, color, P.dots.size / 2));
+        if (content.language) block(content.language, textX, dotY + P.dots.size / 2 - lh(s.lang.size, 1) / 2, textW, s.lang.size, s.lang.bold, s.lang.color, { align: "right", leading: 1 });
+        y += P.pad / 2 + P.header;
+      } else if (content.language) y += block(content.language, textX, y, textW, s.lang.size, s.lang.bold, s.lang.color, { leading: 1.2 }) + s.lang.gap;
       const codeTop = y;
       const colors = codeColors(source.join("\n"), content.language, s.syntax);
       for (const [index, line] of source.entries()) {
         const start = y;
+        if (LN) block(String(index + 1), textX, y, gutterW(size) - LN.gap, size, false, LN.color, { align: "right", leading: s.leading, code: true, markdown: false });
         const h = place(glyphsOf(line, false, { code: true, markdown: false, colors: colors[index] }), codeX, y, codeW, size, false, s.ink, { leading: s.leading });
-        if (s.zebra && index % 2 === 1) rect(codeX - s.zebra.pad, start, codeW + 2 * s.zebra.pad, h, s.zebra.color, s.zebra.radius);
+        if (s.zebra && index % 2 === 1) rect(textX - s.zebra.pad, start, textW + 2 * s.zebra.pad, h, s.zebra.color, s.zebra.radius);
         y += h;
       }
+      backdropRects = backdrop;
       if (G) rect(margin, codeTop, G.width, y - codeTop, G.color);
       if (panel && P) { y += P.pad; panel.height = y - panel.y; }
       bottom = settle(top, y);
@@ -1020,6 +1044,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   layout.height = Math.ceil(Math.max(view.height, bottom + margin) / 2) * 2;
   if (layout.height > TEMPLATE_LIMITS.maxHeight) throw new ComposeError("overflow", `The complete content needs ${layout.height}px of height (maximum ${TEMPLATE_LIMITS.maxHeight}px). Choose a wider aspect or split the source. No content was truncated.`);
   if (pinBottom) pinBottom.y = layout.height - pinBottom.height;
+  for (const r of backdropRects) r.height = layout.height;
   return layout;
 }
 
@@ -1160,7 +1185,10 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     const emojiKeys = new Set<string>();
     const nodes: string[] = [];
     let glyphIndex = 0;
-    for (const [i, shape] of layout.shapes.entries()) nodes.push(`<View class="absolute left-[${shape.x}px] top-[${shape.y}px] w-[${shape.width}px] h-[${shape.height}px] bg-[${shape.color}] rounded-[${shape.radius}px]${shapeAnimation(`s${i}`, shape.group)}" />`);
+    for (const [i, shape] of layout.shapes.entries()) {
+      const fill = shape.gradient ? `bg-gradient-to-${shape.gradient.dir} from-[${shape.gradient.from}] to-[${shape.gradient.to}]` : `bg-[${shape.color}]`;
+      nodes.push(`<View class="absolute left-[${shape.x}px] top-[${shape.y}px] w-[${shape.width}px] h-[${shape.height}px] ${fill} rounded-[${shape.radius}px]${shape.shadow ? ` ${shape.shadow}` : ""}${shapeAnimation(`s${i}`, shape.group)}" />`);
+    }
     for (const [i, image] of layout.images.entries()) nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]${shapeAnimation(`i${i}`, image.group)}" src="${image.src}" />`);
     for (const [name, svg] of Object.entries(layout.assets)) await Bun.write(`${dir}/${name}`, svg);
     for (const line of layout.lines) {

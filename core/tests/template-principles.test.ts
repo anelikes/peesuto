@@ -56,6 +56,8 @@ function sourceStrings(content: TemplateContent): string[] {
 function orderedCount(content: TemplateContent): number {
   if (content.kind === "list") return content.ordered ? content.items.length : 0;
   if (content.kind === "document") return Math.max(0, ...(content.blocks ?? []).map((b) => b.kind === "list" && b.ordered ? b.items.length : 0));
+  // Code cards number their lines from 1 (the user asked for line numbers).
+  if (content.kind === "code") return content.code.split("\n").length;
   return 0;
 }
 const isNumber = (text: string, max: number) => /^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= max;
@@ -67,7 +69,7 @@ function eachLayout(visit: (layout: TemplateLayout, content: TemplateContent, la
 }
 
 describe("template principles", () => {
-  test("every drawn character comes from the source, except ordered-list numbers", () => {
+  test("every drawn character comes from the source, except ordered-list numbers and code line numbers", () => {
     eachLayout((layout, content, label) => {
       const sources = sourceStrings(content), max = orderedCount(content);
       for (const line of layout.lines) {
@@ -89,7 +91,10 @@ describe("template principles", () => {
   test("nothing is truncated: every source character is drawn at least once", () => {
     eachLayout((layout, content, label) => {
       const drawn = new Map<string, number>();
-      for (const line of layout.lines) for (const glyph of graphemes(line.text)) if (glyph.trim()) drawn.set(glyph, (drawn.get(glyph) ?? 0) + 1);
+      for (const line of layout.lines) {
+        if (content.kind === "code" && /^\d+$/.test(line.text.trim()) && line.color !== undefined && [CODE_STYLES.classic.lineNumbers.color, CODE_STYLES.editorial.lineNumbers.color].includes(line.color as never)) continue;
+        for (const glyph of graphemes(line.text)) if (glyph.trim()) drawn.set(glyph, (drawn.get(glyph) ?? 0) + 1);
+      }
       const needed = new Map<string, number>();
       for (const source of sourceStrings(content)) for (const glyph of graphemes(source)) if (glyph.trim()) needed.set(glyph, (needed.get(glyph) ?? 0) + 1);
       if (content.kind === "qr") return; // the caption is optional by design
@@ -160,7 +165,9 @@ describe("template principles", () => {
     const colors = syntaxColors(line, CODE_STYLES.classic.syntax);
     expect(colors).toHaveLength(graphemes(line).length);
     const layout = layoutTemplate(samplePlan({ kind: "code", code: line }), metrics);
-    expect(layout.lines.map((l) => l.text).join("")).toBe(line);
-    expect(layout.lines.some((l) => l.colorAt?.some(Boolean))).toBe(true);
+    const code = layout.lines.filter((l) => l.color !== CODE_STYLES.classic.lineNumbers.color);
+    expect(code.map((l) => l.text).join("")).toBe(line);
+    expect(code.some((l) => l.colorAt?.some(Boolean))).toBe(true);
+    expect(layout.lines.filter((l) => l.color === CODE_STYLES.classic.lineNumbers.color).map((l) => l.text)).toEqual(["1"]);
   });
 });

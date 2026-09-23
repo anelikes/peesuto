@@ -29,7 +29,8 @@ const SAMPLES: Record<string, string> = {
 /** The concatenation of a layout's code lines, as the layout draws them. */
 function drawnLines(code: string, language?: string): string[] {
   const layout = layoutTemplate(samplePlan({ kind: "code", code, ...(language ? { language } : {}) }), metrics);
-  return layout.lines.filter((line) => line.text !== language).map((line) => line.text);
+  const numbers = [CODE_STYLES.classic.lineNumbers.color, CODE_STYLES.editorial.lineNumbers.color] as string[];
+  return layout.lines.filter((line) => line.text !== language && !numbers.includes(line.color)).map((line) => line.text);
 }
 
 describe("highlight.js colouring", () => {
@@ -100,7 +101,7 @@ describe("highlight.js colouring", () => {
     const colors = codeColors(garbage, undefined, s);
     expect(colors).toEqual([syntaxColors(garbage, s)]);
     const layout = layoutTemplate(samplePlan({ kind: "code", code: garbage }), metrics);
-    expect(layout.lines.map((l) => l.text).join("")).toBe(garbage);
+    expect(layout.lines.filter((l) => l.color !== CODE_STYLES.classic.lineNumbers.color).map((l) => l.text).join("")).toBe(garbage);
   });
 
   test("any mismatch between highlighter text and source falls back (never alters text)", () => {
