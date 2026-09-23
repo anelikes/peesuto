@@ -29,7 +29,7 @@ export type Request =
   | { id: number; cmd: "render"; dsl: Dsl; out?: string; events?: boolean }
   | { id: number; cmd: "privacy.rules" }
   | { id: number; cmd: "privacy.preview"; text: string }
-  | { id: number; cmd: "precompose"; text: string; frames?: { image?: string; gif?: string; video?: string }; templatePreferences?: Readonly<Record<string, string>> }
+  | { id: number; cmd: "precompose"; text: string; frames?: { image?: string; gif?: string; video?: string }; templatePreferences?: Readonly<Record<string, string>>; disabledTemplates?: readonly string[] }
   | { id: number; cmd: "shutdown" };
 
 /** `config.set`'s privacy section; absent means the defaults (mode "redacted", built-in defaults, no rules). */

@@ -81,7 +81,7 @@ export class Daemon {
   }
 
   /** The precompose cache key of a render request, or null when it cannot be precomposed. */
-  private keyOf(spec: ActionSpec, input: { text: string; aspect?: string; templatePreferences?: Readonly<Record<string, string>> }): string | null {
+  private keyOf(spec: ActionSpec, input: { text: string; aspect?: string; templatePreferences?: Readonly<Record<string, string>>; disabledTemplates?: readonly string[] }): string | null {
     const parts = renderKeyParts(spec, input);
     if (!parts) return null;
     return precomposeKey({ ...parts, core: this.core, privacy: this.privacy.fingerprint, precompose: this.precompose,
@@ -171,7 +171,7 @@ export class Daemon {
           for (const output of this.precompose.outputs) {
             if (output === "video") { try { resolveFFmpeg({ executable: this.render()?.ffmpeg }); } catch { continue; } }
             const spec = PRECOMPOSE_SPECS[output];
-            const input = { text: req.text, ...(frames[output] ? { aspect: frames[output] } : {}), ...(req.templatePreferences ? { templatePreferences: req.templatePreferences } : {}) };
+            const input = { text: req.text, ...(frames[output] ? { aspect: frames[output] } : {}), ...(req.templatePreferences ? { templatePreferences: req.templatePreferences } : {}), ...(req.disabledTemplates ? { disabledTemplates: req.disabledTemplates } : {}) };
             tasks.push({ key: this.keyOf(spec, input)!, text: req.text, spec, input });
           }
           this.precomposer.submit(tasks);

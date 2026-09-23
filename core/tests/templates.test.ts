@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
-import { parseTemplates } from "../src/templates/parse.ts";
+import { parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
+import { renderKeyParts } from "../src/daemon/precompose.ts";
+import { layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, TEMPLATE_IDS, TemplateInputError } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
@@ -337,4 +339,65 @@ describe("box-drawing tables", () => {
       expect(parseTemplates(source).candidates.has("table")).toBe(false);
     }
   });
+});
+
+describe("templates turned off in Settings", () => {
+  const table = "| name | score |\n|---|---|\n| Ada | 9 |\n| Lin | 8 |";
+
+  test("rules skip a disabled template and fall back to the next candidate; document cannot be turned off", async () => {
+    expect((await decideTemplate(table, base)).plan.template).toBe("table");
+    const off = await decideTemplate(table, { ...base, disabled: ["table"] });
+    expect(off.plan.template).not.toBe("table");
+    expect(off.availableTemplates).toContain("table"); // still there to choose by hand
+    const everything = await decideTemplate(table, { ...base, disabled: [...TEMPLATE_IDS] });
+    expect(everything.plan.template).toBe("document");
+    expect((await decideTemplate("Short and sweet.", { ...base, disabled: ["text"] })).plan.template).toBe("document");
+  });
+
+  test("the model is neither offered nor allowed a disabled template", async () => {
+    let asked: Record<string, unknown> = {};
+    const result = await decideTemplate(table, { ...base, disabled: ["table"], decider: { name: "fixture", ask: async (body) => {
+      asked = (body.questions.template as { criteria: Record<string, unknown> }).criteria;
+      return { template: choice("table") };
+    } } });
+    expect(Object.keys(asked)).not.toContain("table");
+    expect(result.plan.template).not.toBe("table");
+    expect(result.decisionSource).toBe("fallback");
+  });
+
+  test("choosing by hand still reaches a disabled template", async () => {
+    expect((await decideTemplate(table, { ...base, disabled: ["table"], override: { id: "table" } })).plan.template).toBe("table");
+  });
+
+  test("malformed lists are ignored; the precompose key changes with the list", () => {
+    expect(templateIdList("table")).toEqual([]);
+    expect(templateIdList(["table", 3, "table", "code"])).toEqual(["code", "table"]);
+    expect(withoutTemplates(parseTemplates(table), { table: true }).preferred).toBe("table");
+    const spec = { id: "paste-card", name: "x", needs: "render", output: "image" } as unknown as Parameters<typeof renderKeyParts>[0];
+    const a = renderKeyParts(spec, { text: table });
+    const b = renderKeyParts(spec, { text: table, disabledTemplates: ["table", "code"] });
+    expect(a?.disabled).toEqual([]);
+    expect(b?.disabled).toEqual(["code", "table"]);
+  });
+});
+
+describe("larger type never splits a word", () => {
+  const metrics: TemplateMeasure = { width: (text, size, bold) => [...text].length * size * (bold ? 0.62 : 0.56), lineHeight: (size) => size * 1.2 };
+  const source = "Before:\nCopy, screenshot, crop, paste\nAfter:\nCopy, press a shortcut";
+  test("a Latin word moves to the next line whole, even past the half-line limit; commas never start a line", () => {
+    const w = (text: string) => metrics.width(text, 40, false);
+    expect(wrapTemplateText("Copy, screenshot", w("Copy, screensh"), 40, false, metrics)).toEqual(["Copy, ", "screenshot"]);
+    expect(wrapTemplateText("Copy, screenshot, crop, paste", w("Copy, screenshot, cro"), 40, false, metrics)).toEqual(["Copy, screenshot, ", "crop, paste"]);
+    // Chinese still breaks between characters and keeps kinsoku.
+    expect(wrapTemplateText("复制，截图，裁剪", w("复制，截图"), 40, false, metrics).join("")).toBe("复制，截图，裁剪");
+  });
+  for (const variant of ["classic", "editorial"] as const) {
+    test(`comparison ${variant} at 1:1: every word stays whole`, async () => {
+      const { plan } = await decideTemplate(source, { aspect: "1:1", output: "image", decider: null, override: { id: "comparison", variant } });
+      const words = new Set(source.split(/[\s,:]+/).filter(Boolean));
+      for (const line of layoutTemplate(plan, metrics).lines) {
+        for (const token of line.text.split(/[\s,:]+/).filter(Boolean)) expect(words.has(token)).toBe(true);
+      }
+    });
+  }
 });

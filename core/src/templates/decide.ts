@@ -1,6 +1,6 @@
 import type { JevRequest } from "../questions.ts";
 import type { CardDecider } from "../render/pipeline.ts";
-import { parseTemplates, type ParsedTemplates } from "./parse.ts";
+import { parseTemplates, withoutTemplates, type ParsedTemplates } from "./parse.ts";
 import { MANUAL_TEMPLATES, templateHasVariant, templateRegistration } from "./registry.ts";
 import { ProviderError } from "../provider/types.ts";
 import { modelContentOf, type ModelContentInfo } from "../privacy/decider.ts";
@@ -15,6 +15,8 @@ export interface TemplateDecisionOptions {
   readonly output: "image" | "gif" | "video";
   readonly override?: TemplateOverride;
   readonly preferences?: Readonly<Record<string, string>>;
+  /** Templates the user turned off for automatic choice; still available by hand. */
+  readonly disabled?: readonly string[];
   /** Custom actions can opt out of motion independently from their container. */
   readonly animate?: "auto" | "always" | "never";
 }
@@ -126,11 +128,13 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
   if (!aspect) throw new TemplateInputError("Unknown card frame. Use auto, 1:1, 4:5, 16:9 or 9:16.");
   const parsed = parseTemplates(text);
   const availableTemplates = [...parsed.candidates.keys()];
+  // Rules and the model choose among the templates left on; an override may use any.
+  const automatic = withoutTemplates(parsed, options.disabled ?? []);
   const override = validateOverride(options.override);
   if (override.id && !parsed.candidates.has(override.id)) {
     throw new TemplateInputError(`The source does not contain the explicit structure required by the ${override.id} template. Use document to preserve the original text.`);
   }
-  let template: TemplateId = override.id ?? parsed.preferred;
+  let template: TemplateId = override.id ?? automatic.preferred;
   if (override.variant !== undefined && !templateHasVariant(template, override.variant)) {
     throw new TemplateInputError(`The ${template} template has no ${override.variant} style.`);
   }
@@ -149,8 +153,8 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
   else if (options.decider && !["rules", "none"].includes(options.decider.name)) {
     try {
       const modelContent = modelContentOf(options.decider);
-      const answers = await options.decider.ask(buildTemplateRequest(parsed, allowMotion, requireMotion, modelContent));
-      const choice = confidentChoice(answers, "template", availableTemplates.filter((id) => !MANUAL_TEMPLATES.includes(id))) as TemplateId | undefined;
+      const answers = await options.decider.ask(buildTemplateRequest(automatic, allowMotion, requireMotion, modelContent));
+      const choice = confidentChoice(answers, "template", [...automatic.candidates.keys()].filter((id) => !MANUAL_TEMPLATES.includes(id))) as TemplateId | undefined;
       if (choice) {
         template = choice;
         const selectedVariant = confidentChoice(answers, "variant", templateRegistration(template).variants.map((v) => `${template}.${v.id}`));

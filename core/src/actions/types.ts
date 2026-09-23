@@ -44,6 +44,8 @@ export interface ActionInput {
   readonly template?: TemplateOverride;
   /** Per-template styles explicitly chosen by the user, never model guesses. */
   readonly templatePreferences?: Readonly<Record<string, string>>;
+  /** Templates turned off for automatic choice (Settings › Templates). */
+  readonly disabledTemplates?: readonly string[];
 }
 
 export type ActionResult =

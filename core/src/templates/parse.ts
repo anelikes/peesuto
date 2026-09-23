@@ -51,13 +51,33 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   // Anything can be a QR code: the exact source (surrounding whitespace aside),
   // not the cleaned text. It is never preferred.
   candidates.set("qr", { kind: "qr", data: sourceText.replace(/^\s+|\s+$/g, "") });
-  // A recognized structure wins; short plain prose is typography; the rest is a document.
-  const preferred = PREFERENCE.find((id) => candidates.has(id)) ?? (prose ? "text" : "document");
-  return { sourceText, preferred, candidates };
+  return { sourceText, preferred: preferredTemplate(candidates), candidates };
 }
 
 /** Which recognized structure wins when several parse. */
 const PREFERENCE: readonly TemplateId[] = ["diagram", "code", "table", "comparison", "quote", "list", "chat", "stat"];
+
+/** Strings from a list that arrived as JSON; anything else is no list. */
+export function templateIdList(value: unknown): string[] {
+  return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === "string"))].sort() : [];
+}
+
+/** A recognized structure wins; short plain prose is typography; the rest is a document. */
+function preferredTemplate(candidates: ReadonlyMap<TemplateId, unknown>): TemplateId {
+  return PREFERENCE.find((id) => candidates.has(id)) ?? (candidates.has("text") ? "text" : "document");
+}
+
+/**
+ * The candidates automatic choice may use when the user turned some
+ * templates off. Document is the fallback and cannot be removed; the full
+ * set stays available for choosing by hand.
+ */
+export function withoutTemplates(parsed: ParsedTemplates, disabled: unknown): ParsedTemplates {
+  const off = new Set(templateIdList(disabled).filter((id) => id !== "document"));
+  if (![...parsed.candidates.keys()].some((id) => off.has(id))) return parsed;
+  const candidates = new Map([...parsed.candidates].filter(([id]) => !off.has(id)));
+  return { ...parsed, candidates, preferred: preferredTemplate(candidates) };
+}
 
 /** Short prose with no structure of its own: at most TEXT_MAX_GRAPHEMES visible
  * characters and eight paragraphs, no Markdown blocks, and no structure a
