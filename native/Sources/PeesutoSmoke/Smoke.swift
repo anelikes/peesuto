@@ -23,12 +23,16 @@ import AVFoundation
             guard health.engine != nil else { throw SmokeError.failed("engine unavailable") }
             let actions = try await client.actions()
             guard actions.actions.count >= 6 else { throw SmokeError.failed("actions") }
+            let templates = try await client.templates()
+            guard templates.templates.count == 8, templates.templates.allSatisfy({ $0.variants.count >= 2 }) else { throw SmokeError.failed("template discovery") }
             let media = ["paste-card", "paste-gif"] + (CommandLine.arguments.contains("--video") ? ["paste-video"] : [])
             for action in media {
-                let response = try await client.runAction(action: action, input: CoreActionInput(text: "Make room for a clearer thought."), onState: { state in
+                let response = try await client.runAction(action: action, input: CoreActionInput(text: "[小林]：把时间留给表达。\n[阿澈]：让排版自动完成。", template: CoreTemplateOptions(motion: "typewriter")), onState: { state in
                     print("STATE \(action): \(state.rawValue)")
                 })
                 guard let path = response.result.path, FileManager.default.fileExists(atPath: path) else { throw SmokeError.failed(action) }
+                guard response.result.meta?.template?.id == "chat",
+                      response.result.meta?.template?.motion == (action == "paste-card" ? "none" : "typewriter") else { throw SmokeError.failed("template selection / output independence") }
                 let data = try Data(contentsOf: URL(fileURLWithPath: path))
                 let bytes = data.count
                 if action == "paste-video" {

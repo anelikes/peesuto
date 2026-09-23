@@ -105,11 +105,16 @@ public struct CoreActionInput: Codable, Sendable {
     public let context: CoreContext?
     public let aspect: String?
     public let fresh: Bool?
+    public let template: CoreTemplateOptions?
+    public let templatePreferences: [String: String]?
 
     public init(text: String, item: CoreClipItem? = nil, context: CoreContext? = nil,
-                aspect: String? = nil, fresh: Bool? = nil) {
+                aspect: String? = nil, fresh: Bool? = nil, template: CoreTemplateOptions? = nil,
+                templatePreferences: [String: String]? = nil) {
         self.text = text; self.item = item; self.context = context
         self.aspect = aspect; self.fresh = fresh
+        self.template = template
+        self.templatePreferences = templatePreferences
     }
 }
 
@@ -120,6 +125,46 @@ public struct CoreActionResult: Codable, Sendable {
     public let format: String?
     public let model: String?
     public let ms: Double
+    public let meta: CoreActionMetadata?
+}
+
+public struct CoreTemplateOptions: Codable, Sendable {
+    public let id: String?
+    public let variant: String?
+    public let motion: String?
+    public init(id: String? = nil, variant: String? = nil, motion: String? = nil) {
+        self.id = id; self.variant = variant; self.motion = motion
+    }
+}
+
+public struct CoreTemplateSelection: Codable, Sendable {
+    public let id: String
+    public let variant: String
+    public let motion: String
+    public let decisionSource: String
+    public let availableTemplates: [String]
+}
+
+public struct CoreActionMetadata: Codable, Sendable {
+    public let template: CoreTemplateSelection?
+}
+
+public struct CoreTemplateVariant: Codable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let nameZh: String
+}
+
+public struct CoreTemplateSpec: Codable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let nameZh: String
+    public let variants: [CoreTemplateVariant]
+    public let motions: [String]
+}
+
+public struct CoreTemplateList: Codable, Sendable {
+    public let templates: [CoreTemplateSpec]
 }
 
 public struct CoreActionResponse: Codable, Sendable {

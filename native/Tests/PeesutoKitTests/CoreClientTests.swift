@@ -4,6 +4,28 @@ import XCTest
 @testable import PeesutoKit
 
 final class CoreClientTests: XCTestCase {
+    func testMediaOverridesAndResultMetadataRoundTrip() async throws {
+        let (client, root) = try fixture(behavior: """
+        if cmd == 'templates.list':
+            res['templates'] = [{'id':'chat', 'name':'Conversation', 'nameZh':'对话', 'variants':[{'id':'classic', 'name':'Bubbles', 'nameZh':'气泡'}], 'motions':['none','reveal','typewriter']}]
+            emit(res)
+            continue
+        if cmd == 'run-action':
+            assert req['input']['template'] == {'id':'chat', 'variant':'editorial', 'motion':'typewriter'}
+            assert req['input']['templatePreferences'] == {'quote':'classic'}
+            res['result'] = {'output':'gif','format':'gif','path':'/synthetic.gif','ms':12,'meta':{'template':{'id':'chat','variant':'editorial','motion':'typewriter','decisionSource':'override','availableTemplates':['chat','document']}}}
+            emit(res)
+            continue
+        """)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let catalog = try await client.templates()
+        XCTAssertEqual(catalog.templates.first?.nameZh, "对话")
+        let response = try await client.runAction(action: "paste-gif", input: CoreActionInput(text: "A: Hi\nB: Hello",
+            template: CoreTemplateOptions(id: "chat", variant: "editorial", motion: "typewriter"), templatePreferences: ["quote": "classic"]))
+        XCTAssertEqual(response.result.meta?.template?.availableTemplates, ["chat", "document"])
+        XCTAssertEqual(response.result.meta?.template?.motion, "typewriter")
+        await client.shutdown()
+    }
     private final class StateRecorder: @unchecked Sendable {
         private let lock = NSLock()
         private var states: [CoreTaskState] = []

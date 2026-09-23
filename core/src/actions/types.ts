@@ -5,6 +5,7 @@
  */
 import type { Aspect } from "../dsl.ts";
 import type { ClipItem, Context } from "../pick/types.ts";
+import type { TemplateOverride } from "../templates/types.ts";
 
 export type ActionNeeds = "decider" | "generator" | "render" | "none";
 export type ActionOutput = "text" | "image" | "gif" | "video" | "file";
@@ -37,6 +38,10 @@ export interface ActionInput {
   /** Overrides for render actions from the UI (aspect toggle, another take). */
   readonly aspect?: Aspect;
   readonly fresh?: boolean;
+  /** Explicit presentation overrides; content is always parsed from text. */
+  readonly template?: TemplateOverride;
+  /** Per-template styles explicitly chosen by the user, never model guesses. */
+  readonly templatePreferences?: Readonly<Record<string, string>>;
 }
 
 export type ActionResult =

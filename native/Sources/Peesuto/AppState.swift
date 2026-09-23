@@ -6,6 +6,14 @@ struct OutputPreview {
     let title: String
     let text: String?
     let url: URL?
+    let sourceText: String?
+    let template: CoreTemplateSelection?
+    let format: String?
+    init(title: String, text: String?, url: URL?, sourceText: String? = nil,
+         template: CoreTemplateSelection? = nil, format: String? = nil) {
+        self.title = title; self.text = text; self.url = url
+        self.sourceText = sourceText; self.template = template; self.format = format
+    }
 }
 
 @MainActor final class AppState: ObservableObject {
@@ -14,6 +22,7 @@ struct OutputPreview {
     @Published var query = "" { didSet { refresh() } }
     @Published var language = "system"
     @Published var actions: [CoreActionSpec] = []
+    @Published var templates: [CoreTemplateSpec] = []
     @Published var output: OutputPreview?
     @Published var busy = false
     @Published var taskStatus = ""
@@ -57,8 +66,8 @@ struct OutputPreview {
             history = try HistoryStore(directory: directory, key: key)
             if preview {
                 try history?.insert(text: "Make room for a clearer thought.", sourceApp: "com.apple.Notes")
-                try history?.insert(text: "把灵感留住，让表达更简单。", sourceApp: "com.apple.Safari")
-                try history?.insert(text: "三个值得记录的小进展\n原生界面 · 本地历史 · 一键生成", sourceApp: "com.apple.Notes")
+                try history?.insert(text: "“把灵感留住，让表达更简单。”", sourceApp: "com.apple.Notes")
+                try history?.insert(text: "小林：这段对话可以直接变成图片吗？\n阿澈：可以，复制后按一下快捷键。\n小林：那就把时间留给表达。", sourceApp: "com.apple.Notes")
             }
             try history?.prune(days: settings.retentionDays)
             refresh()
@@ -128,6 +137,7 @@ struct OutputPreview {
                 try await configureCore()
                 guard revision == panelRevision, !busy else { return }
                 if let core { actions = try await core.actions().actions }
+                if let core { templates = try await core.templates().templates }
                 guard settings?.bool("smart_paste", default: true) != false,
                       capturedContext["secure"] as? Bool != true, !capturedItems.isEmpty, !busy, revision == panelRevision else { return }
                 let decoder = JSONDecoder()
@@ -203,19 +213,48 @@ struct OutputPreview {
         showTaskStatus?()
     }
 
-    private func execute(actionID: String, title: String, text: String, target: DirectPasteTarget?) {
+    func templateName(_ spec: CoreTemplateSpec) -> String { isChinese ? spec.nameZh : spec.name }
+    func variantName(_ variant: CoreTemplateVariant) -> String { isChinese ? variant.nameZh : variant.name }
+    func motionName(_ motion: String) -> String {
+        switch motion {
+        case "typewriter": return tr("Typewriter", "打字机")
+        case "reveal": return tr("Reveal", "依次呈现")
+        default: return tr("Still", "静态")
+        }
+    }
+    func rerender(templateID: String? = nil, variant: String? = nil, motion: String? = nil, format: String? = nil) {
+        guard !busy, let output, let text = output.sourceText, let selectedTemplate = output.template else { return }
+        let chosenFormat = format ?? output.format ?? "png"
+        let actionID = chosenFormat == "mp4" ? "paste-video" : chosenFormat == "gif" ? "paste-gif" : "paste-card"
+        let changingTemplate = templateID != nil && templateID != selectedTemplate.id
+        let options = CoreTemplateOptions(id: templateID ?? selectedTemplate.id,
+            variant: variant ?? (changingTemplate ? nil : selectedTemplate.variant),
+            motion: motion ?? (changingTemplate || (format != nil && output.format == "png") ? nil : selectedTemplate.motion))
+        execute(actionID: actionID, title: output.title, text: text, target: nil, options: options,
+                keepPreview: true, rememberVariant: variant != nil)
+    }
+
+    private func execute(actionID: String, title: String, text: String, target: DirectPasteTarget?,
+                         options: CoreTemplateOptions? = nil, keepPreview: Bool = false, rememberVariant: Bool = false) {
         actionRevision += 1
         let revision = actionRevision
         error = nil; notice = nil; busy = true
-        output = nil
+        if !keepPreview { output = nil }
         directTask = target != nil
         taskStatus = tr("Preparing…", "正在准备…")
+        let pendingOpening = openingTask
+        panelRevision += 1
         task = Task {
             defer { busy = false; task = nil }
             do {
+                // Recommendation timeouts stop the shared Core. Drain the
+                // pending panel query before submitting an explicit action.
+                await pendingOpening?.value
+                try Task.checkCancellation()
                 try await configureCore()
                 try Task.checkCancellation()
-                let input = CoreActionInput(text: text, aspect: settings?.string("aspect", default: "chat") ?? "chat")
+                let input = CoreActionInput(text: text, aspect: settings?.string("aspect", default: "chat") ?? "chat",
+                    template: options, templatePreferences: settings?.values["template_styles"] as? [String: String])
                 taskStatus = title + "…"
                 guard let response = try await core?.runAction(action: actionID, input: input, onState: { [weak self] state in
                     Task { @MainActor in
@@ -230,7 +269,16 @@ struct OutputPreview {
                 }) else { return }
                 if !Task.isCancelled {
                     output = OutputPreview(title: title, text: response.result.text,
-                                           url: response.result.path.map { URL(fileURLWithPath: $0) })
+                                           url: response.result.path.map { URL(fileURLWithPath: $0) },
+                                           sourceText: text, template: response.result.meta?.template, format: response.result.format)
+                    if templates.isEmpty, let core { templates = (try? await core.templates().templates) ?? [] }
+                    try Task.checkCancellation()
+                    if rememberVariant, let selected = response.result.meta?.template {
+                        var preferences = settings?.values["template_styles"] as? [String: String] ?? [:]
+                        preferences[selected.id] = selected.variant
+                        do { try settings?.set("template_styles", value: preferences) }
+                        catch { notice = tr("Created. Could not remember this style.", "已生成，但无法保存风格偏好。") }
+                    }
                     if let target, let output {
                         let result: PasteResult
                         if let url = output.url, url.pathExtension.lowercased() == "png" {
@@ -251,12 +299,15 @@ struct OutputPreview {
                 if Task.isCancelled { notice = tr("Cancelled", "已取消") }
                 else if let failure = error as? CoreError, failure.message.localizedCaseInsensitiveContains("ffmpeg") {
                     self.error = tr("Video needs ffmpeg. Install it with Homebrew (brew install ffmpeg), then retry.", "视频需要 ffmpeg。通过 Homebrew 安装（brew install ffmpeg）后重试。")
+                } else if let failure = error as? CoreError, failure.kind == "compose" {
+                    self.error = tr("This content could not fit safely. Try a shorter excerpt; no text was silently removed.", "内容无法完整排入画面，请缩短后重试；没有静默删减文字。")
                 } else { self.error = tr("The action could not finish. Check the AI settings or try again.", "动作未能完成，请检查 AI 设置或重试。") }
             }
         }
     }
 
     func copySelection() {
+        guard !busy else { return }
         let success: Bool
         if let output {
             if let text = output.text { success = paste.copyText(text) }
@@ -273,6 +324,7 @@ struct OutputPreview {
     }
 
     func pasteSelection() {
+        guard !busy else { return }
         Task {
             let result: PasteResult
             if let output {

@@ -16,6 +16,7 @@
 import type { ActionInput, ActionResult, ActionSpec } from "../actions/types.ts";
 import type { Dsl } from "../dsl.ts";
 import type { ClipItem, Context, PickResult } from "../pick/types.ts";
+import type { TEMPLATE_REGISTRY } from "../templates/registry.ts";
 
 export type Request =
   | { id: number; cmd: "health" }
@@ -23,6 +24,7 @@ export type Request =
   | { id: number; cmd: "pick"; context: Context; candidates: ClipItem[]; fresh?: boolean }
   | { id: number; cmd: "actions.list" }
   | { id: number; cmd: "actions.reload" }
+  | { id: number; cmd: "templates.list" }
   | { id: number; cmd: "run-action"; action: string; input: ActionInput; candidates?: ClipItem[]; events?: boolean }
   | { id: number; cmd: "render"; dsl: Dsl; out?: string; events?: boolean }
   | { id: number; cmd: "shutdown" };
@@ -32,6 +34,7 @@ export type Response =
   | { id: number; ok: true; cmd: "config.set"; providers: { decider: string; generator: string; offline: boolean } }
   | { id: number; ok: true; cmd: "pick"; result: PickResult }
   | { id: number; ok: true; cmd: "actions.list" | "actions.reload"; actions: ActionSpec[]; problems: { file: string; message: string }[] }
+  | { id: number; ok: true; cmd: "templates.list"; templates: typeof TEMPLATE_REGISTRY }
   | { id: number; ok: true; cmd: "run-action"; result: ActionResult; pick?: PickResult }
   | { id: number; ok: true; cmd: "render"; path: string; format: string; frames: number; ms: Record<string, number> }
   | { id: number; ok: true; cmd: "shutdown" }

@@ -36,7 +36,8 @@ struct PanelView: View {
         .frame(minWidth: 760, minHeight: 500)
         .onAppear { searchFocused = true }
         .onExitCommand {
-            if model.output != nil { model.output = nil }
+            if model.busy { model.cancelAction() }
+            else if model.output != nil { model.output = nil }
             else if !model.query.isEmpty { model.query = "" }
             else { model.hidePanel?() }
         }
@@ -100,7 +101,7 @@ struct PanelView: View {
             .padding(11).frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 9).fill(model.selectedID == item.id ? Color.accentColor.opacity(0.1) : .clear))
             .contentShape(Rectangle())
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).disabled(model.busy)
         .accessibilityLabel(item.preview)
     }
 
@@ -108,7 +109,7 @@ struct PanelView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
                 if model.output != nil {
-                    Button { model.output = nil } label: { Label(model.tr("Back", "返回"), systemImage: "chevron.left") }.buttonStyle(.plain)
+                    Button { model.output = nil } label: { Label(model.tr("Back", "返回"), systemImage: "chevron.left") }.buttonStyle(.plain).disabled(model.busy)
                 } else {
                     Text(model.tr("PREVIEW", "内容预览")).font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundColor(.secondary)
                 }
@@ -123,6 +124,7 @@ struct PanelView: View {
                 }
             }.buttonStyle(.borderless).foregroundColor(.secondary)
             if let output = model.output {
+                if let selection = output.template { templateControls(selection, format: output.format ?? "png") }
                 if let url = output.url {
                     if url.pathExtension.lowercased() == "mp4" {
                         NativeVideoPreview(url: url).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -187,12 +189,46 @@ struct PanelView: View {
                     .accessibilityIdentifier("action-menu")
             }
             Spacer()
-            Button(model.tr("Copy", "复制")) { model.copySelection() }
+            Button(model.tr("Copy", "复制")) { model.copySelection() }.disabled(model.busy)
             Button { model.pasteSelection() } label: {
                 HStack(spacing: 12) { Text(model.tr("Paste", "粘贴")); Text("↵").foregroundColor(.white.opacity(0.65)) }
             }.buttonStyle(.borderedProminent).keyboardShortcut(.return, modifiers: [])
                 .disabled(model.busy)
         }.controlSize(.large)
+    }
+
+    private func templateControls(_ selection: CoreTemplateSelection, format: String) -> some View {
+        let spec = model.templates.first { $0.id == selection.id }
+        let variant = spec?.variants.first { $0.id == selection.variant }
+        return HStack(spacing: 12) {
+            Menu {
+                ForEach(model.templates.filter { selection.availableTemplates.contains($0.id) }) { candidate in
+                    Button(model.templateName(candidate)) { model.rerender(templateID: candidate.id) }
+                }
+            } label: { Text(spec.map { model.templateName($0) } ?? selection.id) }
+                .help(model.tr("Template", "模板"))
+            Menu {
+                ForEach(spec?.variants ?? []) { variant in
+                    Button(model.variantName(variant)) { model.rerender(variant: variant.id) }
+                }
+            } label: { Text(variant.map { model.variantName($0) } ?? model.tr("Style", "风格")) }
+                .help(model.tr("Change style", "更换风格"))
+            if format != "png" {
+                Menu {
+                    ForEach(spec?.motions ?? [], id: \.self) { motion in
+                        Button(model.motionName(motion)) { model.rerender(motion: motion) }
+                    }
+                } label: { Text(model.motionName(selection.motion)) }
+                    .help(model.tr("Motion", "动效"))
+            }
+            Spacer(minLength: 0)
+            Menu {
+                Button("PNG") { model.rerender(format: "png") }
+                Button("GIF") { model.rerender(format: "gif") }
+                Button("MP4") { model.rerender(format: "mp4") }
+            } label: { Text(format.uppercased()) }
+                .help(model.tr("Output format", "输出格式"))
+        }.font(.system(size: 11)).menuStyle(.borderlessButton).disabled(model.busy)
     }
 
     private var footer: some View {
@@ -209,7 +245,7 @@ struct PanelView: View {
     }
 
     private func moveSelection(_ delta: Int) {
-        guard !model.items.isEmpty else { return }
+        guard !model.busy, !model.items.isEmpty else { return }
         let index = model.items.firstIndex { $0.id == model.selectedID } ?? 0
         model.selectedID = model.items[min(max(index + delta, 0), model.items.count - 1)].id
         model.output = nil

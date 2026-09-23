@@ -89,6 +89,10 @@ public actor CoreClient {
         return try await request(body, onState: onState)
     }
 
+    public func templates() async throws -> CoreTemplateList {
+        try await request(["cmd": "templates.list"])
+    }
+
     /// No cancellation command exists in the current protocol. Stopping Core
     /// fails outstanding callers; subsequent requests start a fresh process.
     public func shutdown() async {

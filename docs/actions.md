@@ -65,7 +65,7 @@ the native action-management UI is still incomplete.
 |---|---|---|
 | `id` | `[a-z0-9-]`, ≤ 64 | unique; built-in ids may be overridden |
 | `name` | string | shown in menus |
-| `trigger.hotkey` | accelerator string, e.g. `CmdOrCtrl+Shift+V` | optional declaration; legacy Tauri registers these, while native currently registers its dedicated shortcut settings |
+| `trigger.hotkey` | accelerator string, e.g. `CmdOrCtrl+Shift+V` | optional declaration; native currently registers its dedicated shortcut settings, not arbitrary action declarations |
 | `trigger.menu` | boolean | legacy tray visibility; native uses a compact tray and panel action menu |
 | `input` | `clipboard` \| `item` | the current text, or a history item chosen in the panel |
 | `needs` | `decider` \| `generator` \| `render` \| `none` | what has to be configured for it to run |
@@ -124,3 +124,12 @@ raise *Timeout* (`timeoutMs`, `PASTE_GEN_TIMEOUT_MS`) for a large local
 model that legitimately needs more than a minute.
 The native UI preserves these advanced provider fields when saving the same
 provider kind, but does not yet expose all of them as controls.
+
+## Structured media presentation
+
+The PNG/GIF/MP4 presets share the [template pipeline](templates.md). There are
+8 source-backed template families with two variants each; flowcharts, timelines,
+event cards and poetry-specific layouts remain later work. Jev chooses bounded
+presentation options, while local parsing preserves source content. The native
+result controls can rerender the captured input in a different style or format
+without rereading the clipboard or automatically pasting again.

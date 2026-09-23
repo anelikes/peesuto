@@ -79,7 +79,9 @@ further acceptance. The synthetic format tests are not a claim of completed
 production migration. At the first-build baseline there was no native
 account/pack-management UI, video action, native updater, signed release pipeline
 or task lifecycle protocol. Video and lifecycle status were added in the follow-up below.
-The existing Core request loop remains sequential. Old `app/` is retained.
+The existing Core request loop remained sequential. The old desktop was retained
+at this baseline; it has since been removed from the current checkout. Historical
+results above are unchanged; current build instructions are in `native/README.md`.
 
 ## Media shortcut follow-up — 2026-09-22
 
@@ -113,3 +115,16 @@ Task lifecycle events are opt-in and the idle deadline pauses during active work
   outside this UI acceptance. Synthetic tests validate the conservative policy,
   not target-app media support. Account/packs, finer progress/concurrency,
   native updating and signed distribution remain outstanding.
+
+## Legacy source retirement — 2026-09-22
+
+The tracked legacy desktop source/configuration was removed by explicit product
+decision. `native/` is now the only desktop implementation, and
+`scripts/build-native.ts` is the complete application builder. Sidecar staging
+defaults to `native/.bundle`. CI definitions now run native checks and bundle
+smoke; the manual build workflow uploads validation ZIPs only, with no tag
+publishing, signing secrets or updater metadata. Native signing/notarization,
+updates and previously listed missing UI/real-device acceptance remain open.
+These changes do not retroactively complete the historical acceptance above.
+The cleanup does not delete installed applications, production history or
+engine Rust/WASM. Legacy local build-cache cleanup is separate from acceptance.

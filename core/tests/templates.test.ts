@@ -1,0 +1,199 @@
+import { describe, expect, test } from "bun:test";
+import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
+import { parseTemplates } from "../src/templates/parse.ts";
+import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
+import { MOTIONS, TEMPLATE_IDS, TemplateInputError } from "../src/templates/types.ts";
+
+const base = { aspect: "chat" as const, output: "gif" as const, decider: null };
+const choice = (value: string, confidence = 0.9) => ({ choice: value, probabilities: { [value]: confidence } });
+const decider = (answers: unknown) => ({ name: "fixture", ask: async () => answers });
+
+describe("template registry", () => {
+  test("each of the eight templates exposes two distinct styles and motion choices", () => {
+    expect(TEMPLATE_REGISTRY.map((template) => template.id)).toEqual([...TEMPLATE_IDS]);
+    for (const entry of TEMPLATE_REGISTRY) {
+      expect(entry.variants.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(entry.variants.map((variant) => variant.id)).size).toBe(entry.variants.length);
+      expect(entry.motions).toEqual([...MOTIONS]);
+      expect(entry.nameZh.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("source-backed content parsing", () => {
+  const fixtures = [
+    ["document", "Ordinary prose.\nStill the same paragraph.\n\nA new paragraph."],
+    ["quote", "“Simplicity is a choice.” — Ada"],
+    ["code", "```typescript\nconst greeting = 'hello';\n  console.log(greeting);\n```"],
+    ["stat", "Conversion rate: 42.5%"],
+    ["list", "1. First item\n2. Second item"],
+    ["chat", "Alice: Hello.\nBob: Hi!\nAlice: Good to see you."],
+    ["table", "| Name | Score |\n| --- | ---: |\n| Ada | 42 |\n| Bob | 37 |"],
+    ["comparison", "Before:\n- Two windows\n- Extra clicks\n\nAfter:\n- One window\n- Direct action"],
+  ] as const;
+  for (const [kind, source] of fixtures) {
+    test(`recognizes ${kind} and retains original source`, () => {
+      const parsed = parseTemplates(source);
+      expect(parsed.sourceText).toBe(source);
+      expect(parsed.preferred).toBe(kind);
+      expect(parsed.candidates.get(kind)?.kind).toBe(kind);
+      expect(parsed.candidates.has("document")).toBe(true);
+    });
+  }
+  test("preserves source line endings and indentation; code content is not rewritten", () => {
+    const source = "```swift\r\n  let x = 1\r\n    print(x)\r\n```\r\n";
+    expect(parseTemplates(source).sourceText).toBe(source);
+    expect(parseTemplates(source).candidates.get("code")).toEqual({ kind: "code", language: "swift", code: "  let x = 1\n    print(x)" });
+  });
+  test("quote attribution is optional and never manufactured", () => {
+    expect(parseTemplates("“A thought without attribution.”").candidates.get("quote"))
+      .toEqual({ kind: "quote", text: "A thought without attribution." });
+    expect(parseTemplates("> First line\n> Second line\n— A real source").candidates.get("quote"))
+      .toEqual({ kind: "quote", text: "First line\nSecond line", author: "A real source" });
+    expect(parseTemplates("“正文。”——作者").candidates.get("quote"))
+      .toEqual({ kind: "quote", text: "正文。", author: "作者" });
+    expect(parseTemplates('“Mismatched quotation"').preferred).toBe("document");
+  });
+  test("raw commands and code preserve their complete source", () => {
+    for (const source of ["const x = 42;\nconsole.log(x);", "git status --short", "curl https://example.com", '{ "key": "value" }']) {
+      expect(parseTemplates(source).candidates.get("code")).toEqual({ kind: "code", code: source });
+    }
+  });
+  test("raw code retains boundary whitespace and relative indentation", () => {
+    const source = "\r\n    def nested():\r\n        return 1\r\n";
+    const parsed = parseTemplates(source);
+    expect(parsed.sourceText).toBe(source);
+    expect(parsed.candidates.get("code")).toEqual({ kind: "code", code: "\n    def nested():\n        return 1\n" });
+    const document = parsed.candidates.get("document");
+    expect(document?.kind === "document" ? document.blocks : []).toEqual([
+      { kind: "paragraph", text: "    def nested():\n        return 1" },
+    ]);
+  });
+  test("nested lists keep the entire indented group in the document fallback", () => {
+    const source = "  - Parent\n    - First child\n    - Second child";
+    const parsed = parseTemplates(source);
+    expect(parsed.preferred).toBe("document");
+    expect(parsed.candidates.get("document")).toEqual({ kind: "document", paragraphs: [source], blocks: [{ kind: "paragraph", text: source }] });
+  });
+  test("TSV trailing empty cells survive boundary parsing", () => {
+    expect(parseTemplates("Name\tScore\nAda\t\n").candidates.get("table"))
+      .toEqual({ kind: "table", headers: ["Name", "Score"], rows: [["Ada", ""]] });
+  });
+  test("mixed Markdown retains headings, paragraphs, lists and fenced code as separate blocks", () => {
+    const source = "# A title\n\nA paragraph with **original inline markers**.\n\n- One\n- Two\n\n```js\n  const value = 1;\n```\n\n## Final thought\nNothing omitted.";
+    const content = parseTemplates(source).candidates.get("document");
+    expect(parseTemplates(source).preferred).toBe("document");
+    expect(content?.kind === "document" ? content.blocks : []).toEqual([
+      { kind: "heading", level: 1, text: "A title" },
+      { kind: "paragraph", text: "A paragraph with **original inline markers**." },
+      { kind: "list", ordered: false, items: ["One", "Two"] },
+      { kind: "code", language: "js", code: "  const value = 1;" },
+      { kind: "heading", level: 2, text: "Final thought" },
+      { kind: "paragraph", text: "Nothing omitted." },
+    ]);
+  });
+  test("multiple fenced blocks do not collapse into one code template", () => {
+    const parsed = parseTemplates("```js\nconst a = 1;\n```\n\n```js\nconst b = 2;\n```");
+    expect(parsed.preferred).toBe("document");
+    const content = parsed.candidates.get("document");
+    expect(content?.kind === "document" ? content.blocks?.length : 0).toBe(2);
+  });
+  test("explicit speaker labels preserve turns without inventing names", () => {
+    expect(parseTemplates("[林]: 你好\n[陈]: 下午见").candidates.get("chat"))
+      .toEqual({ kind: "chat", turns: [{ speaker: "林", text: "你好" }, { speaker: "陈", text: "下午见" }] });
+  });
+  test("escaped table pipes and empty body cells retain their content", () => {
+    expect(parseTemplates("| Value | Note |\n| --- | --- |\n| A\\|B | | ").candidates.get("table"))
+      .toEqual({ kind: "table", headers: ["Value", "Note"], rows: [["A|B", ""]] });
+  });
+  test("tab-separated columns require a rectangular table", () => {
+    expect(parseTemplates("Name\tScore\nAda\t42").preferred).toBe("table");
+    expect(parseTemplates("Name\tScore\nAda\t42\textra").preferred).toBe("document");
+  });
+  const ambiguous = [
+    "Someone said this sentence yesterday.", "Name: Ada\nAge: 32", "Name: Ada\nAge: 32\nName: Bob", "Hello: world\nAnother: field",
+    "A: A single speaker line", "Before:\nOnly one side", "Left column\nRight column",
+    "Title A:\nSomething\nTitle B:\nSomething else", "| A | B |\n| x | y |", "| A | B |\n| --- | --- |\n| x |",
+    "- parent\n  - child", "3. Third\n7. Seventh", "1. First\n- Second", "```js\nunterminated",
+  ];
+  for (const source of ambiguous) test(`keeps ambiguous input as document: ${source.split("\n")[0]}`, () => {
+    expect(parseTemplates(source).preferred).toBe("document");
+  });
+  test("rejects empty input", () => { expect(() => parseTemplates(" \n ")).toThrow(TemplateInputError); });
+});
+
+describe("constrained template decisions", () => {
+  test("local rules and none providers never invoke ask", async () => {
+    for (const name of ["rules", "none"]) {
+      let called = false;
+      const result = await decideTemplate("- one\n- two", { ...base, decider: { name, ask: async () => { called = true; throw new Error("must not call"); } } });
+      expect(called).toBe(false);
+      expect(result.plan.template).toBe("list");
+      expect(result.decisionSource).toBe("rules");
+    }
+  });
+  test("Jev sees only source-compatible templates and registered style ids", () => {
+    const request = buildTemplateRequest(parseTemplates("Alice: Hello\nBob: Hi"), true);
+    const questions = request.questions as Record<string, { criteria: Record<string, string> }>;
+    expect(Object.keys(questions.template!.criteria)).toEqual(["document", "chat"]);
+    expect(Object.keys(questions.variant!.criteria)).toEqual(["document.classic", "document.editorial", "chat.classic", "chat.editorial"]);
+    expect(Object.keys((buildTemplateRequest(parseTemplates("Text"), false).questions.motion as { criteria: object }).criteria)).toEqual(["none"]);
+  });
+  test("confident valid decisions select presentation while content comes only from source", async () => {
+    const source = "Alice: Hello\nBob: Hi";
+    const result = await decideTemplate(source, { ...base, decider: decider({
+      template: choice("chat"), variant: choice("chat.editorial"), motion: choice("typewriter"),
+      content: { turns: [{ speaker: "invented", text: "forged" }] },
+    }) });
+    expect(result.plan).toMatchObject({ version: 1, template: "chat", variant: "editorial", motion: "typewriter", sourceText: source });
+    expect(result.plan.content).toEqual(parseTemplates(source).candidates.get("chat")!);
+    expect(result.decisionSource).toBe("jev");
+  });
+  test("a model cannot select a template absent from the parsed source", async () => {
+    const result = await decideTemplate("No named speakers here.", { ...base, decider: decider({ template: choice("chat"), variant: choice("chat.editorial"), motion: choice("typewriter") }) });
+    expect(result.plan.template).toBe("document");
+    expect(result.decisionSource).toBe("fallback");
+  });
+  for (const answer of [null, {}, { template: { choice: "quote" } }, { template: choice("quote", 0.2) }, { template: choice("quote", 3) }, { template: choice("quote", NaN) }]) {
+    test(`malformed/low-confidence answers safely retain local structure: ${JSON.stringify(answer)}`, async () => {
+      const result = await decideTemplate("“A quote.”", { ...base, decider: decider(answer) });
+      expect(result.plan.template).toBe("quote");
+      expect(result.plan.variant).toBe("classic");
+      expect(result.decisionSource).toBe("fallback");
+    });
+  }
+  test("provider failures fall back locally without losing text", async () => {
+    const result = await decideTemplate("Revenue: $42", { ...base, decider: { name: "offline", ask: async () => { throw new Error("offline"); } } });
+    expect(result.plan.content).toEqual({ kind: "stat", label: "Revenue", value: "$42" });
+    expect(result.decisionSource).toBe("fallback");
+  });
+  test("a cross-template style is ignored", async () => {
+    const result = await decideTemplate("“A quote.”", { ...base, decider: decider({ template: choice("quote"), variant: choice("chat.editorial"), motion: choice("unsupported") }) });
+    expect(result.plan.variant).toBe("classic");
+    expect(result.plan.motion).toBe("reveal");
+  });
+  test("saved style overrides model style, explicit style overrides saved style", async () => {
+    const result = await decideTemplate("“A quote.”", { ...base, preferences: { quote: "editorial" }, decider: decider({ template: choice("quote"), variant: choice("quote.classic") }) });
+    expect(result.plan.variant).toBe("editorial");
+    const explicit = await decideTemplate("“A quote.”", { ...base, preferences: { quote: "editorial" }, override: { id: "quote", variant: "classic" } });
+    expect(explicit.plan.variant).toBe("classic");
+    expect(explicit.decisionSource).toBe("override");
+    expect((await decideTemplate("“A quote.”", { ...base, preferences: { quote: "invalid" } })).plan.variant).toBe("classic");
+  });
+  test("manual style rerenders do not call the provider", async () => {
+    let called = false;
+    const result = await decideTemplate("“A quote.”", { ...base, override: { id: "quote", variant: "editorial", motion: "typewriter" }, decider: { name: "remote", ask: async () => { called = true; return null; } } });
+    expect(called).toBe(false);
+    expect(result.plan.motion).toBe("typewriter");
+  });
+  test("incompatible or unknown manual overrides fail explicitly", async () => {
+    await expect(decideTemplate("Ordinary paragraph.", { ...base, override: { id: "chat" } })).rejects.toThrow("explicit structure");
+    await expect(decideTemplate("text", { ...base, override: { variant: "unknown" as never } })).rejects.toThrow("Unknown template style");
+    await expect(decideTemplate("text", { ...base, override: { motion: "unknown" as never } })).rejects.toThrow("Unknown template motion");
+  });
+  test("PNG always has motion none, including explicit motion overrides", async () => {
+    const result = await decideTemplate("Text", { ...base, output: "image", override: { motion: "typewriter" } });
+    expect(result.plan.motion).toBe("none");
+    expect((await decideTemplate("Text", { ...base, output: "video", override: { motion: "none" } })).plan.motion).toBe("none");
+  });
+});

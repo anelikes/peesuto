@@ -39,9 +39,16 @@ Only responses and opted-in lifecycle events are written to stdout; diagnostics 
 | `config.set` | `decider`, `generator` (provider configs), `offline`, `secrets {name: value}`, `egressLog` | `providers` |
 | `pick` | `context`, `candidates[]`, `fresh?` | `result {ranked[], shouldPaste, source}` |
 | `actions.list` / `actions.reload` | — | `actions[]`, `problems[]` |
-| `run-action` | `action` (id), `input {text, item?, context?, aspect?, fresh?}`, `candidates?[]`, `events?` | `result` (text, or path+format for image/GIF/video), `pick?` |
+| `templates.list` | — | bilingual `templates[]` with variants and motions |
+| `run-action` | `action` (id), `input {text, item?, context?, aspect?, fresh?, template?, templatePreferences?}`, `candidates?[]`, `events?` | `result` (text, or path+format for image/GIF/video), `pick?` |
 | `render` | `dsl`, `out?`, `events?` | `path`, `format`, `frames`, `ms` |
 | `shutdown` | — | — |
+
+Media actions use the [structured template pipeline](templates.md). Optional
+`input.template` selects `{id?, variant?, motion?}`; `templatePreferences` maps
+template IDs to saved variant IDs. Result `meta.template` reports the actual
+selection and compatible templates. Content comes from local source parsing,
+not generated model fields. The explicit DSL `render` command remains separate.
 
 Errors: `{"id":n,"ok":false,"kind":"provider:auth","message":"…"}`. The
 kinds are the CLI's (`core/src/daemon/protocol.ts`, `ERROR_KINDS`).
@@ -70,7 +77,7 @@ progress. A process killed during cancellation/crash cannot emit its terminal
 event; the client settles the pending request as an error.
 
 Requests without `events: true` receive no extra lines, preserving compatibility
-with the old Tauri client. Swift's optional `runAction(..., onState:)` enables
+with existing request/response-only CLI and integration callers. Swift's optional `runAction(..., onState:)` enables
 the extension and delivers `CoreTaskState` values. Events do not consume the
 final response continuation or extend its deadline. Unknown future states are
 ignored, and a legacy daemon that only sends a final response remains usable.
@@ -87,8 +94,7 @@ therefore always begins with `config.set`.
 
 `Context`, `ClipItem`, `PickResult`, `ActionSpec`, `ActionInput`,
 `ActionResult` are defined in `core/src/pick/types.ts` and
-`core/src/actions/types.ts`; the Rust side mirrors them with serde structs
-(`app/src-tauri/src/sidecar.rs`). The native client mirrors these in
+`core/src/actions/types.ts`. The native client mirrors these in
 `native/Sources/PeesutoKit/CoreModels.swift`; tests cover response matching,
 configuration barriers, timeouts, crashes, cancellation and worker cleanup.
 

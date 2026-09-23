@@ -15,6 +15,18 @@ const host = async (): Promise<DaemonHost> => ({
 });
 
 describe("daemon", () => {
+  test("template discovery advertises bilingual variants independently of output formats", async () => {
+    const d = new Daemon(await host()); await d.init();
+    const response = await d.handle({ id: 40, cmd: "templates.list" });
+    expect(response.ok && response.cmd === "templates.list").toBe(true);
+    if (!response.ok || response.cmd !== "templates.list") throw new Error("missing templates");
+    expect(response.templates.map(template => template.id)).toEqual(expect.arrayContaining(["document", "quote", "code", "stat", "list", "chat", "table", "comparison"]));
+    for (const template of response.templates) {
+      expect(template.nameZh.length).toBeGreaterThan(0);
+      expect(template.variants.length).toBeGreaterThanOrEqual(2);
+      expect(template.motions).toContain("none");
+    }
+  });
   test("health, actions.list, none action, unknown action, unknown cmd", async () => {
     const d = new Daemon(await host()); await d.init();
     expect(await d.handle({ id: 1, cmd: "health" })).toMatchObject({ id: 1, ok: true, engine: null, providers: { decider: "none", generator: "none" } });

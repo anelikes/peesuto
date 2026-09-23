@@ -13,6 +13,7 @@ import { ComposeError } from "../render/compose.ts";
 import { renderCard, type RenderOptions } from "../render/card.ts";
 import { ProviderError } from "../provider/types.ts";
 import type { Request, Response, TaskEvent } from "./protocol.ts";
+import { TEMPLATE_REGISTRY } from "../templates/registry.ts";
 
 export interface DaemonHost {
   readonly version: string;
@@ -83,6 +84,8 @@ export class Daemon {
         }
         case "actions.list":
           return { id, ok: true, cmd: "actions.list", actions: this.actions.actions, problems: this.actions.problems };
+        case "templates.list":
+          return { id, ok: true, cmd: "templates.list", templates: TEMPLATE_REGISTRY };
         case "actions.reload":
           await this.reload();
           return { id, ok: true, cmd: "actions.reload", actions: this.actions.actions, problems: this.actions.problems };

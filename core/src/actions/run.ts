@@ -8,9 +8,12 @@ import type { JevRequest } from "../questions.ts";
 import { pick } from "../pick/index.ts";
 import type { ClipItem, Context, PickResult } from "../pick/types.ts";
 import { summarizeContext } from "../pick/summarize.ts";
-import { renderCard, type RenderOptions } from "../render/card.ts";
-import { decideCard, type CardDecider } from "../render/pipeline.ts";
+import type { RenderOptions } from "../render/card.ts";
+import type { CardDecider } from "../render/pipeline.ts";
 import { resolveFFmpeg, VideoUnavailableError } from "../render/video.ts";
+import { decideTemplate } from "../templates/decide.ts";
+import { renderTemplate } from "../templates/render.ts";
+import { TemplateInputError } from "../templates/types.ts";
 import { ActionError, type ActionInput, type ActionResult, type ActionSpec } from "./types.ts";
 
 export interface GeneratorLike {
@@ -62,11 +65,21 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
         }
       }
       const aspect = input.aspect ?? spec.render?.aspect ?? "chat";
-      const animate = spec.render?.animate === "always" ? true : spec.render?.animate === "never" ? false : undefined;
-      const { dsl, decided } = await decideCard(input.text, { aspect, decider: deps.decider, force: animate === undefined ? undefined : { animate }, catalog: deps.catalog });
-      const r = await renderCard(dsl, { ...deps.render, catalog: deps.catalog, format: spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png", ffmpeg });
+      let decision;
+      try {
+        decision = await decideTemplate(input.text, { aspect, decider: deps.decider, output: spec.output,
+          override: input.template, preferences: input.templatePreferences, animate: spec.render?.animate });
+      } catch (error) {
+        if (error instanceof TemplateInputError) throw new ActionError("input", error.message);
+        throw error;
+      }
+      const { plan, decisionSource, availableTemplates } = decision;
+      const r = await renderTemplate(plan, { ...deps.render, catalog: deps.catalog, format: spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png", ffmpeg });
       if (spec.output === "gif" && r.format !== "gif") throw new ActionError("run", `${spec.id}: the card came out static`);
-      return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: { dsl, decided, lines: r.lines, size: r.size, frames: r.frames, render: r.ms } };
+      return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: {
+        template: { id: plan.template, variant: plan.variant, motion: plan.motion, decisionSource, availableTemplates },
+        lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
+      } };
     }
     case "decider": {
       const candidates = deps.candidates ? await deps.candidates() : input.item ? [input.item] : [];
