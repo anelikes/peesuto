@@ -2,6 +2,10 @@
  * The Studio's use of core: decide a text the way the app does, expand the
  * decision into render jobs (every style of the chosen template, every style of
  * the other candidates, each motion as GIF, one MP4), and render one job.
+ * PNG jobs use the image frame (default "auto": width by content, height hugs
+ * it); GIF/MP4 jobs use the fixed animated frame (default "1:1"). The optional
+ * frame comparison renders the chosen template's classic style as PNG in every
+ * image frame.
  *
  * Templates, styles and motions come from TEMPLATE_REGISTRY at run time, so a
  * template added to core shows up without changes here. Used in-process by the
@@ -9,20 +13,26 @@
  * core's template code changes, so it always runs the current code).
  */
 import { join } from "node:path";
-import type { Aspect } from "../../core/src/dsl.ts";
 import { cachedProvider, createProvider } from "../../core/src/provider/index.ts";
 import type { CardDecider } from "../../core/src/render/pipeline.ts";
 import { decideTemplate } from "../../core/src/templates/decide.ts";
 import { TEMPLATE_REGISTRY, templateRegistration } from "../../core/src/templates/registry.ts";
 import { renderTemplate } from "../../core/src/templates/render.ts";
-import type { TemplateId, TemplateMotion, TemplatePlan, VariantId } from "../../core/src/templates/types.ts";
+import { TEMPLATE_ASPECTS, type FixedAspect, type TemplateAspect, type TemplateId, type TemplateMotion, type TemplatePlan, type VariantId } from "../../core/src/templates/types.ts";
 
 export type Format = "png" | "gif" | "mp4";
 export type DeciderKind = "rules" | "jev";
-export type JobGroup = "chosen" | "other" | "motion" | "video";
+export type JobGroup = "chosen" | "frames" | "other" | "motion" | "video";
 
-/** Which parts of the grid to render. */
-export interface Formats { readonly png: boolean; readonly others: boolean; readonly gif: boolean; readonly mp4: boolean }
+/** Card frames. GIF/MP4 have no "auto": their frame is strictly fixed. */
+export const IMAGE_FRAMES = TEMPLATE_ASPECTS;
+export const MOTION_FRAMES = TEMPLATE_ASPECTS.filter((a): a is FixedAspect => a !== "auto");
+export type ImageFrame = TemplateAspect;
+export type MotionFrame = FixedAspect;
+export const frameName = (frame: string) => (frame === "auto" ? "自动" : frame);
+
+/** Which parts of the grid to render. `frames` is the frame comparison (off by default). */
+export interface Formats { readonly png: boolean; readonly others: boolean; readonly gif: boolean; readonly mp4: boolean; readonly frames?: boolean }
 export const ALL_FORMATS: Formats = { png: true, others: true, gif: true, mp4: true };
 
 export interface JobSpec {
@@ -31,6 +41,9 @@ export interface JobSpec {
   readonly motion: string;
   readonly format: Format;
   readonly group: JobGroup;
+  /** The frame this job renders in (plan.aspect). */
+  readonly frame: string;
+  /** Template · style · [motion ·] format · frame; the page adds the pixel size once rendered. */
   readonly label: string;
   /** The automatic decision itself (the first PNG). */
   readonly auto: boolean;
@@ -66,8 +79,8 @@ const FORMAT_ZH: Record<Format, string> = { png: "PNG", gif: "GIF", mp4: "视频
 export const motionName = (motion: string) => MOTION_ZH[motion] ?? motion;
 export const templateName = (id: string) => templateRegistration(id as TemplateId)?.nameZh ?? id;
 export const variantName = (id: string, variant: string) => templateRegistration(id as TemplateId)?.variants.find((v) => v.id === variant)?.nameZh ?? variant;
-export const jobLabel = (template: string, variant: string, motion: string, format: Format) =>
-  [templateName(template), variantName(template, variant), ...(format === "png" ? [] : [motionName(motion)]), FORMAT_ZH[format]].join(" · ");
+export const jobLabel = (template: string, variant: string, motion: string, format: Format, frame: string) =>
+  [templateName(template), variantName(template, variant), ...(format === "png" ? [] : [motionName(motion)]), FORMAT_ZH[format], frameName(frame)].join(" · ");
 
 /** Registry summary for the page (names only). */
 export function registrySummary() {
@@ -88,28 +101,33 @@ export const jevAvailable = () => Boolean(process.env.PASTE_CF_TOKEN && process.
  * automatic PNG. Jev's style and emphasis are kept for the chosen template's
  * GIF/MP4 (its plan is reused with another motion, not re-decided).
  */
-export async function planText(text: string, o: { aspect: Aspect; decider: DeciderKind; answersDir: string; formats: Formats; video: boolean; autoOnly?: boolean }): Promise<PlanResult> {
+export async function planText(text: string, o: { imageFrame: ImageFrame; motionFrame: MotionFrame; decider: DeciderKind; answersDir: string; formats: Formats; video: boolean; autoOnly?: boolean }): Promise<PlanResult> {
   const started = performance.now();
-  const auto = await decideTemplate(text, { aspect: o.aspect, output: "image", decider: makeDecider(o.decider, o.answersDir) });
+  const auto = await decideTemplate(text, { aspect: o.imageFrame, output: "image", decider: makeDecider(o.decider, o.answersDir) });
   const ms = Math.round(performance.now() - started);
   const chosen = auto.plan.template;
   const registration = templateRegistration(chosen);
   const jobs: JobSpec[] = [];
-  const add = (plan: TemplatePlan, format: Format, group: JobGroup, isAuto = false) =>
-    jobs.push({ template: plan.template, variant: plan.variant, motion: plan.motion, format, group, auto: isAuto, label: jobLabel(plan.template, plan.variant, plan.motion, format), plan });
+  const add = (plan: TemplatePlan, format: Format, group: JobGroup, isAuto = false) => {
+    const frame = String(plan.aspect);
+    jobs.push({ template: plan.template, variant: plan.variant, motion: plan.motion, format, group, frame, auto: isAuto, label: jobLabel(plan.template, plan.variant, plan.motion, format, frame), plan });
+  };
+  // Content does not depend on the frame, so one decision serves every frame.
+  const inFrame = (plan: TemplatePlan, frame: TemplateAspect): TemplatePlan => ({ ...plan, aspect: frame });
 
   add(auto.plan, "png", "chosen", true);
   if (!o.autoOnly) {
     if (o.formats.png) for (const v of registration.variants) if (v.id !== auto.plan.variant) add({ ...auto.plan, variant: v.id }, "png", "chosen");
+    if (o.formats.frames) for (const frame of IMAGE_FRAMES) add(inFrame({ ...auto.plan, variant: "classic" }, frame), "png", "frames");
     if (o.formats.others) {
       for (const other of auto.availableTemplates.filter((id) => id !== chosen)) {
-        const base = await decideTemplate(text, { aspect: o.aspect, output: "image", decider: null, override: { id: other } });
+        const base = await decideTemplate(text, { aspect: o.imageFrame, output: "image", decider: null, override: { id: other } });
         for (const v of templateRegistration(other).variants) add({ ...base.plan, variant: v.id as VariantId }, "png", "other");
       }
     }
     const motions = registration.motions.filter((m) => m !== "none") as TemplateMotion[];
-    if (o.formats.gif) for (const motion of motions) add({ ...auto.plan, motion }, "gif", "motion");
-    if (o.formats.mp4 && o.video && motions[0]) add({ ...auto.plan, motion: motions[0] }, "mp4", "video");
+    if (o.formats.gif) for (const motion of motions) add(inFrame({ ...auto.plan, motion }, o.motionFrame), "gif", "motion");
+    if (o.formats.mp4 && o.video && motions[0]) add(inFrame({ ...auto.plan, motion: motions[0] }, o.motionFrame), "mp4", "video");
   }
   return {
     decision: {

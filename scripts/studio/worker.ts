@@ -4,7 +4,7 @@
  * replies are stdout lines prefixed with REPLY_PREFIX (anything else a child
  * process prints is ignored by the server).
  *
- *   {"id":1,"op":"plan","text":"…","aspect":"chat","decider":"rules","formats":{…},"video":true,"answersDir":"…","autoOnly":false}
+ *   {"id":1,"op":"plan","text":"…","imageFrame":"auto","motionFrame":"1:1","decider":"rules","formats":{…},"video":true,"answersDir":"…","autoOnly":false}
  *   {"id":2,"op":"render","plan":{…},"format":"png","out":"/abs/file.png","engine":{…}}
  *   {"id":3,"op":"registry"}
  */
@@ -16,7 +16,7 @@ type Request = { id: number; op: string; [key: string]: any };
 
 async function handle(req: Request): Promise<unknown> {
   switch (req.op) {
-    case "plan": return await planText(req.text, { aspect: req.aspect, decider: req.decider, answersDir: req.answersDir, formats: req.formats, video: req.video, autoOnly: req.autoOnly });
+    case "plan": return await planText(req.text, { imageFrame: req.imageFrame, motionFrame: req.motionFrame, decider: req.decider, answersDir: req.answersDir, formats: req.formats, video: req.video, autoOnly: req.autoOnly });
     case "render": return await renderJob(req.plan, req.format, req.out, req.engine);
     case "registry": return registrySummary();
     default: throw new Error(`unknown op ${req.op}`);

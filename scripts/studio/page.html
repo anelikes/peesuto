@@ -83,7 +83,8 @@ figcaption a:hover{text-decoration:underline}
 </aside>
 <main>
   <div class="toolbar">
-    <div class="group"><span class="cap">画幅</span><div class="seg" id="aspect"></div></div>
+    <div class="group"><span class="cap">图片画幅</span><div class="seg" id="imageFrame"></div></div>
+    <div class="group"><span class="cap">动图/视频画幅</span><div class="seg" id="motionFrame"></div></div>
     <div class="group" id="formats"><span class="cap">渲染</span></div>
     <div class="group"><span class="cap">决策</span><div class="seg" id="decider"></div></div>
     <div class="qstate" id="qstate"></div>
@@ -99,17 +100,22 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem("studio." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem("studio." + k, JSON.stringify(v)); } catch {} },
 };
-const ASPECTS = [["chat", "聊天", "1080×1080"], ["doc", "文档", "1920×1080"], ["social", "竖屏", "1080×1920"]];
-const FORMATS = [["png", "本模板各风格 PNG"], ["others", "其他可选模板"], ["gif", "GIF 动效"], ["mp4", "MP4 视频"]];
+// Mirrors core's TEMPLATE_ASPECTS. PNG uses the image frame; GIF/MP4 the fixed animated frame.
+const IMAGE_FRAMES = [["auto", "自动", "宽随内容，高贴合"], ["1:1", "1:1", "1080×1080"], ["4:5", "4:5", "1080×1350"], ["16:9", "16:9", "1920×1080"], ["9:16", "9:16", "1080×1920"]];
+const MOTION_FRAMES = IMAGE_FRAMES.slice(1);
+const frameName = (f) => f === "auto" ? "自动" : f;
+const FORMATS = [["png", "本模板各风格 PNG"], ["frames", "画幅对比"], ["others", "其他可选模板"], ["gif", "GIF 动效"], ["mp4", "MP4 视频"]];
 const SOURCE = { rules: "本地规则", jev: "Jev", fallback: "回退到本地规则", override: "手动指定" };
-const GROUPS = [["chosen", "自动选择的模板 · 全部风格"], ["other", "其他可选模板"], ["motion", "GIF 动效"], ["video", "视频"]];
+const GROUPS = [["chosen", "自动选择的模板 · 全部风格"], ["frames", "画幅对比 · 经典风格 PNG · 每个图片画幅"], ["other", "其他可选模板"], ["motion", "GIF 动效"], ["video", "视频"]];
 
+function pick(list, value, fallback) { return list.some(([id]) => id === value) ? value : fallback; }
 const S = {
   info: null, version: "", seq: 0, cards: new Map(),
   view: viewFromHash() ?? store.get("view", { mode: "overview" }),
-  aspect: store.get("aspect", "chat"),
+  imageFrame: pick(IMAGE_FRAMES, store.get("imageFrame", "auto"), "auto"),
+  motionFrame: pick(MOTION_FRAMES, store.get("motionFrame", "1:1"), "1:1"),
   decider: store.get("decider", "rules"),
-  formats: Object.assign({ png: true, others: true, gif: true, mp4: true }, store.get("formats", {})),
+  formats: Object.assign({ png: true, frames: false, others: true, gif: true, mp4: true }, store.get("formats", {})),
   custom: store.get("custom", ""),
 };
 
@@ -121,9 +127,17 @@ async function api(path, body) {
 function setVersion(v) { S.version = v; $("#ver").textContent = v; }
 
 function buildToolbar() {
-  const aspect = $("#aspect");
-  aspect.innerHTML = ASPECTS.map(([id, name, size]) => `<button data-id="${id}" class="${S.aspect === id ? "on" : ""}">${name}<small>${size}</small></button>`).join("");
-  aspect.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; S.aspect = b.dataset.id; store.set("aspect", S.aspect); buildToolbar(); show(); };
+  const frameSeg = (el, list, key, stillsOnly) => {
+    el.innerHTML = list.map(([id, name, size]) => `<button data-id="${id}" class="${S[key] === id ? "on" : ""}" title="${size}">${name}</button>`).join("");
+    el.onclick = (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      S[key] = b.dataset.id; store.set(key, S[key]); buildToolbar();
+      // The overview shows PNGs only, so the animated frame does not change it.
+      if (!(stillsOnly && S.view.mode === "overview")) show();
+    };
+  };
+  frameSeg($("#imageFrame"), IMAGE_FRAMES, "imageFrame", false);
+  frameSeg($("#motionFrame"), MOTION_FRAMES, "motionFrame", true);
   const formats = $("#formats");
   formats.innerHTML = `<span class="cap">渲染</span>` + FORMATS.map(([id, name]) => {
     const off = id === "mp4" && !S.info.ffmpeg;
@@ -176,7 +190,13 @@ function metaLine(job) {
   if (m.cached) parts.push("缓存");
   return parts.join(" · ");
 }
+/** Card label: template · style · [motion ·] format · frame, plus the actual pixel size once rendered. */
+function labelText(job, opts = {}) {
+  const size = job.meta ? ` ${job.meta.width}×${job.meta.height}` : "";
+  return `${opts.title ?? job.label + size}${job.auto && !opts.tile ? "（自动）" : ""}`;
+}
 function paint(fig, job) {
+  fig.querySelector(".label").textContent = labelText(job, fig._opts);
   const media = fig.querySelector(".media");
   const st = media.dataset.status;
   if (st === job.status && st !== "running") { fig.querySelector(".meta").textContent = metaLine(job); return; }
@@ -202,7 +222,8 @@ function card(job, opts = {}) {
   const fig = document.createElement("figure");
   if (job.auto && !opts.tile) fig.classList.add("auto");
   if (opts.tile) fig.classList.add("tile");
-  fig.innerHTML = `<div class="media" data-status=""></div><figcaption><div class="label">${esc(opts.title ?? job.label)}${job.auto && !opts.tile ? "（自动）" : ""}</div>`
+  fig._opts = opts;
+  fig.innerHTML = `<div class="media" data-status=""></div><figcaption><div class="label">${esc(labelText(job, opts))}</div>`
     + (opts.sub ? `<div class="meta-sub" style="color:var(--muted)">${esc(opts.sub)}</div>` : "")
     + `<div class="meta"></div>`
     + (opts.tile ? "" : `<div class="links"><a href="${job.url}" target="_blank">打开文件</a><a data-reveal="${job.key}">在 Finder 中显示</a></div>`)
@@ -220,7 +241,14 @@ function onJob(job) {
 
 // ---- views ----
 const content = () => $("#content");
-function colWidth() { return S.aspect === "doc" ? "360px" : S.aspect === "social" ? "220px" : "260px"; }
+function colWidth(frame, scale = 1) {
+  const px = frame === "16:9" ? 360 : frame === "9:16" ? 200 : frame === "4:5" ? 240 : 260;
+  return `${Math.round(px * scale)}px`;
+}
+function groupCol(group) {
+  if (group === "frames") return "220px";
+  return colWidth(group === "motion" || group === "video" ? S.motionFrame : S.imageFrame);
+}
 
 async function show() {
   S.cards = new Map();
@@ -245,7 +273,7 @@ async function show() {
 
 async function scenarioView(seq, target, root) {
   root.innerHTML = `<pre class="src">${esc(target.text)}</pre><div class="decision"><span class="spin" style="margin:0"></span><span>${S.decider === "jev" ? "正在问 Jev…" : "决策中…"}</span></div>`;
-  const body = { aspect: S.aspect, decider: S.decider, formats: S.formats, ...(target.scenario ? { scenario: target.scenario } : { text: target.text }) };
+  const body = { imageFrame: S.imageFrame, motionFrame: S.motionFrame, decider: S.decider, formats: S.formats, ...(target.scenario ? { scenario: target.scenario } : { text: target.text }) };
   const r = await api("/api/plan", body).catch((e) => ({ error: { kind: "network", message: String(e) } }));
   if (seq !== S.seq) return;
   if (r.version) setVersion(r.version);
@@ -267,21 +295,21 @@ async function scenarioView(seq, target, root) {
     const jobs = r.jobs.filter((j) => j.group === group);
     if (!jobs.length) continue;
     const h = document.createElement("h4"); h.textContent = `${title}（${jobs.length}）`; root.appendChild(h);
-    const grid = document.createElement("div"); grid.className = "grid"; grid.style.setProperty("--col", colWidth());
+    const grid = document.createElement("div"); grid.className = "grid"; grid.style.setProperty("--col", groupCol(group));
     for (const job of jobs) grid.appendChild(card(job));
     root.appendChild(grid);
   }
 }
 
 async function overview(seq) {
-  content().innerHTML = `<h2>全部场景总览</h2><p style="color:var(--muted);margin:0 0 14px">每个场景按${S.decider === "jev" ? " Jev " : "本地规则"}自动选择的第一张 PNG，点一下打开该场景。</p><div id="ov"><div class="decision"><span class="spin" style="margin:0"></span><span>决策中…</span></div></div>`;
-  const r = await api("/api/overview", { aspect: S.aspect, decider: S.decider }).catch((e) => ({ error: { kind: "network", message: String(e) } }));
+  content().innerHTML = `<h2>全部场景总览</h2><p style="color:var(--muted);margin:0 0 14px">每个场景按${S.decider === "jev" ? " Jev " : "本地规则"}自动选择的第一张 PNG（图片画幅 ${frameName(S.imageFrame)}），点一下打开该场景。</p><div id="ov"><div class="decision"><span class="spin" style="margin:0"></span><span>决策中…</span></div></div>`;
+  const r = await api("/api/overview", { imageFrame: S.imageFrame, motionFrame: S.motionFrame, decider: S.decider }).catch((e) => ({ error: { kind: "network", message: String(e) } }));
   if (seq !== S.seq) return;
   if (r.version) setVersion(r.version);
   const root = $("#ov");
   if (r.error) { root.innerHTML = `<div class="errline">${esc(r.error.message)}</div>`; return; }
   root.innerHTML = "";
-  const grid = document.createElement("div"); grid.className = "grid"; grid.style.setProperty("--col", S.aspect === "doc" ? "300px" : S.aspect === "social" ? "170px" : "210px");
+  const grid = document.createElement("div"); grid.className = "grid"; grid.style.setProperty("--col", colWidth(S.imageFrame, 0.82));
   for (const item of r.items) {
     let fig;
     if (item.job) {

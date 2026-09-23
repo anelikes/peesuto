@@ -13,7 +13,9 @@ import type { DecisionInfo, Formats, JobSpec, PlanResult, RenderMeta } from "./p
 import { SCENARIOS } from "./scenarios.ts";
 import { REPLY_PREFIX } from "./worker.ts";
 
-const ASPECTS = ["chat", "doc", "social"] as const;
+/** Mirrors core's TEMPLATE_ASPECTS (the server does not load core; workers do). */
+const IMAGE_FRAMES = ["auto", "1:1", "4:5", "16:9", "9:16"] as const;
+const MOTION_FRAMES = ["1:1", "4:5", "16:9", "9:16"] as const;
 
 export interface StudioOptions {
   readonly repo: string;
@@ -106,7 +108,8 @@ interface Job {
   error?: { kind: string; message: string };
 }
 
-interface PlanRequest { scenario?: string; text?: string; aspect?: string; decider?: string; formats?: Partial<Formats> }
+interface PlanRequest { scenario?: string; text?: string; imageFrame?: string; motionFrame?: string; decider?: string; formats?: Partial<Formats> }
+interface Frames { readonly imageFrame: string; readonly motionFrame: string }
 
 export async function startStudio(o: StudioOptions) {
   const cacheDir = join(o.root, "cache");
@@ -132,12 +135,14 @@ export async function startStudio(o: StudioOptions) {
   const queueState = () => ({ pending: queue.length, running: running ? jobs.get(running)?.spec.label : undefined });
 
   const fileOf = (job: Job) => join(cacheDir, `${job.key}.${job.spec.format}`);
-  const view = (job: Job) => ({
-    key: job.key, label: job.spec.label, template: job.spec.template, variant: job.spec.variant, motion: job.spec.motion, format: job.spec.format,
-    group: job.spec.group, auto: job.spec.auto, status: job.status, meta: job.meta, error: job.error,
+  // `spec` is the requested one: two specs can share a render (the automatic PNG is also in the frame comparison).
+  const view = (job: Job, spec: JobSpec = job.spec) => ({
+    key: job.key, label: spec.label, template: spec.template, variant: spec.variant, motion: spec.motion, format: spec.format,
+    group: spec.group, frame: spec.frame, auto: spec.auto, status: job.status, meta: job.meta, error: job.error,
     url: `/files/${job.key}.${job.spec.format}`, path: fileOf(job),
   });
-  const publish = (job: Job) => broadcast({ type: "job", job: view(job) });
+  // Job events carry status and meta only; the page keeps each card's own label and group.
+  const publish = (job: Job) => { const { key, status, meta, error, url, path } = view(job); broadcast({ type: "job", job: { key, status, meta, error, url, path } }); };
 
   // --- code version ---
   async function refreshVersion(): Promise<string> {
@@ -188,11 +193,13 @@ export async function startStudio(o: StudioOptions) {
   }
 
   /** Register planned jobs (cache hits come back done) and queue the rest, first or last. */
-  async function admit(text: string, aspect: string, decider: string, specs: readonly JobSpec[], front: boolean): Promise<Job[]> {
-    const admitted: Job[] = [];
+  async function admit(text: string, frames: Frames, decider: string, specs: readonly JobSpec[], front: boolean): Promise<ReturnType<typeof view>[]> {
+    const admitted: ReturnType<typeof view>[] = [];
     const fresh: string[] = [];
     for (const spec of specs) {
-      const key = hash([text, aspect, spec.template, spec.variant, spec.motion, spec.format, decider, version]);
+      // Both frames: the decision is made in the image frame; GIF/MP4 render in the motion frame
+      // (left out of PNG keys so switching it does not re-render stills). spec.frame is the frame drawn.
+      const key = hash([text, frames.imageFrame, spec.format === "png" ? "" : frames.motionFrame, spec.frame, spec.template, spec.variant, spec.motion, spec.format, decider, version]);
       let job = jobs.get(key);
       if (!job || job.status === "stale") {
         job = { key, version, spec, status: "queued" };
@@ -203,7 +210,7 @@ export async function startStudio(o: StudioOptions) {
         jobs.set(key, job);
       }
       if (job.status === "queued") fresh.push(key);
-      admitted.push(job);
+      admitted.push(view(job, spec));
     }
     const rest = queue.filter((k) => !fresh.includes(k));
     queue = front ? [...fresh, ...rest] : [...rest, ...fresh];
@@ -213,14 +220,17 @@ export async function startStudio(o: StudioOptions) {
   }
 
   const parseCommon = (body: PlanRequest) => {
-    const aspect = ASPECTS.includes(body.aspect as never) ? body.aspect! : "chat";
+    const frames: Frames = {
+      imageFrame: IMAGE_FRAMES.includes(body.imageFrame as never) ? body.imageFrame! : "auto",
+      motionFrame: MOTION_FRAMES.includes(body.motionFrame as never) ? body.motionFrame! : "1:1",
+    };
     const decider = body.decider === "jev" && jev ? "jev" : "rules";
     const f = body.formats ?? {};
-    const formats: Formats = { png: f.png !== false, others: f.others !== false, gif: f.gif !== false, mp4: f.mp4 !== false };
-    return { aspect, decider, formats };
+    const formats: Formats = { png: f.png !== false, others: f.others !== false, gif: f.gif !== false, mp4: f.mp4 !== false, frames: f.frames === true };
+    return { frames, decider, formats };
   };
-  const plan = (text: string, aspect: string, decider: string, formats: Formats, autoOnly = false) =>
-    planner.call<PlanResult>(version, { op: "plan", text, aspect, decider, formats, video: Boolean(o.ffmpeg), answersDir, autoOnly });
+  const plan = (text: string, frames: Frames, decider: string, formats: Formats, autoOnly = false) =>
+    planner.call<PlanResult>(version, { op: "plan", text, ...frames, decider, formats, video: Boolean(o.ffmpeg), answersDir, autoOnly });
   const failure = (error: unknown, status = 422) => { const e = error as WorkerError; return Response.json({ error: { kind: e.kind ?? "Error", message: e.message } }, { status }); };
 
   const page = join(import.meta.dir, "page.html");
@@ -243,29 +253,29 @@ export async function startStudio(o: StudioOptions) {
 
       if (req.method === "POST" && path === "/api/plan") {
         const body = (await req.json().catch(() => ({}))) as PlanRequest;
-        const { aspect, decider, formats } = parseCommon(body);
+        const { frames, decider, formats } = parseCommon(body);
         const scenario = body.scenario ? SCENARIOS.find((s) => s.id === body.scenario) : undefined;
         const text = scenario?.text ?? body.text;
         if (!text?.trim()) return Response.json({ error: { kind: "input", message: "没有文字" } }, { status: 400 });
         await refreshVersion();
         try {
-          const result = await plan(text, aspect, decider, formats);
-          const admitted = await admit(text, aspect, decider, result.jobs, true);
-          return Response.json({ version, decision: result.decision, jobs: admitted.map(view) });
+          const result = await plan(text, frames, decider, formats);
+          const admitted = await admit(text, frames, decider, result.jobs, true);
+          return Response.json({ version, decision: result.decision, jobs: admitted });
         } catch (error) { return failure(error); }
       }
 
       if (req.method === "POST" && path === "/api/overview") {
         const body = (await req.json().catch(() => ({}))) as PlanRequest;
-        const { aspect, decider, formats } = parseCommon(body);
+        const { frames, decider, formats } = parseCommon(body);
         await refreshVersion();
         const items: { scenario: { id: string; title: string; group: string }; decision?: DecisionInfo; job?: ReturnType<typeof view>; error?: unknown }[] = [];
         for (const s of SCENARIOS) {
           const scenario = { id: s.id, title: s.title, group: s.group ?? "其他" };
           try {
-            const result = await plan(s.text, aspect, decider, formats, true);
-            const [job] = await admit(s.text, aspect, decider, result.jobs, false);
-            items.push({ scenario, decision: result.decision, job: job ? view(job) : undefined });
+            const result = await plan(s.text, frames, decider, formats, true);
+            const [job] = await admit(s.text, frames, decider, result.jobs, false);
+            items.push({ scenario, decision: result.decision, job });
           } catch (error) { const e = error as WorkerError; items.push({ scenario, error: { kind: e.kind ?? "Error", message: e.message } }); }
         }
         return Response.json({ version, items });
