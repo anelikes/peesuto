@@ -51,6 +51,7 @@ final class ClipboardPanel: NSPanel {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 760, height: 530)
+        panel.delegate = self
         panel.contentView = NSHostingView(rootView: PanelView(model: model, openSettings: { [weak self] in self?.showSettings() }))
         panel.center()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -122,6 +123,17 @@ final class ClipboardPanel: NSPanel {
         onboardingWindow = window
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+    /// Losing focus hides the panel like Spotlight, unless it is pinned.
+    /// Deferred one turn so focus that comes straight back (the panel
+    /// reopening) does not flicker it away.
+    func windowDidResignKey(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === panel, !model.panelPinned else { return }
+        DispatchQueue.main.async { [weak self] in
+            // A confirmation or save dialog the panel opened keeps it on screen.
+            guard let self, !self.model.panelPinned, !self.panel.isKeyWindow, self.panel.attachedSheet == nil, NSApp.modalWindow == nil else { return }
+            self.panel.orderOut(nil)
+        }
     }
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window === onboardingWindow else { return }

@@ -40,6 +40,8 @@ struct OutputPreview {
     @Published var paused = false { didSet { monitor.isPaused = paused } }
     @Published var recommendedID: String?
     @Published var offline = false
+    /// A pinned panel stays open when another window takes focus; otherwise it hides at once.
+    @Published var panelPinned = false { didSet { if oldValue != panelPinned { try? settings?.set("panel_pinned", value: panelPinned) } } }
     @Published var trusted = PasteController.accessibilityTrusted
     @Published var historyLocked = false
     /// The last media shortcut was copy-only because Accessibility is missing.
@@ -89,6 +91,7 @@ struct OutputPreview {
             self.settings = settings
             language = settings.language
             offline = settings.providers["offline"] as? Bool ?? false
+            panelPinned = settings.bool("panel_pinned")
             if preview {
                 let history = try HistoryStore(directory: directory, key: Data(repeating: 0x42, count: 32))
                 try history.insert(text: "Make room for a clearer thought.", sourceApp: "com.apple.Notes")

@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- The clipboard panel hides as soon as it loses focus, like Spotlight; the pin button next to Settings keeps it open (remembered across launches). Confirmation and save dialogs opened from the panel do not hide it.
 - Bring your own key for Jev at TypeSafe, Vercel AI Gateway or OpenRouter, in onboarding (pick a service, paste a key) and in Settings › AI. OpenRouter's and Vercel's key also drives text generation with any model they serve. Model content is redacted by the privacy rules before it leaves, as for every network provider. The hosted option is hidden until the service exists.
 - License: Apache 2.0 (was MIT), with a NOTICE listing bundled third-party components. Contributions are signed off under the DCO; the Peesuto name and logo are trademarks the license does not grant (CONTRIBUTING.md).
 - Code cards: line numbers from 1 in both styles; larger macOS window dots; the terminal style sits on a layered gradient (indigo to teal, a rose tint below) with a drop shadow on the window. Template shapes can carry the engine's two-stop gradients and shadows.

@@ -19,6 +19,15 @@ struct PanelView: View {
                 if !model.query.isEmpty {
                     Button { model.query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundColor(.secondary)
                 }
+                Button { model.panelPinned.toggle() } label: {
+                    Image(systemName: model.panelPinned ? "pin.fill" : "pin").font(.system(size: 15))
+                        .rotationEffect(.degrees(model.panelPinned ? 0 : 45))
+                }
+                    .buttonStyle(.plain).foregroundColor(model.panelPinned ? .accentColor : .secondary)
+                    .help(model.panelPinned ? model.tr("Pinned: stays open when you click elsewhere", "已钉住：点击别处也不会关闭")
+                                            : model.tr("Keep the panel open when you click elsewhere", "钉住面板，点击别处时不关闭"))
+                    .accessibilityLabel(model.tr("Keep panel open", "钉住面板"))
+                    .accessibilityAddTraits(model.panelPinned ? .isSelected : [])
                 Button(action: openSettings) { Image(systemName: "gearshape").font(.system(size: 16)) }
                     .buttonStyle(.plain).foregroundColor(.secondary)
                     .help(model.tr("Settings", "设置")).accessibilityLabel(model.tr("Settings", "设置"))
