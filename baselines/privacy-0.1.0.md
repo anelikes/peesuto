@@ -6,8 +6,8 @@ proof of native acceptance. Use `native/README.md` for current commands and
 `baselines/native-0.1.0.md` for native verification.
 
 Date: 2026-09-22. Build: the **bundled debug** app (`bun run build:bundled --debug --bundles app`)
-at commit `05f4d61` plus the uncommitted round-3 shell changes in `app/`; Core and the
-engine from the sidecar bundle (`resources/VERSION`: `ca3c07632017 05f4d61d65a9 bun1.3.11`),
+at commit `e2d66f3` plus the uncommitted round-3 shell changes in `app/`; Core and the
+engine from the sidecar bundle (`resources/VERSION`: `ca3c07632017 e2d66f3f0f13 bun1.3.11`),
 with the two path fixes noted at the end applied to the generated copies. Machine: macOS
 (Darwin 25.5), Apple Silicon. Automated by `scripts/pasteboard-probe.swift` and an
 unattended launch of the app (`POCKET_PASTE_AUTORUN`, `POCKET_PASTE_HISTORY_KEY`; debug
