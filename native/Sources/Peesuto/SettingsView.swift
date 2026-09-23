@@ -3,6 +3,10 @@ import AppKit
 import ServiceManagement
 import PeesutoKit
 
+/// The hosted service (api.peesuto.com) is not live: its option is offered only
+/// to a configuration that already selects it, so nobody picks a dead endpoint.
+private let hostedServiceAvailable = false
+
 struct SettingsView: View {
     @ObservedObject var model: AppState
     var registerShortcuts: ([String: String]) throws -> Void
@@ -292,7 +296,7 @@ struct SettingsView: View {
                     Text(model.tr("Not configured", "暂不配置")).tag("none")
                     Text("OpenAI compatible / Ollama").tag("openai-compatible")
                     Text("Anthropic").tag("anthropic")
-                    Text(model.tr("Hosted", "托管服务")).tag("hosted")
+                    if hostedServiceAvailable || generator == "hosted" { Text(model.tr("Hosted", "托管服务")).tag("hosted") }
                 }.labelsHidden()
             }
             if generator == "openai-compatible" || generator == "hosted" {
@@ -312,7 +316,7 @@ struct SettingsView: View {
                     Text("Laya").tag("laya")
                     Text(model.tr("Compatible endpoint", "兼容端点")).tag("proxy")
                     Text("Cloudflare").tag("cloudflare")
-                    Text(model.tr("Hosted", "托管服务")).tag("hosted")
+                    if hostedServiceAvailable || decider == "hosted" { Text(model.tr("Hosted", "托管服务")).tag("hosted") }
                 }.labelsHidden()
             }
             if ["laya", "proxy", "hosted"].contains(decider) {
