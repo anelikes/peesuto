@@ -113,6 +113,7 @@ struct PanelView: View {
                 } else {
                     Text(model.tr("PREVIEW", "内容预览")).font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundColor(.secondary)
                 }
+                if model.output?.precomposed == true { PrecomposedTag(model: model) }
                 Spacer()
                 if model.output == nil, model.selected != nil {
                     Button { model.togglePin() } label: { Image(systemName: model.selected?.pinned == true ? "pin.slash" : "pin") }
@@ -318,5 +319,17 @@ struct NativeImagePreview: NSViewRepresentable {
             view.image = NSImage(contentsOf: url)
             context.coordinator.loadedURL = url
         }
+    }
+}
+
+/// A quiet marker for results Core served from background precompose.
+struct PrecomposedTag: View {
+    @ObservedObject var model: AppState
+    var body: some View {
+        Text(model.tr("Precomposed", "已预合成"))
+            .font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Capsule().stroke(Color.secondary.opacity(0.35)))
+            .help(model.tr("Rendered in the background right after you copied it.", "复制后已在后台提前生成。"))
     }
 }

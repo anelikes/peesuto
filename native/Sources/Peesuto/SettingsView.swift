@@ -26,6 +26,7 @@ struct SettingsView: View {
     @State private var failed = false
     @State private var loginStatus = SMAppService.Status.notRegistered
     @State private var diagnostics: [String] = []
+    @StateObject private var privacyState = PrivacySettingsModel()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -35,12 +36,13 @@ struct SettingsView: View {
                 category(3, "Shortcuts", "快捷键", "keyboard")
                 category(1, "AI & actions", "AI 与动作", "sparkles")
                 category(2, "History & privacy", "历史与隐私", "lock.shield")
+                category(4, "Privacy & precompose", "隐私与预合成", "eye.slash")
                 Spacer()
                 Text(model.tr("Native preview", "原生预览版")).font(.system(size: 10)).foregroundColor(.secondary).padding(12)
             }.padding(14).frame(width: 166).background(Color(NSColor.controlBackgroundColor))
             Divider()
             VStack(alignment: .leading, spacing: 20) {
-                Text(section == 0 ? model.tr("General", "通用") : section == 1 ? model.tr("AI & actions", "AI 与动作") : section == 3 ? model.tr("Shortcuts", "快捷键") : model.tr("History & privacy", "历史与隐私"))
+                Text(section == 0 ? model.tr("General", "通用") : section == 1 ? model.tr("AI & actions", "AI 与动作") : section == 3 ? model.tr("Shortcuts", "快捷键") : section == 4 ? model.tr("Privacy & precompose", "隐私与预合成") : model.tr("History & privacy", "历史与隐私"))
                     .font(.system(size: 22, weight: .semibold))
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
@@ -48,6 +50,7 @@ struct SettingsView: View {
                         if section == 1 { ai }
                         if section == 2 { privacy }
                         if section == 3 { shortcutSettings }
+                        if section == 4 { PrivacySettingsView(model: model, state: privacyState) }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 4)
                 }
                 HStack {
@@ -286,6 +289,7 @@ struct SettingsView: View {
         if !model.previewMode { loginStatus = SMAppService.mainApp.status }
         diagnostics = model.core?.recentDiagnostics ?? []
         guard let settings = model.settings else { return }
+        privacyState.load(model)
         shortcuts = model.shortcuts; retention = settings.retentionDays
         frames = ["image": settings.frame(kind: "image"), "gif": settings.frame(kind: "gif"), "video": settings.frame(kind: "video")]
         smart = settings.bool("smart_paste", default: true)
@@ -302,6 +306,13 @@ struct SettingsView: View {
     }
     private func save() {
         guard let settings = model.settings else { return }
+        if section == 4 {
+            Task {
+                let (message, error) = await privacyState.save(model)
+                feedback = message; failed = error
+            }
+            return
+        }
         if section == 3 {
             do { try settings.setFrames(frames) } catch {
                 feedback = model.tr("Could not save the frames.", "画幅保存失败。"); failed = true

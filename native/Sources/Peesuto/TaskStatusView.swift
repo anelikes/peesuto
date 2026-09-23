@@ -16,6 +16,7 @@ struct TaskStatusView: View {
             }
             HStack {
                 Text("Peesuto").font(.system(size: 10)).foregroundColor(.secondary)
+                if !model.busy, model.output?.precomposed == true { PrecomposedTag(model: model) }
                 Spacer()
                 if model.busy {
                     Button(model.tr("Cancel", "取消"), action: model.cancelAction)

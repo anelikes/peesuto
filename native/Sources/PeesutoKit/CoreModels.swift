@@ -156,6 +156,50 @@ public struct CoreDecisionError: Codable, Sendable {
 
 public struct CoreActionMetadata: Codable, Sendable {
     public let template: CoreTemplateSelection?
+    /// True when Core served a result rendered in the background; absent otherwise.
+    public let precomposed: Bool?
+}
+
+/// A built-in privacy rule as listed by `privacy.rules`.
+public struct CorePrivacyBuiltin: Codable, Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let nameZh: String
+    public let description: String
+    public let descriptionZh: String
+    public let defaultEnabled: Bool
+    public let enabled: Bool
+    public init(id: String, name: String, nameZh: String, description: String, descriptionZh: String,
+                defaultEnabled: Bool, enabled: Bool) {
+        self.id = id; self.name = name; self.nameZh = nameZh; self.description = description
+        self.descriptionZh = descriptionZh; self.defaultEnabled = defaultEnabled; self.enabled = enabled
+    }
+}
+
+public struct CorePrivacyRules: Codable, Sendable {
+    public let builtins: [CorePrivacyBuiltin]
+}
+
+public struct CorePrivacySpan: Codable, Equatable, Sendable {
+    public let start: Int
+    public let end: Int
+    public let ruleId: String
+    public let replacement: String
+}
+
+/// `privacy.preview`: what the model would receive and what would be rendered.
+public struct CorePrivacyPreview: Codable, Sendable {
+    public let modelText: String
+    public let outputText: String
+    public let spans: [CorePrivacySpan]
+    public let containsSecret: Bool
+}
+
+/// `precompose` answers at once; the rendering happens in the background.
+public struct CorePrecomposeReply: Codable, Sendable {
+    public let queued: Bool
+    /// "off", "secret", "too-long" or "empty" when not queued.
+    public let skipped: String?
 }
 
 public struct CoreTemplateVariant: Codable, Identifiable, Sendable {

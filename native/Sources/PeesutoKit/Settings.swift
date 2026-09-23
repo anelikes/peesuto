@@ -141,6 +141,10 @@ public final class SettingsStore {
             }
             normalized[track] = config
         }
+        // Privacy rules and precompose travel with every configuration so a
+        // restarted Core never runs with defaults the user turned off.
+        normalized["privacy"] = PrivacySettings(json: values["privacy"]).payload
+        normalized["precompose"] = PrecomposeSettings(json: values["precompose"]).payload
         normalized["cmd"] = "config.set"
         normalized["secrets"] = secrets
         normalized["egressLog"] = directory.appendingPathComponent("egress.log").path

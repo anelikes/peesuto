@@ -57,6 +57,9 @@ public actor CoreClient {
         let continuation: CheckedContinuation<Data, Error>
         let timeout: Task<Void, Never>
         let onState: (@Sendable (CoreTaskState) -> Void)?
+        /// A soft request (precompose) expires or is cancelled on its own
+        /// without stopping Core; a late reply is then ignored.
+        var soft = false
     }
 
     private let executable: URL
@@ -202,6 +205,27 @@ public actor CoreClient {
         try await request(["cmd": "templates.list"])
     }
 
+    /// Built-in privacy rules with their names, defaults and current state.
+    public func privacyRules() async throws -> CorePrivacyRules {
+        try await request(["cmd": "privacy.rules"], timeout: min(requestTimeout, 10))
+    }
+
+    /// What the model and the rendered output would see under the applied configuration.
+    public func privacyPreview(text: String) async throws -> CorePrivacyPreview {
+        try await request(["cmd": "privacy.preview", "text": text], timeout: min(requestTimeout, 10))
+    }
+
+    /// Queues background rendering of a copied text. Core answers at once;
+    /// this is not an action (configuration is never deferred for it), and
+    /// its short timeout fails only this call, never restarting Core.
+    /// `frames` maps "image"/"gif"/"video" to a frame (Core's `aspect`).
+    public func precompose(text: String, frames: [String: String], templatePreferences: [String: String]? = nil,
+                           timeout: TimeInterval = 5) async throws -> CorePrecomposeReply {
+        var body: [String: Any] = ["cmd": "precompose", "text": text, "frames": frames]
+        if let templatePreferences { body["templatePreferences"] = templatePreferences }
+        return try await request(body, timeout: timeout, soft: true)
+    }
+
     /// No cancellation command exists in the current protocol. Stopping Core
     /// fails outstanding callers; subsequent requests start a fresh process.
     public func shutdown() async {
@@ -215,11 +239,12 @@ public actor CoreClient {
     }
 
     private func request<T: Decodable>(_ body: [String: Any], timeout: TimeInterval? = nil,
-                                       onState: (@Sendable (CoreTaskState) -> Void)? = nil) async throws -> T {
+                                       onState: (@Sendable (CoreTaskState) -> Void)? = nil,
+                                       soft: Bool = false) async throws -> T {
         try Task.checkCancellation()
         try await ensureStarted()
         if actionRequests.isEmpty, appliedRevision < configurationRevision { _ = try await applyConfiguration() }
-        let data = try await send(body, timeout: timeout ?? requestTimeout, onState: onState)
+        let data = try await send(body, timeout: timeout ?? requestTimeout, onState: onState, soft: soft)
         do { return try JSONDecoder().decode(T.self, from: data) }
         catch { throw CoreError(kind: "protocol", message: "Core returned an incompatible response.") }
     }
@@ -302,7 +327,7 @@ public actor CoreClient {
     }
 
     private func send(_ body: [String: Any], timeout: TimeInterval,
-                      onState: (@Sendable (CoreTaskState) -> Void)? = nil) async throws -> Data {
+                      onState: (@Sendable (CoreTaskState) -> Void)? = nil, soft: Bool = false) async throws -> Data {
         try Task.checkCancellation()
         guard let input, process?.isRunning == true else {
             throw CoreError(kind: "sidecar", message: "Core is not running.")
@@ -317,7 +342,7 @@ public actor CoreClient {
         if body["cmd"] as? String == "run-action" { actionRequests.insert(id) }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                register(id: id, continuation: continuation, timeout: timeout, generation: token, onState: onState)
+                register(id: id, continuation: continuation, timeout: timeout, generation: token, onState: onState, soft: soft)
                 // Pipe writes can block while Core is rendering. Keep them off
                 // the actor so response handling and timeouts remain runnable.
                 let payload = data
@@ -332,17 +357,18 @@ public actor CoreClient {
     }
 
     private func register(id: Int, continuation: CheckedContinuation<Data, Error>, timeout: TimeInterval, generation: Int,
-                          onState: (@Sendable (CoreTaskState) -> Void)? = nil) {
+                          onState: (@Sendable (CoreTaskState) -> Void)? = nil, soft: Bool = false) {
         let task = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: UInt64(max(0.001, timeout) * 1_000_000_000)) }
             catch { return }
             await self?.expired(id: id, generation: generation)
         }
-        pending[id] = Pending(continuation: continuation, timeout: task, onState: onState)
+        pending[id] = Pending(continuation: continuation, timeout: task, onState: onState, soft: soft)
     }
 
     private func cancel(id: Int, generation: Int) {
-        guard self.generation == generation, pending[id] != nil else { return }
+        guard self.generation == generation, let item = pending[id] else { return }
+        if item.soft { abandon(id, error: CancellationError()); return }
         stop(error: CancellationError())
     }
 
@@ -351,8 +377,19 @@ public actor CoreClient {
         stop(error: CoreError(kind: "sidecar", message: "Could not write to Core."))
     }
 
+    /// Fails one soft request without touching Core; its reply is ignored.
+    private func abandon(_ id: Int, error: Error) {
+        guard let item = pending.removeValue(forKey: id) else { return }
+        item.timeout.cancel()
+        item.continuation.resume(throwing: error)
+    }
+
     private func expired(id: Int, generation: Int) {
-        guard self.generation == generation, pending[id] != nil else { return }
+        guard self.generation == generation, let item = pending[id] else { return }
+        if item.soft {
+            abandon(id, error: CoreError(kind: "timeout", message: "Core did not answer in time."))
+            return
+        }
         // The daemon is sequential: abandoning just one request could leave
         // subsequent work behind a hung action. Never silently retry that work.
         stop(error: CoreError(kind: "timeout", message: "Core did not answer in time.", diagnostics: log.snapshot))

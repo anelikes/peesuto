@@ -447,3 +447,86 @@ final class CoreClientTests: XCTestCase {
         await client.shutdown()
     }
 }
+
+extension CoreClientTests {
+    func testPrivacyRulesPreviewAndPrecomposeRoundTrip() async throws {
+        let (client, root) = try fixture(behavior: """
+        if cmd == 'privacy.rules':
+            res['builtins'] = [{'id':'api-keys','name':'API keys','nameZh':'API 密钥','description':'Provider keys','descriptionZh':'服务商密钥','defaultEnabled':True,'enabled':True},
+                               {'id':'email','name':'Email','nameZh':'邮箱','description':'Addresses','descriptionZh':'邮箱地址','defaultEnabled':False,'enabled':True}]
+            emit(res)
+            continue
+        if cmd == 'privacy.preview':
+            assert req['text'] == 'mail a@b.co'
+            res.update({'modelText':'mail [email]','outputText':'mail a@b.co','spans':[{'start':5,'end':11,'ruleId':'email','replacement':'[email]'}],'containsSecret':False})
+            emit(res)
+            continue
+        if cmd == 'precompose':
+            assert req['frames'] == {'image':'auto','gif':'1:1','video':'16:9'}
+            assert req['templatePreferences'] == {'quote':'classic'}
+            if req['text'] == 'secret':
+                res.update({'queued': False, 'skipped': 'secret'})
+            else:
+                res['queued'] = True
+            emit(res)
+            continue
+        if cmd == 'run-action':
+            res['result'] = {'output':'image','format':'png','path':'/synthetic.png','ms':1,'meta':{'precomposed':True}}
+            emit(res)
+            continue
+        """)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let rules = try await client.privacyRules()
+        XCTAssertEqual(rules.builtins.map(\.id), ["api-keys", "email"])
+        XCTAssertEqual(rules.builtins[1].nameZh, "邮箱")
+        XCTAssertEqual(rules.builtins[1].defaultEnabled, false)
+        XCTAssertEqual(rules.builtins[1].enabled, true)
+        let preview = try await client.privacyPreview(text: "mail a@b.co")
+        XCTAssertEqual(preview.modelText, "mail [email]")
+        XCTAssertEqual(preview.outputText, "mail a@b.co")
+        XCTAssertEqual(preview.spans, [CorePrivacySpan(start: 5, end: 11, ruleId: "email", replacement: "[email]")])
+        XCTAssertFalse(preview.containsSecret)
+        let frames = ["image": "auto", "gif": "1:1", "video": "16:9"]
+        let queued = try await client.precompose(text: "hello", frames: frames, templatePreferences: ["quote": "classic"])
+        XCTAssertTrue(queued.queued)
+        XCTAssertNil(queued.skipped)
+        let skipped = try await client.precompose(text: "secret", frames: frames, templatePreferences: ["quote": "classic"])
+        XCTAssertFalse(skipped.queued)
+        XCTAssertEqual(skipped.skipped, "secret")
+        let hit = try await client.runAction(action: "paste-card", input: CoreActionInput(text: "hello"))
+        XCTAssertEqual(hit.result.meta?.precomposed, true)
+        await client.shutdown()
+    }
+
+    func testPrecomposedFlagIsAbsentByDefault() throws {
+        let data = Data(#"{"output":"image","path":"/a.png","ms":1,"meta":{"template":null}}"#.utf8)
+        let result = try JSONDecoder().decode(CoreActionResult.self, from: data)
+        XCTAssertNil(result.meta?.precomposed)
+    }
+
+    /// A precompose that is not answered in time fails alone; Core keeps
+    /// running and later requests are answered by the same process.
+    func testPrecomposeTimeoutDoesNotRestartCore() async throws {
+        let (client, root) = try fixture(behavior: """
+        import os
+        if cmd == 'precompose':
+            time.sleep(0.6)
+            res['queued'] = True
+            emit(res)
+            continue
+        if cmd == 'health':
+            res.update({'version': str(os.getpid()), 'engine': None, 'providers': providers, 'uptimeMs': 1, 'packs': []})
+            emit(res)
+            continue
+        """, timeout: 5)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let before = try await client.health().version
+        do {
+            _ = try await client.precompose(text: "slow", frames: ["image": "auto"], timeout: 0.1)
+            XCTFail("Expected a timeout")
+        } catch let error as CoreError { XCTAssertEqual(error.kind, "timeout") }
+        let after = try await client.health().version
+        XCTAssertEqual(before, after)
+        await client.shutdown()
+    }
+}

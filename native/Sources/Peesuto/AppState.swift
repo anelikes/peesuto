@@ -11,11 +11,14 @@ struct OutputPreview {
     let format: String?
     /// The frame requested for this result (nil for text outputs).
     let frame: String?
+    /// Core served this result from background precompose.
+    let precomposed: Bool
     init(title: String, text: String?, url: URL?, sourceText: String? = nil,
-         template: CoreTemplateSelection? = nil, format: String? = nil, frame: String? = nil) {
+         template: CoreTemplateSelection? = nil, format: String? = nil, frame: String? = nil,
+         precomposed: Bool = false) {
         self.title = title; self.text = text; self.url = url
         self.sourceText = sourceText; self.template = template; self.format = format
-        self.frame = frame
+        self.frame = frame; self.precomposed = precomposed
     }
     /// The frame Core reports it used, falling back to the requested one.
     var usedFrame: String? { template?.aspect ?? frame }
@@ -56,6 +59,9 @@ struct OutputPreview {
     private var context: [String: Any] = ["level": 0, "appBundleId": ""]
     private var panelRevision = 0
     private var actionRevision = 0
+    /// Core keeps its configuration across restarts once it has been given one.
+    private var coreConfiguredOnce = false
+    private lazy var precomposer = PrecomposeScheduler { [weak self] text in await self?.precompose(text) }
 
     init(preview: Bool) {
         previewMode = preview
@@ -123,8 +129,12 @@ struct OutputPreview {
         monitor.excludedApps = Set(settings.blacklist)
         monitor.onText = { [weak self] text, app in
             guard let self else { return }
-            do { try self.history?.insert(text: text, sourceApp: app); self.refresh() }
-            catch { self.error = self.tr("Could not save clipboard history.", "无法保存剪贴板历史。") }
+            do {
+                try self.history?.insert(text: text, sourceApp: app); self.refresh()
+                // The monitor already dropped own writes, concealed/transient
+                // types and excluded apps before calling onText.
+                self.schedulePrecompose(text)
+            } catch { self.error = self.tr("Could not save clipboard history.", "无法保存剪贴板历史。") }
         }
         monitor.onImage = { [weak self] data, app in
             guard let self else { return }
@@ -280,7 +290,33 @@ struct OutputPreview {
         } else {
             config = ["decider": ["kind": "rules"], "generator": ["kind": "none"], "offline": true]
         }
-        return try await core.configure(config) != nil
+        let applied = try await core.configure(config) != nil
+        coreConfiguredOnce = true
+        return applied
+    }
+
+    /// Debounced background rendering of a copied text (settings: precompose).
+    func schedulePrecompose(_ text: String) {
+        guard !previewMode, core != nil else { return }
+        precomposer.schedule(text: text,
+                             outputs: { [weak self] in self?.settings?.precomposeSettings.outputs ?? [] },
+                             busy: { [weak self] in self?.busy ?? true })
+    }
+
+    /// Never surfaces to the user: failures go to stderr and the in-memory
+    /// diagnostics ring only, without the copied text.
+    private func precompose(_ text: String) async {
+        guard let core, let settings else { return }
+        do {
+            if !coreConfiguredOnce { try await configureCore() }
+            _ = try await core.precompose(text: text, frames: settings.precomposeFrames,
+                                          templatePreferences: settings.templatePreferences)
+        } catch {
+            let kind = (error as? CoreError)?.kind ?? (error is CancellationError ? "cancelled" : "error")
+            let line = "precompose: request failed (\(kind))"
+            core.log.append(line: line)
+            FileHandle.standardError.write(Data((line + "\n").utf8))
+        }
     }
 
     func actionName(_ action: CoreActionSpec) -> String {
@@ -404,7 +440,7 @@ struct OutputPreview {
                 try Task.checkCancellation()
                 let requestedFrame = frame ?? defaultFrame(actionID: actionID)
                 let input = CoreActionInput(text: text, aspect: requestedFrame,
-                    template: options, templatePreferences: settings?.values["template_styles"] as? [String: String])
+                    template: options, templatePreferences: settings?.templatePreferences)
                 taskStatus = title + "…"
                 let kind = actions.first(where: { $0.id == actionID })?.output
                 let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)
@@ -423,7 +459,7 @@ struct OutputPreview {
                     output = OutputPreview(title: title, text: response.result.text,
                                            url: response.result.path.map { URL(fileURLWithPath: $0) },
                                            sourceText: text, template: response.result.meta?.template, format: response.result.format,
-                                           frame: requestedFrame)
+                                           frame: requestedFrame, precomposed: response.result.meta?.precomposed == true)
                     if templates.isEmpty, let core { templates = (try? await core.templates().templates) ?? [] }
                     try Task.checkCancellation()
                     if rememberVariant, let selected = response.result.meta?.template {
@@ -547,7 +583,7 @@ struct OutputPreview {
         }
     }
     func stop() {
-        monitor.stop(); hotkeys.unregister(); task?.cancel(); openingTask?.cancel(); retentionTimer?.invalidate()
+        monitor.stop(); precomposer.cancel(); hotkeys.unregister(); task?.cancel(); openingTask?.cancel(); retentionTimer?.invalidate()
         if let core { Task { await core.shutdown() } }
     }
 }
