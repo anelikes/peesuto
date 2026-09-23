@@ -150,6 +150,16 @@ public final class PasteController {
         return Self.write([Self.imageItem(data)])
     }
 
+    /// GIF bytes plus a PNG of the first frame for apps that do not read GIF.
+    @discardableResult
+    public func copyGIF(_ gif: Data) -> Bool {
+        guard !gif.isEmpty, let png = NSBitmapImageRep(data: gif)?.representation(using: .png, properties: [:]) else { return false }
+        let item = NSPasteboardItem()
+        item.setData(gif, forType: NSPasteboard.PasteboardType("com.compuserve.gif"))
+        item.setData(png, forType: .png)
+        return Self.write([Self.marked(item)])
+    }
+
     private static func write(_ items: [NSPasteboardItem]) -> Bool {
         let board = NSPasteboard.general
         board.clearContents()

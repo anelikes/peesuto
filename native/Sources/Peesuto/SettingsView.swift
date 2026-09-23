@@ -214,6 +214,12 @@ struct SettingsView: View {
                               "任何内容都能转成二维码，所以它不参与自动选模板，只用这个快捷键或结果窗的模板菜单。"))
                     .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             }.padding(.top, 6)
+            VStack(alignment: .leading, spacing: 4) {
+                shortcutRow(MediaShortcuts.pinID, "Pin to screen", "贴到屏幕", symbol: "pin")
+                Text(model.tr("Pins a copied image, or the image card of copied text, in a floating window. Nothing is pasted and the clipboard is left alone.",
+                              "把复制的图片（或复制文字生成的图片卡片）贴在屏幕上的浮动窗口里。不会粘贴，也不改动剪贴板。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             Divider()
             prepareOnCopy.id("prepare")
             Divider()

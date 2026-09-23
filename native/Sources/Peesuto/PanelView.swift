@@ -199,6 +199,11 @@ struct PanelView: View {
                     .accessibilityIdentifier("action-menu")
             }
             Spacer()
+            if model.canPin(model.output) {
+                Button { model.pinOutput() } label: { Label(model.tr("Pin to screen", "贴到屏幕"), systemImage: "pin") }
+                    .disabled(model.busy)
+                    .help(model.tr("Keep this image floating on screen", "把图片贴在屏幕上"))
+            }
             Button(model.tr("Copy", "复制")) { model.copySelection() }.disabled(model.busy)
             Button { model.pasteSelection() } label: {
                 HStack(spacing: 12) { Text(model.tr("Paste", "粘贴")); Text("↵").foregroundColor(.white.opacity(0.65)) }

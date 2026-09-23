@@ -61,6 +61,12 @@ struct OutputPreview {
     var hidePanel: (() -> Void)?
     var settingsChanged: (() -> Void)?
     var showTaskStatus: (() -> Void)?
+    var hideTaskStatus: (() -> Void)?
+    /// Pinned images (pin to screen); none survive a relaunch.
+    lazy var pins = PinManager(tr: { [weak self] en, zh in self?.tr(en, zh) ?? en }, copy: { [weak self] image in
+        guard let self else { return false }
+        return image.format == "gif" ? self.paste.copyGIF(image.data) : self.paste.copyImage(image.data)
+    })
     private var task: Task<Void, Never>?
     private var openingTask: Task<Void, Never>?
     private var retentionTimer: Timer?
@@ -344,6 +350,17 @@ struct OutputPreview {
 
     func runClipboardAction(_ actionID: String) {
         guard !previewMode else { return }
+        let delivery = ClipboardShortcutDelivery.of(shortcut: actionID)
+        // An image on the clipboard is pinned as-is: no render, no Core, no status.
+        if delivery == .pin, let image = PinImage.read(from: NSPasteboard.general) {
+            if !pins.pin(image) {
+                directTask = true
+                error = tr("Could not read the image on the clipboard.", "无法读取剪贴板中的图片。")
+                notice = nil
+                showTaskStatus?()
+            }
+            return
+        }
         guard !busy else { showTaskStatus?(); return }
         let board = NSPasteboard.general
         let changeCount = board.changeCount
@@ -352,19 +369,24 @@ struct OutputPreview {
               let text = board.string(forType: .string), board.changeCount == changeCount,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             directTask = true
-            error = tr("Copy some text first. Protected clipboard content is excluded.", "请先复制文字。受保护的剪贴板内容不会用于生成。")
+            error = delivery == .pin
+                ? tr("Copy an image or some text first. Protected clipboard content is excluded.", "请先复制图片或文字。受保护的剪贴板内容不会使用。")
+                : tr("Copy some text first. Protected clipboard content is excluded.", "请先复制文字。受保护的剪贴板内容不会用于生成。")
             notice = nil
             showTaskStatus?()
             return
         }
         let title: String
         switch actionID {
+        case MediaShortcuts.pinID: title = tr("Pin to screen", "贴到屏幕")
         case "paste-card": title = tr("Create image", "生成图片")
         case "paste-gif": title = tr("Create GIF", "生成 GIF")
         case "paste-qr": title = tr("Create QR code", "生成二维码")
         default: title = tr("Create video", "生成视频")
         }
-        execute(actionID: actionID, title: title, text: text, direct: true)
+        // Pin renders exactly like ⌘⌥1 (same action, frame and template
+        // preferences, so a prepared-on-copy card is a cache hit).
+        execute(actionID: ClipboardShortcutDelivery.renderAction(shortcut: actionID), title: title, text: text, direct: true, delivery: delivery)
         showTaskStatus?()
     }
 
@@ -410,6 +432,7 @@ struct OutputPreview {
     }
 
     private func execute(actionID: String, title: String, text: String, direct: Bool,
+                         delivery: ClipboardShortcutDelivery = .paste,
                          options: CoreTemplateOptions? = nil, frame: String? = nil,
                          keepPreview: Bool = false, rememberVariant: Bool = false) {
         actionRevision += 1
@@ -459,7 +482,13 @@ struct OutputPreview {
                         do { try settings?.set("template_styles", value: preferences) }
                         catch { notice = tr("Created. Could not remember this style.", "已生成，但无法保存风格偏好。") }
                     }
-                    if direct, let output { deliverDirect(output) }
+                    if direct, let output {
+                        switch delivery {
+                        case .paste: deliverDirect(output)
+                        case .pin:
+                            if pinOutput(output) { notice = tr("Pinned to screen", "已贴到屏幕"); hideTaskStatus?() }
+                        }
+                    }
                 }
             } catch {
                 if Task.isCancelled { notice = tr("Cancelled", "已取消") }
@@ -503,6 +532,23 @@ struct OutputPreview {
         case .failed:
             error = tr("Could not paste. Open the result to copy or paste it.", "未能粘贴，请打开结果后复制或粘贴。")
         }
+    }
+
+    /// Image and GIF results can be pinned; video and text cannot.
+    func canPin(_ output: OutputPreview?) -> Bool {
+        guard let ext = output?.url?.pathExtension.lowercased() else { return false }
+        return ext == "png" || ext == "gif"
+    }
+
+    /// Shows a rendered result in a pin window. Never writes the clipboard.
+    @discardableResult
+    func pinOutput(_ output: OutputPreview? = nil) -> Bool {
+        guard let output = output ?? self.output, canPin(output), let url = output.url,
+              let image = PinImage.from(file: url), pins.pin(image) else {
+            error = tr("Could not pin this result.", "无法贴到屏幕。")
+            return false
+        }
+        return true
     }
 
     /// Prompts for Accessibility and opens System Settings › Privacy & Security › Accessibility.

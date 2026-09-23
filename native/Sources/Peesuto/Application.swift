@@ -40,6 +40,7 @@ final class ClipboardPanel: NSPanel {
         model.hidePanel = { [weak self] in self?.panel.orderOut(nil) }
         model.settingsChanged = { [weak self] in self?.rebuildMenus() }
         model.showTaskStatus = { [weak self] in self?.showTaskStatus() }
+        model.hideTaskStatus = { [weak self] in self?.taskPanel?.orderOut(nil) }
         panel = ClipboardPanel(contentRect: NSRect(x: 0, y: 0, width: 790, height: 530), styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         panel.title = preview ? "Peesuto Preview" : "Peesuto"
         panel.titleVisibility = .hidden
@@ -62,13 +63,15 @@ final class ClipboardPanel: NSPanel {
                 model.notice = model.tr("Some shortcuts are unavailable. Check Settings → Shortcuts.", "部分快捷键不可用，请检查「设置 → 快捷键」。")
             }
         }
-        // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id].
+        // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id], --pin-sample.
         let arguments = CommandLine.arguments
         func argument(_ name: String) -> Int? {
             guard preview, let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
             return Int(arguments[index + 1])
         }
-        if let section = argument("--settings-section") {
+        if preview, arguments.contains("--pin-sample") {
+            pinSamples()
+        } else if let section = argument("--settings-section") {
             model.requestedSettingsSection = section
             if let index = arguments.firstIndex(of: "--settings-anchor"), index + 1 < arguments.count {
                 model.requestedSettingsAnchor = arguments[index + 1]
@@ -80,6 +83,16 @@ final class ClipboardPanel: NSPanel {
             showOnboarding(step: 0)
         } else {
             showPanel()
+        }
+    }
+
+    /// Preview screenshots: two onboarding samples pinned at a fixed spot on the main screen.
+    private func pinSamples() {
+        guard let visible = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame else { return }
+        for (name, dx) in [("sample-text", 0.3), ("sample-chat", 0.7)] {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Onboarding"),
+                  let image = PinImage.from(file: url) else { continue }
+            model.pins.pin(image, center: NSPoint(x: visible.minX + visible.width * dx, y: visible.midY))
         }
     }
 
@@ -129,6 +142,11 @@ final class ClipboardPanel: NSPanel {
             item.target = self
             item.isEnabled = !model.previewMode
         }
+        mediaMenu.addItem(.separator())
+        let pin = mediaMenu.addItem(withTitle: model.tr("Pin to screen", "贴到屏幕"), action: #selector(runMedia(_:)), keyEquivalent: "")
+        pin.representedObject = MediaShortcuts.pinID
+        pin.target = self
+        pin.isEnabled = !model.previewMode
         media.submenu = mediaMenu
         menu.addItem(media)
         menu.addItem(withTitle: model.tr("Settings…", "设置…"), action: #selector(showSettings), keyEquivalent: ",")

@@ -258,14 +258,18 @@ public enum KeychainSecrets {
     }
 }
 
-/// Global shortcuts: the panel plus one direct-paste shortcut per media action.
+/// Global shortcuts: the panel, one direct-paste shortcut per media action,
+/// and pin to screen.
 /// Saved settings that predate an action fall back to its default.
 public enum MediaShortcuts {
     public static let panelDefault = "CmdOrCtrl+Shift+V"
     public static let defaults: [(id: String, accelerator: String)] = [
         ("paste-card", "CmdOrCtrl+Alt+1"), ("paste-gif", "CmdOrCtrl+Alt+2"),
-        ("paste-video", "CmdOrCtrl+Alt+3"), ("paste-qr", "CmdOrCtrl+Alt+4")
+        ("paste-video", "CmdOrCtrl+Alt+3"), ("paste-qr", "CmdOrCtrl+Alt+4"),
+        (pinID, "CmdOrCtrl+Alt+5")
     ]
+    /// Pins the clipboard image (or the ⌘⌥1 card of its text) to the screen; never pastes.
+    public static let pinID = "pin-screen"
     public static var actionIDs: [String] { defaults.map(\.id) }
 
     /// `saved` is `native_shortcuts`; `legacyPanel` the older `hotkey` value.

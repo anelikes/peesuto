@@ -5,8 +5,8 @@ final class MediaShortcutsTests: XCTestCase {
     @MainActor func testDefaultsIncludeQRCodeOnCommandOption4() throws {
         let resolved = MediaShortcuts.resolve(saved: [:], legacyPanel: nil)
         XCTAssertEqual(resolved, ["panel": "CmdOrCtrl+Shift+V", "paste-card": "CmdOrCtrl+Alt+1", "paste-gif": "CmdOrCtrl+Alt+2",
-                                  "paste-video": "CmdOrCtrl+Alt+3", "paste-qr": "CmdOrCtrl+Alt+4"])
-        XCTAssertEqual(MediaShortcuts.actionIDs, ["paste-card", "paste-gif", "paste-video", "paste-qr"])
+                                  "paste-video": "CmdOrCtrl+Alt+3", "paste-qr": "CmdOrCtrl+Alt+4", "pin-screen": "CmdOrCtrl+Alt+5"])
+        XCTAssertEqual(MediaShortcuts.actionIDs, ["paste-card", "paste-gif", "paste-video", "paste-qr", "pin-screen"])
         XCTAssertNoThrow(try HotKeyGroup.validate(resolved))
     }
 

@@ -7,6 +7,8 @@ section here becomes one.
 
 ## Unreleased
 
+- Pin to screen (⌘⌥5): the copied image, or a card rendered from copied text, floats above every window; drag to move, scroll or pinch to zoom around the cursor, double-click to close; right-click to copy, save or close all. GIFs animate. Also a button on image and GIF results.
+
 ## 0.1.1 — 2026-09-23
 
 First signed and notarized native release (Apple silicon, macOS 13+).

@@ -294,6 +294,8 @@ private struct ShortcutsStep: View {
                     row("play.rectangle", "Video", "视频", "MP4 with motion (needs ffmpeg)", "带动效的 MP4（需要 ffmpeg）", shortcuts["paste-video"])
                     Divider().padding(.leading, 56)
                     row("qrcode", "QR code", "二维码", "Links and text, scannable", "链接和文字，扫码即得", shortcuts["paste-qr"])
+                    Divider().padding(.leading, 56)
+                    row("pin", "Pin to screen", "贴到屏幕", "Floats on top: drag, scroll to zoom, double-click to close", "浮在最上层：拖动、滚动缩放、双击关闭", shortcuts["pin-screen"])
                 }
             }
             Card(padding: 6) {
