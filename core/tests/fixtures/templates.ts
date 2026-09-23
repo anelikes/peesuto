@@ -1,6 +1,7 @@
-import type { TemplateContent, TemplatePlan } from "../../src/templates/types.ts";
+import type { TemplateContent, TemplatePlan, VariantId } from "../../src/templates/types.ts";
 
 export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
+  { kind: "text", paragraphs: ["好的设计，是把复杂留给自己，把简单留给别人。"] },
   { kind: "document", paragraphs: ["把复杂的想法，讲得简单。", "A good note makes room for a clearer thought.\n先记录，再整理，最后分享。"] },
   { kind: "quote", text: "一个人只拥有此生此世是不够的，他还应该拥有诗意的世界。", author: "王小波" },
   { kind: "code", language: "TypeScript", code: "const greet = (name: string) => {\n  return `Hello, ${name}!`;\n};\nconsole.log(greet('世界'));" },
@@ -10,6 +11,6 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
   { kind: "table", headers: ["项目", "状态", "结果"], rows: [["原生界面", "完成", "更清晰"], ["模板渲染", "验证", "保留结构"]] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
-export const samplePlan = (content: TemplateContent, variant: "classic" | "editorial" = "classic", motion: TemplatePlan["motion"] = "none"): TemplatePlan => ({
-  version: 1, template: content.kind, variant, motion, sourceText: JSON.stringify(content), content, aspect: "chat",
+export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({
+  version: 1, template: content.kind, variant, motion, sourceText: JSON.stringify(content), content, aspect: "chat", ...(emphasis ? { emphasis } : {}),
 });

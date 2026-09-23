@@ -1,11 +1,14 @@
 import type { Aspect } from "../dsl.ts";
 
-export const TEMPLATE_IDS = ["document", "quote", "code", "stat", "list", "chat", "table", "comparison"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
-export const VARIANT_IDS = ["classic", "editorial"] as const;
+/** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
+export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
 export type VariantId = (typeof VARIANT_IDS)[number];
 /** Visible graphemes one card may hold (TEMPLATE_LIMITS.maxGraphemes). */
 export const TEMPLATE_MAX_GRAPHEMES = 2400;
+/** Beyond this the text template hands over to document. */
+export const TEXT_MAX_GRAPHEMES = 280;
 export const MOTIONS = ["none", "reveal", "typewriter"] as const;
 export type TemplateMotion = (typeof MOTIONS)[number];
 
@@ -17,6 +20,8 @@ export type DocumentBlock =
   | { readonly kind: "code"; readonly code: string; readonly language?: string };
 
 export type TemplateContent =
+  /** Short prose shown as typography alone: the source paragraphs, nothing added. */
+  | { readonly kind: "text"; readonly paragraphs: readonly string[] }
   | { readonly kind: "document"; readonly paragraphs: readonly string[]; readonly blocks?: readonly DocumentBlock[] }
   | { readonly kind: "quote"; readonly text: string; readonly author?: string }
   | { readonly kind: "code"; readonly code: string; readonly language?: string }
@@ -34,6 +39,9 @@ export interface TemplatePlan {
   readonly sourceText: string;
   readonly content: TemplateContent;
   readonly aspect: Aspect;
+  /** A word or phrase of the source to accent (text template only). It must
+   * occur in the content verbatim; anything else is ignored at layout. */
+  readonly emphasis?: string;
 }
 
 export interface TemplateOverride {

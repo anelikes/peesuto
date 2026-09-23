@@ -3,11 +3,37 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { ComposeError, normalizeText, unsupportedScript, type ComposeOptions, type ComposeResult } from "../render/compose.ts";
 import { splitEmoji, stageEmoji, stripEmoji } from "../render/emoji.ts";
+import { templateHasVariant } from "./registry.ts";
 import { TEMPLATE_MAX_GRAPHEMES, type TemplateMotion, type TemplatePlan } from "./types.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
 const SIZES = [24, 28, 32, 36, 40, 44, 48, 52, 56, 64, 72, 80, 96, 112, 128, 144, 160] as const;
 const VIEW = { chat: { width: 1080, height: 1080 }, doc: { width: 1920, height: 1080 }, social: { width: 1080, height: 1920 } };
+/** The text template's styles as tokens, so a redesign changes numbers here,
+ * not layout code. Sizes are clamped to SIZES (the measurer's baked sizes). */
+export const TEXT_STYLES = {
+  /** Paper: quiet page, left-aligned, regular weight. */
+  classic: { background: "#f3efe6", ink: "#27241f", accent: "#b4532f", accentBold: true, bold: false, align: "left", margin: 104, minSize: 36, maxSize: 96, leading: 1.42, rule: false },
+  /** Ink: dark ground, centered, bold. */
+  editorial: { background: "#17201e", ink: "#f2ede1", accent: "#e7c06d", accentBold: false, bold: true, align: "center", margin: 112, minSize: 36, maxSize: 112, leading: 1.36, rule: true },
+  /** Poster: loud color, big tight type. */
+  poster: { background: "#e5482e", ink: "#fff6e8", accent: "#1d1a16", accentBold: false, bold: true, align: "left", margin: 96, minSize: 40, maxSize: 160, leading: 1.14, rule: false },
+} as const;
+
+/** True for each grapheme of `source` inside the first verbatim occurrence of `emphasis`. */
+function accentMask(source: string, emphasis: string | undefined): boolean[] {
+  const glyphs = graphemes(normalizeText(source, "plain"));
+  const mask = glyphs.map(() => false);
+  if (!emphasis?.trim()) return mask;
+  const target = graphemes(emphasis);
+  outer: for (let i = 0; i + target.length <= glyphs.length; i++) {
+    for (let j = 0; j < target.length; j++) if (glyphs[i + j] !== target[j]) continue outer;
+    for (let j = 0; j < target.length; j++) mask[i + j] = true;
+    break;
+  }
+  return mask;
+}
+
 export interface TemplateMeasure {
   width(text: string, size: number, bold: boolean): number;
   lineHeight(size: number, bold: boolean): number;
@@ -16,6 +42,8 @@ export interface TemplateLine {
   text: string; x: number; y: number; width: number; size: number; height: number; bold: boolean; color: string; group: number;
   /** Per-grapheme weight after Markdown markers are interpreted. */
   boldAt: boolean[];
+  /** Per-grapheme color where it differs from `color` (an accented word). */
+  colorAt?: (string | undefined)[];
 }
 export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number }
 export interface TemplateLayout {
@@ -29,7 +57,7 @@ export interface TemplateComposeResult extends ComposeResult {
   readonly motion: TemplateMotion;
 }
 const graphemes = (text: string): string[] => [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map((part) => part.segment);
-interface StyledGlyph { text: string; bold: boolean }
+interface StyledGlyph { text: string; bold: boolean; color?: string }
 function styledGlyphs(text: string, bold: boolean, markdown: boolean): StyledGlyph[] {
   const output: StyledGlyph[] = [];
   const append = (part: string, weight: boolean) => output.push(...graphemes(part).map((text) => ({ text, bold: weight })));
@@ -49,8 +77,23 @@ function styledWidth(glyphs: readonly StyledGlyph[], size: number, measure: Temp
   }
   return width + measure.width(run, size, bold);
 }
+/** Glyph indices where a new word begins (ICU word segmentation, which also
+ * splits Chinese and Japanese into words). Breaking there keeps 复杂 whole. */
+function wordStarts(glyphs: readonly StyledGlyph[]): Set<number> {
+  const starts = new Set<number>();
+  const offsets: number[] = [];
+  let text = "";
+  for (const glyph of glyphs) { offsets.push(text.length); text += glyph.text; }
+  const byOffset = new Map(offsets.map((offset, index) => [offset, index]));
+  for (const part of new Intl.Segmenter(undefined, { granularity: "word" }).segment(text)) {
+    const index = byOffset.get(part.index);
+    if (index !== undefined) starts.add(index);
+  }
+  return starts;
+}
 function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number, measure: TemplateMeasure): StyledGlyph[][] {
   const result: StyledGlyph[][] = [];
+  const starts = wordStarts(glyphs);
   // One explicit line is glyphs[start, end). Work with indices instead of
   // re-slicing, and measure incrementally: finished same-weight runs keep
   // their width, only the open run is re-measured (identical to styledWidth).
@@ -72,7 +115,15 @@ function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number,
         for (let i = start + count - 1; i > start; i--) {
           if (/\s/u.test(glyphs[i]!.text) && firstVisible >= 0 && firstVisible < i) { count = i - start + 1; break; }
         }
+        // Still inside a word (unspaced scripts): back up to the nearest word
+        // start, keeping at least half the line.
+        if (!starts.has(start + count) && !/\s/u.test(glyphs[start + count - 1]!.text)) {
+          for (let i = start + count - 1; i >= start + Math.ceil(count / 2); i--) {
+            if (starts.has(i)) { count = i - start; break; }
+          }
+        }
       }
+      if (start + count < end) count = kinsoku(glyphs, start, count);
       result.push(glyphs.slice(start, start + count)); start += count;
     }
   };
@@ -82,35 +133,29 @@ function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number,
   return result;
 }
 
-/** Wrap all content without deleting words. A too-wide glyph is an explicit error. */
+/** Closing punctuation that must not begin a line, and opening punctuation
+ * that must not end one (CJK line-breaking rules, plus their Latin cousins). */
+const NO_LINE_START = /^[，。、；：？！）」』”’》〉】〕…—·,.;:?!)\]}%％‰]$/u;
+const NO_LINE_END = /^[（「『“‘《〈【〔(\[{$¥￥£€]$/u;
+/** Move the break so a line neither starts with closing nor ends with opening
+ * punctuation: pull the last glyph(s) down to the next line. Never empties a line. */
+function kinsoku(glyphs: readonly StyledGlyph[], start: number, count: number): number {
+  let n = count;
+  while (n > 1 && NO_LINE_START.test(glyphs[start + n]?.text ?? "")) n--;
+  while (n > 1 && NO_LINE_END.test(glyphs[start + n - 1]!.text)) n--;
+  return n > 0 ? n : count;
+}
+
+/** Wrap all content without deleting words. A too-wide glyph is an explicit
+ * error. Same breaking rules as the layouts use (word boundaries, kinsoku). */
 export function wrapTemplateText(text: string, width: number, size: number, bold: boolean, measure: TemplateMeasure): string[] {
-  const output: string[] = [];
-  for (const explicit of text.split("\n")) {
-    if (!explicit) { output.push(""); continue; }
-    let remaining = graphemes(explicit);
-    while (remaining.length) {
-      let count = 0;
-      while (count < remaining.length && measure.width(remaining.slice(0, count + 1).join(""), size, bold) <= width + 0.01) count++;
-      if (!count) throw new ComposeError("overflow", "A character cannot fit in this template column. Choose a wider aspect.");
-      if (count < remaining.length) {
-        // Prefer word boundaries for Latin, but preserve explicit indentation.
-        let breakAt = count;
-        for (let i = count - 1; i > 0; i--) {
-          if (/\s/u.test(remaining[i]!) && remaining.slice(0, i).join("").trim()) { breakAt = i + 1; break; }
-        }
-        count = breakAt;
-      }
-      output.push(remaining.slice(0, count).join(""));
-      remaining = remaining.slice(count);
-    }
-  }
-  return output;
+  return wrapStyled(styledGlyphs(text, bold, false), width, size, measure).map((line) => line.map((glyph) => glyph.text).join(""));
 }
 
 /** Pure layout: fonts supply real advances in production, a metric fixture in unit tests. */
 export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): TemplateLayout {
   if (plan.template !== plan.content.kind) throw new ComposeError("catalog", "Template and structured content do not match.");
-  if (!["classic", "editorial"].includes(plan.variant)) throw new ComposeError("catalog", "Unknown template variant.");
+  if (!templateHasVariant(plan.template, plan.variant)) throw new ComposeError("catalog", "Unknown template variant.");
   const view = VIEW[plan.aspect];
   const editorial = plan.variant === "editorial";
   const W = view.width, margin = 88, inner = W - margin * 2;
@@ -126,7 +171,8 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
     for (const [index, line] of lines.entries()) {
       const advance = styledWidth(line, size, measure);
       layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + (align === "center" ? (width - advance) / 2 : 0), y: y + index * height,
-        width: advance, size, height, bold, color, group: groupID, boldAt: line.map((g) => g.bold) });
+        width: advance, size, height, bold, color, group: groupID, boldAt: line.map((g) => g.bold),
+        ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
     }
     bottom = Math.max(bottom, y + lines.length * height);
     return lines.length * height;
@@ -134,6 +180,46 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   const rule = (x: number, y: number, width: number, color = "#d9d4c9") => rect(x, y, width, 2, color);
   const content = plan.content;
   switch (content.kind) {
+    case "text": {
+      const style = TEXT_STYLES[plan.variant as keyof typeof TEXT_STYLES] ?? TEXT_STYLES.classic;
+      layout.background = style.background;
+      const source = content.paragraphs.join("\n\n");
+      const accentAt = accentMask(source, plan.emphasis);
+      const glyphs = graphemes(normalizeText(source, "plain")).map((text, i) => ({ text, bold: style.bold || (accentAt[i] === true && style.accentBold), ...(accentAt[i] ? { color: style.accent } : {}) }));
+      const boxW = W - style.margin * 2, boxH = view.height - style.margin * 2;
+      const lineH = (size: number) => Math.ceil(measure.lineHeight(size, style.bold) * style.leading);
+      const heightAt = (lines: StyledGlyph[][], size: number) => lines.length * lineH(size) - (lineH(size) - measure.lineHeight(size, style.bold));
+      // The largest size whose wrapped text fits the box; smaller text may grow the canvas.
+      let size: number = style.minSize, lines = wrapStyled(glyphs, boxW, size, measure);
+      for (const candidate of [...SIZES].reverse()) {
+        if (candidate > style.maxSize || candidate < style.minSize) continue;
+        const wrapped = wrapStyled(glyphs, boxW, candidate, measure);
+        if (heightAt(wrapped, candidate) <= boxH) { size = candidate; lines = wrapped; break; }
+      }
+      // Balance: the narrowest measure that keeps the same number of lines.
+      let lo = Math.floor(boxW * 0.5), hi = boxW;
+      while (hi - lo > 8) {
+        const mid = Math.floor((lo + hi) / 2);
+        let trial: StyledGlyph[][] | undefined;
+        try { trial = wrapStyled(glyphs, mid, size, measure); } catch { trial = undefined; }
+        if (trial && trial.length <= lines.length) hi = mid; else lo = mid;
+      }
+      const measureW = hi;
+      lines = wrapStyled(glyphs, measureW, size, measure);
+      const total = heightAt(lines, size);
+      const top = Math.max(style.margin, Math.round((view.height - total) / 2 - size * 0.08));
+      const left = style.align === "center" ? (W - measureW) / 2 : style.margin;
+      for (const [index, line] of lines.entries()) {
+        const advance = styledWidth(line, size, measure);
+        const x = style.align === "center" ? (W - advance) / 2 : left;
+        layout.lines.push({ text: line.map((g) => g.text).join(""), x, y: top + index * lineH(size), width: advance, size, height: lineH(size),
+          bold: style.bold, color: style.ink, group: group++, boldAt: line.map((g) => g.bold),
+          ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
+      }
+      if (style.rule) rect(style.align === "center" ? W / 2 - 40 : left, top + total + Math.round(size * 0.6), 80, 6, style.accent);
+      bottom = top + total + (style.rule ? Math.round(size * 0.6) + 6 : 0);
+      break;
+    }
     case "document": {
       layout.background = editorial ? "#e9edf0" : "#ede9df";
       const paper = rect(margin - 24, margin - 24, inner + 48, 0, "#fffdf8", 8);
@@ -416,7 +502,8 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
           emojiKeys.add(emoji.key);
           nodes.push(`<Image class="absolute left-[${x}px] top-[${line.y + (line.height - line.size) / 2}px] w-[${line.size}px] h-[${line.size}px]${animation}" src="e_${emoji.key}.png" />`);
         } else {
-          nodes.push(`<Text class="absolute left-[${x}px] top-[${line.y}px] text-[${line.size}px] ${bold ? "font-bold" : ""} text-[${line.color}] h-[${line.height}px]${animation}">{${JSON.stringify(glyph)}}</Text>`);
+          const color = line.colorAt?.[glyphPosition] ?? line.color;
+          nodes.push(`<Text class="absolute left-[${x}px] top-[${line.y}px] text-[${line.size}px] ${bold ? "font-bold" : ""} text-[${color}] h-[${line.height}px]${animation}">{${JSON.stringify(glyph)}}</Text>`);
         }
       }
     }

@@ -1,5 +1,5 @@
 import { classify } from "../render/classify.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TemplateInputError, type DocumentBlock, type TemplateContent, type TemplateId } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type DocumentBlock, type TemplateContent, type TemplateId } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -36,7 +36,30 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     // Markdown containing a fence as one large code block.
     if (candidates.size === 1 && isRawCode(text.trim())) candidates.set("code", { kind: "code", code: normalized });
   }
-  return { sourceText, preferred: [...candidates.keys()].find((id) => id !== "document") ?? "document", candidates };
+  const prose = parseText(text, candidates);
+  if (prose) candidates.set("text", prose);
+  // A recognized structure wins; short plain prose is typography; the rest is a document.
+  const preferred = [...candidates.keys()].find((id) => id !== "document" && id !== "text") ?? (prose ? "text" : "document");
+  return { sourceText, preferred, candidates };
+}
+
+/** Short prose with no structure of its own: at most TEXT_MAX_GRAPHEMES visible
+ * characters and eight paragraphs, no Markdown blocks, and no structure a
+ * specialized template would lose (code, table, list, chat, comparison).
+ * Quotes and statistics keep text as an alternative. */
+function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent | undefined {
+  if (["code", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
+  if (exceedsGraphemes(text, TEXT_MAX_GRAPHEMES) !== undefined) return;
+  const blocks = documentBlocks(text);
+  if (!blocks.length || blocks.some((block) => block.kind !== "paragraph")) return;
+  if (/\*\*[^*\n]+\*\*/.test(text)) return;
+  const lines = text.split("\n").filter((line) => line.trim());
+  // Layout-bearing source (indentation, tabs, pipes, list markers, field labels) stays a document.
+  if (lines.some((line) => /^[\t ]|\t|\||^(?:[-*•]|\d+[.)、])[\t ]|^(?:`{3,}|~{3,})|^>|[:：][\t ]*$/.test(line))) return;
+  if (lines.filter((line) => /^[^:：\n]{1,40}[:：][\t ]*\S/.test(line)).length >= 2) return;
+  const paragraphs = text.split(/\n[\t ]*\n+/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  if (!paragraphs.length || paragraphs.length > 8 || lines.length > 12) return;
+  return { kind: "text", paragraphs };
 }
 
 function trimBlankLines(text: string): string {

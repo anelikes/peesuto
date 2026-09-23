@@ -11,7 +11,7 @@ const metrics: TemplateMeasure = {
 };
 
 describe("structured template layouts", () => {
-  test("all eight templates have two geometrically distinct complete variants", () => {
+  test("every template has two geometrically distinct complete variants", () => {
     for (const content of TEMPLATE_SAMPLES) {
       const classic = layoutTemplate(samplePlan(content), metrics);
       const editorial = layoutTemplate(samplePlan(content, "editorial"), metrics);
@@ -75,5 +75,50 @@ describe("structured template layouts", () => {
     expect(width).toBeLessThanOrEqual(540);
     expect(width * Math.round(1920 * width / 1080) * Math.ceil(171 / 2) * 4).toBeLessThanOrEqual(TEMPLATE_GIF_FRAME_BUDGET);
     expect(() => templateGifWidth(1080, 4096, 171)).toThrow("No content was truncated");
+  });
+});
+
+describe("text template", () => {
+  const text = (paragraphs: string[]): TemplateContent => ({ kind: "text", paragraphs });
+  const visible = (layout: ReturnType<typeof layoutTemplate>) => layout.lines.map((line) => line.text).join("").replace(/\s/g, "");
+  test("type size follows length: a line is poster-sized, a paragraph smaller", () => {
+    const short = layoutTemplate(samplePlan(text(["少即是多。"])), metrics);
+    const long = layoutTemplate(samplePlan(text(["把复杂的想法讲得简单，需要先把它想清楚，再删掉所有不必要的部分，最后留下的每一句话都应该有它存在的理由。".repeat(2)])), metrics);
+    expect(short.lines[0]!.size).toBeGreaterThan(long.lines[0]!.size);
+    expect(short.lines[0]!.size).toBe(96);
+  });
+  test("nothing but the source is drawn; the block is vertically centered", () => {
+    for (const variant of ["classic", "editorial", "poster"] as const) {
+      const layout = layoutTemplate(samplePlan(text(["好的设计，是把复杂留给自己。", "Keep it simple."]), variant), metrics);
+      expect(visible(layout)).toBe("好的设计，是把复杂留给自己。Keepitsimple.");
+      const top = layout.lines[0]!.y, last = layout.lines.at(-1)!;
+      const bottomGap = layout.height - (last.y + last.size * 1.2);
+      expect(Math.abs(top - bottomGap)).toBeLessThan(layout.height * 0.12);
+    }
+  });
+  test("lines are balanced: the last line is not a stub", () => {
+    const layout = layoutTemplate(samplePlan(text(["The quick brown fox jumps over the lazy dog, then naps in the warm afternoon sun."])), metrics);
+    const widths = layout.lines.map((line) => line.width);
+    expect(widths.length).toBeGreaterThan(1);
+    expect(widths.at(-1)!).toBeGreaterThan(Math.max(...widths) * 0.45);
+  });
+  test("closing punctuation never starts a line and opening never ends one, in every template", () => {
+    const tight: TemplateMeasure = { width: (t, size) => [...t].length * size, lineHeight: (size) => size * 1.2 };
+    const lines = wrapTemplateText("一二三四五六七八，九十", 8 * 32, 32, false, tight);
+    expect(lines.every((line) => !/^[，。、]/.test(line))).toBe(true);
+    const doc = layoutTemplate(samplePlan({ kind: "document", paragraphs: ["x"], blocks: [{ kind: "paragraph", text: "把复杂的想法，讲得简单简单简单简单简单简单简单简单简单简单简单简单。" }] }, "editorial"), tight);
+    for (const line of doc.lines) expect(/^[，。、；：？！）」』”]/.test(line.text)).toBe(false);
+    for (const line of doc.lines) expect(/[（「『“]$/.test(line.text)).toBe(false);
+  });
+  test("an accent colors exactly the chosen source word; an absent word changes nothing", () => {
+    const content = text(["Good design leaves the complexity to itself."]);
+    const accented = layoutTemplate(samplePlan(content, "editorial", "none", "complexity"), metrics);
+    const colored = accented.lines.flatMap((line) => [...line.text].filter((_, i) => line.colorAt?.[i])).join("");
+    expect(colored).toBe("complexity");
+    const plain = layoutTemplate(samplePlan(content, "editorial", "none", "simplicity"), metrics);
+    expect(plain.lines.every((line) => !line.colorAt)).toBe(true);
+  });
+  test("an unknown style for the template is refused", () => {
+    expect(() => layoutTemplate(samplePlan({ kind: "quote", text: "x" }, "poster"), metrics)).toThrow();
   });
 });

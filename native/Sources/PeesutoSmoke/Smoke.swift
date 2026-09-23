@@ -24,7 +24,7 @@ import AVFoundation
             let actions = try await client.actions()
             guard actions.actions.count >= 6 else { throw SmokeError.failed("actions") }
             let templates = try await client.templates()
-            guard templates.templates.count == 8, templates.templates.allSatisfy({ $0.variants.count >= 2 }) else { throw SmokeError.failed("template discovery") }
+            guard templates.templates.count >= 9, templates.templates.contains(where: { $0.id == "text" && $0.variants.contains(where: { $0.id == "poster" }) }), templates.templates.allSatisfy({ $0.variants.count >= 2 }) else { throw SmokeError.failed("template discovery") }
             let media = ["paste-card", "paste-gif"] + (CommandLine.arguments.contains("--video") ? ["paste-video"] : [])
             for action in media {
                 let response = try await client.runAction(action: action, input: CoreActionInput(text: "[小林]：把时间留给表达。\n[阿澈]：让排版自动完成。", template: CoreTemplateOptions(motion: "typewriter")), onState: { state in

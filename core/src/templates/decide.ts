@@ -2,7 +2,7 @@ import { isAspect, type Aspect } from "../dsl.ts";
 import type { JevRequest } from "../questions.ts";
 import type { CardDecider } from "../render/pipeline.ts";
 import { parseTemplates, type ParsedTemplates } from "./parse.ts";
-import { templateRegistration } from "./registry.ts";
+import { templateHasVariant, templateRegistration } from "./registry.ts";
 import { ProviderError } from "../provider/types.ts";
 import { MOTIONS, TEMPLATE_IDS, VARIANT_IDS, TemplateInputError, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
 
@@ -26,8 +26,30 @@ function motionChoices(allowMotion: boolean, requireMotion: boolean): Record<str
   return requireMotion ? animated : { none: "one still composition", ...animated };
 }
 
+/** Words the text template may accent, in source order. Only whole words that
+ * occur verbatim in the source are offered, so an answer cannot add text. */
+export function emphasisCandidates(paragraphs: readonly string[], limit = 12): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const paragraph of paragraphs) {
+    for (const part of new Intl.Segmenter(undefined, { granularity: "word" }).segment(paragraph)) {
+      if (!part.isWordLike) continue;
+      const word = part.segment;
+      const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(word);
+      if (cjk ? [...word].length < 2 : word.length < 4 && !/\d/.test(word)) continue;
+      const key = word.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key); out.push(word);
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
 export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boolean, requireMotion = false): JevRequest {
   const eligible = [...parsed.candidates.keys()];
+  const text = parsed.candidates.get("text");
+  const words = text?.kind === "text" ? emphasisCandidates(text.paragraphs) : [];
   return {
     state: { clipboard: parsed.sourceText },
     questions: {
@@ -43,6 +65,10 @@ export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boole
         type: "choice", instructions: "Choose how the existing content appears; never change its words. Still images require none.",
         criteria: motionChoices(allowMotion, requireMotion),
       },
+      ...(words.length ? { emphasis: {
+        type: "choice", instructions: "If the text template is used, the one word that carries the message, to be accented. Choose none unless one word clearly stands out.",
+        criteria: { none: "no accent", ...Object.fromEntries(words.map((word) => [word, `the word "${word}"`])) },
+      } } : {}),
     },
   };
 }
@@ -85,7 +111,11 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
     throw new TemplateInputError(`The source does not contain the explicit structure required by the ${override.id} template. Use document to preserve the original text.`);
   }
   let template: TemplateId = override.id ?? parsed.preferred;
+  if (override.variant !== undefined && !templateHasVariant(template, override.variant)) {
+    throw new TemplateInputError(`The ${template} template has no ${override.variant} style.`);
+  }
   let variant: VariantId = "classic";
+  let emphasis: string | undefined;
   const allowMotion = options.output !== "image" && options.animate !== "never";
   // A GIF or MP4 action must animate unless its author explicitly chose "never".
   const requireMotion = allowMotion;
@@ -107,6 +137,11 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
         const allowedMotions = !allowMotion ? ["none"] : requireMotion ? MOTIONS.filter((m) => m !== "none") : MOTIONS;
         const selectedMotion = confidentChoice(answers, "motion", allowedMotions);
         if (selectedMotion) motion = selectedMotion as TemplateMotion;
+        const content = parsed.candidates.get(template);
+        if (content?.kind === "text") {
+          const accent = confidentChoice(answers, "emphasis", emphasisCandidates(content.paragraphs));
+          if (accent) emphasis = accent;
+        }
         decisionSource = "jev";
       } else decisionSource = "fallback";
     } catch (error) {
@@ -116,14 +151,14 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
     }
   }
   const preferred = options.preferences?.[template];
-  if (preferred && VARIANT_IDS.includes(preferred as VariantId)) variant = preferred as VariantId;
+  if (preferred && templateHasVariant(template, preferred)) variant = preferred;
   if (override.variant) variant = override.variant;
   // A "none" override cannot make a required animation static.
   if (override.motion && !(requireMotion && override.motion === "none")) motion = override.motion;
   if (!allowMotion) motion = "none";
   if (requireMotion && motion === "none") motion = DEFAULT_MOTION;
   return {
-    plan: { version: 1, template, variant, motion, sourceText: parsed.sourceText, content: parsed.candidates.get(template)!, aspect: options.aspect },
+    plan: { version: 1, template, variant, motion, sourceText: parsed.sourceText, content: parsed.candidates.get(template)!, aspect: options.aspect, ...(emphasis ? { emphasis } : {}) },
     decisionSource,
     availableTemplates,
     ...(decisionError ? { decisionError } : {}),

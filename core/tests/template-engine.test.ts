@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { prepareTemplate, renderTemplate } from "../src/templates/render.ts";
 import { frameCard } from "../src/render/card.ts";
 import { TEMPLATE_SAMPLES, samplePlan } from "./fixtures/templates.ts";
+import { templateRegistration } from "../src/templates/registry.ts";
 import { documentBlocks } from "../src/templates/parse.ts";
 
 const engine = process.env.PEESUTO_TEMPLATE_ENGINE ? resolve(process.env.PEESUTO_TEMPLATE_ENGINE) : undefined;
@@ -17,10 +18,10 @@ const output = resolve(process.env.PEESUTO_TEMPLATE_OUTPUT ?? ".work/template-sa
 const options = { engine: engine ?? "", work: join(output, "work"), emojiCache: join(output, "emoji"), emojiBundle: resolve(".work/emoji-all") };
 const digest = async (path: string) => createHash("sha256").update(new Uint8Array(await Bun.file(path).arrayBuffer())).digest("hex");
 
-integration("all 16 designs render complete PNGs in the actual engine", async () => {
+integration("every registered design renders a complete PNG in the actual engine", async () => {
   await mkdir(output, { recursive: true });
   const samples: string[] = [];
-  for (const content of TEMPLATE_SAMPLES) for (const variant of ["classic", "editorial"] as const) {
+  for (const content of TEMPLATE_SAMPLES) for (const variant of templateRegistration(content.kind).variants.map((v) => v.id)) {
     const path = join(output, `${content.kind}-${variant}.png`);
     const rendered = await renderTemplate(samplePlan(content, variant), { ...options, format: "png", out: path });
     expect(rendered.truncated).toBe(false);

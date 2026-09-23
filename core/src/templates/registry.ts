@@ -10,6 +10,9 @@ export interface TemplateRegistration {
 
 /** Public registry used by templates.list and the constrained Jev questions. */
 export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
+  { id: "text", name: "Text", nameZh: "文字", variants: [
+    { id: "classic", name: "Paper", nameZh: "纸面" }, { id: "editorial", name: "Ink", nameZh: "墨色" }, { id: "poster", name: "Poster", nameZh: "海报" },
+  ], motions: MOTIONS },
   { id: "document", name: "Document", nameZh: "文档", variants: [
     { id: "classic", name: "Reading page", nameZh: "阅读页" }, { id: "editorial", name: "Editorial column", nameZh: "杂志专栏" },
   ], motions: MOTIONS },
@@ -38,4 +41,8 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
 
 export function templateRegistration(id: TemplateId): TemplateRegistration {
   return TEMPLATE_REGISTRY.find((entry) => entry.id === id)!;
+}
+
+export function templateHasVariant(id: TemplateId, variant: string): variant is VariantId {
+  return templateRegistration(id).variants.some((entry) => entry.id === variant);
 }

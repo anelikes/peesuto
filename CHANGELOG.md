@@ -7,6 +7,8 @@ section here becomes one.
 
 ## Unreleased
 
+- Text template, the default for short plain prose: typography alone in three styles (Paper, Ink, Poster), size by length, balanced and vertically centered lines, and an optional accent on one source word chosen by the model. Styles are a token table for redesign.
+- All templates: lines break at word boundaries in Chinese and Japanese too, and closing punctuation no longer starts a line.
 - Native app: saving settings during a render no longer restarts Core (the config waits for the task); action timeouts are 300 s for image/GIF and 720 s for video; Core's death fails pending requests at once and its process group is always killed; the last Core stderr lines show in errors and in Settings → Core diagnostics.
 - Native app: a locked history keeps capturing in memory and offers "Start fresh"; Clear history; Open at login; decider errors show as a note on the result; the app no longer records its own pasteboard writes.
 - GIF and video actions can no longer come out as a single still frame: "none" is not offered as motion when an action needs motion, an override of it falls back to "reveal", and a one-frame GIF/MP4 is an error.

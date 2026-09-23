@@ -19,20 +19,52 @@ invent missing authors, participants or data. Default local rules work offline.
 Configured model errors, malformed answers and low-confidence decisions fall back
 to local decisions. This is not a claim that Jev understands every arbitrary input.
 
-## First template set
+## Template set
 
-| Template | Classic | Editorial |
-|---|---|---|
-| Document | Reading page | Editorial column |
-| Quote | Book excerpt | Statement |
-| Code | Terminal | Code notebook |
-| Statistic | Big number | Metric strip |
-| List | Checklist | Stacked steps |
-| Conversation | Chat bubbles | Transcript |
-| Table | Data grid | Editorial ledger |
-| Comparison | Side by side | Split panels |
+| Template | Classic | Editorial | Poster |
+|---|---|---|---|
+| Text | Paper | Ink | Poster |
+| Document | Reading page | Editorial column | |
+| Quote | Book excerpt | Statement | |
+| Code | Terminal | Code notebook | |
+| Statistic | Big number | Metric strip | |
+| List | Checklist | Stacked steps | |
+| Conversation | Chat bubbles | Transcript | |
+| Table | Data grid | Editorial ledger | |
+| Comparison | Side by side | Split panels | |
 
 These variants change composition and typographic hierarchy, not just color.
+A style id is valid only for the templates that register it: `poster` exists
+for text alone, and a saved or manual `poster` elsewhere is ignored or refused.
+
+### Text: typography only
+
+Text is the default for short plain prose, the most common thing people copy:
+a line, a sentence, a few short paragraphs. It draws the source paragraphs and
+nothing else (no labels, numbers or decoration made of words).
+
+- Eligible: at most 280 visible characters, eight paragraphs and twelve lines;
+  no Markdown blocks or `**bold**`, and nothing layout-bearing (indentation,
+  tabs, pipes, list markers, `>` quotes, lines ending in a colon, two or more
+  `Label: value` lines). Code, table, list, conversation and comparison sources
+  never get it; a quote or statistic wins but keeps text as an alternative.
+  Anything else falls to document.
+- Size follows length: the largest baked size whose wrapped text fits the box,
+  so a line is poster-sized and a paragraph smaller. The measure is then
+  narrowed while the line count holds, which balances the lines, and the block
+  is vertically centered.
+- Accent: with a model decider, one optional question offers `none` plus up to
+  twelve whole words taken from the source; a confident answer colors that word.
+  Local rules never accent. A manual restyle does not ask again, so it drops the accent.
+- Styles are one token table, `TEXT_STYLES` in `core/src/templates/compose.ts`
+  (colors, weight, alignment, margin, size range, leading, rule); a redesign
+  changes numbers there, not the layout code.
+
+### Line breaking (all templates)
+
+Lines break at spaces, and in unspaced scripts at ICU word boundaries (so 复杂
+stays whole), backing up at most half a line. Closing punctuation never starts
+a line and opening punctuation never ends one (kinsoku).
 Flowcharts, timelines, event cards and poetry-specific layouts are later work.
 New template implementations must register a parser, presentation options and an
 actual renderer; adding a catalog name alone does not create a working template.
@@ -91,7 +123,7 @@ PEESUTO_TEMPLATE_ENGINE=/absolute/path/to/prepared-engine-copy bun test core/tes
 ```
 
 Use a disposable copy of the prepared pinned engine: its build tools write vendor
-caches. This test renders all 16 variants and compares the typewriter's final
+caches. This test renders every registered variant and compares the typewriter's final
 frame, ending hold and complete PNG export. The macOS render CI runs this suite.
 Native bundle and interface acceptance is recorded in
 [the template baseline](../baselines/templates-native-0.1.0.md).

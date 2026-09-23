@@ -10,20 +10,22 @@ const choice = (value: string, confidence = 0.9) => ({ choice: value, probabilit
 const decider = (answers: unknown) => ({ name: "fixture", ask: async () => answers });
 
 describe("template registry", () => {
-  test("each of the eight templates exposes two distinct styles and motion choices", () => {
+  test("each template exposes at least two distinct styles and motion choices; only text has poster", () => {
     expect(TEMPLATE_REGISTRY.map((template) => template.id)).toEqual([...TEMPLATE_IDS]);
     for (const entry of TEMPLATE_REGISTRY) {
       expect(entry.variants.length).toBeGreaterThanOrEqual(2);
       expect(new Set(entry.variants.map((variant) => variant.id)).size).toBe(entry.variants.length);
       expect(entry.motions).toEqual([...MOTIONS]);
       expect(entry.nameZh.length).toBeGreaterThan(0);
+      expect(entry.variants.some((variant) => variant.id === "poster")).toBe(entry.id === "text");
     }
   });
 });
 
 describe("source-backed content parsing", () => {
   const fixtures = [
-    ["document", "Ordinary prose.\nStill the same paragraph.\n\nA new paragraph."],
+    ["text", "Ordinary prose.\nStill the same paragraph.\n\nA new paragraph."],
+    ["document", "# Notes\n\nOrdinary prose.\n\nA new paragraph."],
     ["quote", "“Simplicity is a choice.” — Ada"],
     ["code", "```typescript\nconst greeting = 'hello';\n  console.log(greeting);\n```"],
     ["stat", "Conversion rate: 42.5%"],
@@ -53,7 +55,7 @@ describe("source-backed content parsing", () => {
       .toEqual({ kind: "quote", text: "First line\nSecond line", author: "A real source" });
     expect(parseTemplates("“正文。”——作者").candidates.get("quote"))
       .toEqual({ kind: "quote", text: "正文。", author: "作者" });
-    expect(parseTemplates('“Mismatched quotation"').preferred).toBe("document");
+    expect(parseTemplates('“Mismatched quotation"').preferred).toBe("text");
   });
   test("raw commands and code preserve their complete source", () => {
     for (const source of ["const x = 42;\nconsole.log(x);", "git status --short", "curl https://example.com", '{ "key": "value" }']) {
@@ -110,6 +112,7 @@ describe("source-backed content parsing", () => {
   test("tab-separated columns require a rectangular table", () => {
     expect(parseTemplates("Name\tScore\nAda\t42").preferred).toBe("table");
     expect(parseTemplates("Name\tScore\nAda\t42\textra").preferred).toBe("document");
+    expect(parseTemplates("Name\tScore\nAda\t42\textra").candidates.has("text")).toBe(false);
   });
   const ambiguous = [
     "Someone said this sentence yesterday.", "Name: Ada\nAge: 32", "Name: Ada\nAge: 32\nName: Bob", "Hello: world\nAnother: field",
@@ -117,8 +120,24 @@ describe("source-backed content parsing", () => {
     "Title A:\nSomething\nTitle B:\nSomething else", "| A | B |\n| x | y |", "| A | B |\n| --- | --- |\n| x |",
     "- parent\n  - child", "3. Third\n7. Seventh", "1. First\n- Second", "```js\nunterminated",
   ];
-  for (const source of ambiguous) test(`keeps ambiguous input as document: ${source.split("\n")[0]}`, () => {
-    expect(parseTemplates(source).preferred).toBe("document");
+  // Ambiguous input never becomes a specialized structure. Short plain prose is
+  // typography (text); anything layout-bearing stays a document.
+  const plainProse = new Set(["Someone said this sentence yesterday.", "A: A single speaker line", "Left column\nRight column"]);
+  for (const source of ambiguous) test(`keeps ambiguous input unstructured: ${source.split("\n")[0]}`, () => {
+    expect(parseTemplates(source).preferred).toBe(plainProse.has(source) ? "text" : "document");
+  });
+  test("text: short plain prose only, source paragraphs kept verbatim", () => {
+    expect(parseTemplates("把复杂的想法，讲得简单。\n\n先记录，再整理。 \n").candidates.get("text"))
+      .toEqual({ kind: "text", paragraphs: ["把复杂的想法，讲得简单。", "先记录，再整理。"] });
+    expect(parseTemplates("x".repeat(281)).candidates.has("text")).toBe(false);
+    expect(parseTemplates("x".repeat(280)).preferred).toBe("text");
+    for (const source of ["# Title\n\nBody", "A **bold** claim", "Line one\n  indented", "- a\n- b", "```js\nx\n```", "a | b"]) {
+      expect(parseTemplates(source).candidates.has("text")).toBe(false);
+    }
+    // A quote or a statistic wins but keeps text as an alternative.
+    const quote = parseTemplates("“Simplicity is a choice.” — Ada");
+    expect(quote.preferred).toBe("quote");
+    expect(quote.candidates.has("text")).toBe(true);
   });
   test("rejects empty input", () => { expect(() => parseTemplates(" \n ")).toThrow(TemplateInputError); });
 });
@@ -152,7 +171,7 @@ describe("constrained template decisions", () => {
   });
   test("a model cannot select a template absent from the parsed source", async () => {
     const result = await decideTemplate("No named speakers here.", { ...base, decider: decider({ template: choice("chat"), variant: choice("chat.editorial"), motion: choice("typewriter") }) });
-    expect(result.plan.template).toBe("document");
+    expect(result.plan.template).toBe("text");
     expect(result.decisionSource).toBe("fallback");
   });
   for (const answer of [null, {}, { template: { choice: "quote" } }, { template: choice("quote", 0.2) }, { template: choice("quote", 3) }, { template: choice("quote", NaN) }]) {
@@ -239,5 +258,27 @@ describe("constrained template decisions", () => {
     const lowConfidence = await decideTemplate("“A quote.”", { ...base, decider: decider(null) });
     expect(lowConfidence.decisionSource).toBe("fallback");
     expect("decisionError" in lowConfidence).toBe(false);
+  });
+  test("text: poster is a text style only; a Jev accent must be a source word", async () => {
+    const poster = await decideTemplate("把复杂留给自己，把简单留给别人。", { ...base, override: { variant: "poster" } });
+    expect(poster.plan).toMatchObject({ template: "text", variant: "poster" });
+    await expect(decideTemplate("“Simplicity is a choice.” — Ada", { ...base, override: { variant: "poster" } })).rejects.toThrow(TemplateInputError);
+    const source = "Good design leaves the complexity to itself.";
+    const accented = await decideTemplate(source, { ...base, decider: decider({ template: choice("text"), emphasis: choice("complexity") }) });
+    expect(accented.plan.emphasis).toBe("complexity");
+    const invented = await decideTemplate(source, { ...base, decider: decider({ template: choice("text"), emphasis: choice("simplicity") }) });
+    expect(invented.plan.emphasis).toBeUndefined();
+    const none = await decideTemplate(source, { ...base, decider: decider({ template: choice("text"), emphasis: choice("none") }) });
+    expect(none.plan.emphasis).toBeUndefined();
+    // A saved poster preference for another template is ignored rather than failing.
+    const saved = await decideTemplate("“Simplicity is a choice.” — Ada", { ...base, preferences: { quote: "poster" } });
+    expect(saved.plan).toMatchObject({ template: "quote", variant: "classic" });
+  });
+  test("text: the emphasis question offers only words from the source", () => {
+    const request = buildTemplateRequest(parseTemplates("把复杂的想法，讲得简单。Keep it simple."), true);
+    const criteria = Object.keys((request.questions.emphasis as { criteria: Record<string, string> }).criteria);
+    expect(criteria[0]).toBe("none");
+    for (const word of criteria.slice(1)) expect("把复杂的想法，讲得简单。Keep it simple.".includes(word)).toBe(true);
+    expect(buildTemplateRequest(parseTemplates("| A | B |\n| --- | --- |\n| 1 | 2 |"), true).questions.emphasis).toBeUndefined();
   });
 });
