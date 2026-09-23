@@ -21,8 +21,8 @@ open native/dist/Peesuto.app
 
 构建脚本执行 Swift release 构建，打包 Bun、Core、引擎和资源，并进行本地 ad-hoc
 签名与签名结构检查。输出为 `native/dist/Peesuto.app`，目标架构为当前构建机器的
-架构，最低系统版本为 macOS 13.0（与打包的 Bun 一致）。尚未提供通用二进制、Developer ID 签名、
-公证或安装盘发布链路。
+架构，最低系统版本为 macOS 13.0（与打包的 Bun 一致）。尚未提供通用二进制；
+Developer ID 签名、公证与 DMG 见下文「签名、公证与 DMG」。
 
 首次成功打包后，只修改 Swift 桌面代码时可以复用暂存资源：
 
@@ -59,6 +59,22 @@ bun scripts/build-native.ts --preview --skip-resources
 预览中的“复制”和“粘贴”是显式操作，仍可能写入系统剪贴板；“导出”会将结果保存
 到选择的位置。隔离的是后台采集、历史与凭据，不是这些用户主动触发的输出操作。
 预览目录和渲染输出会保留在临时目录中便于检查；下次启动预览时，已退出的预览进程留下的目录会被清理。
+
+## 签名、公证与 DMG
+
+```sh
+bun scripts/release-native.ts --identity "Developer ID Application: <name> (<team id>)" \
+  --notary-profile pocket-paste-notary --engine "$PWD/.work/native-engine"
+```
+
+脚本在 `build-native.ts` 构建后按由内到外的顺序以 hardened runtime 重新签名（资源中的
+Mach-O，如引擎的 `.node`；随包 Bun `paste` 使用 `Resources/Bun.entitlements.plist`；
+`PeesutoCoreHost`；最后是应用包，不用 `--deep`），校验后生成
+`dist/Peesuto-<版本>-arm64.dmg`（含 `/Applications` 链接）并签名，然后公证、staple，
+并写出 `.sha256`。没有 Developer ID 证书时可用任一 Apple Development 身份加
+`--no-notarize` 离线演练（不加时间戳、不公证，spctl 拒绝只报告），再用
+`PeesutoSmoke … --video` 验证 hardened runtime 下的 Core。前置条件（证书、
+notarytool 凭证）与验证命令见 [发布说明](../docs/RELEASING.md)。首个版本不含自动更新。
 
 ## 正式数据兼容
 
@@ -119,8 +135,8 @@ bun scripts/build-native.ts --preview --skip-resources
 
 - 账户、订阅与扩展包管理界面；已有 Core 扩展能力不等于原生管理界面已经迁完。
 - 动作编辑器、自定义动作的快捷键，以及原迁移计划中的其他高级设置。
-- 自动更新、正式签名、公证与正式分发。CI 已改为原生构建；手动构建工作流仅输出
-  本地 ad-hoc 签名的验证包，不创建 Release 或更新元数据。
+- 自动更新与正式分发；签名、公证与 DMG 脚本已有，但尚未用 Developer ID 证书实际
+  公证过。CI 手动构建工作流仍只输出本地 ad-hoc 签名的验证包，不创建 Release 或更新元数据。
 - 视频编码器独立分发及目标应用粘贴兼容验收。
 - 渲染细分进度、精细取消和独立渲染调度。已有有限生命周期事件；取消仍终止整个
   Core，耗时渲染仍占用串行处理队列。
@@ -163,8 +179,9 @@ native/.build/release/PeesutoSmoke native/dist/Peesuto.app --video
 | `Sources/PeesutoCoreHost/` | Core 启动与进程组 |
 | `Sources/PeesutoSmoke/` | 完整 bundle 的隔离冒烟检查 |
 | `Tests/PeesutoKitTests/` | 原生模块测试 |
-| `Resources/` | 应用图标与 Bun 的本地签名权限配置 |
+| `Resources/` | 应用图标与 Bun 的签名权限配置（hardened runtime） |
 | `../scripts/build-native.ts` | Swift 构建、资源打包与 `.app` 组装 |
+| `../scripts/release-native.ts` | Developer ID 签名、DMG、公证与校验和 |
 
 架构边界与后续验收以 [迁移方案](../docs/native-migration.md) 和
 [PLAN.md](../PLAN.md) 为准。
