@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Peesuto Studio</title>
+<style>
+:root{--bg:#f4f2ee;--side:#ebe7df;--card:#fff;--ink:#1f2328;--muted:#6b6f76;--line:#dcd7cd;--accent:#2e5e52;--accent-ink:#fff;--warn:#9a5b00;--warn-bg:#fff3d6;--err:#b3261e;--err-bg:#fdecea;--shade:#0000000a}
+@media (prefers-color-scheme:dark){:root{--bg:#141618;--side:#1a1d20;--card:#1f2226;--ink:#e8e6e3;--muted:#9aa0a6;--line:#2e3337;--accent:#8fc2b0;--accent-ink:#0e1a16;--warn:#f0c16a;--warn-bg:#3a2e14;--err:#f28b82;--err-bg:#3b1d1b;--shade:#ffffff08}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;display:grid;grid-template-columns:268px 1fr;height:100vh;overflow:hidden}
+aside{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+aside header{padding:18px 16px 10px}
+aside h1{margin:0;font-size:17px;letter-spacing:.2px}
+aside h1 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+nav{flex:1;overflow:auto;padding:4px 8px 12px}
+nav h3{font-size:11px;color:var(--muted);font-weight:600;margin:14px 8px 4px;letter-spacing:.5px}
+nav button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);padding:5px 8px;border-radius:6px;font:inherit;cursor:pointer}
+nav button:hover{background:var(--shade)}
+nav button.on{background:var(--accent);color:var(--accent-ink)}
+nav button small{display:block;font-size:11px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+aside footer{border-top:1px solid var(--line);padding:10px 14px 14px;font-size:12px;color:var(--muted)}
+aside footer code{font:12px ui-monospace,Menlo,monospace;color:var(--ink)}
+main{overflow:auto;min-width:0}
+.toolbar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 24px;display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--card);color:var(--ink);padding:4px 10px;font:inherit;font-size:13px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.seg button small{opacity:.7;margin-left:4px;font-size:11px}
+.toolbar label{font-size:13px;display:inline-flex;gap:4px;align-items:center;cursor:pointer}
+.toolbar .group{display:flex;gap:10px;align-items:center}
+.toolbar .cap{font-size:12px;color:var(--muted)}
+.qstate{margin-left:auto;font-size:12px;color:var(--muted);max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:7px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.banner{display:none;margin:12px 24px 0;padding:10px 14px;border-radius:8px;background:var(--warn-bg);color:var(--warn);cursor:pointer;font-weight:600}
+.banner.show{display:block}
+.content{padding:16px 24px 48px}
+h2{font-size:19px;margin:4px 0 8px}
+h4{font-size:13px;color:var(--muted);margin:22px 0 8px;font-weight:600}
+pre.src{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;white-space:pre-wrap;max-height:200px;overflow:auto;font:12px/1.55 ui-monospace,Menlo,monospace;margin:0 0 10px}
+textarea{width:100%;min-height:150px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:13px/1.55 ui-monospace,Menlo,monospace;resize:vertical}
+.decision{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px 18px}
+.decision b{color:var(--accent)}
+.decision .k{color:var(--muted)}
+.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 8px;font-size:12px;margin:0 3px 2px 0}
+.pill.on{border-color:var(--accent);color:var(--accent)}
+.warn{color:var(--warn)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--col,260px),1fr));gap:14px}
+figure{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+figure.auto{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.media{background:repeating-conic-gradient(var(--shade) 0 25%,transparent 0 50%) 0 0/16px 16px;min-height:160px;display:flex;align-items:center;justify-content:center;position:relative}
+.media img,.media video{display:block;width:100%;height:auto;max-height:560px;object-fit:contain}
+.media .state{color:var(--muted);font-size:12px;padding:24px;text-align:center}
+.media .errbox{align-self:stretch;width:100%;background:var(--err-bg);color:var(--err);padding:12px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+.spin{width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 0.8s linear infinite;margin:0 auto 8px}
+@keyframes s{to{transform:rotate(360deg)}}
+figcaption{padding:8px 10px;font-size:12px}
+figcaption .label{font-weight:600;font-size:13px}
+figcaption .meta{color:var(--muted)}
+figcaption .links{margin-top:4px;display:flex;gap:10px}
+figcaption a{color:var(--accent);text-decoration:none;cursor:pointer}
+figcaption a:hover{text-decoration:underline}
+.tile{cursor:pointer}
+.tile:hover{border-color:var(--accent)}
+.tile .media{min-height:120px}
+.empty{color:var(--muted);padding:40px 0}
+.errline{background:var(--err-bg);color:var(--err);border-radius:8px;padding:10px 12px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<aside>
+  <header><h1>Peesuto Studio<small>模板工作台</small></h1></header>
+  <nav id="nav"></nav>
+  <footer>
+    <div>代码版本 <code id="ver">…</code></div>
+    <div style="margin:4px 0 8px">改动 core/src/templates、core/src/render 或 engine.json 会自动换版本</div>
+    <button class="btn" id="clear">清空缓存重新渲染</button>
+  </footer>
+</aside>
+<main>
+  <div class="toolbar">
+    <div class="group"><span class="cap">画幅</span><div class="seg" id="aspect"></div></div>
+    <div class="group" id="formats"><span class="cap">渲染</span></div>
+    <div class="group"><span class="cap">决策</span><div class="seg" id="decider"></div></div>
+    <div class="qstate" id="qstate"></div>
+  </div>
+  <div class="banner" id="banner">模板代码已改变，点击刷新</div>
+  <div class="content" id="content"></div>
+</main>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("studio." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("studio." + k, JSON.stringify(v)); } catch {} },
+};
+const ASPECTS = [["chat", "聊天", "1080×1080"], ["doc", "文档", "1920×1080"], ["social", "竖屏", "1080×1920"]];
+const FORMATS = [["png", "本模板各风格 PNG"], ["others", "其他可选模板"], ["gif", "GIF 动效"], ["mp4", "MP4 视频"]];
+const SOURCE = { rules: "本地规则", jev: "Jev", fallback: "回退到本地规则", override: "手动指定" };
+const GROUPS = [["chosen", "自动选择的模板 · 全部风格"], ["other", "其他可选模板"], ["motion", "GIF 动效"], ["video", "视频"]];
+
+const S = {
+  info: null, version: "", seq: 0, cards: new Map(),
+  view: viewFromHash() ?? store.get("view", { mode: "overview" }),
+  aspect: store.get("aspect", "chat"),
+  decider: store.get("decider", "rules"),
+  formats: Object.assign({ png: true, others: true, gif: true, mp4: true }, store.get("formats", {})),
+  custom: store.get("custom", ""),
+};
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  return res.json();
+}
+
+function setVersion(v) { S.version = v; $("#ver").textContent = v; }
+
+function buildToolbar() {
+  const aspect = $("#aspect");
+  aspect.innerHTML = ASPECTS.map(([id, name, size]) => `<button data-id="${id}" class="${S.aspect === id ? "on" : ""}">${name}<small>${size}</small></button>`).join("");
+  aspect.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; S.aspect = b.dataset.id; store.set("aspect", S.aspect); buildToolbar(); show(); };
+  const formats = $("#formats");
+  formats.innerHTML = `<span class="cap">渲染</span>` + FORMATS.map(([id, name]) => {
+    const off = id === "mp4" && !S.info.ffmpeg;
+    return `<label title="${off ? "没有找到 ffmpeg" : ""}" style="${off ? "opacity:.45" : ""}"><input type="checkbox" data-id="${id}" ${S.formats[id] && !off ? "checked" : ""} ${off ? "disabled" : ""}>${name}</label>`;
+  }).join("");
+  formats.onchange = (e) => { const id = e.target.dataset.id; if (!id) return; S.formats[id] = e.target.checked; store.set("formats", S.formats); if (S.view.mode !== "overview") show(); };
+  const decider = $("#decider");
+  if (S.decider === "jev" && !S.info.jev) S.decider = "rules";
+  decider.innerHTML = `<button data-id="rules" class="${S.decider === "rules" ? "on" : ""}">本地规则</button>`
+    + `<button data-id="jev" class="${S.decider === "jev" ? "on" : ""}" ${S.info.jev ? "" : "disabled title=\"需要 .env 里的 PASTE_CF_TOKEN 和 PASTE_CF_ACCOUNT_ID\""}>Jev (Cloudflare)</button>`;
+  decider.onclick = (e) => { const b = e.target.closest("button"); if (!b || b.disabled) return; S.decider = b.dataset.id; store.set("decider", S.decider); buildToolbar(); show(); };
+}
+
+function buildNav() {
+  const groups = new Map();
+  for (const s of S.info.scenarios) { if (!groups.has(s.group)) groups.set(s.group, []); groups.get(s.group).push(s); }
+  const on = (mode, id) => S.view.mode === mode && (!id || S.view.id === id) ? "on" : "";
+  let html = `<button data-mode="overview" class="${on("overview")}">全部场景总览<small>每个场景的自动选择</small></button>`;
+  html += `<button data-mode="custom" class="${on("custom")}">自定义文字<small>粘贴任何文字</small></button>`;
+  for (const [group, list] of groups) {
+    html += `<h3>${esc(group)}</h3>` + list.map((s) => `<button data-mode="scenario" data-id="${esc(s.id)}" class="${on("scenario", s.id)}">${esc(s.title)}<small>${esc(s.text.replace(/\s+/g, " ").slice(0, 40))}</small></button>`).join("");
+  }
+  $("#nav").innerHTML = html;
+}
+$("#nav").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  select(b.dataset.mode === "scenario" ? { mode: "scenario", id: b.dataset.id } : { mode: b.dataset.mode });
+};
+function select(view) { S.view = view; store.set("view", view); writeHash(view); buildNav(); show(); $("main").scrollTop = 0; }
+// Shareable links: #overview, #custom, #<scenario id>.
+function viewFromHash() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (!h) return undefined;
+  return h === "overview" || h === "custom" ? { mode: h } : { mode: "scenario", id: h };
+}
+function writeHash(view) {
+  const h = view.mode === "scenario" ? view.id : view.mode;
+  if (decodeURIComponent(location.hash.slice(1)) !== h) history.replaceState(null, "", "#" + encodeURIComponent(h));
+}
+addEventListener("hashchange", () => { const v = viewFromHash(); if (v) select(v); });
+
+// ---- cards ----
+function metaLine(job) {
+  const m = job.meta; if (!m) return "";
+  const parts = [`${m.width}×${m.height}`];
+  if (m.frames > 1) parts.push(`${m.frames} 帧`);
+  if (m.scroll) parts.push("滚动");
+  parts.push(`${m.ms} ms`);
+  if (m.bytes) parts.push(m.bytes > 1048576 ? `${(m.bytes / 1048576).toFixed(1)} MB` : `${Math.round(m.bytes / 1024)} KB`);
+  if (m.cached) parts.push("缓存");
+  return parts.join(" · ");
+}
+function paint(fig, job) {
+  const media = fig.querySelector(".media");
+  const st = media.dataset.status;
+  if (st === job.status && st !== "running") { fig.querySelector(".meta").textContent = metaLine(job); return; }
+  media.dataset.status = job.status;
+  if (job.status === "done") {
+    media.innerHTML = job.format === "mp4"
+      ? `<video src="${job.url}" autoplay muted loop playsinline controls></video>`
+      : `<img src="${job.url}" alt="${esc(job.label)}">`;
+  } else if (job.status === "error") {
+    media.innerHTML = `<div class="errbox">${esc(job.error?.kind)}\n${esc(job.error?.message)}</div>`;
+  } else if (job.status === "running") {
+    media.innerHTML = `<div class="state"><div class="spin"></div>渲染中…</div>`;
+  } else if (job.status === "stale") {
+    media.innerHTML = `<div class="state">代码已改变，刷新后重新渲染</div>`;
+  } else {
+    media.innerHTML = `<div class="state">排队中</div>`;
+  }
+  fig.querySelector(".meta").textContent = job.status === "done" ? metaLine(job) : job.status === "error" ? "渲染失败" : "";
+  const links = fig.querySelector(".links");
+  if (links) links.style.visibility = job.status === "done" ? "visible" : "hidden";
+}
+function card(job, opts = {}) {
+  const fig = document.createElement("figure");
+  if (job.auto && !opts.tile) fig.classList.add("auto");
+  if (opts.tile) fig.classList.add("tile");
+  fig.innerHTML = `<div class="media" data-status=""></div><figcaption><div class="label">${esc(opts.title ?? job.label)}${job.auto && !opts.tile ? "（自动）" : ""}</div>`
+    + (opts.sub ? `<div class="meta-sub" style="color:var(--muted)">${esc(opts.sub)}</div>` : "")
+    + `<div class="meta"></div>`
+    + (opts.tile ? "" : `<div class="links"><a href="${job.url}" target="_blank">打开文件</a><a data-reveal="${job.key}">在 Finder 中显示</a></div>`)
+    + `</figcaption>`;
+  const reveal = fig.querySelector("[data-reveal]");
+  if (reveal) reveal.onclick = () => api("/api/reveal", { key: job.key });
+  if (!S.cards.has(job.key)) S.cards.set(job.key, []);
+  S.cards.get(job.key).push({ fig, job });
+  paint(fig, job);
+  return fig;
+}
+function onJob(job) {
+  for (const entry of S.cards.get(job.key) ?? []) { Object.assign(entry.job, job); paint(entry.fig, entry.job); }
+}
+
+// ---- views ----
+const content = () => $("#content");
+function colWidth() { return S.aspect === "doc" ? "360px" : S.aspect === "social" ? "220px" : "260px"; }
+
+async function show() {
+  S.cards = new Map();
+  const seq = ++S.seq;
+  $("#banner").classList.remove("show");
+  if (S.view.mode === "overview") return overview(seq);
+  if (S.view.mode === "custom") {
+    content().innerHTML = `<h2>自定义文字</h2><textarea id="custom" placeholder="粘贴任何文字，然后点「渲染」（⌘↩）">${esc(S.custom)}</textarea>
+      <div style="margin:8px 0 14px"><button class="btn primary" id="go">渲染</button></div><div id="result"></div>`;
+    const ta = $("#custom");
+    ta.oninput = () => { S.custom = ta.value; store.set("custom", S.custom); };
+    ta.onkeydown = (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $("#go").click(); } };
+    $("#go").onclick = () => { S.cards = new Map(); if (S.custom.trim()) scenarioView(++S.seq, { text: S.custom }, $("#result")); };
+    if (S.custom.trim()) return scenarioView(seq, { text: S.custom }, $("#result"));
+    return;
+  }
+  const s = S.info.scenarios.find((x) => x.id === S.view.id);
+  if (!s) return select({ mode: "overview" });
+  content().innerHTML = `<h2>${esc(s.title)} <small style="color:var(--muted);font-weight:400;font-size:13px">${esc(s.id)}</small></h2><div id="result"></div>`;
+  return scenarioView(seq, { scenario: s.id, text: s.text }, $("#result"));
+}
+
+async function scenarioView(seq, target, root) {
+  root.innerHTML = `<pre class="src">${esc(target.text)}</pre><div class="decision"><span class="spin" style="margin:0"></span><span>${S.decider === "jev" ? "正在问 Jev…" : "决策中…"}</span></div>`;
+  const body = { aspect: S.aspect, decider: S.decider, formats: S.formats, ...(target.scenario ? { scenario: target.scenario } : { text: target.text }) };
+  const r = await api("/api/plan", body).catch((e) => ({ error: { kind: "network", message: String(e) } }));
+  if (seq !== S.seq) return;
+  if (r.version) setVersion(r.version);
+  const chars = [...target.text].length;
+  if (r.error) { root.innerHTML = `<pre class="src">${esc(target.text)}</pre><div class="errline">${esc(r.error.kind)}: ${esc(r.error.message)}</div>`; return; }
+  const d = r.decision;
+  const cands = d.candidates.map((c) => `<span class="pill ${c.id === d.template ? "on" : ""}">${esc(c.name)}</span>`).join("");
+  root.innerHTML = `<pre class="src">${esc(target.text)}</pre>
+    <div class="decision">
+      <span><span class="k">自动选择</span> <b>${esc(d.templateName)} · ${esc(d.variantName)}</b></span>
+      <span><span class="k">决策来源</span> ${esc(SOURCE[d.decisionSource] ?? d.decisionSource)} <code>${esc(d.decisionSource)}</code></span>
+      <span><span class="k">强调词 plan.emphasis</span> ${d.emphasis ? `<b>${esc(d.emphasis)}</b>` : "无"}</span>
+      <span><span class="k">决策</span> ${d.ms} ms</span>
+      <span><span class="k">字数</span> ${chars}</span>
+      <span><span class="k">候选模板</span> ${cands}</span>
+      ${d.decisionError ? `<span class="warn">Jev 失败，已回退：${esc(d.decisionError.kind)} ${esc(d.decisionError.message)}</span>` : ""}
+    </div>`;
+  for (const [group, title] of GROUPS) {
+    const jobs = r.jobs.filter((j) => j.group === group);
+    if (!jobs.length) continue;
+    const h = document.createElement("h4"); h.textContent = `${title}（${jobs.length}）`; root.appendChild(h);
+    const grid = document.createElement("div"); grid.className = "grid"; grid.style.setProperty("--col", colWidth());
+    for (const job of jobs) grid.appendChild(card(job));
+    root.appendChild(grid);
+  }
+}
+
+async function overview(seq) {
+  content().innerHTML = `<h2>全部场景总览</h2><p style="color:var(--muted);margin:0 0 14px">每个场景按${S.decider === "jev" ? " Jev " : "本地规则"}自动选择的第一张 PNG，点一下打开该场景。</p><div id="ov"><div class="decision"><span class="spin" style="margin:0"></span><span>决策中…</span></div></div>`;
+  const r = await api("/api/overview", { aspect: S.aspect, decider: S.decider }).catch((e) => ({ error: { kind: "network", message: String(e) } }));
+  if (seq !== S.seq) return;
+  if (r.version) setVersion(r.version);
+  const root = $("#ov");
+  if (r.error) { root.innerHTML = `<div class="errline">${esc(r.error.message)}</div>`; return; }
+  root.innerHTML = "";
+  const grid = document.createElement("div"); grid.className = "grid"; grid.style.setProperty("--col", S.aspect === "doc" ? "300px" : S.aspect === "social" ? "170px" : "210px");
+  for (const item of r.items) {
+    let fig;
+    if (item.job) {
+      fig = card(item.job, { tile: true, title: item.scenario.title, sub: `${item.decision.templateName} · ${item.decision.variantName}${item.decision.emphasis ? ` · 强调「${item.decision.emphasis}」` : ""}` });
+    } else {
+      fig = document.createElement("figure"); fig.className = "tile";
+      fig.innerHTML = `<div class="media"><div class="errbox">${esc(item.error?.kind)}\n${esc(item.error?.message)}</div></div><figcaption><div class="label">${esc(item.scenario.title)}</div></figcaption>`;
+    }
+    fig.onclick = () => select({ mode: "scenario", id: item.scenario.id });
+    grid.appendChild(fig);
+  }
+  root.appendChild(grid);
+}
+
+// ---- events ----
+function connect() {
+  const es = new EventSource("/api/events");
+  es.onmessage = (m) => {
+    const ev = JSON.parse(m.data);
+    if (ev.type === "job") onJob(ev.job);
+    else if (ev.type === "queue" || ev.type === "hello") {
+      $("#qstate").textContent = ev.running ? `渲染中：${ev.running}${ev.pending ? ` · 队列还有 ${ev.pending}` : ""}` : ev.pending ? `队列 ${ev.pending}` : "队列空闲";
+      if (ev.type === "hello" && ev.version && S.version && ev.version !== S.version) $("#banner").classList.add("show");
+    } else if (ev.type === "code") { setVersion(ev.version); $("#banner").classList.add("show"); }
+    else if (ev.type === "cleared") { setVersion(ev.version); show(); }
+  };
+}
+$("#banner").onclick = () => show();
+$("#clear").onclick = async () => { $("#clear").disabled = true; try { await api("/api/clear", {}); } finally { $("#clear").disabled = false; } };
+
+(async () => {
+  S.info = await api("/api/state");
+  setVersion(S.info.version);
+  buildToolbar(); buildNav(); connect(); show();
+})();
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Studio (`bun run studio`): a local page that decides and renders clipboard scenarios or any pasted text in every template, style, motion and format, with a cache keyed by the template code so edited style tokens re-render on reload; links per scenario (`#<id>`); the static gallery reuses it.
 - Diagram template: Mermaid flowcharts (fenced or bare) and plain arrow chains become a layered node diagram in two styles (Flow, Blueprint), with decision diamonds, edge labels, dotted and thick links, cycles, and a rank-by-rank reveal.
 - Mixed Chinese and Latin lines no longer break at a far-back space ("第 1" alone on a line); `scripts/gallery.ts` renders a preview page of realistic scenarios in every template, style, motion and format.
 - Tall GIF/MP4 content scrolls through a fixed canvas (still start, eased scroll at reading speed, still end) instead of growing or failing; PNG still grows.

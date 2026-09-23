@@ -8,6 +8,7 @@
     "paste": "bun core/src/cli.ts",
     "setup": "bun scripts/engine.ts",
     "probe": "bun scripts/probe.ts",
+    "studio": "bun scripts/studio.ts",
     "test": "bun test core/tests",
     "typecheck": "tsc --noEmit"
   },
