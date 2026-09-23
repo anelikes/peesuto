@@ -118,7 +118,10 @@ function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number,
       if (start + count < end) {
         let firstVisible = -1;
         for (let i = start; i < start + count; i++) if (glyphs[i]!.text.trim()) { firstVisible = i; break; }
-        for (let i = start + count - 1; i > start; i--) {
+        // Break after a space, but never give up more than half the line for
+        // one: in mixed Chinese and Latin text the last space can be far back.
+        const floor = start + Math.ceil(count / 2) - 1;
+        for (let i = start + count - 1; i > start && i >= floor; i--) {
           if (/\s/u.test(glyphs[i]!.text) && firstVisible >= 0 && firstVisible < i) { count = i - start + 1; break; }
         }
         // Still inside a word (unspaced scripts): back up to the nearest word

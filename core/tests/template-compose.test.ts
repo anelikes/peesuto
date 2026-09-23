@@ -151,3 +151,11 @@ describe("tall animations scroll", () => {
   });
 });
 
+test("a far-back space in mixed Chinese and Latin text does not strand a stub line", () => {
+  const tight: TemplateMeasure = { width: (t, size) => [...t].length * size, lineHeight: (size) => size * 1.2 };
+  const lines = wrapTemplateText("第 1 段。把复杂的想法讲清楚，需要先把它想清楚，再删掉所有不必要的部分。", 20 * 32, 32, false, tight);
+  expect(lines[0]!.length).toBeGreaterThan(10);
+  // English still breaks between words.
+  expect(wrapTemplateText("Make it work, make it right", 14 * 32, 32, false, tight)).toEqual(["Make it work, ", "make it right"]);
+});
+

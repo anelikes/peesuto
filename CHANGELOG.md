@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Mixed Chinese and Latin lines no longer break at a far-back space ("第 1" alone on a line); `scripts/gallery.ts` renders a preview page of realistic scenarios in every template, style, motion and format.
 - Tall GIF/MP4 content scrolls through a fixed canvas (still start, eased scroll at reading speed, still end) instead of growing or failing; PNG still grows.
 - Messages copied out of chat apps (speaker, timestamp, message) render as a conversation, with the time kept as small text.
 - Invisible characters chat apps insert (U+2005 after a WeChat @mention, zero-width spaces) no longer make a card fail with "could not fit"; layout errors now say which character the font cannot draw, or that there is nothing to render.
