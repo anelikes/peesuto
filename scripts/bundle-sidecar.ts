@@ -6,10 +6,10 @@
  * Application Support directory (the build writes into the vendored tree),
  * and every render happens there — never inside the app bundle.
  *
- *   bun scripts/bundle-sidecar.ts [--engine <root>] [--out app/src-tauri] [--target aarch64-apple-darwin]
+ *   bun scripts/bundle-sidecar.ts [--engine <root>] [--out native/.bundle] [--target aarch64-apple-darwin]
  *
  * Layout produced under --out:
- *   binaries/paste-<target>     the Bun executable, renamed (Tauri's externalBin convention)
+ *   binaries/paste-<target>     the Bun executable staged for the native app bundle
  *   resources/engine/…          engine subset (src, vendored compiler, wasm, fonts, node_modules closure)
  *   resources/core/…            core/src
  *   resources/VERSION           "<engine sha> <core sha>" — the install key
@@ -22,7 +22,7 @@ import { engineMissing, engineRoot, REPO_ROOT } from "../core/src/engine.ts";
 const argv = process.argv.slice(2);
 const flag = (n: string, d?: string) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
 const engine = resolve(flag("engine") ?? engineRoot());
-const out = resolve(flag("out", join(REPO_ROOT, "app/src-tauri"))!);
+const out = resolve(flag("out", join(REPO_ROOT, "native/.bundle"))!);
 const target = flag("target", `${process.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`)!;
 
 const missing = engineMissing(engine);

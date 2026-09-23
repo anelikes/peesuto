@@ -16,5 +16,5 @@
     "types": ["bun"]
   },
   "include": ["core", "scripts"],
-  "exclude": ["engine", "app", "proxy", "node_modules"]
+  "exclude": ["engine", "native", "proxy", "node_modules"]
 }

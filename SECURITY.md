@@ -11,13 +11,13 @@ go over the network, and both depend on what you configured.
 To decide what kind of card to make, the seven typed questions are sent as
 one JSON body, `{state: {clipboard: <the text>}, questions: {…}}`. Where that
 body goes is the provider setting (`--provider` on the CLI, `PASTE_PROVIDER`
-in the environment, the Provider pane in the app):
+in the environment, AI settings in the native app):
 
 | provider | the text goes to | notes |
 |---|---|---|
-| `none` | nowhere | no request at all; every paste gets the plain card |
+| `rules` (desktop default) / `none` | nowhere | decisions are local; no model request |
 | `cloudflare` | `api.cloudflare.com`, Workers AI on your own account, model `typesafe/jev` | authenticated with your API token; subject to Cloudflare's terms for Workers AI |
-| `proxy` (the CLI default) | `http://localhost:8787/`, the worker in `proxy/` running under `wrangler dev` | the worker forwards to Workers AI through your own wrangler login and stores nothing |
+| `proxy` | `http://localhost:8787/`, the worker in `proxy/` running under `wrangler dev` | the worker forwards to Workers AI through your own wrangler login and stores nothing |
 | `hosted` | our proxy (`api.peesuto.com`), which forwards to Workers AI | the proxy does not store the text; its logs carry a timestamp, the subscriber token id, byte counts and latency, never content |
 
 The request is a single HTTPS `POST` (plain HTTP only for localhost) with a
@@ -45,14 +45,23 @@ not the text around it. Text without emoji makes no such request.
   them to disk.
 - Rendered cards, the work tree (`.work/`, or Application Support for the
   app) and the engine checkout.
-- No telemetry, analytics or crash reporting. The only other request a
-  release build will make is the update check against GitHub Releases, once
-  the updater is enabled; it carries the app version and platform.
+- No telemetry, analytics or crash reporting. The current native desktop has
+  no automatic updater; no historical update check is inherited by removing
+  the previous desktop. See `docs/RELEASING.md` for current distribution status.
 
-`PLAN.md` adds a clipboard history with field-level encryption,
-password-manager exclusions, an offline switch and a local egress log that
-records destinations and byte counts only. Until those land, this file
-describes the CLI and the app as they are.
+The native desktop already provides field-level encrypted SQLite history and
+image storage, password-manager/concealed/transient exclusions, an offline
+switch and content-free local egress logging. Provider credentials stay in
+Keychain and are sent to Core only in memory. Missing or mismatched history
+keys do not trigger automatic data replacement. Generated media and the render
+work directory are local files; history encryption does not mean all render
+outputs or caches are encrypted.
+
+Direct media actions verify the clipboard generation and original input target
+before delivery. If the user has copied something newer, the result remains
+available without replacing it; if focus cannot be verified, automatic paste
+is skipped. Native compatibility tests use synthetic data. Real password
+manager, permission and target-app checks remain in `docs/privacy-audit.md`.
 
 ## Reporting a vulnerability
 

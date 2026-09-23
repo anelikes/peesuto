@@ -1,11 +1,11 @@
 # Contributing
 
 Peesuto is a macOS clipboard and AI-action app whose image, GIF and video
-rendering capabilities are central to the product. The current desktop is
-Tauri 2 (`app/`). The agreed replacement is SwiftUI + AppKit, retaining
-TypeScript/Bun Core and the independent Pocket Motion engine. See the
-[native migration plan](docs/native-migration.md); the first implementation and build instructions are in
-[native/README.md](native/README.md). The setup below still covers the old app.
+rendering capabilities are central to the product. The desktop is SwiftUI +
+AppKit (`native/`), retaining TypeScript/Bun Core and the independent Pocket
+Motion engine. The old desktop source and build workflow have been removed.
+See [native development](native/README.md) and the remaining
+[migration requirements](docs/native-migration.md).
 
 Bug fixes and small improvements: open a pull request.
 Anything that changes what a card looks like, what leaves the machine, or the
@@ -14,6 +14,7 @@ agreed before the work is done.
 
 ## Setup
 
+- macOS with Swift 5.9 or newer for the native desktop.
 - Bun 1.3.x (CI pins 1.3.11).
 - Rust stable with the `wasm32-unknown-unknown` target; the engine's
   rasteriser is built to wasm: `rustup target add wasm32-unknown-unknown`.
@@ -30,19 +31,23 @@ it as a sibling `../pocketjs-motion`. `bun run setup` then only reports;
 `bun run setup --fix` runs the missing steps inside it. The pinned
 `anelikes/pocket-motion` repository is public; cloning it needs no credentials.
 
-For the app: `bun scripts/bundle-sidecar.ts --out app/src-tauri` assembles
-the sidecar the app ships (a Bun binary plus the engine subset), then
-`cd app && bun install && bun run tauri dev`.
+For the app, run `bun scripts/build-native.ts --engine <prepared-engine-root>`.
+This stages Bun/Core/engine resources in `native/.bundle`, builds Swift release
+executables and assembles `native/dist/Peesuto.app`. Launch that exact bundle;
+`swift build` alone does not package Core or the engine. Use `--preview` for
+isolated sample data and no clipboard monitoring. Do not use `--skip-resources`
+after changing Core or resources. Formal distribution remains disabled; see
+[RELEASING.md](docs/RELEASING.md).
 
 ## Native migration boundaries
 
 - Keep Core, CLI, action/pack formats, provider adapters and Pocket Motion.
   Do not translate business logic into Swift as part of the desktop rewrite.
-- Port the existing Rust desktop responsibilities, including encrypted
-  storage and Keychain compatibility; replacing HTML alone is insufficient.
-- Keep the old app and checks until the native `.app` passes end-to-end
-  acceptance. Add native build/test instructions with the actual project,
-  then retire the Tauri-only tooling at cutover.
+- Keep encrypted storage and Keychain compatible with prior installations.
+  Existing user data and credentials must never be reset on migration failure.
+- The native app is the only desktop implementation. Retired source remains in
+  Git history; do not restore legacy build entry points. Account/packs UI,
+  signed distribution and complete real-device acceptance are still open.
 - Preserve the engine pin and frame digests unless an engine/render change
   explicitly requires otherwise. Rust remains an engine build dependency
   even after the Rust desktop layer is removed.
@@ -56,6 +61,7 @@ the sidecar the app ships (a Bun binary plus the engine subset), then
 ```bash
 bun test core/tests       # unit tests; the fixture renders skip without an engine
 bun run typecheck
+swift test --package-path native
 ```
 
 `core/tests/fixtures.test.ts` renders the five fixtures and compares them to

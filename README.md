@@ -7,8 +7,9 @@ already do a hundred times a day: copy, paste.
   one hotkey away. Password managers and concealed pasteboard content are
   excluded by default.
 - **Smart paste.** When you paste into a field, the app reads where you are
-  (through macOS Accessibility) and a small decision model preselects the
-  history item that fits. You confirm with Enter; nothing is pasted for you.
+  (through macOS Accessibility) and suggests a history item separately from
+  the stable recent list. Select an item and confirm with Enter. Dedicated
+  media shortcuts use the guarded automatic-delivery flow described below.
 - **Actions.** Paste as a card, GIF or video (rendered by
   Pocket Motion), paste a translation, paste a summary, or paste the result
   of your own prompt. Actions are JSON files; packs of them can be shared.
@@ -23,43 +24,53 @@ already do a hundred times a day: copy, paste.
   Thinking models (Ollama's qwen3.5, gemma4, …) work out of the box: the
   generator notices an answer that was all reasoning and no text, repeats
   the request with `reasoning_effort: "none"`, and keeps doing so from then
-  on; *Settings → Providers → Thinking* pins that choice or a budget.
+  on. Advanced thinking parameters remain available in provider configuration;
+  the native settings UI does not yet expose all of them.
 
 Everything here is MIT. A subscription, when it exists, buys hosted model
 calls that need no setup and official style and action packs; the formats
 stay open.
 
-## Desktop architecture direction
+## Desktop architecture
 
-The agreed target is **SwiftUI + AppKit for the macOS desktop, retaining the
-TypeScript/Bun Core and the independent Pocket Motion engine**. Tauri and the
-UI WebView will be removed; Electron is not part of the design. Bun remains a
+The desktop uses **SwiftUI + AppKit, retaining TypeScript/Bun Core and the
+independent Pocket Motion engine**. The former Tauri desktop, UI WebView and
+its build dependencies have been removed; Electron is not part of the design. Bun remains a
 local business/render runtime, not a UI runtime. Image, GIF and video generation
 are core product capabilities. PNG/GIF and MP4 actions are implemented; MP4
 requires locally installed ffmpeg, which is not bundled or installed automatically.
 
-**The first native build is implemented; migration is incomplete.**
+**The native app is the only desktop implementation. Feature and release work remains.**
 [`native/`](native/README.md) builds a standalone SwiftUI + AppKit `.app`, with
 encrypted history, bundled Core, PNG/GIF/MP4 actions and bilingual settings.
 The native app can transform the current clipboard directly with configurable
 `⌘⌥1` (image), `⌘⌥2` (GIF) and `⌘⌥3` (video). Change or disable bindings in
 Settings → Shortcuts. It pastes automatically only when the original insertion
 point can still be verified; newer clipboard contents are preserved.
-`app/` and its commands still build the Tauri version for comparison.
-The native UI replaces its system layer
-as well as its HTML interface, while preserving history, credentials, actions,
-providers, packs and English/Simplified Chinese support. See
+The native app preserves history formats, credentials, Core actions/providers and
+English/Simplified Chinese support. Account/pack-management UI, action editing,
+auto-update and signed distribution are still incomplete; removing the old app
+does not claim these features have been ported. See
 [PLAN.md](PLAN.md) and the [native migration plan](docs/native-migration.md)
 for the scope, task protocol work and actual `.app` acceptance requirements.
 
-## The card
+## Content-preserving media templates
 
-The first action, and where the project started: copy text, paste a card.
-Jev (TypeSafe AI) answers typed questions about the text — what kind it is,
-which layout, palette, size, tone, which word to emphasise, whether motion
-would reveal a sequence. Every answer is a choice from a fixed set. Pocket
-Motion renders the card from those choices; line breaks and sizes are
-measured, never guessed.
+Copy text and generate an image, GIF or MP4 through Pocket Motion. The current
+registry provides **8 template families with 2 variants each**: document,
+quote, code, statistic, list, conversation, table and comparison. Four further
+families remain planned; they are not implemented by this registry.
+
+Content is parsed locally from the original text and explicit source syntax.
+Jev may choose only from constrained, compatible template/style/motion options;
+it does not rewrite the source or invent numbers, speakers or table entries.
+Without a usable decision provider, local rules select a valid fallback.
+The native result view supports changing style and output format while keeping
+the original input. See [templates and their limits](docs/templates.md).
+
+The CLI's explicit DSL fixtures remain supported and continue to exercise the
+legacy card renderer; their unchanged digests do not by themselves validate
+every new template family.
 
 ## Current layout
 
@@ -73,10 +84,9 @@ core/        Core (Bun + TypeScript): the judgement — pick, actions, providers
   src/catalog.ts   every name the decider may choose for a card, with the numbers behind it
   src/questions.ts the card's seven questions and answers → DSL
   src/render/      composition generation, emoji, engine driver, GIF/MP4
+  src/templates/   local parsing, constrained selection, registry and template rendering
   fixtures/        five DSL fixtures and the digests they render to
-native/      the new SwiftUI + AppKit desktop, compatibility modules and tests
-app/         the existing menu-bar app (Tauri 2): history, paste simulation,
-             context capture, encrypted store, Keychain, windows
+native/      SwiftUI + AppKit desktop, system/storage/Core modules and tests
 proxy/       a self-hostable Cloudflare Worker that forwards questions to Jev
 docs/        actions format, releasing
 scripts/     engine setup, sidecar bundling, probes
@@ -112,29 +122,26 @@ normally uses the persistent [daemon protocol](docs/daemon.md). Rendering happen
 in a symlink tree under `.work/`; see the engine build isolation rules in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## The current app (Tauri, pending native replacement)
+## Build the native app
 
-From the repository root, start the current development app:
-
-```bash
-(cd app && bun install && bun tauri dev)
-```
-
-Or build the current bundled app, also starting at the repository root:
+On macOS, after preparing the pinned engine:
 
 ```bash
-bun scripts/fetch-emoji.ts        # once: the bundled emoji set
-bun scripts/bundle-sidecar.ts --out app/src-tauri
-(cd app && bun install && bun run build:bundled)
+swift test --package-path native
+bun scripts/fetch-emoji.ts       # once: include the emoji set for offline use
+bun scripts/build-native.ts --engine /absolute/path/to/prepared-pocket-motion
+open native/dist/Peesuto.app
 ```
 
-These are Tauri commands, not native Swift build instructions. The native
-build entry point is documented in [native/README.md](native/README.md).
+`native/dist/Peesuto.app` contains the Swift application, Bun Core and Pocket
+Motion resources. `--preview` builds `native/dist/Peesuto Preview.app` with
+isolated sample history and no clipboard monitoring. The build currently uses
+local ad-hoc signing; Developer ID, notarization and automatic updates are not
+implemented. See [native/README.md](native/README.md) for build/smoke commands
+and [release status](docs/RELEASING.md) for distribution limits.
 
-`app/README.md` describes the shell: the history panel and smart paste,
-the encrypted store, Accessibility context capture, the daemon lifecycle
-and the settings panes. Accessibility permission is required for paste
-simulation and context capture.
+Accessibility permission is needed for automatic paste and focused-field
+context. Copy and history remain usable without it.
 
 ## How a paste is measured
 
@@ -151,6 +158,7 @@ wrapping.
 ```bash
 bun test core/tests          # unit tests; the fixture renders skip without an engine
 bun run typecheck
+swift test --package-path native  # macOS native modules
 ```
 
 `core/fixtures/digests.json` holds the SHA-256 of frames the five fixtures
@@ -178,4 +186,4 @@ key in your Keychain. See `SECURITY.md`.
 
 ## Status
 
-The v1 migration is incomplete; the plan and its milestones are `PLAN.md`.
+The old desktop is removed. Remaining v1 features and release acceptance are tracked in `PLAN.md`.

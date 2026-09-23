@@ -1,4 +1,9 @@
-# Privacy baseline — 0.1.0
+# Privacy baseline — 0.1.0 (historical desktop)
+
+The source/build commands recorded below belong to the retired desktop and are
+not runnable from the current checkout. They remain evidence of that build, not
+proof of native acceptance. Use `native/README.md` for current commands and
+`baselines/native-0.1.0.md` for native verification.
 
 Date: 2026-09-22. Build: the **bundled debug** app (`bun run build:bundled --debug --bundles app`)
 at commit `05f4d61` plus the uncommitted round-3 shell changes in `app/`; Core and the

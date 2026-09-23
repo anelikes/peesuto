@@ -6,8 +6,9 @@ Date, version and result go into `baselines/privacy-<version>.md`.
 
 ## Native migration acceptance
 
-The recorded baseline below belongs to the existing Tauri build, not the
-planned SwiftUI + AppKit replacement. Re-run this checklist against the
+The original privacy baseline below is historical evidence from the retired
+desktop. The current app is SwiftUI + AppKit; old passing checks are not native
+acceptance results. Re-run this checklist against the
 actual native `.app`, including imported encrypted history/images, existing
 Keychain credentials, permission denial, Core crashes and task cancellation.
 Use synthetic data and a separate data directory for migration tests; do not
@@ -77,7 +78,7 @@ Run each and confirm nothing lands in history:
 - [ ] The Privacy pane lists the same table as section 1, with each row's
       switch, and the current provider destinations by host.
 
-## Verified 2026-09-22
+## Historical verification — retired desktop, 2026-09-22
 
 The automatable parts of §2 (plain / concealed / transient, the app blacklist), §3
 (offline switch, egress log without text) and §4 (raw-file scan, delete, clear all)

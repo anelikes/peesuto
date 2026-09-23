@@ -7,3 +7,6 @@ proxy/.wrangler/
 .env*
 .DS_Store
 /HANDOFF.md
+
+# Prevent retired desktop build artifacts from being reintroduced.
+/app/

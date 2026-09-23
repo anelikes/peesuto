@@ -1,6 +1,9 @@
 # Subscription (design)
 
-Not built yet; this is the shape the code is prepared for.
+This is the intended product flow, not a description of a shipped native
+subscription UI. Hosted proxy routes and Core pack loading exist; the native
+account/pack installer, real billing deployment and grace-period enforcement
+remain unfinished. The retired desktop implementation is no longer an entry point.
 
 ## What it buys
 

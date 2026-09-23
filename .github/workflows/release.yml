@@ -1,144 +1,43 @@
-# Release: a macOS (Apple silicon) DMG, as a draft GitHub Release.
-#
-# Triggers
-#   push of a tag v*     build, then create a DRAFT release "Peesuto v…"
-#                        with the DMG attached; publish it by hand (docs/RELEASING.md)
-#   workflow_dispatch    build only; the DMG is a workflow artifact and no
-#                        release is created or touched
-#
-# Secrets
-#   Unsigned draft (what runs today):
-#     GITHUB_TOKEN    provided by Actions; creates the draft release
-#   The engine comes from the public tag engine.json pins; no credential.
-#
-#   Signed and notarized release (add these; the workflow itself does not change):
-#     APPLE_CERTIFICATE             Developer ID Application certificate, the .p12 as base64
-#     APPLE_CERTIFICATE_PASSWORD    the .p12 password
-#     APPLE_SIGNING_IDENTITY        "Developer ID Application: <name> (<team id>)"
-#     APPLE_ID                      the Apple ID that owns the certificate
-#     APPLE_PASSWORD                an app-specific password for that Apple ID
-#     APPLE_TEAM_ID                 the ten-character team id
-#
-#   Updater (once app/src-tauri/tauri.conf.json enables plugins.updater and
-#   bundle.createUpdaterArtifacts; from then on both are required):
-#     TAURI_SIGNING_PRIVATE_KEY           from `bunx tauri signer generate`
-#     TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password; leave the secret unset if the key has none
-#   The matching PUBLIC key is not a secret: the user puts it into
-#   app/src-tauri/tauri.conf.json under plugins.updater.pubkey.
-#
-# Without a signing identity Tauri ad-hoc signs the app; without APPLE_ID,
-# APPLE_PASSWORD and APPLE_TEAM_ID it skips notarization. Such a DMG opens
-# only through right-click → Open or after removing the quarantine attribute;
-# docs/RELEASING.md says how.
-
-name: release
+# Validation builds only. Tag-triggered publishing is disabled until native
+# Developer ID signing, notarization, installation and update delivery exist.
+name: native validation build
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   macos:
-    name: macOS DMG (aarch64-apple-darwin)
+    name: native macOS validation artifact (not a release)
     runs-on: macos-14
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
-
-      # Pinned for the engine's wasm build, as in ci.yml: 1.98.1's rust-lld
-      # aborts on the runner; 1.97.1 is what builds it locally.
+      # Rust builds Pocket Motion's WASM rasterizer, not the desktop application.
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.1
-          targets: aarch64-apple-darwin,wasm32-unknown-unknown
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri
-
+          targets: wasm32-unknown-unknown
       - run: bun install --frozen-lockfile
-
-      # Same step as ci.yml.
-      - name: engine
+      - run: bun run typecheck
+      - run: swift test --package-path native
+      - name: prepare pinned engine
         run: bun scripts/engine.ts
-
-      - name: sidecar
-        run: bun scripts/bundle-sidecar.ts --out app/src-tauri --target aarch64-apple-darwin
-
-      - name: app dependencies
-        run: bun install --frozen-lockfile
-        working-directory: app
-
-      # Tauri reads the signing and notarization settings from the environment
-      # and treats a variable that is present but empty as configured (an
-      # empty certificate to import, an empty identity to sign with). A secret
-      # that is not set expands to an empty string, so only the ones with a
-      # value are exported to the following steps. Values are still masked.
-      - name: signing secrets
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID \
-                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
-            if [ -n "${!name}" ]; then
-              { echo "${name}<<__PP_EOF__"; printf '%s\n' "${!name}"; echo "__PP_EOF__"; } >> "$GITHUB_ENV"
-              echo "${name}: set"
-            else
-              echo "${name}: not set"
-            fi
-          done
-
-      - name: updater artifacts only with the signing key
-        run: |
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
-            echo 'UPDATER_ARGS=--config {"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
-            echo "::notice::TAURI_SIGNING_PRIVATE_KEY is not set; building without updater artifacts"
-          else
-            echo "UPDATER_ARGS=" >> "$GITHUB_ENV"
-          fi
-
-      - name: build (and on a tag, the draft release)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: bundled emoji
+        run: bun scripts/fetch-emoji.ts
+      - name: build native app (local ad-hoc signature only)
+        run: bun scripts/build-native.ts --engine engine
+      - name: standalone PNG/GIF smoke
+        run: native/.build/release/PeesutoSmoke native/dist/Peesuto.app
+      - name: archive validation bundle
+        run: ditto -c -k --sequesterRsrc --keepParent native/dist/Peesuto.app native/dist/Peesuto-native-validation.zip
+      - uses: actions/upload-artifact@v4
         with:
-          projectPath: app
-          tauriScript: bun run tauri
-          # On a tag push, a draft release named after it. On workflow_dispatch
-          # tagName is empty, so tauri-action only builds and the DMG comes out
-          # as the workflow artifact below.
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: "${{ github.ref_type == 'tag' && format('Peesuto {0}', github.ref_name) || '' }}"
-          releaseBody: "See CHANGELOG.md for what changed."
-          releaseDraft: true
-          prerelease: false
-          # The sidecar config adds externalBin + resources produced by bundle-sidecar.ts,
-          # and turns on updater artifacts; without the signing key those must be off
-          # or the CLI aborts ("public key found, no private key").
-          args: --config src-tauri/tauri.sidecar.conf.json ${{ env.UPDATER_ARGS }} --target aarch64-apple-darwin
-
-      - name: DMG as a workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pocket-paste-aarch64-apple-darwin-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
-          path: |
-            app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-            app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
-            app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+          name: peesuto-native-validation-${{ runner.arch }}-${{ github.sha }}
+          path: native/dist/Peesuto-native-validation.zip
           if-no-files-found: error

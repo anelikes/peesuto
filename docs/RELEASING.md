@@ -1,160 +1,73 @@
-# Releasing
+# Native build and release status
 
-A release is a tag `vX.Y.Z` on `main`. `.github/workflows/release.yml` builds
-the macOS (Apple silicon) DMG from it and opens a draft GitHub Release; you
-check the draft and publish it. Nothing is published automatically.
+The only desktop build is SwiftUI + AppKit in `native/`, with bundled Bun Core
+and Pocket Motion. The previous desktop source and its release workflow have
+been removed. **Public release automation, Developer ID signing, notarization,
+DMG delivery and automatic updates are not implemented for the native app.**
+Pushing a version tag does not create a release or an update artifact.
 
-## Native migration status
+## Build a local validation bundle
 
-The steps below release the **current Tauri app**. The agreed target is
-SwiftUI + AppKit with bundled Bun Core and Pocket Motion; a local native `.app` builder is available in
-[the native README](../native/README.md), but release/update cutover is incomplete. See [N5 acceptance](native-migration.md).
+From the repository root on macOS:
 
-Before switching releases, add and verify native build/DMG tooling, CI,
-signing/notarization of the app and nested executables, and a native updater.
-Define an upgrade bridge from existing Tauri installations or document a
-manual replacement path. Tauri updater keys, signatures and `latest.json`
-are specific to the current update mechanism and must not be assumed to
-work with the replacement. Retain the old release artifacts for rollback.
-
-Acceptance requires launching the exact built `.app` outside the checkout
-without a system Bun, checking its version and language selector, migrating
-test history/settings/credentials and exercising its actions. A Vite build
-or browser preview is not an application build. Do not remove the existing
-release workflow until the replacement passes these checks.
-
-## Cutting a release
-
-1. `main` is green in CI, and `engine.json` points at the engine you want to
-   ship: the release bundles the engine subset, so the pin is part of it.
-2. Bump the version in the four places that carry one, to the same value:
-   - `package.json` — `version`
-   - `app/package.json` — `version`
-   - `app/src-tauri/tauri.conf.json` — `version` (this one names the DMG)
-   - `app/src-tauri/Cargo.toml` — `version`; then run any cargo command that
-     resolves (`cargo check` in `app/src-tauri`) so `Cargo.lock` records it,
-     and commit the lockfile too.
-3. In `CHANGELOG.md`, rename `Unreleased` to `vX.Y.Z — YYYY-MM-DD` and open a
-   new empty `Unreleased` above it.
-4. Commit: `chore(release): vX.Y.Z`.
-5. Tag and push both:
-
-   ```bash
-   git tag -a vX.Y.Z -m "Peesuto vX.Y.Z"
-   git push origin main vX.Y.Z
-   ```
-
-6. Watch *Actions → release*. The Rust build takes a while the first time;
-   later runs reuse the cargo cache.
-7. Open *Releases*. The draft "Peesuto vX.Y.Z" carries the DMG (and,
-   once the updater is enabled, `.app.tar.gz`, its `.sig` and `latest.json`).
-   Install the DMG on a machine or a fresh user account that has never run
-   the app, walk through onboarding, paste once with each action.
-8. Paste the relevant part of `CHANGELOG.md` into the release notes and
-   press *Publish release*. The updater (once enabled) sees a release only
-   after it is published.
-9. Homebrew: in `anelikes/homebrew-tap`, update `Casks/peesuto.rb` from
-   the skeleton in `docs/homebrew/peesuto.rb` with the new version and
-   `shasum -a 256 <the DMG>`.
-
-A run started by hand (*Actions → release → Run workflow*) builds the same
-way from any branch but creates no release; the DMG is under the run's
-*Artifacts*. Use it to check a build before tagging.
-
-### Unsigned builds
-
-Until the Apple secrets are in place the DMG is ad-hoc signed and not
-notarized. Gatekeeper refuses it on first launch; users open it once with
-right-click → *Open*, or on macOS 15 via *System Settings → Privacy &
-Security → Open Anyway*, or with
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Peesuto.app"
+```sh
+bun install --frozen-lockfile
+swift test --package-path native
+bun scripts/fetch-emoji.ts
+bun scripts/build-native.ts --engine /absolute/path/to/prepared-pinned-engine
+native/.build/release/PeesutoSmoke native/dist/Peesuto.app
+open native/dist/Peesuto.app
 ```
 
-Say so in the release notes of every unsigned release.
+The engine checkout must match `engine.json`. Prepare a dedicated checkout with
+`scripts/engine.ts`; do not edit a separate engine working tree to make a release.
+`native/dist/Peesuto.app` includes the native executable, Core host, Bun and
+engine resources. Its version comes from the root `package.json`; the build
+currently uses a local ad-hoc signature. This is not a notarized distribution.
+See [native development](../native/README.md) for preview isolation and resource
+rebuild rules. A bare Swift build is not a complete application bundle.
 
-## One-time setup
+MP4 additionally needs a locally installed ffmpeg. Where available, run:
 
-Everything here is per repository and done once. Add secrets under
-*Settings → Secrets and variables → Actions → New repository secret*, or with
-`gh secret set NAME < file`.
-
-### Engine access
-
-`engine.json` pins a tag of the public
-[anelikes/pocket-motion](https://github.com/anelikes/pocket-motion); the
-workflows clone it without any credential. Moving the pin is a change to
-`engine.json` plus a re-recorded `core/fixtures/digests.json` when the
-renders change.
-
-### Code signing (Developer ID)
-
-Needs a paid Apple Developer Program membership.
-
-1. Create a *Developer ID Application* certificate: Xcode → *Settings →
-   Accounts → Manage Certificates → + → Developer ID Application*, or at
-   developer.apple.com → *Certificates, Identifiers & Profiles*.
-2. Export it from Keychain Access as a `.p12` with a password
-   (select the certificate together with its private key → *Export 2 items*).
-3. Encode and add the secrets:
-
-   ```bash
-   base64 -i DeveloperID.p12 | tr -d '\n' | gh secret set APPLE_CERTIFICATE
-   gh secret set APPLE_CERTIFICATE_PASSWORD        # the .p12 password
-   security find-identity -v -p codesigning        # copy the "Developer ID Application: … (TEAMID)" line
-   gh secret set APPLE_SIGNING_IDENTITY
-   ```
-
-### Notarization
-
-1. An app-specific password for the Apple ID that holds the certificate:
-   account.apple.com → *Sign-In and Security → App-Specific Passwords*.
-2. The team id: developer.apple.com/account → *Membership details*.
-3. Secrets: `APPLE_ID` (the Apple ID email), `APPLE_PASSWORD` (the
-   app-specific password), `APPLE_TEAM_ID`.
-
-With these six secrets present the next tagged run signs, notarizes and
-staples the DMG; no workflow change is needed.
-
-### Updater key pair
-
-The Tauri updater verifies each update against a public key baked into the
-app. Generate the pair once and keep the private key somewhere safe: losing
-it means installed apps can never verify another update, and it cannot be
-rotated without shipping a new app by hand.
-
-```bash
-cd app
-bunx tauri signer generate -w ~/.tauri/pocket-paste.key
+```sh
+native/.build/release/PeesutoSmoke native/dist/Peesuto.app --video
 ```
 
-The command prints the public key and writes the private key to the path
-given (choose a password when asked, or leave it empty).
+The smoke uses synthetic data, a temporary directory and local rules/offline
+mode. It does not read production history or user Keychain credentials. Actual
+window, permission and cross-application paste testing remains necessary.
 
-- Put the **public** key into `app/src-tauri/tauri.conf.json` under
-  `plugins.updater.pubkey`, set `plugins.updater.endpoints` to
-  `https://github.com/anelikes/peesuto/releases/latest/download/latest.json`,
-  and `bundle.createUpdaterArtifacts` to `true`. The public key is committed;
-  it is not a secret.
-- Store the **private** key's contents as `TAURI_SIGNING_PRIVATE_KEY`
-  (`gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/pocket-paste.key`) and
-  its password as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; leave that secret
-  unset if the key has no password. Never commit the private key.
+## CI and manual build artifacts
 
-From then on every release needs both secrets; the build fails without them.
+`.github/workflows/ci.yml` runs Core typechecks/unit tests, native Swift tests
+and release compilation, plus pinned-engine fixtures and a complete native
+bundle PNG/GIF smoke on macOS. Engine Rust/WASM compilation remains required.
 
-## Homebrew cask
+`.github/workflows/release.yml` is now **manual validation only**. The workflow
+named “native validation build” builds and verifies the same native `.app`,
+then uploads `Peesuto-native-validation.zip` as a workflow artifact. It does
+not create or publish GitHub Releases, use signing secrets, generate update
+metadata or modify a Homebrew tap. These workflow definitions have not been
+verified by a remote run merely because local checks pass.
 
-`docs/homebrew/peesuto.rb` is the skeleton for `anelikes/homebrew-tap`
-(`Casks/peesuto.rb` in that repository). Per release, update `version`
-and `sha256`. The asset name in the `url` comes from `productName` and
-`version` in `tauri.conf.json` (Tauri names the DMG
-`<productName>_<version>_aarch64.dmg`, so `Peesuto_1.0.0_aarch64.dmg`); check
-it against the release page the first time. Users
-install with
+## Before enabling public distribution
 
-```bash
-brew tap anelikes/tap
-brew install --cask peesuto
-```
+- Implement and verify Developer ID signing for the app and every nested
+  executable, with the Bun runtime entitlements it requires; notarize and
+  staple the deliverable. Existing secrets are not read or changed by this work.
+- Define reproducible installer/archive names, checksums, architecture and
+  minimum-OS support; test installation on a fresh user profile.
+- Choose and verify a native update mechanism. Historical updater signatures
+  and metadata are not compatible by assumption; do not reuse old artifacts.
+- Establish a tested manual replacement or update bridge for earlier installs.
+  Preserve `com.peesuto.desktop`, encrypted history and Keychain references;
+  never run two app versions against the same production store concurrently.
+- Complete the outstanding native privacy, focus/IME/multi-monitor and feature
+  acceptance. Removing legacy source does not implement account/pack management,
+  custom action editing or other missing native features.
+- After these checks, implement a reviewed publishing workflow, tag the version
+  from root `package.json`, update `CHANGELOG.md`, and provide a real Homebrew
+  cask. The old placeholder cask was removed; see [Homebrew status](homebrew/README.md).
+
+Keep historical release artifacts available for diagnosis or manual rollback;
+this source cleanup does not delete releases, installed apps or user data.
