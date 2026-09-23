@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Diagram template: Mermaid flowcharts (fenced or bare) and plain arrow chains become a layered node diagram in two styles (Flow, Blueprint), with decision diamonds, edge labels, dotted and thick links, cycles, and a rank-by-rank reveal.
 - Mixed Chinese and Latin lines no longer break at a far-back space ("第 1" alone on a line); `scripts/gallery.ts` renders a preview page of realistic scenarios in every template, style, motion and format.
 - Tall GIF/MP4 content scrolls through a fixed canvas (still start, eased scroll at reading speed, still end) instead of growing or failing; PNG still grows.
 - Messages copied out of chat apps (speaker, timestamp, message) render as a conversation, with the time kept as small text.

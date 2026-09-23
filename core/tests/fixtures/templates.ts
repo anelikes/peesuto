@@ -9,6 +9,8 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
   { kind: "list", ordered: true, items: ["先把问题写清楚", "一次只改一个变量", "Measure the result before adding more."] },
   { kind: "chat", turns: [{ speaker: "小林", text: "今天有什么值得记录的进展？" }, { speaker: "Alex", text: "The native app feels quieter. 🎉" }, { speaker: "小林", text: "把表达留给内容，把复杂留给工具。" }] },
   { kind: "table", headers: ["项目", "状态", "结果"], rows: [["原生界面", "完成", "更清晰"], ["模板渲染", "验证", "保留结构"]] },
+  { kind: "diagram", direction: "TD", nodes: [{ id: "A", label: "复制文字", shape: "pill" }, { id: "B", label: "有结构吗？", shape: "diamond" }, { id: "C", label: "专门模板", shape: "rect" }, { id: "D", label: "Text template", shape: "round" }],
+    edges: [{ from: "A", to: "B", line: "solid", arrow: true }, { from: "B", to: "C", label: "有", line: "solid", arrow: true }, { from: "B", to: "D", label: "没有", line: "dotted", arrow: true }] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

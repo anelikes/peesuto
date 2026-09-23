@@ -1,6 +1,7 @@
 import type { Aspect } from "../dsl.ts";
+import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -30,7 +31,9 @@ export type TemplateContent =
   /** `time` is the timestamp line a chat app copied with the message, verbatim. */
   | { readonly kind: "chat"; readonly turns: readonly { readonly speaker: string; readonly text: string; readonly time?: string }[] }
   | { readonly kind: "table"; readonly headers: readonly string[]; readonly rows: readonly (readonly string[])[] }
-  | { readonly kind: "comparison"; readonly columns: readonly { readonly title: string; readonly items: readonly string[] }[] };
+  | { readonly kind: "comparison"; readonly columns: readonly { readonly title: string; readonly items: readonly string[] }[] }
+  /** A Mermaid flowchart or plain arrow chains: labels verbatim from the source. */
+  | { readonly kind: "diagram"; readonly direction: DiagramDirection; readonly nodes: readonly DiagramNode[]; readonly edges: readonly DiagramEdge[] };
 
 export interface TemplatePlan {
   readonly version: 1;

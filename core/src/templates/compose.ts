@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { ComposeError, normalizeText, unsupportedScript, type ComposeOptions, type ComposeResult } from "../render/compose.ts";
 import { splitEmoji, stageEmoji, stripEmoji } from "../render/emoji.ts";
 import { templateHasVariant } from "./registry.ts";
+import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { TEMPLATE_MAX_GRAPHEMES, type TemplateMotion, type TemplatePlan } from "./types.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -23,6 +24,28 @@ export const TEXT_STYLES = {
   /** Poster: loud color, big tight type. */
   poster: { background: "#e5482e", ink: "#fff6e8", accent: "#1d1a16", accentBold: false, bold: true, align: "left", margin: 96, minSize: 40, maxSize: 160, leading: 1.14, rule: false },
 } as const;
+
+/** Diagram styles as tokens, like TEXT_STYLES. Pills (Mermaid `([ ])`, `(( ))`,
+ * arrow-chain ends are not special) take the accent; diamonds are decisions. */
+export const DIAGRAM_STYLES = {
+  /** Flow: light page, outlined white boxes, dark lines. */
+  classic: { background: "#f3f1ec", nodeFill: "#ffffff", border: "#2f5d52", borderWidth: 3, radius: 16, text: "#1f2a28",
+    decisionFill: "#fff6e3", decisionBorder: "#b8862f", accentFill: "#2f5d52", accentText: "#ffffff",
+    line: "#5b6b66", lineWidth: 3, labelFill: "#f3f1ec", labelText: "#56645f", pad: 1, square: false },
+  /** Blueprint: navy ground, light lines. */
+  editorial: { background: "#13233a", nodeFill: "#1b3150", border: "#7fb3e6", borderWidth: 3, radius: 16, text: "#e8f1fb",
+    decisionFill: "#243a5c", decisionBorder: "#f0c36a", accentFill: "#7fb3e6", accentText: "#10213a",
+    line: "#7fb3e6", lineWidth: 3, labelFill: "#13233a", labelText: "#a9c7e6", pad: 1.35, square: true },
+} as const;
+/** Size tiers tried in order until the diagram fits the card's width. */
+const DIAGRAM_TIERS = [
+  { size: 56, labelSize: 36, nodeWidth: 440, padX: 40, padY: 26, minWidth: 160, rankGap: 96, nodeGap: 72, arrow: 30 },
+  { size: 48, labelSize: 32, nodeWidth: 400, padX: 34, padY: 22, minWidth: 140, rankGap: 88, nodeGap: 64, arrow: 28 },
+  { size: 40, labelSize: 28, nodeWidth: 360, padX: 30, padY: 20, minWidth: 120, rankGap: 80, nodeGap: 56, arrow: 26 },
+  { size: 32, labelSize: 24, nodeWidth: 320, padX: 26, padY: 18, minWidth: 100, rankGap: 72, nodeGap: 48, arrow: 22 },
+  { size: 28, labelSize: 24, nodeWidth: 260, padX: 22, padY: 16, minWidth: 84, rankGap: 64, nodeGap: 36, arrow: 20 },
+  { size: 24, labelSize: 24, nodeWidth: 200, padX: 16, padY: 12, minWidth: 64, rankGap: 56, nodeGap: 24, arrow: 18 },
+] as const;
 
 /** True for each grapheme of `source` inside the first verbatim occurrence of `emphasis`. */
 function accentMask(source: string, emphasis: string | undefined): boolean[] {
@@ -49,9 +72,16 @@ export interface TemplateLine {
   /** Per-grapheme color where it differs from `color` (an accented word). */
   colorAt?: (string | undefined)[];
 }
-export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number }
+export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number;
+  /** Reveal group; shapes without one are drawn from the first frame. */
+  group?: number }
+/** A small SVG drawn scaled (arrowheads, diamonds). `src` names a file in `assets`. */
+export interface TemplateImage { x: number; y: number; width: number; height: number; src: string; group?: number }
 export interface TemplateLayout {
   width: number; height: number; background: string; lines: TemplateLine[]; shapes: TemplateRect[];
+  images: TemplateImage[];
+  /** SVG sources by file name, written beside the composition. */
+  assets: Record<string, string>;
 }
 export interface TemplateComposeResult extends ComposeResult {
   readonly width: number;
@@ -168,7 +198,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   const view = VIEW[plan.aspect];
   const editorial = plan.variant === "editorial";
   const W = view.width, margin = 88, inner = W - margin * 2;
-  const layout: TemplateLayout = { width: W, height: view.height, background: "#f1eee7", lines: [], shapes: [] };
+  const layout: TemplateLayout = { width: W, height: view.height, background: "#f1eee7", lines: [], shapes: [], images: [], assets: {} };
   let bottom = margin, group = 0;
   const rect = (x: number, y: number, width: number, height: number, color: string, radius = 0): TemplateRect => {
     const value = { x, y, width, height, color, radius }; layout.shapes.push(value); return value;
@@ -227,6 +257,131 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
       }
       if (style.rule) rect(style.align === "center" ? W / 2 - 40 : left, top + total + Math.round(size * 0.6), 80, 6, style.accent);
       bottom = top + total + (style.rule ? Math.round(size * 0.6) + 6 : 0);
+      break;
+    }
+    case "diagram": {
+      const style = DIAGRAM_STYLES[plan.variant as keyof typeof DIAGRAM_STYLES] ?? DIAGRAM_STYLES.classic;
+      layout.background = style.background;
+      const horizontal = content.direction === "LR" || content.direction === "RL";
+      const avail = W - margin * 2;
+      type Pick = { geometry: ReturnType<typeof layoutDiagram>; tier: (typeof DIAGRAM_TIERS)[number]; boxes: Map<string, { width: number; height: number; lines: StyledGlyph[][] }> };
+      let chosen: Pick | undefined, widest: Pick | undefined;
+      for (const tier of DIAGRAM_TIERS) {
+        const boxes = new Map<string, { width: number; height: number; lines: StyledGlyph[][] }>();
+        const boxFor = (node: DiagramNode) => {
+          const cap = node.shape === "diamond" ? tier.nodeWidth * 0.6 : tier.nodeWidth;
+          const lines = wrapStyled(styledGlyphs(normalizeText(node.label, "plain"), false, false), cap, tier.size, measure);
+          const tw = Math.max(...lines.map((line) => styledWidth(line, tier.size, measure)));
+          const th = lines.length * Math.ceil(measure.lineHeight(tier.size, false) * 1.25);
+          const padX = tier.padX * style.pad, padY = tier.padY * style.pad;
+          let w = tw + padX * 2, h = th + padY * 2;
+          if (node.shape === "pill") w += h * 0.5;
+          if (node.shape === "diamond") { w = tw * 2 + padX * 2; h = th * 2 + padY * 2; }
+          w = Math.max(w, tier.minWidth);
+          boxes.set(node.id, { width: w, height: h, lines });
+          return { width: w, height: h };
+        };
+        const labelBox = (label: string) => {
+          const lines = wrapStyled(styledGlyphs(normalizeText(label, "plain"), false, false), tier.nodeWidth * 0.8, tier.labelSize, measure);
+          return { width: Math.max(...lines.map((line) => styledWidth(line, tier.labelSize, measure))) + 20,
+            height: lines.length * Math.ceil(measure.lineHeight(tier.labelSize, false) * 1.2) + 10 };
+        };
+        // Sideways, the rank gap only has to hold an arrow.
+        const geometry = layoutDiagram(content, boxFor, { rankGap: Math.round(tier.rankGap * (horizontal ? 0.7 : 1)), nodeGap: tier.nodeGap, labelGap: 12, dummyWidth: 8 }, labelBox);
+        // The largest tier that fits the whole card. Height alone never pushes
+        // text below 32 px: from there the card grows (animations scroll).
+        const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.height - margin * 2;
+        chosen = { geometry, tier, boxes };
+        if (fitsCard || (fitsWidth && tier.size <= 32)) break;
+        if (fitsWidth && !widest) widest = chosen;
+      }
+      if (chosen!.geometry.width > avail && widest) chosen = widest;
+      const { geometry, tier, boxes } = chosen!;
+      if (geometry.width > avail) throw new ComposeError("overflow", `This diagram is ${Math.round(geometry.width)}px wide at its smallest size; the card has ${avail}px. ${horizontal ? "Try a top-down (graph TD) layout or" : "Use"} fewer nodes side by side. No content was dropped.`);
+      const ox = margin + (avail - geometry.width) / 2;
+      const oy = Math.max(margin, Math.round((view.height - geometry.height) / 2));
+      const lineGroup = (rank: number) => rank * 2, nodeGroup = (rank: number) => rank * 2 + 1;
+      // Edges first so boxes cover their ends.
+      const arrow = (dir: "down" | "up" | "left" | "right") => {
+        const name = `arrow-${dir}-${style.line.slice(1)}.svg`;
+        const d = { down: "M4 8 L60 8 L32 60 Z", up: "M4 56 L60 56 L32 4 Z", right: "M8 4 L8 60 L60 32 Z", left: "M56 4 L56 60 L4 32 Z" }[dir];
+        layout.assets[name] ??= `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="${d}" fill="${style.line}"/></svg>`;
+        return name;
+      };
+      for (const routed of geometry.edges) {
+        const pts = routed.points.map((p) => ({ x: ox + p.x, y: oy + p.y }));
+        const thick = routed.edge.line === "thick" ? style.lineWidth * 2 : style.lineWidth;
+        const group = lineGroup(routed.rank);
+        const A = tier.arrow;
+        if (routed.edge.arrow && pts.length >= 2) {
+          // Stop the line where the arrowhead begins.
+          const a = pts[pts.length - 2]!, b = pts[pts.length - 1]!;
+          const dx = Math.sign(b.x - a.x), dy = Math.sign(b.y - a.y);
+          const dir = dy > 0 ? "down" : dy < 0 ? "up" : dx > 0 ? "right" : "left";
+          layout.images.push({ x: b.x - A / 2 - (dx > 0 ? A / 2 : dx < 0 ? -A / 2 : 0), y: b.y - A / 2 - (dy > 0 ? A / 2 : dy < 0 ? -A / 2 : 0), width: A, height: A, src: arrow(dir), group });
+          pts[pts.length - 1] = { x: b.x - dx * (A - 2), y: b.y - dy * (A - 2) };
+        }
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1]!, b = pts[i]!;
+          const x = Math.min(a.x, b.x) - thick / 2, y = Math.min(a.y, b.y) - thick / 2;
+          const w = Math.abs(b.x - a.x) + thick, h = Math.abs(b.y - a.y) + thick;
+          if (routed.edge.line !== "dotted") { rect(x, y, w, h, style.line, thick / 2).group = group; continue; }
+          const len = Math.max(w, h), along = w >= h;
+          for (let t = 0; t < len; t += 18) {
+            const seg = Math.min(10, len - t);
+            rect(along ? x + t : x, along ? y : y + t, along ? seg : w, along ? h : seg, style.line, thick / 2).group = group;
+          }
+        }
+        if (routed.label && routed.edge.label) {
+          const lines = wrapStyled(styledGlyphs(normalizeText(routed.edge.label, "plain"), false, false), tier.nodeWidth * 0.8, tier.labelSize, measure);
+          const lh = Math.ceil(measure.lineHeight(tier.labelSize, false) * 1.2);
+          const lw = Math.max(...lines.map((line) => styledWidth(line, tier.labelSize, measure)));
+          const cx = ox + routed.label.x, cy = oy + routed.label.y;
+          const verticalRun = routed.points.length > 1 && routed.points[0]!.x === routed.points[1]!.x;
+          const bx = routed.label.beside ? (verticalRun ? cx + 12 : cx - (lw + 20) / 2) : cx - (lw + 20) / 2;
+          const by = routed.label.beside ? (verticalRun ? cy - (lines.length * lh + 10) / 2 : cy - lines.length * lh - 18) : cy - (lines.length * lh + 10) / 2;
+          rect(bx, by, lw + 20, lines.length * lh + 10, style.labelFill, 8).group = group;
+          lines.forEach((line, i) => {
+            const advance = styledWidth(line, tier.labelSize, measure);
+            layout.lines.push({ text: line.map((g) => g.text).join(""), x: bx + 10 + (lw - advance) / 2, y: by + 5 + i * lh, width: advance, size: tier.labelSize, height: lh,
+              bold: false, color: style.labelText, group, boldAt: line.map(() => false) });
+          });
+        }
+      }
+      const byId = new Map(content.nodes.map((node) => [node.id, node]));
+      for (const placed of geometry.nodes) {
+        const node = byId.get(placed.id)!, box = boxes.get(placed.id)!;
+        const x = ox + placed.x, y = oy + placed.y, w = placed.width, h = placed.height;
+        const group = nodeGroup(placed.rank);
+        const accent = node.shape === "pill";
+        const fill = accent ? style.accentFill : node.shape === "diamond" ? style.decisionFill : style.nodeFill;
+        const border = node.shape === "diamond" ? style.decisionBorder : style.border;
+        const ink = accent ? style.accentText : style.text;
+        if (node.shape === "diamond") {
+          const outer = `diamond-${border.slice(1)}.svg`, inner = `diamond-${fill.slice(1)}.svg`;
+          const shape = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><path d="M128 0 L256 128 L128 256 L0 128 Z" fill="${color}"/></svg>`;
+          layout.assets[outer] ??= shape(border); layout.assets[inner] ??= shape(fill);
+          const bw = style.borderWidth * 1.6;
+          layout.images.push({ x, y, width: w, height: h, src: outer, group });
+          layout.images.push({ x: x + bw * w / h, y: y + bw, width: w - 2 * bw * w / h, height: h - 2 * bw, src: inner, group });
+        } else {
+          const radius = node.shape === "pill" ? h / 2 : node.shape === "round" && !style.square ? style.radius : style.square ? 2 : 4;
+          if (!accent) rect(x, y, w, h, border, radius).group = group;
+          const bw = accent ? 0 : style.borderWidth;
+          rect(x + bw, y + bw, w - bw * 2, h - bw * 2, fill, Math.max(0, radius - bw)).group = group;
+        }
+        const lh = Math.ceil(measure.lineHeight(tier.size, false) * 1.25);
+        const top = y + (h - box.lines.length * lh) / 2;
+        box.lines.forEach((line, i) => {
+          const advance = styledWidth(line, tier.size, measure);
+          layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + (w - advance) / 2, y: top + i * lh, width: advance, size: tier.size, height: lh,
+            bold: accent, color: ink, group, boldAt: line.map(() => accent) });
+        });
+      }
+      group = nodeGroup(geometry.ranks) + 1;
+      // Reading and typing order follow the ranks, labels just before their targets.
+      layout.lines.sort((a, b) => a.group - b.group);
+      bottom = oy + geometry.height;
       break;
     }
     case "document": {
@@ -502,13 +657,27 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     const scroll = scrolls(plan.motion, layout.height, viewHeight);
     const frameHeight = scroll ? viewHeight : layout.height;
     const timing = scroll ? scrollTiming(layout.height - viewHeight) : templateTiming(plan.motion, count);
-    const groups = Math.max(1, ...layout.lines.map((line) => line.group + 1));
+    const groups = Math.max(1, ...layout.lines.map((line) => line.group + 1), ...layout.shapes.map((shape) => (shape.group ?? -1) + 1), ...layout.images.map((image) => (image.group ?? -1) + 1));
+    // Grouped shapes and images appear with their group: in reading order, or
+    // when the typewriter reaches the group's first character.
+    const glyphStart = new Map<number, number>();
+    { let at = 0; for (const line of layout.lines) { if (!glyphStart.has(line.group)) glyphStart.set(line.group, at); at += graphemes(line.text).length; } }
+    const startOf = (g: number) => { for (let k = g; k < groups; k++) if (glyphStart.has(k)) return glyphStart.get(k)!; return Math.max(0, count - 1); };
+    const shapeAnimation = (name: string, g: number | undefined): string => {
+      if (g === undefined || plan.motion === "none" || scroll) return "";
+      keyframes.fade ??= { from: { opacity: "0" }, to: { opacity: "1" } };
+      const delay = plan.motion === "typewriter" ? timing.delay(startOf(g), count) : timing.delay(g, groups);
+      animations[name] = { value: `fade 240ms ease-out ${delay}ms both` };
+      return ` animate-${name}`;
+    };
     const animations: Record<string, { value: string }> = {};
     const keyframes: Record<string, unknown> = {};
     const emojiKeys = new Set<string>();
     const nodes: string[] = [];
     let glyphIndex = 0;
-    for (const shape of layout.shapes) nodes.push(`<View class="absolute left-[${shape.x}px] top-[${shape.y}px] w-[${shape.width}px] h-[${shape.height}px] bg-[${shape.color}] rounded-[${shape.radius}px]" />`);
+    for (const [i, shape] of layout.shapes.entries()) nodes.push(`<View class="absolute left-[${shape.x}px] top-[${shape.y}px] w-[${shape.width}px] h-[${shape.height}px] bg-[${shape.color}] rounded-[${shape.radius}px]${shapeAnimation(`s${i}`, shape.group)}" />`);
+    for (const [i, image] of layout.images.entries()) nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]${shapeAnimation(`i${i}`, image.group)}" src="${image.src}" />`);
+    for (const [name, svg] of Object.entries(layout.assets)) await Bun.write(`${dir}/${name}`, svg);
     for (const line of layout.lines) {
       const prefix: StyledGlyph[] = [];
       for (const [glyphPosition, glyph] of graphemes(line.text).entries()) {
@@ -538,7 +707,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       }
     }
     const emoji = await stageEmoji(emojiKeys, options.emojiCache, dir, options.emojiBundle);
-    await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries(emoji.map((file) => [file, { linear: true }]))) + "\n");
+    await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries([...emoji, ...Object.keys(layout.assets)].map((file) => [file, { linear: true }]))) + "\n");
     let body = nodes.join("\n");
     if (scroll) {
       const t = timing as ScrollTiming;
@@ -546,7 +715,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       animations.scroll = { value: `scroll ${t.scrollMs}ms ease-in-out ${t.startMs}ms both` };
       body = `<View class="absolute left-[0px] top-[0px] w-[${layout.width}px] h-[${layout.height}px] animate-scroll">\n${body}\n</View>`;
     }
-    await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}; text positions are fixed across frames.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${body}\n</View>));\n`);
+    await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}; text positions are fixed across frames.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length || layout.images.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${body}\n</View>));\n`);
     await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(keyframes)},animation:${JSON.stringify(animations)}}});\n`);
     await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: timing.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1,
       fonts: { regular: "assets/fonts/NotoSansSC-Regular.otf", bold: "assets/fonts/NotoSansSC-Bold.otf" } }, null, 2));

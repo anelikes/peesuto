@@ -1,4 +1,5 @@
 import { classify } from "../render/classify.ts";
+import { parseArrowChains, parseMermaid } from "./diagram.ts";
 import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type DocumentBlock, type TemplateContent, type TemplateId } from "./types.ts";
 
 export interface ParsedTemplates {
@@ -20,8 +21,12 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   candidates.set("document", { kind: "document", paragraphs: normalized.split(/\n[\t ]*\n+/), blocks: documentBlocks(normalized) });
   // A fenced block must consume the entire input, including its closing fence.
   const code = parseCode(text);
+  // A Mermaid flowchart, fenced as ```mermaid or bare, is a diagram; the
+  // fenced source stays available as code.
+  const mermaid = code?.kind === "code" && (!code.language || /^mermaid$/i.test(code.language)) ? parseMermaid(code.code) : parseMermaid(text.trim());
+  if (mermaid) candidates.set("diagram", mermaid);
   if (code) candidates.set("code", code);
-  else {
+  else if (!mermaid) {
     const table = parseTable(text);
     const comparison = parseComparison(text);
     const quote = isRawCode(text) ? undefined : parseQuote(text);
@@ -35,13 +40,21 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     // Keep those capabilities without treating malformed tables or mixed
     // Markdown containing a fence as one large code block.
     if (candidates.size === 1 && isRawCode(text.trim())) candidates.set("code", { kind: "code", code: normalized });
+    // Arrow chains: every line "A → B → C". Code (JS `=>`) never qualifies.
+    if (!candidates.has("code")) {
+      const chains = parseArrowChains(text);
+      if (chains) candidates.set("diagram", chains);
+    }
   }
   const prose = parseText(text, candidates);
   if (prose) candidates.set("text", prose);
   // A recognized structure wins; short plain prose is typography; the rest is a document.
-  const preferred = [...candidates.keys()].find((id) => id !== "document" && id !== "text") ?? (prose ? "text" : "document");
+  const preferred = PREFERENCE.find((id) => candidates.has(id)) ?? (prose ? "text" : "document");
   return { sourceText, preferred, candidates };
 }
+
+/** Which recognized structure wins when several parse. */
+const PREFERENCE: readonly TemplateId[] = ["diagram", "code", "table", "comparison", "quote", "list", "chat", "stat"];
 
 /** Short prose with no structure of its own: at most TEXT_MAX_GRAPHEMES visible
  * characters and eight paragraphs, no Markdown blocks, and no structure a
@@ -49,6 +62,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
  * Quotes and statistics keep text as an alternative. */
 function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent | undefined {
   if (["code", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
+  if (/^(?:graph|flowchart)\b/i.test(text.trim())) return;
   if (exceedsGraphemes(text, TEXT_MAX_GRAPHEMES) !== undefined) return;
   const blocks = documentBlocks(text);
   if (!blocks.length || blocks.some((block) => block.kind !== "paragraph")) return;

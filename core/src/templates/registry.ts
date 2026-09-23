@@ -37,6 +37,9 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
   { id: "comparison", name: "Comparison", nameZh: "对比", variants: [
     { id: "classic", name: "Side by side", nameZh: "左右对照" }, { id: "editorial", name: "Split panels", nameZh: "分区对比" },
   ], motions: MOTIONS },
+  { id: "diagram", name: "Diagram", nameZh: "流程图", variants: [
+    { id: "classic", name: "Flow", nameZh: "流程" }, { id: "editorial", name: "Blueprint", nameZh: "蓝图" },
+  ], motions: MOTIONS },
 ];
 
 export function templateRegistration(id: TemplateId): TemplateRegistration {

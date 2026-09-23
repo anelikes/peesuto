@@ -32,6 +32,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Conversation | Chat bubbles | Transcript | |
 | Table | Data grid | Editorial ledger | |
 | Comparison | Side by side | Split panels | |
+| Diagram | Flow | Blueprint | |
 
 These variants change composition and typographic hierarchy, not just color.
 A style id is valid only for the templates that register it: `poster` exists
@@ -59,6 +60,38 @@ nothing else (no labels, numbers or decoration made of words).
 - Styles are one token table, `TEXT_STYLES` in `core/src/templates/compose.ts`
   (colors, weight, alignment, margin, size range, leading, rule); a redesign
   changes numbers there, not the layout code.
+
+### Diagram: Mermaid flowcharts and arrow chains
+
+Two sources become a node diagram, and it wins over every other structure:
+
+- A Mermaid `graph`/`flowchart` (bare, or fenced as ```` ```mermaid ````, which
+  keeps code as an alternative). Directions TD/TB/LR/BT/RL; node shapes `[ ]`
+  box, `( )` rounded, `([ ])` `(( ))` pill (drawn in the accent), `{ }` decision
+  diamond, the rest as boxes; links `-->`, `---`, `-.->`, `==>`, chains
+  `A --> B --> C`, fan-out `A --> B & C`, labels `-->|yes|` and `-- yes -->`;
+  `<br>` breaks a label. `classDef`, `class`, `style`, `linkStyle` and `click`
+  are ignored and subgraphs are flattened. Other Mermaid kinds (sequence,
+  class, gantt…) are not diagrams; any line that does not parse means the
+  whole source stays code.
+- Plain arrow chains: every non-empty line is `A → B → C` (also `->`, `-->`,
+  `=>`, `⇒`, `➜`). Equal labels are one node, so lines can branch and merge.
+  A label with sentence punctuation or unbalanced brackets is prose or code,
+  not a node. One short chain goes left to right, anything else top-down.
+
+At most 40 nodes, 80 edges and 80 characters per label; labels are drawn
+verbatim. Layout is layered: ranks by longest path (cycles are reversed for
+ranking and drawn back up), points for edges that skip ranks so they bend
+around the nodes between, barycenter ordering, parent-aligned positions, and
+orthogonal routing with one channel per edge between ranks. Edge labels sit on
+a long horizontal run, or beside the line under the source. Size tiers from
+56 px down are tried until the diagram fits the card; height alone never pushes
+text below 32 px, the card grows instead (and an animation scrolls). A diagram
+too wide even at 24 px is an overflow error. Reveal and typewriter bring the
+diagram in rank by rank, the edges into a rank just before its nodes. Styles
+are `DIAGRAM_STYLES`; size tiers `DIAGRAM_TIERS`, both in
+`core/src/templates/compose.ts`. Arrowheads and diamonds are small SVGs the
+engine bakes; everything else is boxes and text.
 
 ### Line breaking (all templates)
 
