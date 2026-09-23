@@ -119,6 +119,45 @@ template's checklist is what reviewers go through.
 
 Code: TypeScript strict, `.ts` extensions on imports, no new dependency
 without a sentence in the PR on why the standard library is not enough.
+A new dependency must have a license compatible with Apache 2.0 (MIT, BSD,
+ISC, Apache, OFL for fonts); anything bundled into the app gets a line in
+`NOTICE`.
+
+## License and sign-off
+
+Peesuto is licensed under the [Apache License 2.0](LICENSE). By its
+section 5, a contribution you submit is licensed under the same terms; there
+is no separate contributor agreement.
+
+Every commit in a pull request carries a `Signed-off-by` line: your
+statement, under the [Developer Certificate of Origin](https://developercertificate.org/),
+that you wrote the change or otherwise have the right to submit it under the
+project's license. `git commit -s` adds it:
+
+```
+Signed-off-by: Your Name <you@example.com>
+```
+
+Use your real name and an email you can be reached at. To sign off commits
+you already made, `git rebase --signoff main`. Code written with an AI
+assistant is fine to submit; you sign off on it like any other code, having
+read it and taken responsibility for it.
+
+## Trademarks
+
+The code is yours to use, change and redistribute under Apache 2.0; the name
+is not. "Peesuto" and the Peesuto logo identify the official project and its
+builds, and the license does not grant them (section 6).
+
+- Fine without asking: saying your fork, template, style pack or plugin is
+  "for Peesuto", "compatible with Peesuto" or "based on Peesuto", and using
+  the name to talk about the project.
+- Not fine: naming a fork, a distributed build or a product "Peesuto" or
+  something easily confused with it, or using the logo as your own. A
+  redistributed build from modified source takes another name and icon, and
+  a bundle identifier outside `com.peesuto.*`.
+
+When in doubt, open an issue and ask.
 
 ## One engine build at a time
 

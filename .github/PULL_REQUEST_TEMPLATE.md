@@ -9,4 +9,4 @@
 - [ ] Nothing writes into the engine checkout. Engine changes went to the pocket-motion repository, and `engine.json` moved only if they landed there.
 - [ ] Any new name Jev may choose (kind, layout, palette) lives in `core/src/catalog.ts` with its numbers, nowhere else.
 - [ ] Nothing new leaves the machine, or SECURITY.md says what and where to.
-- [ ] Commit messages read `type(scope): summary`.
+- [ ] Commit messages read `type(scope): summary`, and every commit is signed off (`git commit -s`, see CONTRIBUTING.md).

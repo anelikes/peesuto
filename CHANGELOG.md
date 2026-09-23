@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- License: Apache 2.0 (was MIT), with a NOTICE listing bundled third-party components. Contributions are signed off under the DCO; the Peesuto name and logo are trademarks the license does not grant (CONTRIBUTING.md).
 - Code cards: line numbers from 1 in both styles; larger macOS window dots; the terminal style sits on a layered gradient (indigo to teal, a rose tint below) with a drop shadow on the window. Template shapes can carry the engine's two-stop gradients and shadows.
 - Code cards use a monospace font (Peesuto Code: Maple Mono NL CN v7.9 subset, SIL OFL; no ligatures) with CJK at two columns, and real syntax highlighting (highlight.js 11.12, 24 languages, fence language or auto-detect); text is verified unchanged, with fallbacks to the proportional font and the simple colouring.
 - Pin to screen (⌘⌥5): the copied image, or a card rendered from copied text, floats above every window; drag to move, scroll or pinch to zoom around the cursor, double-click to close; right-click to copy, save or close all. GIFs animate. Also a button on image and GIF results.

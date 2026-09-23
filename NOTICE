@@ -1,0 +1,28 @@
+Peesuto
+Copyright 2026 The Peesuto Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"Peesuto" and the Peesuto logo are trademarks of the Peesuto project. The
+Apache License does not grant permission to use them (section 6); see the
+"Trademarks" section of CONTRIBUTING.md.
+
+This product bundles the following third-party components, each under its
+own license:
+
+- Pocket Motion (https://github.com/anelikes/pocket-motion), MIT License.
+- Peesuto Code, a renamed subset of Maple Mono NL CN v7.9
+  (https://github.com/subframe7536/maple-font), Copyright 2022 The Maple Mono
+  Project Authors, with Chinese glyphs from Resource Han Rounded (derived from
+  Adobe's Source Han Sans), SIL Open Font License 1.1
+  (core/src/render/fonts/OFL.txt).
+- Noto Sans SC, Copyright Google LLC and Adobe, SIL Open Font License 1.1.
+- highlight.js 11.12.0 (https://highlightjs.org/), Copyright 2006 Ivan
+  Sagalaev and contributors, BSD 3-Clause License.
+- gifenc (https://github.com/mattdesl/gifenc), Copyright 2017 Matt
+  DesLauriers, MIT License.
+- qrcode-generator (https://github.com/kazuhikoarase/qrcode-generator),
+  Copyright 2011 Kazuhiko Arase, MIT License.
+
+Emoji images are downloaded at runtime from Noto Emoji
+(https://github.com/googlefonts/noto-emoji), Apache License 2.0.

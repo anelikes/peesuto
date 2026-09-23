@@ -27,9 +27,11 @@ already do a hundred times a day: copy, paste.
   on. Advanced thinking parameters remain available in provider configuration;
   the native settings UI does not yet expose all of them.
 
-Everything here is MIT. A subscription, when it exists, buys hosted model
-calls that need no setup and official style and action packs; the formats
-stay open.
+Everything here is open source under the Apache License 2.0: the app, Core,
+the template and pack formats and the proxy. Peesuto runs on your machine
+with the keys you bring (or none: rules and the heuristic need no model); no
+feature is held back from the open build. A hosted service may come later
+for people who would rather not set up keys; it is not live today.
 
 ## Desktop architecture
 
@@ -179,7 +181,7 @@ What leaves the machine, and only when you chose that provider:
 | decider `cloudflare` | the typed questions and the text they are about | your own Workers AI account |
 | decider `endpoint` | the same | the URL you set (your own proxy, or ours) |
 | generator `openai-compatible` / `anthropic` | the filled prompt | the base URL you set |
-| generator `hosted` | the filled prompt | our proxy, which does not store it |
+| generator `hosted` | the filled prompt | our proxy, which does not store it (not live yet) |
 
 The offline switch in Settings closes the single egress path for everything
 above. Emoji pictures are fetched by codepoint from a CDN once and cached;
@@ -189,3 +191,9 @@ key in your Keychain. See `SECURITY.md`.
 ## Status
 
 The old desktop is removed. Remaining v1 features and release acceptance are tracked in `PLAN.md`.
+
+## License
+
+[Apache License 2.0](LICENSE); third-party components are listed in
+[NOTICE](NOTICE). "Peesuto" and its logo are trademarks and are not covered
+by the license; see [Trademarks](CONTRIBUTING.md#trademarks).

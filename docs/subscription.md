@@ -1,5 +1,9 @@
 # Subscription (design)
 
+> **On hold (2026-09-24).** Peesuto ships open source (Apache 2.0) with local
+> and bring-your-own-key providers only. The hosted service below is kept in
+> the code but will not launch until there is demand; see PLAN.md §5.
+
 This is the intended product flow, not a description of a shipped native
 subscription UI. Hosted proxy routes and Core pack loading exist; the native
 account/pack installer, real billing deployment and grace-period enforcement
