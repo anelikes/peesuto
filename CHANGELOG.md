@@ -7,6 +7,10 @@ section here becomes one.
 
 ## Unreleased
 
+## 0.1.1 — 2026-09-23
+
+First signed and notarized native release (Apple silicon, macOS 13+).
+
 - Media shortcuts always paste into the frontmost app (no more "copied, press ⌘V" after a focus check); only missing Accessibility, secure input or Peesuto in front fall back to copy, with the reason and a button to grant access.
 - Prepare on copy moved next to the paste shortcuts; new installs pre-render images by default, with local rules only.
 - First-run welcome guide (what Peesuto does, shortcuts, permissions and privacy including the Keychain prompt, preferences, a try-it step), reopenable from Settings › General › About.
