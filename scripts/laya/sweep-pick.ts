@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { pick } from "../../core/src/pick/index.ts";
 const url = process.argv[2] ?? "http://127.0.0.1:8791/";
 const saved = JSON.parse(readFileSync(join(import.meta.dir, "../../.work/pick-scenarios.json"), "utf8")) as { now: number; scenarios: any[] };
-const decider = { name: "laya", async ask(body: unknown) { const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json() as any; return j.answers; } };
+const decider = { name: "laya", async ask(body: unknown) { const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json() as any; return j.result?.answers ?? j.answers; } };
 const cache = new Map<string, any>();
 const cached = { name: "laya", async ask(body: unknown) { const k = JSON.stringify(body); if (!cache.has(k)) cache.set(k, await decider.ask(body)); return cache.get(k); } };
 for (const w of [0, 0.15, 0.3, 0.5, 0.7, 0.85, 1]) {
