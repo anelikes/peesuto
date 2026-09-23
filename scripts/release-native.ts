@@ -100,6 +100,18 @@ await sign(app);
 await run(["codesign", "--verify", "--strict", "--deep", "--verbose=2", app]);
 await run(["codesign", "-d", "--entitlements", "-", "--xml", join(macos, "paste")]);
 
+/** Staple with retries: Apple's ticket service (CloudKit) is reached over the
+ * network and fails transiently (TLS errors, error 68). */
+async function staple(file: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    const result = await run(["xcrun", "stapler", "staple", file], { allowFailure: true });
+    if (result.code === 0) return;
+    if (attempt >= 5) fail(`stapling ${basename(file)} kept failing (exit ${result.code}); rerun later with --skip-build.`);
+    console.log(`stapler failed (exit ${result.code}); retrying in ${attempt * 15} s`);
+    await Bun.sleep(attempt * 15_000);
+  }
+}
+
 /** Submit a file for notarization and wait; returns the submission id, or fails with Apple's log. */
 async function notarizeFile(file: string): Promise<string> {
   const result = await run(["xcrun", "notarytool", "submit", file, "--keychain-profile", notaryProfile!, "--wait", "--output-format", "json"], { allowFailure: true });
@@ -125,7 +137,7 @@ if (notarize) {
   await run(["ditto", "-c", "-k", "--keepParent", app, zip]);
   submissions.push(await notarizeFile(zip));
   await rm(zip, { force: true });
-  await run(["xcrun", "stapler", "staple", app]);
+  await staple(app);
   await run(["xcrun", "stapler", "validate", app]);
 }
 const gatekeeperApp = await run(["spctl", "-a", "-vv", "-t", "exec", app], { allowFailure: true });
@@ -151,7 +163,7 @@ await run(["codesign", "--verify", "--verbose=2", dmg]);
 // 5. Notarize the DMG (it holds the stapled app), staple, verify.
 if (notarize) {
   submissions.push(await notarizeFile(dmg));
-  await run(["xcrun", "stapler", "staple", dmg]);
+  await staple(dmg);
   await run(["xcrun", "stapler", "validate", dmg]);
   await run(["spctl", "-a", "-vv", "-t", "open", "--context", "context:primary-signature", dmg]);
 }
