@@ -151,6 +151,23 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try SettingsStore(directory: directory).language, "en")
     }
 
+    func testJevServicesShareOneKeyBetweenDeciderAndGenerator() throws {
+        let settings = try SettingsStore(directory: directory)
+        try settings.setProvider(track: "decider", fields: ["kind": "openrouter", "tokenRef": "pocket-paste/openrouter"])
+        try settings.setProvider(track: "generator", fields: ["kind": "openrouter", "model": "anthropic/claude-sonnet-5", "apiKeyRef": "pocket-paste/openrouter"])
+        var asked: [String] = []
+        let configured = try settings.coreConfiguration { name in asked.append(name); return name == "pocket-paste/openrouter" ? "or-key" : nil }
+        XCTAssertEqual((configured["decider"] as? [String: Any])?["tokenRef"] as? String, "pocket-paste/openrouter")
+        XCTAssertEqual((configured["generator"] as? [String: Any])?["apiKeyRef"] as? String, "pocket-paste/openrouter")
+        XCTAssertEqual(configured["secrets"] as? [String: String], ["pocket-paste/openrouter": "or-key"])
+        XCTAssertEqual(asked, ["pocket-paste/openrouter"], "the shared key is read once")
+        // A missing key is still named, so Core reports it instead of silently falling back.
+        try settings.setProvider(track: "decider", fields: ["kind": "typesafe", "tokenRef": "pocket-paste/typesafe"])
+        let missing = try settings.coreConfiguration { _ in nil }
+        XCTAssertEqual((missing["decider"] as? [String: Any])?["tokenRef"] as? String, "pocket-paste/typesafe")
+        XCTAssertEqual(JevService.allCases.filter(\.hasGenerator), [.vercel, .openrouter])
+    }
+
     func testMalformedSettingsAreNeverOverwritten() throws {
         let file = directory.appendingPathComponent("settings.json")
         let original = Data("malformed settings".utf8)

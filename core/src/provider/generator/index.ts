@@ -14,7 +14,10 @@ export type GeneratorConfig =
   | { readonly kind: "hosted"; readonly token: string; readonly url?: string }
   | { readonly kind: "none" };
 
-export const GENERATOR_KINDS = ["none", "openai-compatible", "anthropic", "hosted"] as const;
+export const GENERATOR_KINDS = ["none", "openai-compatible", "anthropic", "openrouter", "vercel", "hosted"] as const;
+/** Gateways whose chat API is OpenAI-compatible; stored as their own kinds so one key serves Jev and text. */
+export const GATEWAY_BASE_URLS = { openrouter: "https://openrouter.ai/api/v1", vercel: "https://ai-gateway.vercel.sh/v1" } as const;
+export type GatewayKind = keyof typeof GATEWAY_BASE_URLS;
 /** Ollama's OpenAI-compatible endpoint, the local default. */
 export const DEFAULT_OLLAMA_URL = "http://localhost:11434/v1";
 
@@ -29,11 +32,12 @@ export function createGenerator(cfg: GeneratorConfig): Generator {
 
 /**
  * Generator from the environment:
- *   PASTE_GENERATOR=none|openai-compatible|anthropic|hosted (default none)
+ *   PASTE_GENERATOR=none|openai-compatible|anthropic|openrouter|vercel|hosted (default none)
  *   openai-compatible: PASTE_GEN_BASE_URL (default Ollama), PASTE_GEN_MODEL, PASTE_GEN_API_KEY,
  *                      PASTE_GEN_REASONING=none|low|medium|high (default: learn, see openai.ts),
  *                      PASTE_GEN_TIMEOUT_MS
  *   anthropic:         PASTE_GEN_API_KEY, PASTE_GEN_MODEL (default claude-sonnet-5)
+ *   openrouter, vercel: PASTE_GEN_MODEL, and PASTE_GEN_API_KEY or OPENROUTER_API_KEY / AI_GATEWAY_API_KEY
  *   hosted:            PASTE_TOKEN, PASTE_HOSTED_URL (a base URL)
  */
 export function generatorFromEnv(env: Record<string, string | undefined> = process.env): GeneratorConfig {
@@ -56,6 +60,12 @@ export function generatorFromEnv(env: Record<string, string | undefined> = proce
     case "anthropic": {
       if (!env.PASTE_GEN_API_KEY) throw new ProviderConfigError("anthropic needs PASTE_GEN_API_KEY");
       return { kind, apiKey: env.PASTE_GEN_API_KEY, ...(env.PASTE_GEN_MODEL ? { model: env.PASTE_GEN_MODEL } : {}) };
+    }
+    case "openrouter":
+    case "vercel": {
+      const apiKey = env.PASTE_GEN_API_KEY ?? env[kind === "openrouter" ? "OPENROUTER_API_KEY" : "AI_GATEWAY_API_KEY"];
+      if (!env.PASTE_GEN_MODEL || !apiKey) throw new ProviderConfigError(`${kind} needs PASTE_GEN_MODEL and an API key`);
+      return { kind: "openai-compatible", baseUrl: GATEWAY_BASE_URLS[kind], model: env.PASTE_GEN_MODEL, apiKey };
     }
     case "hosted": {
       if (!env.PASTE_TOKEN) throw new ProviderConfigError("hosted needs PASTE_TOKEN");

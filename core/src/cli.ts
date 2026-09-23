@@ -9,7 +9,7 @@
  *
  * Provider: --provider rules|none|laya|proxy|cloudflare|hosted (default proxy at
  * http://localhost:8787/, i.e. `wrangler dev` in proxy/); --laya-url, --proxy-url,
- * --account-id, --token, --hosted-url; or the environment PASTE_PROVIDER,
+ * --account-id, --token, --jev-model, --hosted-url; or the environment PASTE_PROVIDER,
  * PASTE_PROXY_URL, PASTE_CF_ACCOUNT_ID, PASTE_CF_TOKEN, PASTE_TOKEN,
  * PASTE_HOSTED_URL. Answers are cached by text (--fresh asks again).
  * What a network decider receives: --model-content raw|redacted|structure (or
@@ -30,7 +30,7 @@
 import { join, resolve } from "node:path";
 import { isAspect, parseDsl, type Aspect, type Dsl } from "./dsl.ts";
 import { assertEngine, bunIsOnPath, bunOnPath, engineRoot, EngineError, installEngine, REPO_ROOT } from "./engine.ts";
-import { cachedProvider, createGenerator, createProvider, DEV_PROXY_URL, generatorFromEnv, PROVIDER_KINDS, providerFromEnv, ProviderConfigError, ProviderError, setEgressLog, type ProviderConfig } from "./provider/index.ts";
+import { cachedProvider, createGenerator, createProvider, DEV_PROXY_URL, generatorFromEnv, JEV_KEY_ENV, PROVIDER_KINDS, providerFromEnv, ProviderConfigError, ProviderError, setEgressLog, type ProviderConfig } from "./provider/index.ts";
 import { ActionError, loadActions, runAction } from "./actions/index.ts";
 import { answersToDsl, buildRequest, fallbackDsl, isCardAnswers } from "./questions.ts";
 import { ComposeError } from "./render/compose.ts";
@@ -173,6 +173,13 @@ function providerConfig(str: (n: string) => string | undefined, env?: NodeJS.Pro
       if (!token) throw new ProviderConfigError("hosted needs --token (or PASTE_TOKEN)");
       return { kind, token, url: str("hosted-url") ?? e.PASTE_HOSTED_URL };
     }
+    case "typesafe":
+    case "vercel":
+    case "openrouter": {
+      const token = str("token") ?? e[JEV_KEY_ENV[kind]], model = str("jev-model") ?? e.PASTE_JEV_MODEL;
+      if (!token) throw new ProviderConfigError(`${kind} needs --token (or ${JEV_KEY_ENV[kind]})`);
+      return { kind, token, ...(model ? { model } : {}) };
+    }
     default: throw new UsageError(`--provider must be one of ${PROVIDER_KINDS.join(", ")}`);
   }
 }
@@ -184,7 +191,7 @@ const USAGE = `paste "text" [--aspect chat|doc|social] [--out file] [--json] [--
 paste --action paste-card "text" [--frame auto|1:1|4:5|16:9|9:16]   # render actions take a frame
 paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY,
                                            #   PASTE_GEN_REASONING (none|low|medium|high, default learn), PASTE_GEN_TIMEOUT_MS
-      [--provider rules|none|laya|proxy|cloudflare|hosted] [--laya-url URL] [--proxy-url URL] [--account-id ID] [--token T] [--hosted-url URL]
+      [--provider rules|none|laya|proxy|cloudflare|typesafe|vercel|openrouter|hosted] [--laya-url URL] [--proxy-url URL] [--account-id ID] [--token T] [--jev-model ID] [--hosted-url URL]
       [--model-content raw|redacted|structure] [--work DIR] [--app-data DIR] [--engine-resources DIR] [--cache-dir DIR]
 pbpaste | paste --stdin
 paste --dsl job.json`;

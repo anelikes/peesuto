@@ -408,6 +408,9 @@ private struct PreferencesStep: View {
     let openAISettings: () -> Void
     @State private var outputs: Set<String> = []
     @State private var decider = "rules"
+    @State private var aiOpen = false
+    @State private var service = JevService.openrouter
+    @State private var key = ""
     @State private var loginStatus = SMAppService.Status.notRegistered
     @State private var problem: String?
 
@@ -430,11 +433,14 @@ private struct PreferencesStep: View {
             VStack(alignment: .leading, spacing: 9) {
                 sectionTitle("Who decides the layout", "由谁来决定排版")
                 HStack(spacing: 12) {
-                    option(selected: decider == "rules" || decider == "none", symbol: "lock.laptopcomputer",
+                    option(selected: !aiOpen && (decider == "rules" || decider == "none"), symbol: "lock.laptopcomputer",
                            "Local rules", "本地规则", "Default. Offline; nothing leaves your Mac.", "默认。离线运行，不发送任何内容。") { chooseLocalRules() }
-                    option(selected: decider != "rules" && decider != "none", symbol: "sparkles",
-                           "AI model", "AI 模型", "Cloudflare, Laya or your own endpoint. Opens AI settings.", "Cloudflare、Laya 或自有端点。将打开 AI 设置。") { openAISettings() }
+                    option(selected: aiOpen || (decider != "rules" && decider != "none"), symbol: "sparkles",
+                           "Jev, with your key", "Jev（自带密钥）", "TypeSafe, Vercel or OpenRouter. Secrets are redacted before text leaves (by default).", "TypeSafe、Vercel 或 OpenRouter。默认在发送前隐去敏感信息。") {
+                        withAnimation(.easeOut(duration: 0.15)) { aiOpen = true }
+                    }
                 }
+                if aiOpen { jevSetup.transition(.opacity) }
             }
             HStack(spacing: 12) {
                 SymbolTile(symbol: "power", size: 28)
@@ -455,6 +461,41 @@ private struct PreferencesStep: View {
         .padding(.top, 26)
         .onAppear(perform: load)
         .onChange(of: model.settingsRevision) { _ in load() }
+    }
+
+    /// Pick a Jev service and paste its key; Cloudflare, Laya and endpoints stay in Settings.
+    private var jevSetup: some View {
+        let saved = decider == service.rawValue || KeychainSecrets.has(name: service.keychainName)
+        return VStack(alignment: .leading, spacing: 8) {
+            Picker("", selection: $service) {
+                ForEach(JevService.allCases) { Text($0.label).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden()
+            HStack(spacing: 8) {
+                SecureField(saved ? model.tr("Key saved; paste a new one to replace it", "已保存密钥，粘贴新密钥可替换")
+                                  : model.tr("\(service.label) API key", "\(service.label) API 密钥"), text: $key)
+                    .textFieldStyle(.roundedBorder)
+                Button(decider == service.rawValue && key.isEmpty ? model.tr("In use", "使用中") : model.tr("Use", "使用"), action: useService)
+                    .disabled(key.isEmpty && (!saved || decider == service.rawValue))
+            }
+            HStack(spacing: 10) {
+                Link(model.tr("Get a key", "获取密钥"), destination: service.keyURL)
+                Button(model.tr("Cloudflare, Laya or your own endpoint…", "Cloudflare、Laya 或自有端点…"), action: openAISettings)
+                    .buttonStyle(.link)
+            }.font(.system(size: 11))
+        }
+    }
+
+    private func useService() {
+        guard let settings = model.settings else { return }
+        if model.previewMode { problem = model.tr("Not available in the preview build.", "预览版不可用。"); return }
+        do {
+            try service.useAsDecider(in: settings, key: key)
+            key = ""; decider = service.rawValue; problem = nil
+            model.settingsRevision += 1
+            Task { _ = try? await model.configureCore() }
+        } catch SettingsError.missingCredential {
+            problem = model.tr("Paste an API key first.", "请先粘贴 API 密钥。")
+        } catch { problem = model.tr("Could not save this preference.", "无法保存这项偏好。") }
     }
 
     private func sectionTitle(_ en: String, _ zh: String) -> some View {
@@ -509,6 +550,7 @@ private struct PreferencesStep: View {
         guard let settings = model.settings else { return }
         outputs = Set(settings.precomposeSettings.outputs)
         decider = (settings.providers["decider"] as? [String: Any])?["kind"] as? String ?? "rules"
+        if let current = JevService(rawValue: decider) { service = current; aiOpen = true }
         if !model.previewMode { loginStatus = SMAppService.mainApp.status }
     }
 
@@ -527,6 +569,7 @@ private struct PreferencesStep: View {
     }
 
     private func chooseLocalRules() {
+        withAnimation(.easeOut(duration: 0.15)) { aiOpen = false }
         guard let settings = model.settings, decider != "rules" else { return }
         do {
             try settings.setProvider(track: "decider", fields: ["kind": "rules"])

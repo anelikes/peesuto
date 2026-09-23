@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 public enum SettingsError: LocalizedError {
-    case invalidFile(String), invalidLanguage, secretInConfiguration, keychain(OSStatus), invalidSecretName
+    case invalidFile(String), invalidLanguage, secretInConfiguration, keychain(OSStatus), invalidSecretName, missingCredential
     public var errorDescription: String? {
         switch self {
         case .invalidFile(let name): return "Cannot read \(name). Existing settings have been preserved."
@@ -10,6 +10,7 @@ public enum SettingsError: LocalizedError {
         case .secretInConfiguration: return "Provider credentials must be stored in Keychain."
         case .keychain(let status): return "Keychain: \(SecCopyErrorMessageString(status, nil) as String? ?? String(status))"
         case .invalidSecretName: return "Invalid credential name."
+        case .missingCredential: return "Enter an API key first."
         }
     }
 }
@@ -122,6 +123,10 @@ public final class SettingsStore {
                 credential = ("tokenRef", KeychainSecrets.proxyTokenName, false)
             case ("decider", "cloudflare"):
                 credential = ("tokenRef", KeychainSecrets.cloudflareTokenName, true)
+            case ("decider", let kind) where JevService(rawValue: kind) != nil:
+                credential = ("tokenRef", JevService(rawValue: kind)!.keychainName, true)
+            case ("generator", let kind) where JevService(rawValue: kind)?.hasGenerator == true:
+                credential = ("apiKeyRef", JevService(rawValue: kind)!.keychainName, true)
             case (_, "hosted"):
                 credential = ("tokenRef", KeychainSecrets.hostedTokenName, true)
             case ("generator", "openai-compatible"):
@@ -187,6 +192,9 @@ public enum KeychainSecrets {
     public static let proxyTokenName = "pocket-paste/proxy"
     public static let cloudflareTokenName = "pocket-paste/cloudflare"
     public static let hostedTokenName = "pocket-paste/hosted"
+
+    /// Whether a non-empty credential is stored under `name`.
+    public static func has(name: String) -> Bool { ((try? read(name: name)) ?? nil)?.isEmpty == false }
 
     private static func query(name: String) throws -> [String: Any] {
         guard !name.isEmpty, name.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) || [45, 46, 47, 95].contains($0) }) else {
@@ -329,5 +337,39 @@ public enum ComposeFailureText {
         default:
             return tr("This content could not fit safely. Try a shorter excerpt; no text was silently removed.", "内容无法完整排入画面，请缩短后重试；没有静默删减文字。")
         }
+    }
+}
+
+/// Jev through its public APIs with the user's own key. One Keychain item
+/// per service; OpenRouter's and Vercel's key also serves their text models.
+public enum JevService: String, CaseIterable, Identifiable, Sendable {
+    case typesafe, vercel, openrouter
+    public var id: String { rawValue }
+    public var label: String {
+        switch self {
+        case .typesafe: return "TypeSafe"
+        case .vercel: return "Vercel AI Gateway"
+        case .openrouter: return "OpenRouter"
+        }
+    }
+    /// Where the user creates a key.
+    public var keyURL: URL {
+        switch self {
+        case .typesafe: return URL(string: "https://console.typesafe.ai")!
+        case .vercel: return URL(string: "https://vercel.com/ai-gateway")!
+        case .openrouter: return URL(string: "https://openrouter.ai/keys")!
+        }
+    }
+    public var keychainName: String { "pocket-paste/\(rawValue)" }
+    /// OpenRouter and Vercel also serve chat models through an OpenAI-compatible API.
+    public var hasGenerator: Bool { self != .typesafe }
+
+    /// Store `key` (when given) and make this service the decider. An empty
+    /// key keeps the stored one; with none stored it is an error.
+    public func useAsDecider(in settings: SettingsStore, key: String) throws {
+        let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !key.isEmpty { try KeychainSecrets.write(name: keychainName, value: key) }
+        else if !KeychainSecrets.has(name: keychainName) { throw SettingsError.missingCredential }
+        try settings.setProvider(track: "decider", fields: ["kind": rawValue, "tokenRef": keychainName])
     }
 }

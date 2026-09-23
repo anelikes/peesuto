@@ -179,8 +179,10 @@ What leaves the machine, and only when you chose that provider:
 | decider `none` | nothing | — |
 | decider `laya` | the typed questions and the text they are about | the local URL you run `scripts/laya/server.py` at, `127.0.0.1` unless you change it |
 | decider `cloudflare` | the typed questions and the text they are about | your own Workers AI account |
+| decider `typesafe` / `vercel` / `openrouter` | the same | Jev at TypeSafe, Vercel AI Gateway or OpenRouter, with your own key |
 | decider `endpoint` | the same | the URL you set (your own proxy, or ours) |
 | generator `openai-compatible` / `anthropic` | the filled prompt | the base URL you set |
+| generator `openrouter` / `vercel` | the filled prompt | the gateway's OpenAI-compatible API, with the same key as its Jev |
 | generator `hosted` | the filled prompt | our proxy, which does not store it (not live yet) |
 
 The offline switch in Settings closes the single egress path for everything

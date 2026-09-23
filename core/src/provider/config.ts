@@ -11,9 +11,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { cachedProvider } from "./cache.ts";
 import { createDecider, PROVIDER_KINDS, type ProviderConfig } from "./decider/index.ts";
+import type { JevService } from "./decider/jev-api.ts";
 import type { Decider } from "./decider/types.ts";
 import { setOffline } from "./egress.ts";
-import { createGenerator, GENERATOR_KINDS, type GeneratorConfig } from "./generator/index.ts";
+import { createGenerator, GATEWAY_BASE_URLS, GENERATOR_KINDS, type GatewayKind, type GeneratorConfig } from "./generator/index.ts";
 import { isReasoningEffort, REASONING_EFFORTS, type ReasoningEffort } from "./generator/openai.ts";
 import type { Generator } from "./generator/types.ts";
 import { ProviderConfigError } from "./types.ts";
@@ -47,6 +48,10 @@ export const SECRET_REFS = {
   proxyToken: "pocket-paste/proxy",
   cloudflareToken: "pocket-paste/cloudflare",
   hostedToken: "pocket-paste/hosted",
+  /** One key per Jev service; OpenRouter's and Vercel's also serve their generator. */
+  typesafeKey: "pocket-paste/typesafe",
+  vercelKey: "pocket-paste/vercel",
+  openrouterKey: "pocket-paste/openrouter",
   generatorApiKey: "pocket-paste/generator",
 } as const;
 
@@ -56,11 +61,13 @@ export type StoredProviderConfig =
   | { readonly kind: "laya"; readonly url?: string }
   | { readonly kind: "proxy"; readonly url: string; readonly tokenRef?: string }
   | { readonly kind: "cloudflare"; readonly accountId: string; readonly tokenRef: string }
+  | { readonly kind: JevService; readonly tokenRef: string; readonly model?: string }
   | { readonly kind: "hosted"; readonly tokenRef: string; readonly url?: string };
 
 export type StoredGeneratorConfig =
   | { readonly kind: "openai-compatible"; readonly baseUrl: string; readonly model: string; readonly apiKeyRef?: string; readonly reasoning?: ReasoningEffort; readonly timeoutMs?: number }
   | { readonly kind: "anthropic"; readonly apiKeyRef: string; readonly model?: string }
+  | { readonly kind: GatewayKind; readonly model: string; readonly apiKeyRef: string }
   | { readonly kind: "hosted"; readonly tokenRef: string; readonly url?: string }
   | { readonly kind: "none" };
 
@@ -121,6 +128,9 @@ export function parseStoredDecider(raw: unknown): StoredProviderConfig {
     case "proxy": return { kind, url: required(o, "url", "decider"), ...opt("tokenRef", optional(o, "tokenRef", "decider")) };
     case "cloudflare": return { kind, accountId: required(o, "accountId", "decider"), tokenRef: required(o, "tokenRef", "decider") };
     case "hosted": return { kind, tokenRef: required(o, "tokenRef", "decider"), ...opt("url", optional(o, "url", "decider")) };
+    case "typesafe":
+    case "vercel":
+    case "openrouter": return { kind, tokenRef: required(o, "tokenRef", "decider"), ...opt("model", optional(o, "model", "decider")) };
     default: throw new ProviderConfigError(`decider.kind must be one of ${PROVIDER_KINDS.join(", ")}, got ${kind}`);
   }
 }
@@ -138,6 +148,8 @@ export function parseStoredGenerator(raw: unknown): StoredGeneratorConfig {
     };
     case "anthropic": return { kind, apiKeyRef: required(o, "apiKeyRef", "generator"), ...opt("model", optional(o, "model", "generator")) };
     case "hosted": return { kind, tokenRef: required(o, "tokenRef", "generator"), ...opt("url", optional(o, "url", "generator")) };
+    case "openrouter":
+    case "vercel": return { kind, model: required(o, "model", "generator"), apiKeyRef: required(o, "apiKeyRef", "generator") };
     default: throw new ProviderConfigError(`generator.kind must be one of ${GENERATOR_KINDS.join(", ")}, got ${kind}`);
   }
 }
@@ -187,6 +199,9 @@ export async function deciderConfigOf(s: StoredProviderConfig, secrets: SecretSt
     case "proxy": return { kind: "proxy", url: s.url, ...(s.tokenRef ? { token: await secret(secrets, s.tokenRef, "decider proxy") } : {}) };
     case "cloudflare": return { kind: "cloudflare", accountId: s.accountId, token: await secret(secrets, s.tokenRef, "decider cloudflare") };
     case "hosted": return { kind: "hosted", token: await secret(secrets, s.tokenRef, "decider hosted"), ...opt("url", s.url) };
+    case "typesafe":
+    case "vercel":
+    case "openrouter": return { kind: s.kind, token: await secret(secrets, s.tokenRef, `decider ${s.kind}`), ...opt("model", s.model) };
   }
 }
 
@@ -201,6 +216,9 @@ export async function generatorConfigOf(s: StoredGeneratorConfig, secrets: Secre
     };
     case "anthropic": return { kind: "anthropic", apiKey: await secret(secrets, s.apiKeyRef, "generator anthropic"), ...opt("model", s.model) };
     case "hosted": return { kind: "hosted", token: await secret(secrets, s.tokenRef, "generator hosted"), ...opt("url", s.url) };
+    // A gateway is an OpenAI-compatible endpoint at a fixed URL.
+    case "openrouter":
+    case "vercel": return { kind: "openai-compatible", baseUrl: GATEWAY_BASE_URLS[s.kind], model: s.model, apiKey: await secret(secrets, s.apiKeyRef, `generator ${s.kind}`) };
   }
 }
 

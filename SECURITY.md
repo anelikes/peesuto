@@ -17,6 +17,9 @@ in the environment, AI settings in the native app):
 |---|---|---|
 | `rules` (desktop default) / `none` | nowhere | decisions are local; no model request |
 | `cloudflare` | `api.cloudflare.com`, Workers AI on your own account, model `typesafe/jev` | authenticated with your API token; subject to Cloudflare's terms for Workers AI |
+| `typesafe` | `api.typesafe.ai/v1/systemone`, TypeSafe's own API, model `jev-latest` | authenticated with your TypeSafe key; subject to TypeSafe's terms |
+| `vercel` | `ai-gateway.vercel.sh/typesafe/v1/systemone`, Vercel AI Gateway, model `typesafe-ai/jev` | authenticated with your AI Gateway key; Vercel routes to TypeSafe |
+| `openrouter` | `openrouter.ai/api/alpha/decisions`, OpenRouter's Decisions API (alpha), model `~typesafe/jev-latest` | authenticated with your OpenRouter key; OpenRouter routes to TypeSafe |
 | `proxy` | `http://localhost:8787/`, the worker in `proxy/` running under `wrangler dev` | the worker forwards to Workers AI through your own wrangler login and stores nothing |
 | `hosted` | our proxy (`api.peesuto.com`), which forwards to Workers AI | the proxy does not store the text; its logs carry a timestamp, the subscriber token id, byte counts and latency, never content |
 

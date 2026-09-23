@@ -13,6 +13,8 @@ struct SettingsView: View {
     var recordingChanged: (Bool) -> Void
     var showOnboarding: () -> Void = {}
     @State private var section = 0
+    /// Bumped after keys are saved so the "key saved" hints re-read Keychain.
+    @State private var keyRevision = 0
     @State private var shortcuts: [String: String] = [:]
     @State private var frames = ["image": "auto", "gif": "1:1", "video": "1:1"]
     @State private var retention = 30
@@ -296,6 +298,7 @@ struct SettingsView: View {
                     Text(model.tr("Not configured", "暂不配置")).tag("none")
                     Text("OpenAI compatible / Ollama").tag("openai-compatible")
                     Text("Anthropic").tag("anthropic")
+                    ForEach(JevService.allCases.filter(\.hasGenerator)) { Text($0.label).tag($0.rawValue) }
                     if hostedServiceAvailable || generator == "hosted" { Text(model.tr("Hosted", "托管服务")).tag("hosted") }
                 }.labelsHidden()
             }
@@ -305,7 +308,10 @@ struct SettingsView: View {
             if generator == "openai-compatible" || generator == "anthropic" {
                 TextField(model.tr("Model", "模型名称"), text: $modelName).textFieldStyle(.roundedBorder)
             }
-            if generator != "none" {
+            if let service = JevService(rawValue: generator) {
+                TextField(model.tr("Model, e.g. anthropic/claude-sonnet-5", "模型，例如 anthropic/claude-sonnet-5"), text: $modelName).textFieldStyle(.roundedBorder)
+                serviceKey(service, text: $apiKey)
+            } else if generator != "none" {
                 SecureField(model.tr("New key (leave blank to keep existing)", "新密钥（留空保留现有密钥）"), text: $apiKey).textFieldStyle(.roundedBorder)
             }
             Divider()
@@ -315,7 +321,8 @@ struct SettingsView: View {
                     Text(model.tr("Basic fallback", "基础回退")).tag("none")
                     Text("Laya").tag("laya")
                     Text(model.tr("Compatible endpoint", "兼容端点")).tag("proxy")
-                    Text("Cloudflare").tag("cloudflare")
+                    Text("Jev · Cloudflare").tag("cloudflare")
+                    ForEach(JevService.allCases) { Text("Jev · \($0.label)").tag($0.rawValue) }
                     if hostedServiceAvailable || decider == "hosted" { Text(model.tr("Hosted", "托管服务")).tag("hosted") }
                 }.labelsHidden()
             }
@@ -326,6 +333,20 @@ struct SettingsView: View {
             if ["proxy", "hosted", "cloudflare"].contains(decider) {
                 SecureField(model.tr("New token (leave blank to keep existing)", "新令牌（留空保留现有令牌）"), text: $deciderKey).textFieldStyle(.roundedBorder)
             }
+            if let service = JevService(rawValue: decider) { serviceKey(service, text: $deciderKey) }
+        }
+    }
+    /// A Jev service's key: one Keychain item shared by its decider and its text models.
+    private func serviceKey(_ service: JevService, text: Binding<String>) -> some View {
+        let saved = keyRevision >= 0 && KeychainSecrets.has(name: service.keychainName)
+        return VStack(alignment: .leading, spacing: 5) {
+            SecureField(saved ? model.tr("\(service.label) key saved (enter a new one to replace it)", "已保存 \(service.label) 密钥（输入新密钥可替换）")
+                              : model.tr("\(service.label) API key", "\(service.label) API 密钥"), text: text).textFieldStyle(.roundedBorder)
+            HStack(spacing: 4) {
+                Text(service.hasGenerator ? model.tr("The same key serves Jev and text generation.", "同一个密钥可同时用于 Jev 和文本生成。")
+                                          : model.tr("Used for Jev only.", "仅用于 Jev。"))
+                Link(model.tr("Get a key", "获取密钥"), destination: service.keyURL)
+            }.font(.system(size: 11)).foregroundColor(.secondary)
         }
     }
     private var privacy: some View {
@@ -418,8 +439,15 @@ struct SettingsView: View {
             return
         }
         do {
-            if generator == "openai-compatible" && modelName.trimmingCharacters(in: .whitespaces).isEmpty {
+            if (generator == "openai-compatible" || JevService(rawValue: generator) != nil) && modelName.trimmingCharacters(in: .whitespaces).isEmpty {
                 throw NSError(domain: "Settings", code: 1)
+            }
+            // A Jev service needs a key, typed now or saved before.
+            let typed = [(generator, apiKey), (decider, deciderKey)]
+            for (kind, _) in typed {
+                guard let service = JevService(rawValue: kind), !model.previewMode else { continue }
+                let hasTyped = typed.contains { $0.0 == kind && !$0.1.isEmpty }
+                if !hasTyped && !KeychainSecrets.has(name: service.keychainName) { throw SettingsError.missingCredential }
             }
             for value in [generator == "openai-compatible" ? baseURL : "", ["laya", "proxy"].contains(decider) ? deciderURL : ""] where !value.isEmpty {
                 guard let url = URL(string: value), ["https", "http"].contains(url.scheme ?? ""), url.host != nil else { throw NSError(domain: "Settings", code: 2) }
@@ -441,12 +469,20 @@ struct SettingsView: View {
                 g[generator == "hosted" ? "tokenRef" : "apiKeyRef"] = name
             }
             if generator == "anthropic" { g["apiKeyRef"] = "pocket-paste/generator" }
+            if let service = JevService(rawValue: generator) {
+                g["model"] = modelName; g["apiKeyRef"] = service.keychainName
+                if !apiKey.isEmpty && !model.previewMode { try KeychainSecrets.write(name: service.keychainName, value: apiKey.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            }
             var d = settings.providers["decider"] as? [String: Any] ?? [:]
             if d["kind"] as? String != decider { d = [:] }
             d["kind"] = decider
             if ["laya", "proxy", "hosted"].contains(decider) { d["url"] = deciderURL.isEmpty ? NSNull() : deciderURL as Any }
             if decider == "cloudflare" { d["accountId"] = accountID; d["tokenRef"] = "pocket-paste/cloudflare" }
             if decider == "hosted" { d["tokenRef"] = "pocket-paste/hosted" }
+            if let service = JevService(rawValue: decider) {
+                d["tokenRef"] = service.keychainName
+                if !deciderKey.isEmpty && !model.previewMode { try KeychainSecrets.write(name: service.keychainName, value: deciderKey.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            }
             if ["proxy", "hosted", "cloudflare"].contains(decider) && !deciderKey.isEmpty && !model.previewMode {
                 let name = "pocket-paste/" + (decider == "cloudflare" ? "cloudflare" : decider == "hosted" ? "hosted" : "proxy")
                 try KeychainSecrets.write(name: name, value: deciderKey)
@@ -457,7 +493,7 @@ struct SettingsView: View {
             try settings.setOffline(offline)
             model.offline = offline
             model.pruneHistory()
-            apiKey = ""; deciderKey = ""
+            apiKey = ""; deciderKey = ""; keyRevision += 1
             feedback = model.tr("Saved", "已保存"); failed = false
             Task {
                 do {
@@ -466,6 +502,8 @@ struct SettingsView: View {
                     }
                 } catch { feedback = model.tr("Saved. Check your provider configuration before using AI actions.", "已保存，请在使用 AI 动作前检查模型配置。"); failed = true }
             }
+        } catch SettingsError.missingCredential {
+            feedback = model.tr("Enter an API key for the selected service.", "请为所选服务填写 API 密钥。"); failed = true
         } catch {
             feedback = model.tr("Could not save all changes. Check the shortcut, model and endpoint.", "未能保存全部更改，请检查快捷键、模型和服务地址。")
             failed = true

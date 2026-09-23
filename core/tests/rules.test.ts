@@ -49,7 +49,7 @@ describe("rules decider", () => {
 
 describe("rules and laya as provider kinds", () => {
   test("the kinds list and the factory", () => {
-    expect(PROVIDER_KINDS).toEqual(["rules", "none", "laya", "proxy", "cloudflare", "hosted"]);
+    expect(PROVIDER_KINDS).toEqual(["rules", "none", "laya", "proxy", "cloudflare", "typesafe", "vercel", "openrouter", "hosted"]);
     expect(createDecider({ kind: "rules" }).name).toBe("rules");
     const laya = createDecider({ kind: "laya" });
     expect(laya.name).toBe("laya");
