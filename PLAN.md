@@ -452,3 +452,5 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
 4. DMG 与 Homebrew cask 是 N5 工作，由 agent 在签名可用后完成；用户只需审阅发布。
 5. M8（不变）：Cloudflare 部署与域名（peesuto.com，托管默认 api.peesuto.com）、计费平台、
    条款审阅。对外产品名 Peesuto，内部名与路径仍是 pocket-paste。
+6. 让 security@peesuto.com 能收信（SECURITY.md 把它定为私有期间唯一的漏洞报告渠道）：
+   peesuto.com 接入 Cloudflare 后，用 Email Routing 转发到常用邮箱，发一封测试信确认。
