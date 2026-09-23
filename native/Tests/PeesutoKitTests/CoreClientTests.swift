@@ -91,7 +91,7 @@ final class CoreClientTests: XCTestCase {
             guard compiler.terminationStatus == 0 else { throw CoreError(kind: "fixture", message: "Could not compile test launcher.") }
         }
         let client = CoreClient(executable: executable, daemon: script,
-                                appData: root, startupTimeout: 2, requestTimeout: timeout)
+                                appData: root, startupTimeout: 2, requestTimeout: timeout, runtimeFlags: [])
         return (client, root)
     }
 

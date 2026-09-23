@@ -66,6 +66,7 @@ public actor CoreClient {
     private let daemon: URL
     private let resources: URL?
     private let appData: URL
+    private let runtimeFlags: [String]
     private let startupTimeout: TimeInterval
     private let requestTimeout: TimeInterval
     private var configuration: [String: Any] = [
@@ -90,9 +91,24 @@ public actor CoreClient {
     /// Recent Core stderr, in memory only. See `recentDiagnostics`.
     public nonisolated let log = CoreLogRing()
 
+    /// Bun flags placed before the daemon script. `--no-install` stops Bun
+    /// from silently fetching a missing package from npm at runtime, which
+    /// would be network egress outside Core's egress layer.
+    public static let bunRuntimeFlags = ["--no-install"]
+
+    /// argv after the executable (and after the process-group host's target).
+    public static func launchArguments(runtimeFlags: [String] = bunRuntimeFlags, daemon: URL, appData: URL, resources: URL?) -> [String] {
+        var arguments = runtimeFlags + [daemon.path, "--app-data", appData.path, "--idle-minutes", "10"]
+        if let resources { arguments += ["--engine-resources", resources.path] }
+        return arguments
+    }
+
+    /// `runtimeFlags` is only overridden by tests whose fake Core is not Bun.
     public init(executable: URL, daemon: URL, resources: URL? = nil, appData: URL,
-                startupTimeout: TimeInterval = 150, requestTimeout: TimeInterval = 180) {
+                startupTimeout: TimeInterval = 150, requestTimeout: TimeInterval = 180,
+                runtimeFlags: [String] = CoreClient.bunRuntimeFlags) {
         self.executable = executable; self.daemon = daemon; self.resources = resources
+        self.runtimeFlags = runtimeFlags
         self.appData = appData; self.startupTimeout = startupTimeout
         self.requestTimeout = requestTimeout
     }
@@ -175,7 +191,7 @@ public actor CoreClient {
     public static func actionTimeout(actionID: String) -> TimeInterval? {
         switch actionID {
         case "paste-video": return actionTimeout(output: "video")
-        case "paste-card": return actionTimeout(output: "image")
+        case "paste-card", "paste-qr": return actionTimeout(output: "image")
         case "paste-gif": return actionTimeout(output: "gif")
         default: return nil
         }
@@ -271,8 +287,7 @@ public actor CoreClient {
         }
         child.executableURL = ownsProcessGroup ? host : executable
         child.currentDirectoryURL = appData
-        child.arguments = [daemon.path, "--app-data", appData.path, "--idle-minutes", "10"]
-        if let resources { child.arguments! += ["--engine-resources", resources.path] }
+        child.arguments = Self.launchArguments(runtimeFlags: runtimeFlags, daemon: daemon, appData: appData, resources: resources)
         if ownsProcessGroup { child.arguments!.insert(executable.path, at: 0) }
         // Ensure the daemon owns the process we launched instead of reexecuting
         // through a wrapper because its bundled executable is named `paste`.

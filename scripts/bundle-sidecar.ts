@@ -15,7 +15,8 @@
  *   resources/VERSION           "<engine sha> <core sha>" — the install key
  */
 import { existsSync } from "node:fs";
-import { cp, mkdir, readFile, rm, writeFile, copyFile, chmod } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile, copyFile, chmod } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { engineMissing, engineRoot, REPO_ROOT } from "../core/src/engine.ts";
 
@@ -48,7 +49,7 @@ const PACKAGE_ROOTS = ["@babel/core", "@babel/preset-typescript", "babel-preset-
 const NM = join(engine, "vendor/pocketjs/node_modules");
 
 /** Transitive `dependencies` closure over the flat node_modules. */
-async function packageClosure(roots: readonly string[]): Promise<string[]> {
+async function packageClosure(roots: readonly string[], NM: string): Promise<string[]> {
   const seen = new Set<string>();
   const queue = [...roots];
   while (queue.length) {
@@ -75,7 +76,7 @@ for (const p of ENGINE_PATHS) {
   await mkdir(join(to, ".."), { recursive: true });
   await cp(from, to, { recursive: true, dereference: true, filter: (s) => filter(s) });
 }
-const pkgs = await packageClosure(PACKAGE_ROOTS);
+const pkgs = await packageClosure(PACKAGE_ROOTS, NM);
 for (const name of pkgs) {
   await cp(join(NM, name), join(engineOut, "vendor/pocketjs/node_modules", name), { recursive: true, dereference: true, filter: (s) => !/\/\.DS_Store$/.test(s) });
 }
@@ -83,6 +84,19 @@ for (const name of pkgs) {
 await rm(join(engineOut, "vendor/pocketjs/framework/src/styles.generated.ts"), { force: true });
 
 await cp(join(REPO_ROOT, "core/src"), join(resources, "core"), { recursive: true });
+
+// Core's own runtime packages (root package.json "dependencies") ship beside
+// it. Without them the bundled Bun resolves nothing outside this repository,
+// and by default would auto-install from the npm registry at runtime: a
+// network request outside core's egress layer. The native app also launches
+// Core with --no-install; the check below proves nothing is missing.
+const ROOT_NM = join(REPO_ROOT, "node_modules");
+const coreRoots = Object.keys((JSON.parse(await readFile(join(REPO_ROOT, "package.json"), "utf8")) as { dependencies?: Record<string, string> }).dependencies ?? {});
+const corePkgs = await packageClosure(coreRoots, ROOT_NM);
+for (const name of coreRoots) if (!corePkgs.includes(name)) throw new Error(`core dependency ${name} is not installed; run bun install`);
+for (const name of corePkgs) {
+  await cp(join(ROOT_NM, name), join(resources, "core/node_modules", name), { recursive: true, dereference: true, filter: (f) => !/\/\.DS_Store$/.test(f) });
+}
 
 // Noto Emoji 128 px, the whole set (3,583 files, 19 MiB): `scripts/fetch-emoji.ts`
 // fills .work/emoji-all once; without it the app falls back to fetching per emoji.
@@ -104,6 +118,21 @@ await writeFile(join(resources, "VERSION"), version + "\n");
 const bin = join(out, "binaries", `paste-${target}`);
 await copyFile(process.execPath, bin);
 await chmod(bin, 0o755);
+
+// Prove core's packages resolve from the bundle alone: a copy of core outside
+// this repository (so no parent node_modules can help), imports only, with
+// runtime auto-install disabled.
+{
+  const probe = await mkdtemp(join(tmpdir(), "peesuto-core-probe-"));
+  try {
+    await cp(join(resources, "core"), join(probe, "core"), { recursive: true });
+    const script = coreRoots.map((name) => `await import(${JSON.stringify(name)});`).join("") + `console.log("ok");`;
+    const p = Bun.spawn([bin, "--no-install", "-e", script], { cwd: join(probe, "core"), stdout: "pipe", stderr: "pipe", env: { ...process.env, BUN_INSTALL_CACHE_DIR: join(probe, "cache") } });
+    const [stdout, stderr, code] = [await new Response(p.stdout).text(), await new Response(p.stderr).text(), await p.exited];
+    if (code !== 0 || stdout.trim() !== "ok") throw new Error(`bundled core cannot resolve its packages offline (${coreRoots.join(", ")}):\n${stderr.trim()}`);
+    console.log(`core packages: ${corePkgs.join(", ")} (resolve offline)`);
+  } finally { await rm(probe, { recursive: true, force: true }); }
+}
 
 const du = Bun.spawn(["du", "-sh", resources, bin], { stdout: "pipe" });
 console.log(`sidecar: ${pkgs.length} packages [${pkgs.join(", ")}]\nversion: ${version}\n${(await new Response(du.stdout).text()).trim()}`);
