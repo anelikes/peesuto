@@ -447,9 +447,9 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
    v0.2.0 = 补丁 0013 到 0015，v0.2.1 = fileURLToPath 修复；engine.json 钉 v0.2.1，
    CI 无需任何凭证。qianiaoo/pocketjs-motion 只作归档，之后的引擎迭代都在公开
    仓库。`~/.pocket-paste/engine` 的绕行还在，等 v0.2.1 随包发布后再拆。
-2. N5 签名：Developer ID Application 证书只能由团队的 Account Holder 创建；用户本机
-   生成 CSR 交给 Account Holder 签发，再导出 .p12。随后按 docs/RELEASING.md
-   「Signing & notarization」提供 notarytool 凭证与 CI secrets。
+2. （已完成 2026-09-23）Developer ID Application 证书已签发并装入钥匙串（用户是团队 Account Holder），
+   notarytool 凭证存为 profile `pocket-paste`；`scripts/release-native.ts` 签名、公证、钉入并验证 DMG。
+   CI 内签名所需 secrets 尚未设置（本地发布已可用）。
 3. 更新方案决策：原生版需选定更新机制（建议 Sparkle，EdDSA 签名的 appcast）。
    同时决定是否删除已不再使用的 `TAURI_SIGNING_PRIVATE_KEY` 仓库 secret 与本机
    `~/.tauri` 密钥：从未发布过任何版本，没有安装依赖它，删除无兼容影响。
