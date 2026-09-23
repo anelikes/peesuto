@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { layoutTemplate, templateTiming, wrapTemplateText, TEMPLATE_LIMITS, type TemplateMeasure } from "../src/templates/compose.ts";
+import { layoutTemplate, scrollTiming, scrolls, templateTiming, wrapTemplateText, TEMPLATE_LIMITS, TEMPLATE_SCROLL, type TemplateMeasure } from "../src/templates/compose.ts";
 import type { TemplateContent, TemplatePlan } from "../src/templates/types.ts";
 import { templateGifWidth, TEMPLATE_GIF_FRAME_BUDGET } from "../src/templates/render.ts";
 import { documentBlocks } from "../src/templates/parse.ts";
@@ -122,3 +122,32 @@ describe("text template", () => {
     expect(() => layoutTemplate(samplePlan({ kind: "quote", text: "x" }, "poster"), metrics)).toThrow();
   });
 });
+
+describe("tall animations scroll", () => {
+  test("only animated layouts clearly taller than the canvas scroll", () => {
+    expect(scrolls("none", 3000, 1080)).toBe(false);
+    expect(scrolls("reveal", 1200, 1080)).toBe(false);
+    expect(scrolls("reveal", 1300, 1080)).toBe(true);
+    expect(scrolls("typewriter", 1300, 1080)).toBe(true);
+  });
+  test("scroll timing: reading speed, clamped, with still start and end", () => {
+    const mid = scrollTiming(600);
+    expect(mid.scrollMs).toBe(5000);
+    expect(mid.frames).toBe(Math.ceil((TEMPLATE_SCROLL.startMs + 5000 + TEMPLATE_SCROLL.endMs) / 1000 * TEMPLATE_LIMITS.fps) + 1);
+    expect(scrollTiming(10).scrollMs).toBe(TEMPLATE_SCROLL.minMs);
+    expect(scrollTiming(100_000).scrollMs).toBe(TEMPLATE_SCROLL.maxMs);
+  });
+  test("the longest scroll still fits the GIF frame budget", () => {
+    expect(templateGifWidth(1080, 1080, scrollTiming(100_000).frames)).toBeGreaterThanOrEqual(360);
+  });
+  test("chat turns show their copied time as small text", () => {
+    const layout = layoutTemplate(samplePlan({ kind: "chat", turns: [{ speaker: "nok", time: "22:10", text: "你好" }, { speaker: "shybee", time: "0:10", text: "全聚德" }] }), metrics);
+    const texts = layout.lines.map((line) => line.text);
+    expect(texts).toContain("22:10");
+    expect(texts).toContain("0:10");
+    const time = layout.lines.find((line) => line.text === "22:10")!, name = layout.lines.find((line) => line.text === "nok")!;
+    expect(time.size).toBeLessThanOrEqual(name.size);
+    expect(time.y).toBeGreaterThan(name.y);
+  });
+});
+

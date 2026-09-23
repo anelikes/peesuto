@@ -400,7 +400,9 @@ public actor CoreClient {
         else {
             item.continuation.resume(throwing: CoreError(
                 kind: body["kind"] as? String ?? "error",
-                message: body["message"] as? String ?? "Core could not complete the request."
+                message: body["message"] as? String ?? "Core could not complete the request.",
+                code: body["code"] as? String,
+                characters: body["characters"] as? [String] ?? []
             ))
         }
     }

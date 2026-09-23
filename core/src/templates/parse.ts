@@ -12,7 +12,7 @@ export interface ParsedTemplates {
 export function parseTemplates(sourceText: string): ParsedTemplates {
   if (typeof sourceText !== "string" || !sourceText.trim()) throw new TemplateInputError("Template input must contain text.");
   assertTemplateLength(sourceText);
-  const normalized = sourceText.replace(/\r\n?/g, "\n");
+  const normalized = cleanInvisible(sourceText.replace(/\r\n?/g, "\n"));
   // Blank boundary lines do not change structure. Leading indentation and
   // trailing tabs can be meaningful code, nesting, or empty TSV cells.
   const text = trimBlankLines(normalized);
@@ -26,7 +26,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     const comparison = parseComparison(text);
     const quote = isRawCode(text) ? undefined : parseQuote(text);
     const list = parseList(text);
-    const chat = parseChat(text);
+    const chat = parseChat(text) ?? parseTranscript(text);
     const stat = parseStat(text);
     for (const content of [table, comparison, quote, list, chat, stat]) {
       if (content) candidates.set(content.kind, content);
@@ -60,6 +60,17 @@ function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateCon
   const paragraphs = text.split(/\n[\t ]*\n+/).map((paragraph) => paragraph.trim()).filter(Boolean);
   if (!paragraphs.length || paragraphs.length > 8 || lines.length > 12) return;
   return { kind: "text", paragraphs };
+}
+
+/** Invisible characters chat apps insert (WeChat puts U+2005 after an @mention)
+ * that the card font has no glyph for. Unusual spaces become a plain space;
+ * zero-width, bidi and soft-hyphen controls are dropped. The zero-width joiner
+ * and variation selectors stay: emoji sequences need them. The ideographic
+ * space U+3000 is drawn by the font and stays. */
+export function cleanInvisible(text: string): string {
+  return text
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F]/g, " ")
+    .replace(/[\u00AD\u180E\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g, "");
 }
 
 function trimBlankLines(text: string): string {
@@ -126,6 +137,37 @@ function parseChat(text: string): TemplateContent | undefined {
   const knownRoles = turns.every((turn) => roles.test(turn.speaker));
   const returningTurn = turns.length >= 3 && turns.some((turn, i) => i >= 2 && turns.slice(0, i - 1).some((previous) => previous.speaker === turn.speaker));
   if (!explicit && !knownRoles && !returningTurn) return;
+  return { kind: "chat", turns };
+}
+
+/** A timestamp as chat apps copy it: a date and a time, or a time alone. */
+const CLOCK = String.raw`(?:(?:上午|下午|凌晨|中午|晚上)\s*)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp]\.?[Mm]\.?)?`;
+const DAY = String.raw`(?:\d{4}[年/.-]\d{1,2}[月/.-]\d{1,2}日?|\d{1,2}[月/]\d{1,2}日?|昨天|今天|前天|星期[一二三四五六日天]|周[一二三四五六日天]|Yesterday|Today)`;
+const TIME_LINE = new RegExp(`^\\s*\\[?(?:${DAY}[\\s,]*)?${CLOCK}\\]?\\s*$`, "i");
+const NAME_TIME_LINE = new RegExp(`^(\\S[^\\n]{0,31}?)[\\s,]+\\[?((?:${DAY}[\\s,]*)?${CLOCK})\\]?\\s*$`, "i");
+
+/** Messages as chat apps copy them: a speaker line and a timestamp line (or
+ * both on one line), then the message lines, repeated. Every line must belong
+ * to such a block; names and times are kept verbatim, nothing is inferred. */
+function parseTranscript(text: string): TemplateContent | undefined {
+  const lines = text.split("\n");
+  const headers: { index: number; next: number; speaker: string; time: string }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    if (!line) continue;
+    const next = lines[i + 1]?.trim() ?? "";
+    if (TIME_LINE.test(next) && !TIME_LINE.test(line) && [...line].length <= 32) { headers.push({ index: i, next: i + 2, speaker: line, time: next }); i++; continue; }
+    const combined = line.match(NAME_TIME_LINE);
+    if (combined && !TIME_LINE.test(combined[1]!)) headers.push({ index: i, next: i + 1, speaker: combined[1]!.trim(), time: combined[2]!.trim() });
+  }
+  if (headers.length < 2 || lines.slice(0, headers[0]!.index).some((line) => line.trim())) return;
+  const turns: { speaker: string; text: string; time: string }[] = [];
+  for (const [n, header] of headers.entries()) {
+    const end = headers[n + 1]?.index ?? lines.length;
+    const body = trimBlankLines(lines.slice(header.next, end).join("\n")).trim();
+    if (!body) return; // An empty message (an image, a sticker) is not text we can show.
+    turns.push({ speaker: header.speaker, text: body, time: header.time });
+  }
   return { kind: "chat", turns };
 }
 

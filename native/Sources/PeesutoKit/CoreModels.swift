@@ -184,9 +184,23 @@ public struct CoreError: Error, LocalizedError, Sendable {
     public let message: String
     /// Recent Core stderr lines at the time of a process failure, truncated.
     public let diagnostics: [String]
+    /// The finer reason within a kind, e.g. "overflow" or "unsupported-script" for "compose".
+    public let code: String?
+    /// For "unsupported-script": the characters the card font cannot draw.
+    public let characters: [String]
     public var errorDescription: String? { message }
 
-    public init(kind: String, message: String, diagnostics: [String] = []) {
-        self.kind = kind; self.message = message; self.diagnostics = diagnostics
+    public init(kind: String, message: String, diagnostics: [String] = [], code: String? = nil, characters: [String] = []) {
+        self.kind = kind; self.message = message; self.diagnostics = diagnostics; self.code = code; self.characters = characters
+    }
+
+    /// Characters as readable labels; invisible ones become their code point.
+    public var characterLabels: [String] {
+        characters.map { character in
+            let scalars = character.unicodeScalars
+            let visible = scalars.contains { !$0.properties.isWhitespace && $0.properties.generalCategory != .format && $0.properties.generalCategory != .control }
+            let points = scalars.map { String(format: "U+%04X", $0.value) }.joined(separator: " ")
+            return visible ? "\(character) (\(points))" : points
+        }
     }
 }

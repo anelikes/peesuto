@@ -281,4 +281,30 @@ describe("constrained template decisions", () => {
     for (const word of criteria.slice(1)) expect("把复杂的想法，讲得简单。Keep it simple.".includes(word)).toBe(true);
     expect(buildTemplateRequest(parseTemplates("| A | B |\n| --- | --- |\n| 1 | 2 |"), true).questions.emphasis).toBeUndefined();
   });
+  test("chat-app copies (speaker, time, message) become a conversation with times kept verbatim", () => {
+    const wechat = "nok\n2026年09月22日 22:10\n如果ty不去武汉的话我整一个看看\n\nshybee\n2026年09月23日  0:10\n@nok \n\nshybee\n2026年09月23日  0:11\n明天吃这个不";
+    const parsed = parseTemplates(wechat);
+    expect(parsed.preferred).toBe("chat");
+    expect(parsed.candidates.get("chat")).toEqual({ kind: "chat", turns: [
+      { speaker: "nok", time: "2026年09月22日 22:10", text: "如果ty不去武汉的话我整一个看看" },
+      { speaker: "shybee", time: "2026年09月23日  0:10", text: "@nok" },
+      { speaker: "shybee", time: "2026年09月23日  0:11", text: "明天吃这个不" },
+    ] });
+    // Name and time on one line, no blank lines between messages.
+    expect(parseTemplates("Alice 10:21 AM\nHi there\nsecond line\nBob 10:22 AM\nYo").candidates.get("chat")).toEqual({ kind: "chat", turns: [
+      { speaker: "Alice", time: "10:21 AM", text: "Hi there\nsecond line" }, { speaker: "Bob", time: "10:22 AM", text: "Yo" },
+    ] });
+    for (const source of [
+      "Some intro\nAlice\n10:21\nHi\nBob\n10:22\nYo", // text before the first header
+      "Alice\n10:21\n\nBob\n10:22\nYo", // an empty message
+      "Alice\n10:21\nHi", // one message is not a conversation
+    ]) expect(parseTemplates(source).preferred).not.toBe("chat");
+  });
+  test("invisible characters chat apps insert are cleaned; emoji joiners stay", () => {
+    const parsed = parseTemplates("@nok 明天​吃这个不 👨‍👩‍👧");
+    const text = parsed.candidates.get("text");
+    expect(text).toEqual({ kind: "text", paragraphs: ["@nok 明天吃这个不 👨‍👩‍👧"] });
+    expect(parsed.sourceText).toContain(" ");
+  });
 });
+

@@ -77,8 +77,18 @@ Explicit structures take precedence. Examples include fenced source code,
 quoted text with an optional explicit author, marked lists, Markdown/TSV tables,
 and recognizable before/after or option A/B sections. Conversation recognition
 requires evidence of turns: known speaker roles, explicit `[speaker]: message`
-labels, or a repeated speaker in a sequence. Arbitrary key/value fields are not
-automatically treated as dialogue. Uncertain structures remain document text.
+labels, or a repeated speaker in a sequence. Messages copied out of a chat app
+also count: a speaker line and a timestamp line (or `Name 10:21` on one line),
+then the message, repeated; every line must belong to such a block, the text
+before the first one must be empty, and no message may be empty (an image or a
+sticker). The copied time is kept verbatim and drawn as small text under the
+speaker. Arbitrary key/value fields are not automatically treated as dialogue.
+Uncertain structures remain document text.
+
+Before parsing, invisible characters chat apps insert are cleaned: unusual
+spaces (WeChat puts U+2005 after an @mention) become a plain space, and
+zero-width, bidi and soft-hyphen controls are dropped; the zero-width joiner
+and variation selectors that emoji need stay. `sourceText` keeps the original.
 
 The source may offer more than one compatible template; the native template menu
 shows only these candidates. A manual request for an incompatible structure
@@ -92,6 +102,13 @@ truncate text to make it fit.
 - GIF/MP4 can use a still composition, sequential reveal, or typewriter appearance.
 - Typewriter appearance uses grapheme clusters and the final layout, keeping line breaks stable.
 - Animation has a bounded duration and a readable ending. An unsupported or oversized input is reported explicitly.
+- Tall content scrolls in GIF/MP4. When the layout is more than 15% taller than
+  the canvas, the frame stays canvas-sized and the content scrolls: 0.9 s still,
+  an eased scroll at 120 px/s (at least 1.5 s, at most 12 s, faster for longer
+  content), then 1.5 s still on the end. Content is shown whole while it
+  scrolls; reveal and typewriter apply only to content that fits. The numbers
+  are `TEMPLATE_SCROLL` in `core/src/templates/compose.ts`. PNG always grows in
+  height instead (up to 4096 px), and the result reports `scroll`.
 - GIF uses at most 128 MiB for retained raw frames (engine and palette memory are additional). It starts at 540 px wide, may reduce to 360 px, and rejects taller animations that still exceed this budget.
 - MP4 still requires ffmpeg; this app does not install it automatically.
 

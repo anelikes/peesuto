@@ -176,6 +176,25 @@ final class CoreClientTests: XCTestCase {
         await client.shutdown()
     }
 
+    func testComposeErrorsCarryCodeAndCharacters() async throws {
+        let behavior = """
+        if cmd == 'run-action':
+            emit({'id': req['id'], 'ok': False, 'cmd': cmd, 'kind': 'compose', 'code': 'unsupported-script', 'message': 'The font cannot draw U+2005.', 'characters': ['\\u2005', '\\u0bf5']})
+            continue
+        """
+        let (client, root) = try fixture(behavior: behavior)
+        defer { try? FileManager.default.removeItem(at: root) }
+        do {
+            _ = try await client.runAction(action: "paste-card", input: CoreActionInput(text: "fixture"))
+            XCTFail("Expected compose failure")
+        } catch let error as CoreError {
+            XCTAssertEqual(error.kind, "compose")
+            XCTAssertEqual(error.code, "unsupported-script")
+            XCTAssertEqual(error.characterLabels, ["U+2005", "\u{0BF5} (U+0BF5)"])
+        }
+        await client.shutdown()
+    }
+
     func testLegacyDaemonResponseWorksWithOptionalStateCallback() async throws {
         let (client, root) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -129,3 +129,11 @@ describe("daemon", () => {
     }
   }, 10_000);
 });
+
+test("compose errors carry their code and the characters the font cannot draw", async () => {
+  const { errorOf } = await import("../src/daemon/server.ts");
+  const { ComposeError } = await import("../src/render/compose.ts");
+  expect(errorOf(new ComposeError("unsupported-script", "The font cannot draw U+2005.", [" "]))).toEqual({ kind: "compose", code: "unsupported-script", message: "The font cannot draw U+2005.", characters: [" "] });
+  expect(errorOf(new ComposeError("overflow", "too tall"))).toEqual({ kind: "compose", code: "overflow", message: "too tall" });
+});
+

@@ -323,6 +323,24 @@ struct OutputPreview {
     }
 
     func templateName(_ spec: CoreTemplateSpec) -> String { isChinese ? spec.nameZh : spec.name }
+    /// A layout failure, told apart by its reason: characters the font lacks,
+    /// nothing to draw, or content that really does not fit.
+    func composeFailureMessage(_ failure: CoreError) -> String {
+        switch failure.code {
+        case "unsupported-script":
+            let list = failure.characterLabels.joined(separator: ", ")
+            return list.isEmpty
+                ? tr("The card font cannot draw some characters in this text. Nothing was rendered or removed.", "卡片字体无法显示这段文字中的部分字符，未生成也未删减内容。")
+                : tr("The card font cannot draw: \(list). Remove them and retry; nothing was removed for you.", "卡片字体无法显示：\(list)。请删去后重试；没有自动删减内容。")
+        case "empty":
+            return tr("There is no text to render.", "没有可生成的文字。")
+        case "catalog":
+            return tr("This template or style is not available for this content.", "这段内容不能使用该模板或风格。")
+        default:
+            return tr("This content could not fit safely. Try a shorter excerpt; no text was silently removed.", "内容无法完整排入画面，请缩短后重试；没有静默删减文字。")
+        }
+    }
+
     func variantName(_ variant: CoreTemplateVariant) -> String { isChinese ? variant.nameZh : variant.name }
     func motionName(_ motion: String) -> String {
         switch motion {
@@ -411,7 +429,7 @@ struct OutputPreview {
                 else if let failure = error as? CoreError, failure.message.localizedCaseInsensitiveContains("ffmpeg") {
                     self.error = tr("Video needs ffmpeg. Install it with Homebrew (brew install ffmpeg), then retry.", "视频需要 ffmpeg。通过 Homebrew 安装（brew install ffmpeg）后重试。")
                 } else if let failure = error as? CoreError, failure.kind == "compose" {
-                    self.error = tr("This content could not fit safely. Try a shorter excerpt; no text was silently removed.", "内容无法完整排入画面，请缩短后重试；没有静默删减文字。")
+                    self.error = composeFailureMessage(failure)
                 } else if let failure = error as? CoreError, failure.kind == "engine", failure.message.localizedCaseInsensitiveContains("timed out") {
                     self.error = tr("Rendering took too long and was stopped. Try a shorter excerpt or a still image.", "渲染耗时过长，已停止。请缩短内容或改用静态图片。")
                 } else if let failure = error as? CoreError, ["sidecar", "timeout"].contains(failure.kind) {

@@ -7,6 +7,9 @@ section here becomes one.
 
 ## Unreleased
 
+- Tall GIF/MP4 content scrolls through a fixed canvas (still start, eased scroll at reading speed, still end) instead of growing or failing; PNG still grows.
+- Messages copied out of chat apps (speaker, timestamp, message) render as a conversation, with the time kept as small text.
+- Invisible characters chat apps insert (U+2005 after a WeChat @mention, zero-width spaces) no longer make a card fail with "could not fit"; layout errors now say which character the font cannot draw, or that there is nothing to render.
 - Text template, the default for short plain prose: typography alone in three styles (Paper, Ink, Poster), size by length, balanced and vertically centered lines, and an optional accent on one source word chosen by the model. Styles are a token table for redesign.
 - All templates: lines break at word boundaries in Chinese and Japanese too, and closing punctuation no longer starts a line.
 - Native app: saving settings during a render no longer restarts Core (the config waits for the task); action timeouts are 300 s for image/GIF and 720 s for video; Core's death fails pending requests at once and its process group is always killed; the last Core stderr lines show in errors and in Settings → Core diagnostics.

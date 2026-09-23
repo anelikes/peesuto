@@ -27,7 +27,8 @@ export type TemplateContent =
   | { readonly kind: "code"; readonly code: string; readonly language?: string }
   | { readonly kind: "stat"; readonly value: string; readonly label: string }
   | { readonly kind: "list"; readonly items: readonly string[]; readonly ordered: boolean }
-  | { readonly kind: "chat"; readonly turns: readonly { readonly speaker: string; readonly text: string }[] }
+  /** `time` is the timestamp line a chat app copied with the message, verbatim. */
+  | { readonly kind: "chat"; readonly turns: readonly { readonly speaker: string; readonly text: string; readonly time?: string }[] }
   | { readonly kind: "table"; readonly headers: readonly string[]; readonly rows: readonly (readonly string[])[] }
   | { readonly kind: "comparison"; readonly columns: readonly { readonly title: string; readonly items: readonly string[] }[] };
 

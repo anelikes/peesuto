@@ -38,7 +38,7 @@ export type Response =
   | { id: number; ok: true; cmd: "run-action"; result: ActionResult; pick?: PickResult }
   | { id: number; ok: true; cmd: "render"; path: string; format: string; frames: number; ms: Record<string, number> }
   | { id: number; ok: true; cmd: "shutdown" }
-  | { id: number; ok: false; cmd?: string; kind: string; message: string };
+  | { id: number; ok: false; cmd?: string; kind: string; message: string; code?: string; characters?: string[] };
 
 /** Opt-in, content-free task lifecycle. No percentage or render-stage estimate. */
 export interface TaskEvent {

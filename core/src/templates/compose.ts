@@ -7,6 +7,10 @@ import { templateHasVariant } from "./registry.ts";
 import { TEMPLATE_MAX_GRAPHEMES, type TemplateMotion, type TemplatePlan } from "./types.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
+/** GIF/MP4 content taller than the canvas by more than `threshold` scrolls in a
+ * fixed canvas instead of growing it: a still start, an eased scroll at
+ * `pxPerS` (faster when it would exceed `maxMs`), and a still end. */
+export const TEMPLATE_SCROLL = { threshold: 1.15, pxPerS: 120, startMs: 900, minMs: 1500, maxMs: 12000, endMs: 1500 } as const;
 const SIZES = [24, 28, 32, 36, 40, 44, 48, 52, 56, 64, 72, 80, 96, 112, 128, 144, 160] as const;
 const VIEW = { chat: { width: 1080, height: 1080 }, doc: { width: 1920, height: 1080 }, social: { width: 1080, height: 1920 } };
 /** The text template's styles as tokens, so a redesign changes numbers here,
@@ -55,6 +59,8 @@ export interface TemplateComposeResult extends ComposeResult {
   readonly template: string;
   readonly variant: string;
   readonly motion: TemplateMotion;
+  /** The animation scrolls tall content through a fixed canvas. */
+  readonly scroll: boolean;
 }
 const graphemes = (text: string): string[] => [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map((part) => part.segment);
 interface StyledGlyph { text: string; bold: boolean; color?: string }
@@ -339,7 +345,8 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
       const speakers = [...new Set(content.turns.map((turn) => turn.speaker))];
       for (const turn of content.turns) {
         if (editorial) {
-          const speakerHeight = block(turn.speaker, margin, y + 20, 200, 28, true, "#547b70");
+          let speakerHeight = block(turn.speaker, margin, y + 20, 200, 28, true, "#547b70");
+          if (turn.time) speakerHeight += 6 + block(turn.time, margin, y + 26 + speakerHeight, 200, 24, false, "#8a9a93");
           const textHeight = block(turn.text, margin + 242, y + 18, inner - 242, 40);
           rule(margin, y, inner, "#b9c6ba");
           y += Math.max(speakerHeight, textHeight) + 60;
@@ -349,6 +356,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
           const bubble = rect(x, y, bubbleW, 0, right ? "#244c44" : "#ffffff", 26);
           let top = y + 24;
           top += block(turn.speaker, x + 28, top, bubbleW - 56, 24, true, right ? "#b3d4c4" : "#6c837e");
+          if (turn.time) top += 2 + block(turn.time, x + 28, top + 2, bubbleW - 56, 24, false, right ? "#8fb3a3" : "#95a5a1");
           top += 12;
           top += block(turn.text, x + 28, top, bubbleW - 56, 40, false, right ? "#ffffff" : "#263c3a");
           bubble.height = top - y + 26; y = top + 48;
@@ -440,6 +448,18 @@ export function templateTiming(motion: TemplateMotion, count: number): TemplateT
     delay: (index, total) => Math.round(index / Math.max(1, total - 1) * revealMs) };
 }
 
+export interface ScrollTiming extends TemplateTiming { scrollMs: number; startMs: number; distance: number }
+export function scrollTiming(distance: number): ScrollTiming {
+  const scrollMs = Math.round(Math.min(TEMPLATE_SCROLL.maxMs, Math.max(TEMPLATE_SCROLL.minMs, distance / TEMPLATE_SCROLL.pxPerS * 1000)));
+  const total = TEMPLATE_SCROLL.startMs + scrollMs + TEMPLATE_SCROLL.endMs;
+  return { frames: Math.ceil(total / 1000 * TEMPLATE_LIMITS.fps) + 1, revealMs: 0, holdMs: TEMPLATE_SCROLL.endMs, delay: () => 0,
+    scrollMs, startMs: TEMPLATE_SCROLL.startMs, distance };
+}
+/** Whether an animated layout scrolls rather than growing the canvas. */
+export function scrolls(motion: TemplateMotion, layoutHeight: number, viewHeight: number): boolean {
+  return motion !== "none" && layoutHeight > Math.round(viewHeight * TEMPLATE_SCROLL.threshold);
+}
+
 interface EngineMeasurer {
   measure(size: number, bold?: boolean): (text: string) => number;
   lineHeight(size: number, bold?: boolean): number;
@@ -463,7 +483,11 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   try {
     for (const text of texts) {
       const missing = m.unmapped(text, 40, false);
-      if (missing.length) throw new ComposeError("unsupported-script", `The font cannot draw ${missing.slice(0, 8).join(", ")}. No content was truncated.`);
+      if (missing.length) {
+        const shown = [...new Set(missing)].slice(0, 8);
+        const names = shown.map((c) => `U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}${/\S/u.test(c) && !/\p{C}/u.test(c) ? ` ${c}` : ""}`);
+        throw new ComposeError("unsupported-script", `The font cannot draw ${names.join(", ")}. No content was truncated.`, shown);
+      }
     }
     const metrics: TemplateMeasure = {
       width: (text, size, bold) => splitEmoji(text).reduce((width, run) => width + ("emoji" in run ? size : m.measure(size, bold)(run.text)), 0),
@@ -471,7 +495,10 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     };
     const layout = layoutTemplate(plan, metrics);
     const count = layout.lines.reduce((total, line) => total + graphemes(line.text).length, 0);
-    const timing = templateTiming(plan.motion, count);
+    const viewHeight = VIEW[plan.aspect].height;
+    const scroll = scrolls(plan.motion, layout.height, viewHeight);
+    const frameHeight = scroll ? viewHeight : layout.height;
+    const timing = scroll ? scrollTiming(layout.height - viewHeight) : templateTiming(plan.motion, count);
     const groups = Math.max(1, ...layout.lines.map((line) => line.group + 1));
     const animations: Record<string, { value: string }> = {};
     const keyframes: Record<string, unknown> = {};
@@ -488,7 +515,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
         const index = glyphIndex++;
         if (!glyph.trim()) continue;
         let animation = "";
-        if (plan.motion !== "none") {
+        if (plan.motion !== "none" && !scroll) {
           const name = `t${index}`;
           const typewriter = plan.motion === "typewriter";
           keyframes[typewriter ? "appear" : "reveal"] ??= typewriter
@@ -509,17 +536,24 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     }
     const emoji = await stageEmoji(emojiKeys, options.emojiCache, dir, options.emojiBundle);
     await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries(emoji.map((file) => [file, { linear: true }]))) + "\n");
-    await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}; text positions are fixed across frames.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${nodes.join("\n")}\n</View>));\n`);
+    let body = nodes.join("\n");
+    if (scroll) {
+      const t = timing as ScrollTiming;
+      keyframes.scroll = { from: { translateY: "0px" }, to: { translateY: `-${t.distance}px` } };
+      animations.scroll = { value: `scroll ${t.scrollMs}ms ease-in-out ${t.startMs}ms both` };
+      body = `<View class="absolute left-[0px] top-[0px] w-[${layout.width}px] h-[${layout.height}px] animate-scroll">\n${body}\n</View>`;
+    }
+    await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}; text positions are fixed across frames.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${body}\n</View>));\n`);
     await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(keyframes)},animation:${JSON.stringify(animations)}}});\n`);
     await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: timing.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1,
       fonts: { regular: "assets/fonts/NotoSansSC-Regular.otf", bold: "assets/fonts/NotoSansSC-Bold.otf" } }, null, 2));
     await Bun.write(`${dir}/pocket.json`, JSON.stringify({ $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
       id: "dev.pocket-stack.motion-paste", name: "pocketjs-motion-paste", title: `${plan.template} ${plan.variant}`, version: "0.0.0",
       engine: { capabilities: { requires: ["text.glyphs.baked"] } },
-      app: { entry: "compositions/paste/main.tsx", output: "motion-paste", framework: "solid", viewport: { fixed: { logical: [layout.width, layout.height], presentation: "native" } } } }, null, 2));
-    await Bun.write(`${dir}/template-layout.json`, JSON.stringify({ template: plan.template, variant: plan.variant, width: layout.width, height: layout.height,
+      app: { entry: "compositions/paste/main.tsx", output: "motion-paste", framework: "solid", viewport: { fixed: { logical: [layout.width, frameHeight], presentation: "native" } } } }, null, 2));
+    await Bun.write(`${dir}/template-layout.json`, JSON.stringify({ template: plan.template, variant: plan.variant, width: layout.width, height: layout.height, frameHeight, scroll,
       lines: layout.lines.map(({ text: _text, ...geometry }) => geometry), timing: { frames: timing.frames, revealMs: timing.revealMs, holdMs: timing.holdMs } }, null, 2));
     return { dir, lines: layout.lines.length, size: Math.max(...layout.lines.map((line) => line.size)), frames: timing.frames,
-      emoji: emoji.length, truncated: false, width: layout.width, height: layout.height, template: plan.template, variant: plan.variant, motion: plan.motion };
+      emoji: emoji.length, truncated: false, width: layout.width, height: frameHeight, template: plan.template, variant: plan.variant, motion: plan.motion, scroll };
   } finally { await m.close(); }
 }

@@ -82,9 +82,12 @@ export type ComposeErrorCode = "overflow" | "unsupported-script" | "empty" | "ca
 
 export class ComposeError extends Error {
   readonly code: ComposeErrorCode;
-  constructor(code: ComposeErrorCode, message: string) {
+  /** For unsupported-script: the characters the font cannot draw. */
+  readonly characters?: readonly string[];
+  constructor(code: ComposeErrorCode, message: string, characters?: readonly string[]) {
     super(message);
     this.code = code;
+    if (characters?.length) this.characters = characters;
   }
 }
 

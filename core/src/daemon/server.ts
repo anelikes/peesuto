@@ -112,11 +112,11 @@ export class Daemon {
   }
 }
 
-export function errorOf(e: unknown): { kind: string; message: string } {
+export function errorOf(e: unknown): { kind: string; message: string; code?: string; characters?: string[] } {
   const message = e instanceof Error ? e.message : String(e);
   if (e instanceof ProviderError) return { kind: `provider:${e.code}`, message };
   if (e instanceof ActionError) return { kind: `action:${e.kind}`, message };
-  if (e instanceof ComposeError) return { kind: "compose", message };
+  if (e instanceof ComposeError) return { kind: "compose", code: e.code, message, ...(e.characters ? { characters: [...e.characters] } : {}) };
   if (e instanceof EngineError) return { kind: "engine", message };
   if (e instanceof Error && e.constructor.name === "DslError") return { kind: "usage", message };
   return { kind: "error", message };

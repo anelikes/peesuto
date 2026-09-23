@@ -51,7 +51,11 @@ selection and compatible templates. Content comes from local source parsing,
 not generated model fields. The explicit DSL `render` command remains separate.
 
 Errors: `{"id":n,"ok":false,"kind":"provider:auth","message":"…"}`. The
-kinds are the CLI's (`core/src/daemon/protocol.ts`, `ERROR_KINDS`).
+kinds are the CLI's (`core/src/daemon/protocol.ts`, `ERROR_KINDS`). A
+`compose` error also carries `code` (`overflow`, `unsupported-script`, `empty`
+or `catalog`), and an `unsupported-script` one lists the offending
+`characters`, so the shell can say which character the font lacks instead of
+calling everything "too long".
 
 ## Optional task lifecycle events
 

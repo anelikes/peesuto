@@ -61,3 +61,22 @@ integration("Markdown document retains headings, lists, code and strong text as 
   expect(generated).not.toContain('{"#"}');
   expect(generated).not.toContain('{"*"}');
 }, 60_000);
+
+integration("a tall GIF scrolls through a fixed canvas and ends on the last message", async () => {
+  const turns = Array.from({ length: 12 }, (_, i) => ({ speaker: i % 2 ? "shybee" : "nok", time: `2026年09月23日 8:${String(i).padStart(2, "0")}`, text: `第 ${i + 1} 条消息` }));
+  const plan = samplePlan({ kind: "chat", turns }, "classic", "reveal");
+  const gif = await renderTemplate(plan, { ...options, format: "gif", out: join(output, "scroll.gif") });
+  expect(gif.scroll).toBe(true);
+  expect(gif.height).toBe(1080);
+  const prepared = await prepareTemplate(plan, options);
+  const first = join(output, "scroll-first.png"), last = join(output, "scroll-last.png"), held = join(output, "scroll-held.png");
+  await frameCard(options, 0, first);
+  await frameCard(options, prepared.frames - 1, last);
+  await frameCard(options, prepared.frames - 20, held);
+  expect(await digest(first)).not.toBe(await digest(last));
+  expect(await digest(last)).toBe(await digest(held));
+  const png = await renderTemplate(plan, { ...options, format: "png", out: join(output, "scroll-static.png") });
+  expect(png.scroll).toBe(false);
+  expect(png.height).toBeGreaterThan(1080);
+}, 240_000);
+
