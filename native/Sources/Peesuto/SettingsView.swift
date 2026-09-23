@@ -89,6 +89,8 @@ struct SettingsView: View {
             Label(model.tr(en, zh), systemImage: symbol).font(.system(size: 12, weight: .medium))
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
                 .background(RoundedRectangle(cornerRadius: 7).fill(section == id ? Color.accentColor.opacity(0.12) : .clear))
+                // A plain button only hit-tests what it draws; the whole row must respond.
+                .contentShape(RoundedRectangle(cornerRadius: 7))
         }.buttonStyle(.plain)
     }
     private var general: some View {
