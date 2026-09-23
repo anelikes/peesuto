@@ -80,7 +80,7 @@ notarized run passes locally).
   for the app-specific password, so it never appears in shell history:
 
   ```sh
-  xcrun notarytool store-credentials pocket-paste-notary \
+  xcrun notarytool store-credentials pocket-paste \
     --apple-id "<apple id>" --team-id "<team id>"
   ```
 
@@ -99,7 +99,7 @@ notarized run passes locally).
 ```sh
 bun scripts/release-native.ts \
   --identity "Developer ID Application: <name> (<team id>)" \
-  --notary-profile pocket-paste-notary \
+  --notary-profile pocket-paste \
   --engine "$PWD/.work/native-engine"
 ```
 

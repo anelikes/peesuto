@@ -64,7 +64,7 @@ bun scripts/build-native.ts --preview --skip-resources
 
 ```sh
 bun scripts/release-native.ts --identity "Developer ID Application: <name> (<team id>)" \
-  --notary-profile pocket-paste-notary --engine "$PWD/.work/native-engine"
+  --notary-profile pocket-paste --engine "$PWD/.work/native-engine"
 ```
 
 脚本在 `build-native.ts` 构建后按由内到外的顺序以 hardened runtime 重新签名（资源中的
