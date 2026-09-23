@@ -33,6 +33,7 @@ struct OutputPreview {
     @Published var recommendedID: String?
     @Published var offline = false
     @Published var trusted = PasteController.accessibilityTrusted
+    @Published var historyLocked = false
     let previewMode: Bool
     let directory: URL
     var settings: SettingsStore?
@@ -56,40 +57,22 @@ struct OutputPreview {
         directory = preview
             ? FileManager.default.temporaryDirectory.appendingPathComponent("peesuto-native-preview-\(ProcessInfo.processInfo.processIdentifier)")
             : FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("com.peesuto.desktop")
+        if preview { Self.removeStalePreviewDirectories() }
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let settings = try SettingsStore(directory: directory)
             self.settings = settings
             language = settings.language
             offline = settings.providers["offline"] as? Bool ?? false
-            let key = preview ? Data(repeating: 0x42, count: 32) : try KeychainSecrets.historyKey(directory: directory)
-            history = try HistoryStore(directory: directory, key: key)
             if preview {
-                try history?.insert(text: "Make room for a clearer thought.", sourceApp: "com.apple.Notes")
-                try history?.insert(text: "“把灵感留住，让表达更简单。”", sourceApp: "com.apple.Notes")
-                try history?.insert(text: "小林：这段对话可以直接变成图片吗？\n阿澈：可以，复制后按一下快捷键。\n小林：那就把时间留给表达。", sourceApp: "com.apple.Notes")
-            }
-            try history?.prune(days: settings.retentionDays)
-            refresh()
-            monitor.excludedApps = Set(settings.blacklist)
-            monitor.onText = { [weak self] text, app in
-                guard let self else { return }
-                do { try self.history?.insert(text: text, sourceApp: app); self.refresh() }
-                catch { self.error = self.tr("Could not save clipboard history.", "无法保存剪贴板历史。") }
-            }
-            monitor.onImage = { [weak self] data, app in
-                guard let self else { return }
-                do { try self.history?.insertImage(data: data, sourceApp: app); self.refresh() }
-                catch { self.error = self.tr("Could not save this image.", "无法保存这张图片。") }
-            }
-            monitor.onFiles = { [weak self] urls, app in
-                guard let self else { return }
-                do { try self.history?.insertFiles(urls: urls, sourceApp: app); self.refresh() }
-                catch { self.error = self.tr("Could not save these files.", "无法保存这些文件记录。") }
-            }
-            if !preview { monitor.start() }
-            retentionTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
-                Task { @MainActor in self?.pruneHistory() }
+                let history = try HistoryStore(directory: directory, key: Data(repeating: 0x42, count: 32))
+                try history.insert(text: "Make room for a clearer thought.", sourceApp: "com.apple.Notes")
+                try history.insert(text: "“把灵感留住，让表达更简单。”", sourceApp: "com.apple.Notes")
+                try history.insert(text: "小林：这段对话可以直接变成图片吗？\n阿澈：可以，复制后按一下快捷键。\n小林：那就把时间留给表达。", sourceApp: "com.apple.Notes")
+                attach(history)
+            } else {
+                // Keychain can block (e.g. an access prompt); read it off the main thread.
+                Task { await loadHistory() }
             }
         } catch {
             self.error = tr("History is locked or unavailable. Your existing data has been preserved.", "历史记录已锁定或无法读取，原有数据已保留。")
@@ -100,6 +83,129 @@ struct OutputPreview {
             core = CoreClient(executable: bundle.appendingPathComponent("Contents/MacOS/paste"), daemon: resources.appendingPathComponent("core/daemon.ts"), resources: resources, appData: directory)
         }
         paste.beforePaste = { [weak self] in self?.hidePanel?() }
+    }
+
+    private func loadHistory() async {
+        let directory = self.directory
+        let key = await Task.detached(priority: .userInitiated) { () -> Data? in
+            try? KeychainSecrets.historyKey(directory: directory)
+        }.value
+        if let key, let store = try? HistoryStore(directory: directory, key: key) {
+            attach(store)
+        } else {
+            useSessionHistory()
+        }
+    }
+
+    /// The saved history cannot be opened (missing or mismatched key). Keep
+    /// capturing into a session-only store and offer "Start fresh".
+    private func useSessionHistory() {
+        historyLocked = true
+        error = tr("History is locked: its key is missing or does not match. New copies are kept for this session only. Use Start fresh to begin a new history; the old one is kept aside.",
+                   "历史记录已锁定：密钥缺失或不匹配。新复制的内容暂时只保留在本次运行中。可选择「重新开始」创建新历史，旧历史会另行保留。")
+        if let session = try? HistoryStore.memoryOnly() { attach(session, prune: false) }
+    }
+
+    private func attach(_ store: HistoryStore, prune: Bool = true) {
+        history = store
+        if prune, let settings { try? store.prune(days: settings.retentionDays) }
+        refresh()
+        startCapture()
+    }
+
+    private func startCapture() {
+        guard retentionTimer == nil, let settings else { return }
+        monitor.excludedApps = Set(settings.blacklist)
+        monitor.onText = { [weak self] text, app in
+            guard let self else { return }
+            do { try self.history?.insert(text: text, sourceApp: app); self.refresh() }
+            catch { self.error = self.tr("Could not save clipboard history.", "无法保存剪贴板历史。") }
+        }
+        monitor.onImage = { [weak self] data, app in
+            guard let self else { return }
+            do { try self.history?.insertImage(data: data, sourceApp: app); self.refresh() }
+            catch { self.error = self.tr("Could not save this image.", "无法保存这张图片。") }
+        }
+        monitor.onFiles = { [weak self] urls, app in
+            guard let self else { return }
+            do { try self.history?.insertFiles(urls: urls, sourceApp: app); self.refresh() }
+            catch { self.error = self.tr("Could not save these files.", "无法保存这些文件记录。") }
+        }
+        if !previewMode { monitor.start() }
+        retentionTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.pruneHistory() }
+        }
+    }
+
+    /// Preview builds use a per-process temporary folder; remove the ones
+    /// left behind by preview processes that are no longer running.
+    private static func removeStalePreviewDirectories() {
+        let prefix = "peesuto-native-preview-"
+        let temporary = FileManager.default.temporaryDirectory
+        guard let entries = try? FileManager.default.contentsOfDirectory(at: temporary, includingPropertiesForKeys: nil) else { return }
+        for entry in entries where entry.lastPathComponent.hasPrefix(prefix) {
+            guard let pid = pid_t(entry.lastPathComponent.dropFirst(prefix.count)), pid > 0, pid != getpid() else { continue }
+            if kill(pid, 0) == 0 || errno == EPERM { continue }
+            try? FileManager.default.removeItem(at: entry)
+        }
+    }
+
+    func confirmStartFresh() {
+        guard historyLocked, !previewMode else { return }
+        let alert = NSAlert()
+        alert.messageText = tr("Start a new history?", "重新开始历史记录？")
+        alert.informativeText = tr("The locked history is moved into a dated folder in the app's data folder, not deleted. A new key is created, and copies from this session are kept.",
+                                   "已锁定的历史会移到应用数据目录中带日期的文件夹，不会删除。将创建新密钥，并保留本次运行中复制的内容。")
+        alert.addButton(withTitle: tr("Start fresh", "重新开始"))
+        alert.addButton(withTitle: tr("Cancel", "取消"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let session = history
+        let directory = self.directory
+        Task {
+            do {
+                let key = try await Task.detached(priority: .userInitiated) { () throws -> Data in
+                    try HistoryStore.moveAside(directory: directory)
+                    return try KeychainSecrets.replaceHistoryKey()
+                }.value
+                let store = try HistoryStore(directory: directory, key: key)
+                if let session { try? store.importRecords(from: session) }
+                history = store
+                historyLocked = false
+                error = nil
+                notice = tr("Started a new history. The old one was kept in the app data folder.", "已开始新的历史记录，旧历史保留在应用数据目录中。")
+                pruneHistory()
+            } catch {
+                self.error = tr("Could not start a new history. Nothing was deleted.", "无法重新开始历史记录，未删除任何数据。")
+            }
+        }
+    }
+
+    func confirmClearHistory() {
+        guard history != nil else { return }
+        let alert = NSAlert()
+        alert.messageText = tr("Clear all history?", "清空全部历史记录？")
+        alert.informativeText = tr("All items, including pinned items and images, are permanently removed from this Mac.",
+                                   "将从本机永久删除全部记录，包括置顶内容和图片。")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: tr("Clear history", "清空历史"))
+        alert.addButton(withTitle: tr("Cancel", "取消"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            try history?.clear()
+            selectedID = nil
+            refresh()
+            notice = tr("History cleared", "历史记录已清空")
+        } catch { self.error = tr("Could not clear history.", "无法清空历史记录。") }
+    }
+
+    /// A user-facing Core failure, with the last Core stderr line when there
+    /// is one (already truncated by `CoreLogRing`).
+    func coreFailureMessage(_ failure: CoreError) -> String {
+        let base = failure.kind == "timeout"
+            ? tr("The action took too long and was stopped.", "动作耗时过长，已停止。")
+            : tr("Core stopped before the action finished.", "核心服务在动作完成前停止。")
+        guard let detail = failure.diagnostics.last else { return base }
+        return base + "\n" + tr("Core: ", "核心：") + detail
     }
 
     func tr(_ english: String, _ chinese: String) -> String { Language.text(english, chinese, preference: language) }
@@ -156,7 +262,10 @@ struct OutputPreview {
         }
     }
 
-    func configureCore() async throws {
+    /// Returns false when Core is busy with an action and the configuration
+    /// will be applied once it is idle.
+    @discardableResult
+    func configureCore() async throws -> Bool {
         guard let core else { throw NSError(domain: "Peesuto", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bundled Core is missing."]) }
         let config: [String: Any]
         if let settings {
@@ -166,7 +275,7 @@ struct OutputPreview {
         } else {
             config = ["decider": ["kind": "rules"], "generator": ["kind": "none"], "offline": true]
         }
-        _ = try await core.configure(config)
+        return try await core.configure(config) != nil
     }
 
     func actionName(_ action: CoreActionSpec) -> String {
@@ -256,7 +365,9 @@ struct OutputPreview {
                 let input = CoreActionInput(text: text, aspect: settings?.string("aspect", default: "chat") ?? "chat",
                     template: options, templatePreferences: settings?.values["template_styles"] as? [String: String])
                 taskStatus = title + "…"
-                guard let response = try await core?.runAction(action: actionID, input: input, onState: { [weak self] state in
+                let kind = actions.first(where: { $0.id == actionID })?.output
+                let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)
+                guard let response = try await core?.runAction(action: actionID, input: input, timeout: timeout, onState: { [weak self] state in
                     Task { @MainActor in
                         guard let self, self.busy, self.actionRevision == revision else { return }
                         switch state {
@@ -301,6 +412,10 @@ struct OutputPreview {
                     self.error = tr("Video needs ffmpeg. Install it with Homebrew (brew install ffmpeg), then retry.", "视频需要 ffmpeg。通过 Homebrew 安装（brew install ffmpeg）后重试。")
                 } else if let failure = error as? CoreError, failure.kind == "compose" {
                     self.error = tr("This content could not fit safely. Try a shorter excerpt; no text was silently removed.", "内容无法完整排入画面，请缩短后重试；没有静默删减文字。")
+                } else if let failure = error as? CoreError, failure.kind == "engine", failure.message.localizedCaseInsensitiveContains("timed out") {
+                    self.error = tr("Rendering took too long and was stopped. Try a shorter excerpt or a still image.", "渲染耗时过长，已停止。请缩短内容或改用静态图片。")
+                } else if let failure = error as? CoreError, ["sidecar", "timeout"].contains(failure.kind) {
+                    self.error = coreFailureMessage(failure)
                 } else { self.error = tr("The action could not finish. Check the AI settings or try again.", "动作未能完成，请检查 AI 设置或重试。") }
             }
         }

@@ -120,6 +120,34 @@ final class SystemIntegrationTests: XCTestCase {
         }
     }
 
+    func testOwnClipboardWritesAreNotRecorded() async throws {
+        try await MainActor.run {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let video = root.appendingPathComponent("card.mp4")
+            try Data("synthetic".utf8).write(to: video)
+            // A private pasteboard: never touches the user's clipboard.
+            let board = NSPasteboard(name: NSPasteboard.Name("com.peesuto.test.\(UUID().uuidString)"))
+            defer { board.releaseGlobally() }
+            let writes: [[NSPasteboardItem]] = [
+                [PasteController.textItem("result")],
+                [PasteController.imageItem(Data([137, 80, 78, 71, 13, 10, 26, 10]))],
+                try XCTUnwrap(PasteController.fileItems([video]))
+            ]
+            for items in writes {
+                board.clearContents()
+                XCTAssertTrue(board.writeObjects(items))
+                let types = (board.types ?? []).map(\.rawValue)
+                XCTAssertTrue(types.contains(ClipboardMonitor.ownWriteType.rawValue))
+                XCTAssertFalse(ClipboardMonitor.shouldRecord(types: types, bundleID: "com.apple.TextEdit", excludedApps: []))
+            }
+            board.clearContents()
+            board.setString("copied elsewhere", forType: .string)
+            XCTAssertTrue(ClipboardMonitor.shouldRecord(types: (board.types ?? []).map(\.rawValue), bundleID: "com.apple.TextEdit", excludedApps: []))
+        }
+    }
+
     func testLegacyTIFFIsConvertedBeforeAdvertisingPNG() async throws {
         try await MainActor.run {
             let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2, pixelsHigh: 2,

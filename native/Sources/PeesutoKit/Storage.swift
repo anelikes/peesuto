@@ -70,14 +70,32 @@ public final class HistoryStore {
     private let lock = NSRecursiveLock()
     private let columns = "id,kind,text,preview,app_bundle_id,app_name,types,created_at,pinned,bytes,image_path,image_w,image_h"
     private let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    private let temporaryImages: Bool
+    /// True for the session-only store used while the saved history is locked.
+    public let isMemoryOnly: Bool
 
-    public init(directory: URL, key: Data) throws {
+    public convenience init(directory: URL, key: Data) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try self.init(path: directory.appendingPathComponent("history.sqlite").path, key: key,
+                      images: directory.appendingPathComponent("images", isDirectory: true), temporary: false)
+    }
+
+    /// A session-only history: an in-memory database and a random key that is
+    /// never stored. Image files go to a private temporary folder removed on
+    /// deinit; they are unreadable once the key is gone.
+    public static func memoryOnly() throws -> HistoryStore {
+        let key = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
+        let images = FileManager.default.temporaryDirectory.appendingPathComponent("peesuto-session-\(UUID().uuidString)", isDirectory: true)
+        return try HistoryStore(path: ":memory:", key: key, images: images, temporary: true)
+    }
+
+    private init(path: String, key: Data, images: URL, temporary: Bool) throws {
         guard key.count == 32 else { throw StorageError.invalidKey }
         self.key = SymmetricKey(data: key)
-        images = directory.appendingPathComponent("images", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let path = directory.appendingPathComponent("history.sqlite").path
-        let exists = FileManager.default.fileExists(atPath: path)
+        self.images = images
+        temporaryImages = temporary
+        isMemoryOnly = temporary
+        let exists = !temporary && FileManager.default.fileExists(atPath: path)
         guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
             let error = StorageError.database(db.map { String(cString: sqlite3_errmsg($0)) } ?? "Cannot open database")
             sqlite3_close(db); db = nil; throw error
@@ -94,7 +112,7 @@ public final class HistoryStore {
                     _ = try HistoryCipher.open(preview, key: self.key)
                 }
             }
-            try execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+            if !temporary { try execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;") }
             try execute("""
                 CREATE TABLE IF NOT EXISTS items (
                   id TEXT PRIMARY KEY, kind TEXT NOT NULL, text BLOB, preview BLOB NOT NULL,
@@ -110,7 +128,50 @@ public final class HistoryStore {
         }
     }
 
-    deinit { sqlite3_close(db) }
+    deinit {
+        sqlite3_close(db)
+        if temporaryImages { try? FileManager.default.removeItem(at: images) }
+    }
+
+    /// Moves a locked history (database, WAL files and images) into a
+    /// timestamped folder next to it. Nothing is deleted. Returns the folder.
+    @discardableResult
+    public static func moveAside(directory: URL, now: Date = Date()) throws -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        var destination = directory.appendingPathComponent("history-locked-\(formatter.string(from: now))", isDirectory: true)
+        var suffix = 1
+        while FileManager.default.fileExists(atPath: destination.path) {
+            suffix += 1
+            destination = directory.appendingPathComponent("history-locked-\(formatter.string(from: now))-\(suffix)", isDirectory: true)
+        }
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        for name in ["history.sqlite", "history.sqlite-wal", "history.sqlite-shm", "images"] {
+            let source = directory.appendingPathComponent(name)
+            guard FileManager.default.fileExists(atPath: source.path) else { continue }
+            try FileManager.default.moveItem(at: source, to: destination.appendingPathComponent(name))
+        }
+        return destination
+    }
+
+    /// Copies records from another store (oldest first), e.g. the session-only
+    /// history captured while the saved history was locked.
+    public func importRecords(from other: HistoryStore) throws {
+        for record in try other.list(limit: 500).reversed() {
+            switch record.kind {
+            case "image":
+                guard let data = try other.imageData(id: record.id) else { continue }
+                try insertImage(data: data, sourceApp: record.appBundleID)
+            case "file":
+                guard let text = record.text else { continue }
+                try insertText(text, kind: "file", appBundleID: record.appBundleID, appName: record.appName)
+            default:
+                guard let text = record.text else { continue }
+                try insertText(text, kind: record.kind, appBundleID: record.appBundleID, appName: record.appName)
+            }
+        }
+    }
 
     public func list(query: String = "", limit: Int = 100) throws -> [ClipRecord] {
         lock.lock(); defer { lock.unlock() }

@@ -37,8 +37,11 @@ import AVFoundation
                 let bytes = data.count
                 if action == "paste-video" {
                     let asset = AVURLAsset(url: URL(fileURLWithPath: path))
-                    guard response.result.format == "mp4", bytes > 100, asset.isPlayable,
-                          asset.duration.seconds > 0, !asset.tracks(withMediaType: .video).isEmpty else { throw SmokeError.failed("invalid video") }
+                    let playable = try await asset.load(.isPlayable)
+                    let duration = try await asset.load(.duration)
+                    let tracks = try await asset.loadTracks(withMediaType: .video)
+                    guard response.result.format == "mp4", bytes > 100, playable,
+                          duration.seconds > 0, !tracks.isEmpty else { throw SmokeError.failed("invalid video") }
                     print("PASS \(action): \(bytes) bytes, \(Int(response.result.ms)) ms")
                     continue
                 }

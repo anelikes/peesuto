@@ -143,6 +143,13 @@ public struct CoreTemplateSelection: Codable, Sendable {
     public let motion: String
     public let decisionSource: String
     public let availableTemplates: [String]
+    /// Why the model's template pick was not used, when it failed.
+    public let decisionError: CoreDecisionError?
+}
+
+public struct CoreDecisionError: Codable, Sendable {
+    public let kind: String
+    public let message: String
 }
 
 public struct CoreActionMetadata: Codable, Sendable {
@@ -175,9 +182,11 @@ public struct CoreActionResponse: Codable, Sendable {
 public struct CoreError: Error, LocalizedError, Sendable {
     public let kind: String
     public let message: String
+    /// Recent Core stderr lines at the time of a process failure, truncated.
+    public let diagnostics: [String]
     public var errorDescription: String? { message }
 
-    public init(kind: String, message: String) {
-        self.kind = kind; self.message = message
+    public init(kind: String, message: String, diagnostics: [String] = []) {
+        self.kind = kind; self.message = message; self.diagnostics = diagnostics
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ServiceManagement
 import PeesutoKit
 
 struct SettingsView: View {
@@ -22,6 +23,8 @@ struct SettingsView: View {
     @State private var offline = false
     @State private var feedback: String?
     @State private var failed = false
+    @State private var loginStatus = SMAppService.Status.notRegistered
+    @State private var diagnostics: [String] = []
 
     var body: some View {
         HStack(spacing: 0) {
@@ -94,6 +97,18 @@ struct SettingsView: View {
                 }.labelsHidden().accessibilityLabel(model.tr("Language", "语言"))
             }
             Toggle(model.tr("Suggest relevant history", "推荐相关历史记录"), isOn: $smart)
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(model.tr("Open at login", "登录时打开"), isOn: Binding(get: { loginStatus == .enabled || loginStatus == .requiresApproval }, set: setOpenAtLogin))
+                    .disabled(model.previewMode)
+                if model.previewMode {
+                    Text(model.tr("Not available in the preview build.", "预览版不可用。")).font(.system(size: 11)).foregroundColor(.secondary)
+                } else if loginStatus == .requiresApproval {
+                    HStack {
+                        Text(model.tr("Allow Peesuto in System Settings → Login Items.", "请在「系统设置 → 登录项」中允许 Peesuto。")).font(.system(size: 11)).foregroundColor(.secondary)
+                        Button(model.tr("Open Login Items", "打开登录项")) { SMAppService.openSystemSettingsLoginItems() }.controlSize(.small)
+                    }
+                }
+            }
             Divider()
             VStack(alignment: .leading, spacing: 9) {
                 Label(model.tr("Paste into other apps", "粘贴到其他应用"), systemImage: "keyboard")
@@ -109,7 +124,33 @@ struct SettingsView: View {
                     }
                 }
             }
+            Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label(model.tr("Core diagnostics", "核心服务诊断"), systemImage: "stethoscope").font(.system(size: 13, weight: .medium))
+                    Spacer()
+                    Button(model.tr("Refresh", "刷新")) { diagnostics = model.core?.recentDiagnostics ?? [] }.controlSize(.small)
+                }
+                Text(model.tr("Recent Core error output, kept in memory only (last 20 lines).", "最近的核心服务错误输出，仅保存在内存中（最后 20 行）。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                ScrollView {
+                    Text(diagnostics.isEmpty ? model.tr("No messages.", "暂无消息。") : diagnostics.joined(separator: "\n"))
+                        .font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(6)
+                }.frame(height: 90).overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.secondary.opacity(0.25)))
+            }
         }
+    }
+    private func setOpenAtLogin(_ enabled: Bool) {
+        guard !model.previewMode else { return }
+        do {
+            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            feedback = nil; failed = false
+        } catch {
+            feedback = model.tr("Could not change the login item. Check System Settings → Login Items.", "无法更改登录项，请检查「系统设置 → 登录项」。")
+            failed = true
+        }
+        loginStatus = SMAppService.mainApp.status
     }
     private var shortcutSettings: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -203,6 +244,19 @@ struct SettingsView: View {
             }
             Text(model.tr("Password and transient clipboard types are always excluded. Provider credentials stay in Keychain.", "密码和临时剪贴板类型始终排除。模型凭证保存在钥匙串。"))
                 .font(.system(size: 12)).foregroundColor(.secondary)
+            Divider()
+            if model.historyLocked {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(model.tr("History is locked. New copies are kept for this session only.", "历史记录已锁定，新复制的内容暂时只保留在本次运行中。"))
+                        .font(.system(size: 12)).foregroundColor(.orange)
+                    Button(model.tr("Start fresh…", "重新开始…"), action: model.confirmStartFresh)
+                }
+            }
+            HStack {
+                Text(model.tr("Remove every history item from this Mac.", "从本机删除全部历史记录。")).font(.system(size: 12)).foregroundColor(.secondary)
+                Spacer()
+                Button(model.tr("Clear history…", "清空历史…"), action: model.confirmClearHistory).disabled(model.history == nil)
+            }
         }
     }
     private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
@@ -212,6 +266,8 @@ struct SettingsView: View {
         }
     }
     private func load() {
+        if !model.previewMode { loginStatus = SMAppService.mainApp.status }
+        diagnostics = model.core?.recentDiagnostics ?? []
         guard let settings = model.settings else { return }
         shortcuts = model.shortcuts; retention = settings.retentionDays
         smart = settings.bool("smart_paste", default: true)
@@ -284,8 +340,11 @@ struct SettingsView: View {
             apiKey = ""; deciderKey = ""
             feedback = model.tr("Saved", "已保存"); failed = false
             Task {
-                do { try await model.configureCore() }
-                catch { feedback = model.tr("Saved. Check your provider configuration before using AI actions.", "已保存，请在使用 AI 动作前检查模型配置。"); failed = true }
+                do {
+                    if try await !model.configureCore() {
+                        feedback = model.tr("Saved. AI settings apply when the current task finishes.", "已保存。AI 设置将在当前任务完成后生效。")
+                    }
+                } catch { feedback = model.tr("Saved. Check your provider configuration before using AI actions.", "已保存，请在使用 AI 动作前检查模型配置。"); failed = true }
             }
         } catch {
             feedback = model.tr("Could not save all changes. Check the shortcut, model and endpoint.", "未能保存全部更改，请检查快捷键、模型和服务地址。")

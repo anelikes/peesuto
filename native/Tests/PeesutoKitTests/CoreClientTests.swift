@@ -43,6 +43,7 @@ final class CoreClientTests: XCTestCase {
         emit({'id': 0, 'ok': True, 'cmd': 'ready', 'version': 'fixture'})
         configured = False
         providers = None
+        config_count = 0
         for line in sys.stdin:
             req = json.loads(line)
             cmd = req['cmd']
@@ -51,6 +52,7 @@ final class CoreClientTests: XCTestCase {
                 break
             if cmd == 'config.set':
                 configured = True
+                config_count += 1
                 providers = {'decider': req.get('decider', {}).get('kind', 'none'), 'generator': req.get('generator', {}).get('kind', 'none'), 'offline': req.get('offline', False)}
                 res['providers'] = providers
                 emit(res)
@@ -98,7 +100,7 @@ final class CoreClientTests: XCTestCase {
             "decider": ["kind": "rules"], "generator": ["kind": "none"],
             "offline": true, "secrets": ["pocket-paste/generator": "synthetic-test-secret"]
         ])
-        XCTAssertTrue(providers.offline)
+        XCTAssertEqual(providers?.offline, true)
         async let health = client.health()
         async let actions = client.actions()
         let (h, a) = try await (health, actions)
@@ -266,6 +268,105 @@ final class CoreClientTests: XCTestCase {
             XCTAssertEqual(error.kind, "protocol")
             XCTAssertFalse(error.message.contains("synthetic-private-content"))
         }
+        await client.shutdown()
+    }
+
+    func testUnattributedUsageErrorFailsOldestRequest() async throws {
+        let (client, root) = try fixture(behavior: "if cmd == 'run-action':\n    emit({'id': -1, 'ok': False, 'kind': 'usage', 'message': 'not JSON'})\n    continue", timeout: 10)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let started = Date()
+        do {
+            _ = try await client.runAction(action: "custom", input: CoreActionInput(text: "fixture"))
+            XCTFail("Expected usage error")
+        } catch let error as CoreError { XCTAssertEqual(error.kind, "usage") }
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+        // The daemon survived; the next request is answered normally.
+        let health = try await client.health()
+        XCTAssertEqual(health.version, "fixture")
+        await client.shutdown()
+    }
+
+    func testDaemonDeathFailsPendingEvenWhenWorkerHoldsStdout() async throws {
+        let behavior = """
+        if cmd == 'run-action':
+            import os, subprocess
+            worker = subprocess.Popen(['/bin/sleep', '30'])
+            with open('worker.pid', 'w') as marker:
+                marker.write(str(worker.pid))
+            sys.stderr.write('synthetic failure detail\\n')
+            sys.stderr.flush()
+            os._exit(3)
+        """
+        let (client, root) = try fixture(behavior: behavior, timeout: 20)
+        defer {
+            if let text = try? String(contentsOf: root.appendingPathComponent("worker.pid")), let pid = pid_t(text) { kill(pid, SIGKILL) }
+            try? FileManager.default.removeItem(at: root)
+        }
+        let started = Date()
+        do {
+            _ = try await client.runAction(action: "custom", input: CoreActionInput(text: "fixture"))
+            XCTFail("Expected exit error")
+        } catch let error as CoreError {
+            XCTAssertEqual(error.kind, "sidecar")
+            XCTAssertEqual(error.diagnostics.last, "synthetic failure detail")
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5, "Pending request waited for stdout EOF")
+        XCTAssertEqual(client.recentDiagnostics.last, "synthetic failure detail")
+        await client.shutdown()
+    }
+
+    func testStderrRingKeepsTruncatedTail() {
+        let ring = CoreLogRing()
+        ring.append(Data(String(repeating: "x", count: 500).utf8 + [0x0a]))
+        for index in 0..<25 { ring.append(Data("line \(index)\n".utf8)) }
+        ring.append(Data("partial".utf8))
+        XCTAssertEqual(ring.snapshot.count, 20)
+        XCTAssertEqual(ring.snapshot.first, "line 5")
+        XCTAssertEqual(ring.snapshot.last, "line 24")
+        ring.finish()
+        XCTAssertEqual(ring.snapshot.last, "partial")
+        let long = CoreLogRing(capacity: 3, maxLineLength: 300)
+        long.append(Data(String(repeating: "y", count: 5_000).utf8))
+        long.append(Data("tail of the long line\nnext\n".utf8))
+        XCTAssertEqual(long.snapshot, [String(repeating: "y", count: 300) + "…", "next"])
+    }
+
+    func testRenderTimeoutsFollowOutputKind() {
+        XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-card"), 300)
+        XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-gif"), 300)
+        XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-video"), 720)
+        XCTAssertEqual(CoreClient.actionTimeout(output: "video"), 720)
+        XCTAssertNil(CoreClient.actionTimeout(actionID: "paste-summary"))
+    }
+
+    func testConfigurationDuringActionIsDeferredNotTimedOut() async throws {
+        let behavior = """
+        if cmd == 'health':
+            res.update({'version': str(config_count), 'engine': None, 'providers': providers, 'uptimeMs': 1, 'packs': []})
+            emit(res)
+            continue
+        if cmd == 'run-action':
+            time.sleep(0.6)
+        """
+        // startupTimeout (config.set) is 2 s; a queued config.set would still
+        // be answered, so use a render longer than a short request timeout.
+        let (client, root) = try fixture(behavior: behavior, timeout: 5)
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try await client.configure(["decider": ["kind": "rules"], "generator": ["kind": "none"], "offline": false])
+        let first = try await client.health()
+        XCTAssertEqual(first.version, "1", "Cold start must send config.set once")
+        let action = Task { try await client.runAction(action: "custom", input: CoreActionInput(text: "rendering")) }
+        try await Task.sleep(nanoseconds: 150_000_000)
+        let started = Date()
+        let deferred = try await client.configure(["decider": ["kind": "rules"], "generator": ["kind": "anthropic"], "offline": true])
+        XCTAssertNil(deferred)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.3)
+        let result = try await action.value
+        XCTAssertEqual(result.result.text, "rendering")
+        let health = try await client.health()
+        XCTAssertEqual(health.providers.generator, "anthropic")
+        XCTAssertTrue(health.providers.offline)
+        XCTAssertEqual(health.version, "2")
         await client.shutdown()
     }
 

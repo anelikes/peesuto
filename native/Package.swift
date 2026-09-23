@@ -2,7 +2,7 @@
 import PackageDescription
 let package = Package(
     name: "PeesutoNative",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v13)],
     products: [.executable(name: "PeesutoCoreHost", targets: ["PeesutoCoreHost"]), .executable(name: "Peesuto", targets: ["Peesuto"]), .executable(name: "PeesutoSmoke", targets: ["PeesutoSmoke"])],
     targets: [
         .executableTarget(name: "PeesutoCoreHost"),

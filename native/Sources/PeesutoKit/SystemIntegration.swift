@@ -41,7 +41,14 @@ public final class ClipboardMonitor {
         timer = nil
     }
 
+    /// Private type attached to every clipboard write made by Peesuto itself
+    /// (copies of results and history items). Such changes are never recorded:
+    /// rendered GIF/MP4 file URLs point into Core's pruned cards folder and
+    /// would later dangle in history.
+    public static let ownWriteType = NSPasteboard.PasteboardType("com.peesuto.desktop.own-write")
+
     public static func shouldRecord(types: [String], bundleID: String?, excludedApps: Set<String>) -> Bool {
+        !types.contains(ownWriteType.rawValue) &&
         !types.contains("org.nspasteboard.ConcealedType") &&
         !types.contains("org.nspasteboard.TransientType") &&
         !excludedApps.contains(bundleID ?? "")
@@ -141,17 +148,36 @@ public final class PasteController {
 
     @discardableResult
     public func copyText(_ text: String) -> Bool {
-        let board = NSPasteboard.general
-        board.clearContents()
-        return board.setString(text, forType: .string)
+        Self.write([Self.textItem(text)])
     }
 
     @discardableResult
     public func copyImage(_ png: Data) -> Bool {
         guard let data = Self.normalizedPNG(png) else { return false }
+        return Self.write([Self.imageItem(data)])
+    }
+
+    private static func write(_ items: [NSPasteboardItem]) -> Bool {
         let board = NSPasteboard.general
         board.clearContents()
-        return board.setData(data, forType: .png)
+        return board.writeObjects(items)
+    }
+
+    static func marked(_ item: NSPasteboardItem) -> NSPasteboardItem {
+        item.setData(Data(), forType: ClipboardMonitor.ownWriteType)
+        return item
+    }
+
+    static func textItem(_ text: String) -> NSPasteboardItem {
+        let item = NSPasteboardItem()
+        item.setString(text, forType: .string)
+        return marked(item)
+    }
+
+    static func imageItem(_ png: Data) -> NSPasteboardItem {
+        let item = NSPasteboardItem()
+        item.setData(png, forType: .png)
+        return marked(item)
     }
 
     /// Older history entries may carry TIFF bytes despite a PNG file extension.
@@ -170,9 +196,7 @@ public final class PasteController {
     @discardableResult
     public func copyFiles(_ urls: [URL]) -> Bool {
         guard let items = Self.fileItems(urls) else { return false }
-        let board = NSPasteboard.general
-        board.clearContents()
-        return board.writeObjects(items)
+        return Self.write(items)
     }
 
     /// Build every item before touching the pasteboard, so missing files never
@@ -186,7 +210,7 @@ public final class PasteController {
             if urls.count == 1, url.pathExtension.lowercased() == "gif", let data = try? Data(contentsOf: url) {
                 item.setData(data, forType: NSPasteboard.PasteboardType("com.compuserve.gif"))
             }
-            return item
+            return marked(item)
         }
     }
 
@@ -210,22 +234,14 @@ public final class PasteController {
     }
     public func pasteImage(_ image: Data, ifUnchanged target: DirectPasteTarget?) -> PasteResult {
         guard let png = Self.normalizedPNG(image) else { return .failed(reason: "Could not read the rendered image.") }
-        return deliverDirect(target: target) {
-            let board = NSPasteboard.general
-            board.clearContents()
-            return board.setData(png, forType: .png)
-        }
+        return deliverDirect(target: target) { Self.write([Self.imageItem(png)]) }
     }
     public func pasteFile(_ url: URL, ifUnchanged target: DirectPasteTarget?) -> PasteResult {
         pasteFiles([url], ifUnchanged: target)
     }
     public func pasteFiles(_ urls: [URL], ifUnchanged target: DirectPasteTarget?) -> PasteResult {
         guard let items = Self.fileItems(urls) else { return .failed(reason: "The rendered file is unavailable.") }
-        return deliverDirect(target: target) {
-            let board = NSPasteboard.general
-            board.clearContents()
-            return board.writeObjects(items)
-        }
+        return deliverDirect(target: target) { Self.write(items) }
     }
 
     private func deliverDirect(target: DirectPasteTarget?, write: () -> Bool) -> PasteResult {

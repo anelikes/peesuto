@@ -7,6 +7,8 @@ section here becomes one.
 
 ## Unreleased
 
+- Native app: saving settings during a render no longer restarts Core (the config waits for the task); action timeouts are 300 s for image/GIF and 720 s for video; Core's death fails pending requests at once and its process group is always killed; the last Core stderr lines show in errors and in Settings → Core diagnostics.
+- Native app: a locked history keeps capturing in memory and offers "Start fresh"; Clear history; Open at login; decider errors show as a note on the result; the app no longer records its own pasteboard writes.
 - GIF and video actions can no longer come out as a single still frame: "none" is not offered as motion when an action needs motion, an override of it falls back to "reveal", and a one-frame GIF/MP4 is an error.
 - Over-long text is refused before any model call or layout; wrapping is linear.
 - Renders have a deadline (240 s image/GIF, 600 s MP4, `PASTE_RENDER_TIMEOUT_MS`); a hung engine or ffmpeg process group is killed.

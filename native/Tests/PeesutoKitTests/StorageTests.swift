@@ -210,6 +210,35 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual((settings.providers["decider"] as? [String: String]), ["kind": "rules"])
     }
 
+    func testLockedHistoryStartsFreshWithoutDeletingOldData() throws {
+        do {
+            let old = try HistoryStore(directory: directory, key: key)
+            try old.insert(text: "saved before the key was lost", sourceApp: nil)
+        }
+        let session = try HistoryStore.memoryOnly()
+        XCTAssertTrue(session.isMemoryOnly)
+        try session.insert(text: "captured while locked", sourceApp: "com.example.editor")
+        try session.insertFiles(urls: [URL(fileURLWithPath: "/tmp/a.txt")], sourceApp: nil)
+        XCTAssertEqual(try session.list().count, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(":memory:").path))
+        XCTAssertThrowsError(try HistoryStore(directory: directory, key: Data(repeating: 9, count: 32)))
+
+        let aside = try HistoryStore.moveAside(directory: directory, now: Date(timeIntervalSince1970: 0))
+        XCTAssertTrue(aside.lastPathComponent.hasPrefix("history-locked-"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: aside.appendingPathComponent("history.sqlite").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("history.sqlite").path))
+        let second = try HistoryStore.moveAside(directory: directory, now: Date(timeIntervalSince1970: 0))
+        XCTAssertNotEqual(aside, second)
+
+        let fresh = try HistoryStore(directory: directory, key: Data(repeating: 9, count: 32))
+        try fresh.importRecords(from: session)
+        XCTAssertEqual(Set(try fresh.list().compactMap(\.text)), ["captured while locked", "/tmp/a.txt"])
+        // The moved-aside history still opens with its original key.
+        XCTAssertEqual(try HistoryStore(directory: aside, key: key).list().first?.text, "saved before the key was lost")
+        try fresh.clear()
+        XCTAssertEqual(try fresh.list().count, 0)
+    }
+
     private func hex(_ value: String) -> Data {
         Data(stride(from: 0, to: value.count, by: 2).map { offset in
             let start = value.index(value.startIndex, offsetBy: offset)

@@ -1,6 +1,55 @@
 import Foundation
 import Darwin
 
+/// The most recent Core stderr lines, kept only in memory for diagnostics.
+/// Lines are truncated so an unexpected dump cannot grow without bound; this
+/// buffer is never written to disk or to the system log.
+public final class CoreLogRing: @unchecked Sendable {
+    public let capacity: Int
+    public let maxLineLength: Int
+    private let lock = NSLock()
+    private var lines: [String] = []
+    private var partial = Data()
+    private var discarding = false
+
+    public init(capacity: Int = 20, maxLineLength: Int = 300) {
+        self.capacity = max(1, capacity); self.maxLineLength = max(1, maxLineLength)
+    }
+
+    public func append(_ chunk: Data) {
+        lock.lock(); defer { lock.unlock() }
+        partial.append(chunk)
+        while let newline = partial.firstIndex(of: 0x0a) {
+            let line = Data(partial[partial.startIndex..<newline])
+            partial.removeSubrange(partial.startIndex...newline)
+            if discarding { discarding = false } else { push(line) }
+        }
+        // A very long line without a newline: keep its head, drop the rest.
+        if partial.count > maxLineLength * 4 {
+            if !discarding { push(partial) }
+            partial.removeAll(); discarding = true
+        }
+    }
+
+    public func append(line: String) { lock.lock(); defer { lock.unlock() }; push(Data(line.utf8)) }
+
+    /// Flushes a trailing line that ended without a newline (e.g. at EOF).
+    public func finish() {
+        lock.lock(); defer { lock.unlock() }
+        if !discarding { push(partial) }
+        partial.removeAll(); discarding = false
+    }
+
+    public var snapshot: [String] { lock.lock(); defer { lock.unlock() }; return lines }
+
+    private func push(_ data: Data) {
+        let text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        lines.append(text.count > maxLineLength ? String(text.prefix(maxLineLength)) + "…" : text)
+        if lines.count > capacity { lines.removeFirst(lines.count - capacity) }
+    }
+}
+
 /// The desktop owns credentials. Configuration is retained only in memory and
 /// reapplied after every restart. Requests are never replayed after a failure.
 public actor CoreClient {
@@ -27,7 +76,16 @@ public actor CoreClient {
     private var startup: (id: UUID, task: Task<Void, Error>)?
     private var configured = false
     private var ownsProcessGroup = false
+    /// Bumped by every `configure`; `appliedRevision` is what Core has.
+    private var configurationRevision = 0
+    private var appliedRevision = -1
+    private var lastProviders: CoreProviders?
+    /// Outstanding run-action request ids. While any is in flight the
+    /// sequential daemon is busy, so configuration is deferred until idle.
+    private var actionRequests: Set<Int> = []
     private let writerQueue = DispatchQueue(label: "com.peesuto.core.stdin", qos: .utility)
+    /// Recent Core stderr, in memory only. See `recentDiagnostics`.
+    public nonisolated let log = CoreLogRing()
 
     public init(executable: URL, daemon: URL, resources: URL? = nil, appData: URL,
                 startupTimeout: TimeInterval = 150, requestTimeout: TimeInterval = 180) {
@@ -38,7 +96,7 @@ public actor CoreClient {
 
     deinit {
         if let process, process.isRunning {
-            if ownsProcessGroup { kill(-process.processIdentifier, SIGKILL) }
+            if ownsProcessGroup, process.processIdentifier > 1 { kill(-process.processIdentifier, SIGKILL) }
             else { process.terminate() }
         }
         try? input?.close()
@@ -56,20 +114,68 @@ public actor CoreClient {
         try await request(["cmd": reload ? "actions.reload" : "actions.list"])
     }
 
+    /// Recent Core stderr lines (at most 20, each at most 300 characters).
+    public nonisolated var recentDiagnostics: [String] { log.snapshot }
+
     /// `secrets` is a dictionary keyed by the existing Keychain reference names.
     /// Never write this dictionary to a preferences file or diagnostic log.
+    ///
+    /// Returns nil when an action is running: the daemon is sequential, so a
+    /// `config.set` would wait behind the render and its timeout would tear
+    /// Core down. The configuration is applied as soon as Core is idle, and
+    /// always before the next request is sent.
     @discardableResult
-    public func configure(_ configuration: [String: Any]) async throws -> CoreProviders {
+    public func configure(_ configuration: [String: Any]) async throws -> CoreProviders? {
         guard JSONSerialization.isValidJSONObject(configuration) else {
             throw CoreError(kind: "input", message: "Invalid Core configuration.")
         }
         self.configuration = configuration
+        configurationRevision += 1
+        let revision = configurationRevision
+        if !actionRequests.isEmpty, process?.isRunning == true { return nil }
         try await ensureStarted()
+        // A cold start already sent this exact configuration.
+        if appliedRevision >= revision, let lastProviders { return lastProviders }
+        if !actionRequests.isEmpty { return nil }
+        return try await applyConfiguration()
+    }
+
+    private func applyConfiguration() async throws -> CoreProviders {
+        appliedRevision = configurationRevision
         var body = configuration
         body["cmd"] = "config.set"
         let data = try await send(body, timeout: startupTimeout)
         struct Response: Decodable { let providers: CoreProviders }
-        return try JSONDecoder().decode(Response.self, from: data).providers
+        guard let providers = try? JSONDecoder().decode(Response.self, from: data).providers else {
+            throw CoreError(kind: "protocol", message: "Core returned an incompatible response.")
+        }
+        lastProviders = providers
+        return providers
+    }
+
+    private func applyDeferredConfigurationIfIdle() async {
+        guard actionRequests.isEmpty, configured, appliedRevision < configurationRevision,
+              process?.isRunning == true else { return }
+        _ = try? await applyConfiguration()
+    }
+
+    /// Render deadlines: Core stops png/gif renders after 240 s and mp4 after
+    /// 600 s, so the shell waits somewhat longer than Core itself.
+    public static func actionTimeout(output: String?) -> TimeInterval? {
+        switch output {
+        case "video", "mp4": return 720
+        case "image", "png", "gif": return 300
+        default: return nil
+        }
+    }
+
+    public static func actionTimeout(actionID: String) -> TimeInterval? {
+        switch actionID {
+        case "paste-video": return actionTimeout(output: "video")
+        case "paste-card": return actionTimeout(output: "image")
+        case "paste-gif": return actionTimeout(output: "gif")
+        default: return nil
+        }
     }
 
     public func pick(context: CoreContext, candidates: [CoreClipItem], fresh: Bool = false) async throws -> CorePickResult {
@@ -81,12 +187,15 @@ public actor CoreClient {
         return result.result
     }
 
+    /// `timeout` defaults to the render deadline for built-in media actions
+    /// and to the client's request timeout otherwise.
     public func runAction(action: String, input: CoreActionInput, candidates: [CoreClipItem]? = nil,
+                          timeout: TimeInterval? = nil,
                           onState: (@Sendable (CoreTaskState) -> Void)? = nil) async throws -> CoreActionResponse {
         var body: [String: Any] = ["cmd": "run-action", "action": action, "input": try object(input)]
         if let candidates { body["candidates"] = try object(candidates) }
         if onState != nil { body["events"] = true }
-        return try await request(body, onState: onState)
+        return try await request(body, timeout: timeout ?? Self.actionTimeout(actionID: action), onState: onState)
     }
 
     public func templates() async throws -> CoreTemplateList {
@@ -109,6 +218,7 @@ public actor CoreClient {
                                        onState: (@Sendable (CoreTaskState) -> Void)? = nil) async throws -> T {
         try Task.checkCancellation()
         try await ensureStarted()
+        if actionRequests.isEmpty, appliedRevision < configurationRevision { _ = try await applyConfiguration() }
         let data = try await send(body, timeout: timeout ?? requestTimeout, onState: onState)
         do { return try JSONDecoder().decode(T.self, from: data) }
         catch { throw CoreError(kind: "protocol", message: "Core returned an incompatible response.") }
@@ -159,6 +269,14 @@ public actor CoreClient {
         // Credentials travel only through config.set, never argv/environment.
         let stdin = Pipe(), stdout = Pipe(), stderr = Pipe()
         child.standardInput = stdin; child.standardOutput = stdout; child.standardError = stderr
+        // Render workers inherit stdout, so EOF alone may never arrive after
+        // the daemon dies. A short grace lets already-written lines drain.
+        child.terminationHandler = { [weak self] _ in
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                await self?.exited(generation: token)
+            }
+        }
         process = child
         input = stdin.fileHandleForWriting
         _ = fcntl(stdin.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
@@ -168,15 +286,13 @@ public actor CoreClient {
                 do {
                     try child.run()
                     Self.readOutput(stdout.fileHandleForReading, client: self, generation: token)
-                    Self.drain(stderr.fileHandleForReading)
+                    Self.drain(stderr.fileHandleForReading, into: log)
                 } catch {
                     stop(error: CoreError(kind: "sidecar", message: "Could not start Core."))
                 }
             }
             try Task.checkCancellation()
-            var body = configuration
-            body["cmd"] = "config.set"
-            _ = try await send(body, timeout: startupTimeout)
+            _ = try await applyConfiguration()
             guard generation == token, process?.isRunning == true else { throw CancellationError() }
             configured = true
         } catch {
@@ -198,6 +314,7 @@ public actor CoreClient {
         envelope["id"] = id
         var data = try JSONSerialization.data(withJSONObject: envelope)
         data.append(0x0a)
+        if body["cmd"] as? String == "run-action" { actionRequests.insert(id) }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 register(id: id, continuation: continuation, timeout: timeout, generation: token, onState: onState)
@@ -238,7 +355,7 @@ public actor CoreClient {
         guard self.generation == generation, pending[id] != nil else { return }
         // The daemon is sequential: abandoning just one request could leave
         // subsequent work behind a hung action. Never silently retry that work.
-        stop(error: CoreError(kind: "timeout", message: "Core did not answer in time."))
+        stop(error: CoreError(kind: "timeout", message: "Core did not answer in time.", diagnostics: log.snapshot))
     }
 
     private func receive(_ data: Data, generation: Int) {
@@ -262,8 +379,23 @@ public actor CoreClient {
             return
         }
         if id == 0, body["cmd"] as? String != "ready" { return }
+        if id == -1 {
+            // Usage errors for a line the daemon could not attribute. It
+            // answers in order, so the oldest outstanding request is the one
+            // it rejected; failing it keeps that caller from hanging.
+            guard !ok, let oldest = pending.keys.filter({ $0 > 0 }).min(),
+                  let item = pending.removeValue(forKey: oldest) else { return }
+            item.timeout.cancel()
+            finishedAction(oldest)
+            item.continuation.resume(throwing: CoreError(
+                kind: body["kind"] as? String ?? "usage",
+                message: body["message"] as? String ?? "Core rejected the request."
+            ))
+            return
+        }
         guard let item = pending.removeValue(forKey: id) else { return }
         item.timeout.cancel()
+        finishedAction(id)
         if ok { item.continuation.resume(returning: data) }
         else {
             item.continuation.resume(throwing: CoreError(
@@ -273,9 +405,15 @@ public actor CoreClient {
         }
     }
 
+    private func finishedAction(_ id: Int) {
+        guard actionRequests.remove(id) != nil, actionRequests.isEmpty,
+              appliedRevision < configurationRevision else { return }
+        Task { await self.applyDeferredConfigurationIfIdle() }
+    }
+
     private func exited(generation: Int) {
         guard self.generation == generation else { return }
-        stop(error: CoreError(kind: "sidecar", message: "Core exited before answering."))
+        stop(error: CoreError(kind: "sidecar", message: "Core exited before answering.", diagnostics: log.snapshot))
     }
 
     private func stop(error: Error) {
@@ -287,18 +425,22 @@ public actor CoreClient {
         ownsProcessGroup = false
         let oldInput = input
         input = nil
-        if let old, old.isRunning {
+        actionRequests.removeAll()
+        // A process that never launched has pid 0; kill(-0) would signal our own group.
+        if let old, old.processIdentifier > 1 {
             if grouped {
                 // The dedicated launcher establishes a process group before
                 // exec, so builds and render workers are stopped with Core.
-                if kill(-old.processIdentifier, SIGTERM) != 0 { old.terminate() }
+                // Signal the group even when the leader already exited: its
+                // render workers can outlive it.
+                let group = old.processIdentifier
+                if kill(-group, SIGTERM) != 0, old.isRunning { old.terminate() }
                 Task.detached(priority: .utility) {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    // Keeping a live leader check prevents signaling a reused
-                    // process group after the original group has disappeared.
-                    if old.isRunning { kill(-old.processIdentifier, SIGKILL) }
+                    // ESRCH when the whole group is already gone.
+                    kill(-group, SIGKILL)
                 }
-            } else { old.terminate() }
+            } else if old.isRunning { old.terminate() }
         }
         writerQueue.async { try? oldInput?.close() }
         let callers = pending.values
@@ -309,34 +451,49 @@ public actor CoreClient {
         }
     }
 
+    private enum OutputEvent: Sendable { case line(Data), end }
+
+    /// Blocking pipe reads run on a dedicated dispatch queue rather than the
+    /// cooperative pool; a single consumer delivers lines to the actor in order.
     private nonisolated static func readOutput(_ handle: FileHandle, client: CoreClient, generation: Int) {
-        Task.detached(priority: .utility) { [weak client] in
-            defer { try? handle.close() }
+        var sink: AsyncStream<OutputEvent>.Continuation!
+        let stream = AsyncStream<OutputEvent>(bufferingPolicy: .unbounded) { sink = $0 }
+        let output = sink!
+        DispatchQueue(label: "com.peesuto.core.stdout.\(generation)", qos: .utility).async {
+            defer { try? handle.close(); output.yield(.end); output.finish() }
             var buffer = Data()
             while true {
                 let chunk = handle.availableData
-                if chunk.isEmpty { break }
+                if chunk.isEmpty { return }
                 buffer.append(chunk)
                 while let newline = buffer.firstIndex(of: 0x0a) {
-                    let line = Data(buffer[..<newline])
-                    buffer.removeSubrange(...newline)
-                    if !line.isEmpty { await client?.receive(line, generation: generation) }
+                    let line = Data(buffer[buffer.startIndex..<newline])
+                    buffer.removeSubrange(buffer.startIndex...newline)
+                    if !line.isEmpty { output.yield(.line(line)) }
                 }
-                if buffer.count > 16 * 1024 * 1024 {
-                    await client?.exited(generation: generation)
-                    return
+                if buffer.count > 16 * 1024 * 1024 { return }
+            }
+        }
+        Task.detached(priority: .utility) { [weak client] in
+            for await event in stream {
+                switch event {
+                case .line(let line): await client?.receive(line, generation: generation)
+                case .end: await client?.exited(generation: generation); return
                 }
             }
-            await client?.exited(generation: generation)
         }
     }
 
-    private nonisolated static func drain(_ handle: FileHandle) {
-        // Provider failures may contain request content. Drain stderr without
-        // persisting it, rather than copying arbitrary engine output to logs.
-        DispatchQueue.global(qos: .utility).async {
-            defer { try? handle.close() }
-            while !handle.availableData.isEmpty {}
+    private nonisolated static func drain(_ handle: FileHandle, into log: CoreLogRing) {
+        // Provider failures may contain request content. Keep only a short,
+        // truncated tail in memory for diagnostics; never persist or log it.
+        DispatchQueue(label: "com.peesuto.core.stderr", qos: .utility).async {
+            defer { try? handle.close(); log.finish() }
+            while true {
+                let chunk = handle.availableData
+                if chunk.isEmpty { return }
+                log.append(chunk)
+            }
         }
     }
 }

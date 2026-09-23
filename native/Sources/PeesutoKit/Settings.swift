@@ -219,6 +219,17 @@ public enum KeychainSecrets {
         guard status == errSecSuccess else { throw SettingsError.keychain(status) }
     }
 
+    /// Explicit "Start fresh" only: replaces the history key after the locked
+    /// history was moved aside. Never called automatically.
+    public static func replaceHistoryKey() throws -> Data {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard status == errSecSuccess else { throw SettingsError.keychain(status) }
+        let key = Data(bytes)
+        try write(name: historyKeyName, value: key.base64EncodedString())
+        return key
+    }
+
     /// A missing or invalid key with existing history is always a locked state, never a reset.
     public static func historyKey(directory: URL) throws -> Data {
         if let encoded = try read(name: historyKeyName) {

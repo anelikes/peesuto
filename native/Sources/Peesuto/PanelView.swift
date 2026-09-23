@@ -125,6 +125,12 @@ struct PanelView: View {
             }.buttonStyle(.borderless).foregroundColor(.secondary)
             if let output = model.output {
                 if let selection = output.template { templateControls(selection, format: output.format ?? "png") }
+                if let failure = output.template?.decisionError {
+                    Label(model.tr("The AI style pick was unavailable (\(failure.kind)), so local rules chose this template.",
+                                   "AI 风格选择暂不可用（\(failure.kind)），已由本地规则选择模板。"), systemImage: "info.circle")
+                        .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                        .help(failure.message)
+                }
                 if let url = output.url {
                     if url.pathExtension.lowercased() == "mp4" {
                         NativeVideoPreview(url: url).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -160,6 +166,9 @@ struct PanelView: View {
             }
             if let error = model.error {
                 Label(error, systemImage: "exclamationmark.circle").font(.system(size: 12)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
+            }
+            if model.historyLocked {
+                Button(model.tr("Start fresh…", "重新开始…"), action: model.confirmStartFresh).controlSize(.small)
             }
             if model.selected != nil || model.output != nil { actionBar }
         }.padding(24)

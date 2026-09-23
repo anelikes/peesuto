@@ -45,6 +45,10 @@ await chmod(join(macos, "paste"), 0o755);
 await cp(join(stage, "resources"), join(resources, "resources"), { recursive: true });
 await cp(join(native, "Resources/AppIcon.icns"), join(resources, "AppIcon.icns"));
 const version = (await Bun.file(join(REPO_ROOT, "package.json")).json()).version;
+// Monotonic build number: the commit count of the checked-out history.
+const counter = Bun.spawn(["git", "-C", REPO_ROOT, "rev-list", "--count", "HEAD"], { stdout: "pipe", stderr: "pipe" });
+const build = (await new Response(counter.stdout).text()).trim();
+if (await counter.exited !== 0 || !/^\d+$/.test(build)) throw new Error("Could not compute the build number (git rev-list --count HEAD).");
 await Bun.write(join(app, "Contents/Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -54,9 +58,9 @@ await Bun.write(join(app, "Contents/Info.plist"), `<?xml version="1.0" encoding=
 <key>CFBundleExecutable</key><string>Peesuto</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>${version}</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleVersion</key><string>${build}</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
-<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
 <key>PeesutoPreview</key><${preview ? "true" : "false"}/>
