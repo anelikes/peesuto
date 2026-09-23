@@ -22,6 +22,8 @@ const identity = flag("--identity");
 const notaryProfile = flag("--notary-profile");
 const skipBuild = args.includes("--skip-build");
 const notarize = !args.includes("--no-notarize");
+/** Sign the app only: no DMG (used by scripts/install-dev.ts). */
+const noDmg = args.includes("--no-dmg");
 const engine = resolve(flag("--engine") ?? join(REPO_ROOT, ".work/native-engine"));
 
 const native = join(REPO_ROOT, "native");
@@ -145,6 +147,11 @@ if (gatekeeperApp.code !== 0) console.log(notarize
   ? "spctl rejected the stapled app."
   : "spctl rejected the app (expected without a notarized Developer ID signature); continuing because of --no-notarize.");
 if (notarize && gatekeeperApp.code !== 0) fail("Gatekeeper rejects the notarized app.");
+
+if (noDmg) {
+  console.log(`Signed app: ${relative(REPO_ROOT, app)} (${identityName}); no DMG (--no-dmg).`);
+  process.exit(0);
+}
 
 // 4. DMG with the app and an /Applications link.
 const dmgName = `Peesuto-${version}-${arch}.dmg`;

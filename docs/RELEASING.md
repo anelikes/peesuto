@@ -38,6 +38,19 @@ The smoke uses synthetic data, a temporary directory and local rules/offline
 mode. It does not read production history or user Keychain credentials. Actual
 window, permission and cross-application paste testing remains necessary.
 
+## Install the working tree for testing
+
+```sh
+bun run install-dev            # build, sign, replace /Applications/Peesuto.app, relaunch
+bun run install-dev --skip-build   # re-sign and reinstall the last build
+```
+
+`scripts/install-dev.ts` signs with the Developer ID identity in the login
+keychain but does not notarize (a locally built app is not quarantined). The
+stable team signature keeps Accessibility and the Keychain grant across
+installs. The About section shows the version and the build number (the
+commit count) to tell installs apart. There is no in-app update yet.
+
 ## CI and manual build artifacts
 
 `.github/workflows/ci.yml` runs Core typechecks/unit tests, native Swift tests
