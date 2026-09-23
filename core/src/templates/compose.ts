@@ -288,18 +288,21 @@ function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number,
       if (start + count < end) {
         let firstVisible = -1;
         for (let i = start; i < start + count; i++) if (glyphs[i]!.text.trim()) { firstVisible = i; break; }
-        // Break after a space, but never give up more than half the line for
-        // one: in mixed Chinese and Latin text the last space can be far back.
-        const floor = start + Math.ceil(count / 2) - 1;
-        for (let i = start + count - 1; i > start && i >= floor; i--) {
-          if (/\s/u.test(glyphs[i]!.text) && firstVisible >= 0 && firstVisible < i) { count = i - start + 1; break; }
-        }
-        // Still inside a word (unspaced scripts): back up to the nearest word
-        // start, keeping at least half the line.
-        if (!starts.has(start + count) && !/\s/u.test(glyphs[start + count - 1]!.text)) {
-          for (let i = start + count - 1; i >= start + Math.ceil(count / 2); i--) {
-            if (starts.has(i)) { count = i - start; break; }
+        // The break closest to the line's end among (a) just after a space and
+        // (b) a word start (ICU words, so Chinese breaks between words),
+        // giving up at most half the line. Latin text is unchanged: its word
+        // starts follow its spaces. Mixed text no longer strands "Gatekeeper"
+        // when the Chinese after it could stay on the line.
+        const full = count, floor = start + Math.ceil(full / 2);
+        if (!starts.has(start + full) && !/\s/u.test(glyphs[start + full - 1]!.text)) {
+          let best = -1;
+          for (let i = start + full - 1; i >= floor; i--) {
+            if (/\s/u.test(glyphs[i]!.text) && firstVisible >= 0 && firstVisible < i) { best = Math.max(best, i + 1); break; }
           }
+          for (let i = start + full - 1; i >= floor; i--) {
+            if (starts.has(i) && !/\s/u.test(glyphs[i]!.text)) { best = Math.max(best, i); break; }
+          }
+          if (best > start) count = best - start;
         }
       }
       if (start + count < end) count = kinsoku(glyphs, start, count);

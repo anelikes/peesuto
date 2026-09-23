@@ -320,3 +320,21 @@ describe("constrained template decisions", () => {
   });
 });
 
+
+describe("box-drawing tables", () => {
+  test("Unicode, rounded, ASCII and psql frames become tables; wrapped cells join; nothing but frames is dropped", () => {
+    const unicode = "┌──────┬────────────┐\n│ 检查 │    结果    │\n├──────┼────────────┤\n│ 公证 │ 通过       │\n├──────┼────────────┤\n│ 安装 │ 放行，判定 │\n│      │ 为已公证   │\n└──────┴────────────┘";
+    expect(parseTemplates(unicode).candidates.get("table")).toEqual({ kind: "table", headers: ["检查", "结果"], rows: [["公证", "通过"], ["安装", "放行，判定为已公证"]] });
+    expect(parseTemplates(unicode).preferred).toBe("table");
+    const rounded = "╭──────┬──────────────╮\n│ Name │ Note         │\n├──────┼──────────────┤\n│ a    │ a long cell  │\n│      │ that wraps   │\n├──────┼──────────────┤\n│ b    │ short        │\n╰──────┴──────────────╯";
+    expect(parseTemplates(rounded).candidates.get("table")).toEqual({ kind: "table", headers: ["Name", "Note"], rows: [["a", "a long cell that wraps"], ["b", "short"]] });
+    const ascii = "+----+-------+\n| id | name  |\n+----+-------+\n|  1 | Ada   |\n|  2 | Bob   |\n+----+-------+";
+    expect(parseTemplates(ascii).candidates.get("table")).toEqual({ kind: "table", headers: ["id", "name"], rows: [["1", "Ada"], ["2", "Bob"]] });
+    expect(parseTemplates(" id | name \n----+------\n  1 | Ada\n  2 | Bob").candidates.get("table")).toEqual({ kind: "table", headers: ["id", "name"], rows: [["1", "Ada"], ["2", "Bob"]] });
+  });
+  test("a stray rule, a footer or ragged columns stay a document", () => {
+    for (const source of ["──────\n段落文字\n──────", " id | name \n----+------\n  1 | Ada\n(1 row)", "┌───┬───┐\n│ a │ b │\n│ c │\n└───┴───┘"]) {
+      expect(parseTemplates(source).candidates.has("table")).toBe(false);
+    }
+  });
+});

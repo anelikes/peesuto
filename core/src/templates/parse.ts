@@ -27,7 +27,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   if (mermaid) candidates.set("diagram", mermaid);
   if (code) candidates.set("code", code);
   else if (!mermaid) {
-    const table = parseTable(text);
+    const table = parseTable(text) ?? parseBoxTable(text);
     const comparison = parseComparison(text);
     const quote = isRawCode(text) ? undefined : parseQuote(text);
     const list = parseList(text);
@@ -217,6 +217,50 @@ function parseTable(text: string): TemplateContent | undefined {
   if (width < 2 || cells.some((row) => row.length !== width) || cells[0]!.some((cell) => !cell)) return;
   if (!cells[1]!.every((cell) => /^:?-{3,}:?$/.test(cell))) return;
   return { kind: "table", headers: cells[0]!, rows: cells.slice(2) };
+}
+
+/** Box-drawing tables as terminals, CLIs and databases print them: Unicode
+ * frames (light, heavy, double, rounded), ASCII `+---+` with `|`, and psql's
+ * `---+---` header rule. Rows are separated by rule lines when every row has
+ * one (a cell wrapped over several lines is joined back); otherwise each text
+ * line is a row. Cell text is kept; only padding and frame characters go. */
+const BOX_BAR = /[│┃║|]/;
+const BOX_RULE = /^[\s┌┐└┘├┤┬┴┼─━═╔╗╚╝╠╣╦╩╬╒╕╘╛╞╡╤╧╪╓╖╙╜╟╢╥╨╫╭╮╰╯┏┓┗┛┣┫┳┻╋┠┨┯┷┿╂+\-=:|│┃║]+$/;
+function parseBoxTable(text: string): TemplateContent | undefined {
+  const lines = text.split("\n").map((line) => line.replace(/\s+$/, "")).filter((line) => line.trim());
+  if (lines.length < 3) return;
+  const isRule = (line: string) => BOX_RULE.test(line) && (line.match(/[─━═\-]/g)?.length ?? 0) >= 3;
+  if (!lines.some(isRule) || !/[─━═┌╔╭+]|-{3,}/.test(text)) return;
+  const groups: string[][][] = [];
+  let current: string[][] = [];
+  let width: number | undefined;
+  for (const line of lines) {
+    if (isRule(line)) { if (current.length) { groups.push(current); current = []; } continue; }
+    if (!BOX_BAR.test(line)) return;
+    const inner = line.trim().replace(/^[│┃║|]/, "").replace(/[│┃║|]$/, "");
+    const cells = inner.split(BOX_BAR).map((cell) => cell.trim());
+    if (width === undefined) width = cells.length;
+    if (cells.length !== width || width < 2) return;
+    current.push(cells);
+  }
+  if (current.length) groups.push(current);
+  const dataLines = groups.reduce((n, g) => n + g.length, 0);
+  if (dataLines < 2) return;
+  const joinWrapped = (parts: string[]) => parts.filter(Boolean).reduce((acc, part) => {
+    if (!acc) return part;
+    const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}，。、；：！？）」』》]$/u.test(acc) && /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}（「『《]/u.test(part);
+    return acc + (cjk ? "" : " ") + part;
+  }, "");
+  const merge = (group: string[][]) => group[0]!.map((_, c) => joinWrapped(group.map((row) => row[c]!)));
+  let rows: string[][];
+  // A rule after every row: each group is one row, its lines one wrapped row.
+  if (groups.length >= 3) rows = groups.map(merge);
+  // Only a header rule: the header may wrap; every body line is its own row.
+  else if (groups.length === 2) rows = [merge(groups[0]!), ...groups[1]!];
+  else rows = groups[0]!;
+  const [headers, ...body] = rows;
+  if (!headers || !body.length || headers.every((cell) => !cell)) return;
+  return { kind: "table", headers, rows: body };
 }
 
 function parseComparison(text: string): TemplateContent | undefined {

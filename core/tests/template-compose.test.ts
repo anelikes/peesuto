@@ -199,3 +199,9 @@ describe("frames", () => {
   });
 });
 
+
+test("mixed Latin and Chinese: Chinese after a space stays on the line and breaks between words", () => {
+  const tight: TemplateMeasure = { width: (t, size) => [...t].reduce((n, c) => n + size * (/[\x00-\x7f]/.test(c) ? 0.55 : 1), 0), lineHeight: (size) => size * 1.2 };
+  const lines = wrapTemplateText("Gatekeeper 放行，判定为已公证的开发者", 12 * 32, 32, false, tight);
+  expect(lines[0]!.startsWith("Gatekeeper 放行")).toBe(true);
+});
