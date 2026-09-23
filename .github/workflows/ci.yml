@@ -49,6 +49,8 @@ jobs:
       - name: fixtures
         run: bun test core/tests/fixtures.test.ts
       - name: bundled emoji
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bun scripts/fetch-emoji.ts
       - name: structured templates and animation frames
         run: |

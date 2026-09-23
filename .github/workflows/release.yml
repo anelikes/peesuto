@@ -35,6 +35,8 @@ jobs:
       - name: prepare pinned engine
         run: bun scripts/engine.ts
       - name: bundled emoji
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: bun scripts/fetch-emoji.ts
       - name: build native app (local ad-hoc signature only)
         run: bun scripts/build-native.ts --engine engine
