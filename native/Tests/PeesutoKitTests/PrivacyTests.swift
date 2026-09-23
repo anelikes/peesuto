@@ -18,10 +18,44 @@ final class PrivacyTests: XCTestCase {
         XCTAssertEqual((privacy["builtins"] as? [String: Bool])?.isEmpty, true)
         XCTAssertEqual((privacy["rules"] as? [Any])?.count, 0)
         let precompose = try XCTUnwrap(config["precompose"] as? [String: Any])
-        XCTAssertEqual(precompose["outputs"] as? [String], [])
+        XCTAssertEqual(precompose["outputs"] as? [String], ["image"], "fresh installs prepare images on copy")
         XCTAssertEqual(precompose["useModel"] as? Bool, false)
         XCTAssertEqual(precompose["skipSecrets"] as? Bool, true)
         XCTAssertTrue(JSONSerialization.isValidJSONObject(config))
+    }
+
+    func testPrecomposeDefaultAppliesOnlyWhenTheKeyIsAbsent() throws {
+        XCTAssertEqual(PrecomposeSettings(json: nil), PrecomposeSettings(outputs: ["image"], useModel: false, skipSecrets: true))
+        XCTAssertEqual(PrecomposeSettings(json: ["outputs": [String](), "useModel": false]).outputs, [], "a saved empty value is kept")
+        XCTAssertEqual(PrecomposeSettings(json: ["outputs": ["gif"], "useModel": true]), PrecomposeSettings(outputs: ["gif"], useModel: true))
+        let (settings, root) = try store()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertEqual(settings.precomposeSettings.outputs, ["image"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("settings.json").path),
+                       "reading the default does not write settings.json")
+        try settings.setValues(["precompose": ["outputs": [String](), "useModel": true, "skipSecrets": false]])
+        let reopened = try SettingsStore(directory: root)
+        XCTAssertEqual(reopened.precomposeSettings, PrecomposeSettings(outputs: [], useModel: true, skipSecrets: false))
+        // The Shortcuts page and onboarding change outputs only.
+        try reopened.setPrecomposeOutputs(["video", "image"])
+        XCTAssertEqual(try SettingsStore(directory: root).precomposeSettings,
+                       PrecomposeSettings(outputs: ["image", "video"], useModel: true, skipSecrets: false))
+    }
+
+    func testOnboardingShowsUntilTheCurrentVersionIsSeen() throws {
+        XCTAssertTrue(Onboarding.shouldShow(savedVersion: nil))
+        XCTAssertTrue(Onboarding.shouldShow(savedVersion: Onboarding.currentVersion - 1))
+        XCTAssertFalse(Onboarding.shouldShow(savedVersion: Onboarding.currentVersion))
+        XCTAssertFalse(Onboarding.shouldShow(savedVersion: Onboarding.currentVersion + 1))
+        let (settings, root) = try store()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertTrue(settings.shouldShowOnboarding)
+        try settings.set("onboarding_version", value: 0)
+        XCTAssertTrue(try SettingsStore(directory: root).shouldShowOnboarding)
+        try settings.markOnboardingSeen()
+        let reopened = try SettingsStore(directory: root)
+        XCTAssertEqual(reopened.onboardingVersion, Onboarding.currentVersion)
+        XCTAssertFalse(reopened.shouldShowOnboarding)
     }
 
     func testCustomRulesPersistAndEncodeForConfigSet() throws {

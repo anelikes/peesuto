@@ -42,6 +42,14 @@ struct OutputPreview {
     @Published var offline = false
     @Published var trusted = PasteController.accessibilityTrusted
     @Published var historyLocked = false
+    /// The last media shortcut was copy-only because Accessibility is missing.
+    @Published var needsAccessibility = false
+    /// Set to open Settings at a section (0 general, 1 AI, 2 history, 3 shortcuts, 4 privacy).
+    @Published var requestedSettingsSection: Int?
+    /// Scrolls the requested settings section to an anchor ("prepare", "about").
+    @Published var requestedSettingsAnchor: String?
+    /// Bumped when another window (onboarding) saved settings the Settings window shows.
+    @Published var settingsRevision = 0
     let previewMode: Bool
     let directory: URL
     var settings: SettingsStore?
@@ -331,7 +339,7 @@ struct OutputPreview {
 
     func run(_ action: CoreActionSpec) {
         guard !busy, let item = selected, let text = item.text, !text.isEmpty else { return }
-        execute(actionID: action.id, title: actionName(action), text: text, target: nil)
+        execute(actionID: action.id, title: actionName(action), text: text, direct: false)
     }
 
     func runClipboardAction(_ actionID: String) {
@@ -349,12 +357,6 @@ struct OutputPreview {
             showTaskStatus?()
             return
         }
-        let target = paste.captureDirectTarget()
-        guard ContextCapture.capture()["secure"] as? Bool != true, board.changeCount == changeCount else {
-            directTask = true
-            error = tr("Clipboard or input changed. Try the shortcut again.", "剪贴板或输入状态已变化，请重新按快捷键。")
-            notice = nil; showTaskStatus?(); return
-        }
         let title: String
         switch actionID {
         case "paste-card": title = tr("Create image", "生成图片")
@@ -362,7 +364,7 @@ struct OutputPreview {
         case "paste-qr": title = tr("Create QR code", "生成二维码")
         default: title = tr("Create video", "生成视频")
         }
-        execute(actionID: actionID, title: title, text: text, target: target)
+        execute(actionID: actionID, title: title, text: text, direct: true)
         showTaskStatus?()
     }
 
@@ -403,18 +405,18 @@ struct OutputPreview {
         let options = CoreTemplateOptions(id: templateID ?? selectedTemplate.id,
             variant: variant ?? (changingTemplate ? nil : selectedTemplate.variant),
             motion: motion ?? (changingTemplate || (format != nil && output.format == "png") ? nil : selectedTemplate.motion))
-        execute(actionID: actionID, title: output.title, text: text, target: nil, options: options,
+        execute(actionID: actionID, title: output.title, text: text, direct: false, options: options,
                 frame: chosenFrame, keepPreview: true, rememberVariant: variant != nil)
     }
 
-    private func execute(actionID: String, title: String, text: String, target: DirectPasteTarget?,
+    private func execute(actionID: String, title: String, text: String, direct: Bool,
                          options: CoreTemplateOptions? = nil, frame: String? = nil,
                          keepPreview: Bool = false, rememberVariant: Bool = false) {
         actionRevision += 1
         let revision = actionRevision
-        error = nil; notice = nil; busy = true
+        error = nil; notice = nil; busy = true; needsAccessibility = false
         if !keepPreview { output = nil }
-        directTask = target != nil
+        directTask = direct
         taskStatus = tr("Preparing…", "正在准备…")
         let pendingOpening = openingTask
         panelRevision += 1
@@ -457,21 +459,7 @@ struct OutputPreview {
                         do { try settings?.set("template_styles", value: preferences) }
                         catch { notice = tr("Created. Could not remember this style.", "已生成，但无法保存风格偏好。") }
                     }
-                    if let target, let output {
-                        let result: PasteResult
-                        if let url = output.url, url.pathExtension.lowercased() == "png" {
-                            result = paste.pasteImage(try Data(contentsOf: url), ifUnchanged: target)
-                        } else if let url = output.url {
-                            result = paste.pasteFile(url, ifUnchanged: target)
-                        } else if let text = output.text {
-                            result = paste.pasteText(text, ifUnchanged: target)
-                        } else { return }
-                        switch result {
-                        case .pasted: notice = tr("Pasted", "已粘贴")
-                        case .copiedOnly: notice = tr("Copied. Press ⌘V where you want to paste.", "已复制，请在需要的位置按 ⌘V。")
-                        case .failed: notice = tr("Ready. Clipboard unchanged; open the result to copy or paste.", "已生成，剪贴板未改动；打开结果后可复制或粘贴。")
-                        }
-                    }
+                    if direct, let output { deliverDirect(output) }
                 }
             } catch {
                 if Task.isCancelled { notice = tr("Cancelled", "已取消") }
@@ -486,6 +474,41 @@ struct OutputPreview {
                 } else { self.error = tr("The action could not finish. Check the AI settings or try again.", "动作未能完成，请检查 AI 设置或重试。") }
             }
         }
+    }
+
+    /// Media shortcut result: paste into the app that is frontmost now.
+    private func deliverDirect(_ output: OutputPreview) {
+        let outcome: DirectPasteOutcome
+        if let url = output.url, url.pathExtension.lowercased() == "png" {
+            guard let data = try? Data(contentsOf: url) else {
+                error = tr("Could not read the rendered image. Open the result to try again.", "无法读取生成的图片，请打开结果重试。"); return
+            }
+            outcome = paste.pasteImage(toFrontmost: data)
+        } else if let url = output.url {
+            outcome = paste.pasteFile(toFrontmost: url)
+        } else if let text = output.text {
+            outcome = paste.pasteText(toFrontmost: text)
+        } else { return }
+        switch outcome {
+        case .pasted: notice = tr("Pasted", "已粘贴")
+        case .copiedOnly(.accessibility):
+            needsAccessibility = true
+            notice = tr("Copied. Allow Accessibility so Peesuto can paste for you; for now, press ⌘V.",
+                        "已复制。授予辅助功能权限后 Peesuto 才能替你粘贴；现在请按 ⌘V。")
+        case .copiedOnly(.secureInput):
+            notice = tr("Copied only: a password field is active, so Peesuto does not type into it. Press ⌘V yourself if you mean to.",
+                        "仅复制：当前是密码输入状态，Peesuto 不会向其中粘贴。如确需粘贴，请自己按 ⌘V。")
+        case .copiedOnly(.selfFrontmost):
+            notice = tr("Copied. Switch to the app you want and press ⌘V.", "已复制。切换到目标应用后按 ⌘V。")
+        case .failed:
+            error = tr("Could not paste. Open the result to copy or paste it.", "未能粘贴，请打开结果后复制或粘贴。")
+        }
+    }
+
+    /// Prompts for Accessibility and opens System Settings › Privacy & Security › Accessibility.
+    func openAccessibilitySettings() {
+        if !previewMode { _ = PasteController.requestAccessibility() }
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
     func copySelection() {

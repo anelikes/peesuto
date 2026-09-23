@@ -44,6 +44,8 @@ await cp(join(stage, "binaries", `paste-${target}`), join(macos, "paste"));
 await chmod(join(macos, "paste"), 0o755);
 await cp(join(stage, "resources"), join(resources, "resources"), { recursive: true });
 await cp(join(native, "Resources/AppIcon.icns"), join(resources, "AppIcon.icns"));
+// Onboarding sample cards (rendered by scripts/onboarding-assets.ts).
+await cp(join(native, "Resources/Onboarding"), join(resources, "Onboarding"), { recursive: true });
 const version = (await Bun.file(join(REPO_ROOT, "package.json")).json()).version;
 // Monotonic build number: the commit count of the checked-out history.
 const counter = Bun.spawn(["git", "-C", REPO_ROOT, "rev-list", "--count", "HEAD"], { stdout: "pipe", stderr: "pipe" });

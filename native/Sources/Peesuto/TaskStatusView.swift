@@ -21,6 +21,10 @@ struct TaskStatusView: View {
                 if model.busy {
                     Button(model.tr("Cancel", "取消"), action: model.cancelAction)
                 } else {
+                    if model.needsAccessibility, !model.trusted {
+                        Button(model.tr("Grant access…", "授予权限…"), action: model.openAccessibilitySettings)
+                            .buttonStyle(.borderedProminent)
+                    }
                     if model.output != nil { Button(model.tr("View result", "查看结果"), action: openResult) }
                     Button(model.tr("Dismiss", "关闭"), action: dismiss)
                 }

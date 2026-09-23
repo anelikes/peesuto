@@ -7,6 +7,10 @@ section here becomes one.
 
 ## Unreleased
 
+- Media shortcuts always paste into the frontmost app (no more "copied, press ⌘V" after a focus check); only missing Accessibility, secure input or Peesuto in front fall back to copy, with the reason and a button to grant access.
+- Prepare on copy moved next to the paste shortcuts; new installs pre-render images by default, with local rules only.
+- First-run welcome guide (what Peesuto does, shortcuts, permissions and privacy including the Keychain prompt, preferences, a try-it step), reopenable from Settings › General › About.
+- Box-drawing tables (Unicode, rounded, ASCII, psql) copied from terminals become tables; wrapped cells are joined. Mixed Latin and Chinese lines break between Chinese words instead of stranding a word before a space.
 - Template redesign (with Claude Design): one neutral paper and night plus a signature colour per template; every template reads a style table; short content grows a type step and is centred in fixed frames; code gets light syntax colouring; added labels (NOTES, 01, CODE, line numbers) are gone; quote marks and author dashes are shapes, not glyphs. Diagram ports spread over a node side and edge labels avoid nodes, lines and each other.
 - QR code: `paste-qr` (⌘⌥4) encodes the copied text exactly as a QR code, in two styles, with a caption for one short line; never chosen automatically and never sent to a model; too-long text is an explicit error.
 - Fix: the app bundle now ships core's own packages (gifenc, qrcode-generator) and Core runs with `--no-install`. Installed outside the repository, GIF rendering failed offline and Bun would otherwise have fetched the package from npm at runtime, outside the egress layer. The bundler proves offline resolution from a copy outside the repository.

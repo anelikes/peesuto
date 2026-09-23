@@ -4,30 +4,14 @@ import AppKit
 @testable import PeesutoKit
 
 final class SystemIntegrationTests: XCTestCase {
-    func testDirectPasteRejectsChangedClipboardAndUnverifiableTargets() {
-        XCTAssertTrue(DirectPastePolicy.canReplaceClipboard(captured: 7, current: 7))
-        XCTAssertFalse(DirectPastePolicy.canReplaceClipboard(captured: 7, current: 8))
-        XCTAssertFalse(DirectPastePolicy.canReplaceClipboard(captured: nil, current: 7))
-        let original = DirectFocusState(processID: 12, selectionLocation: 3, selectionLength: 2,
-                                        valueDigest: Data([1]), windowTitle: "Document", role: "AXTextArea")
-        func allowed(_ current: DirectFocusState?, window: Bool = true, element: Bool = true,
-                     trusted: Bool = true, secure: Bool = false) -> Bool {
-            DirectPastePolicy.canPaste(initial: original, current: current, sameWindow: window,
-                                      sameElement: element, trusted: trusted, secureInput: secure)
-        }
-        XCTAssertTrue(allowed(original))
-        XCTAssertFalse(allowed(nil))
-        XCTAssertFalse(allowed(original, window: false))
-        XCTAssertFalse(allowed(original, element: false))
-        XCTAssertFalse(allowed(original, trusted: false))
-        XCTAssertFalse(allowed(original, secure: true))
-        for changed in [
-            DirectFocusState(processID: 13, selectionLocation: 3, selectionLength: 2, valueDigest: Data([1]), windowTitle: "Document", role: "AXTextArea"),
-            DirectFocusState(processID: 12, selectionLocation: 4, selectionLength: 2, valueDigest: Data([1]), windowTitle: "Document", role: "AXTextArea"),
-            DirectFocusState(processID: 12, selectionLocation: 3, selectionLength: 0, valueDigest: Data([1]), windowTitle: "Document", role: "AXTextArea"),
-            DirectFocusState(processID: 12, selectionLocation: 3, selectionLength: 2, valueDigest: Data([2]), windowTitle: "Document", role: "AXTextArea"),
-            DirectFocusState(processID: 12, selectionLocation: 3, selectionLength: 2, valueDigest: Data([1]), windowTitle: "Other conversation", role: "AXTextArea")
-        ] { XCTAssertFalse(allowed(changed)) }
+    func testDirectPastePastesIntoAnyFrontmostAppUnlessBlocked() {
+        XCTAssertNil(DirectPaste.decide(trusted: true, secureInput: false, frontmostIsSelf: false))
+        XCTAssertEqual(DirectPaste.decide(trusted: false, secureInput: false, frontmostIsSelf: false), .accessibility)
+        XCTAssertEqual(DirectPaste.decide(trusted: true, secureInput: true, frontmostIsSelf: false), .secureInput)
+        XCTAssertEqual(DirectPaste.decide(trusted: true, secureInput: false, frontmostIsSelf: true), .selfFrontmost)
+        // Accessibility is reported first: without it nothing can be pasted anyway.
+        XCTAssertEqual(DirectPaste.decide(trusted: false, secureInput: true, frontmostIsSelf: true), .accessibility)
+        XCTAssertEqual(DirectPaste.decide(trusted: true, secureInput: true, frontmostIsSelf: true), .secureInput)
     }
 
     func testIndependentHotkeyIdentitiesCannotConsumeEachOthersEvents() async {

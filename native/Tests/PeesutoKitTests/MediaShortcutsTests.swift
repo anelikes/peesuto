@@ -21,6 +21,14 @@ final class MediaShortcutsTests: XCTestCase {
         XCTAssertEqual(MediaShortcuts.resolve(saved: ["paste-qr": ""], legacyPanel: nil)["paste-qr"], "")
     }
 
+    func testShortcutGlyphsFollowMacOSModifierOrder() {
+        XCTAssertEqual(MediaShortcuts.glyphs("CmdOrCtrl+Alt+1"), ["⌥", "⌘", "1"])
+        XCTAssertEqual(MediaShortcuts.glyphs("CmdOrCtrl+Shift+V"), ["⇧", "⌘", "V"])
+        XCTAssertEqual(MediaShortcuts.glyphs("Control+Option+Shift+Command+Space"), ["⌃", "⌥", "⇧", "⌘", "Space"])
+        XCTAssertEqual(MediaShortcuts.glyphs(""), [])
+        XCTAssertEqual(MediaShortcuts.glyphs("Hyper+V"), [])
+    }
+
     func testQRCodeActionUsesImageFrameAndTimeout() {
         XCTAssertEqual(OutputFrames.kind(actionID: "paste-qr"), "image")
         XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-qr"), 300)

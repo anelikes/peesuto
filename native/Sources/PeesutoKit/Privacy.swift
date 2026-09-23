@@ -115,8 +115,12 @@ public struct PrecomposeSettings: Equatable, Sendable {
         self.outputs = Self.outputKinds.filter(outputs.contains); self.useModel = useModel; self.skipSecrets = skipSecrets
     }
 
+    /// Fresh installs (no `precompose` key yet) prepare images on copy with
+    /// local rules. A saved value, even an empty one, is always kept as is.
+    public static let freshInstall = PrecomposeSettings(outputs: ["image"], useModel: false)
+
     public init(json: Any?) {
-        let dictionary = json as? [String: Any] ?? [:]
+        guard let dictionary = json as? [String: Any] else { self = Self.freshInstall; return }
         self.init(outputs: dictionary["outputs"] as? [String] ?? [],
                   useModel: dictionary["useModel"] as? Bool ?? false,
                   skipSecrets: dictionary["skipSecrets"] as? Bool ?? true)
@@ -153,12 +157,32 @@ extension SettingsStore {
     public func setPrivacy(_ privacy: PrivacySettings, precompose: PrecomposeSettings) throws {
         try setValues(["privacy": privacy.payload, "precompose": precompose.payload])
     }
+    /// Changes only which outputs are prepared on copy, keeping the other
+    /// precompose options (the Shortcuts page and onboarding share this).
+    public func setPrecomposeOutputs(_ outputs: [String]) throws {
+        var next = precomposeSettings
+        next = PrecomposeSettings(outputs: outputs, useModel: next.useModel, skipSecrets: next.skipSecrets)
+        try setValues(["precompose": next.payload])
+    }
+    public var onboardingVersion: Int? { values["onboarding_version"] as? Int }
+    public var shouldShowOnboarding: Bool { Onboarding.shouldShow(savedVersion: onboardingVersion) }
+    public func markOnboardingSeen() throws { try set("onboarding_version", value: Onboarding.currentVersion) }
     /// The per-kind frames sent with a `precompose` request.
     public var precomposeFrames: [String: String] {
         Dictionary(uniqueKeysWithValues: PrecomposeSettings.outputKinds.map { ($0, frame(kind: $0)) })
     }
     public var templatePreferences: [String: String]? {
         values["template_styles"] as? [String: String]
+    }
+}
+
+/// First-run onboarding gate. Bump `currentVersion` when the onboarding
+/// changes enough that existing users should see it again.
+public enum Onboarding {
+    public static let currentVersion = 1
+    public static func shouldShow(savedVersion: Int?) -> Bool {
+        guard let savedVersion else { return true }
+        return savedVersion < currentVersion
     }
 }
 

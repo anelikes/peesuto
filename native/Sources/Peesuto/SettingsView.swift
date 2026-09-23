@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var model: AppState
     var registerShortcuts: ([String: String]) throws -> Void
     var recordingChanged: (Bool) -> Void
+    var showOnboarding: () -> Void = {}
     @State private var section = 0
     @State private var shortcuts: [String: String] = [:]
     @State private var frames = ["image": "auto", "gif": "1:1", "video": "1:1"]
@@ -44,14 +45,21 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text(section == 0 ? model.tr("General", "通用") : section == 1 ? model.tr("AI & actions", "AI 与动作") : section == 3 ? model.tr("Shortcuts", "快捷键") : section == 4 ? model.tr("Privacy & precompose", "隐私与预合成") : model.tr("History & privacy", "历史与隐私"))
                     .font(.system(size: 22, weight: .semibold))
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        if section == 0 { general }
-                        if section == 1 { ai }
-                        if section == 2 { privacy }
-                        if section == 3 { shortcutSettings }
-                        if section == 4 { PrivacySettingsView(model: model, state: privacyState) }
-                    }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 4)
+                ScrollViewReader { scroller in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 22) {
+                            if section == 0 { general }
+                            if section == 1 { ai }
+                            if section == 2 { privacy }
+                            if section == 3 { shortcutSettings }
+                            if section == 4 { PrivacySettingsView(model: model, state: privacyState) }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 4)
+                    }
+                    .onReceive(model.$requestedSettingsAnchor) { anchor in
+                        guard let anchor else { return }
+                        DispatchQueue.main.async { scroller.scrollTo(anchor, anchor: .top) }
+                        model.requestedSettingsAnchor = nil
+                    }
                 }
                 HStack {
                     if let feedback { Text(feedback).font(.system(size: 11)).foregroundColor(failed ? .orange : .secondary).fixedSize(horizontal: false, vertical: true) }
@@ -60,6 +68,18 @@ struct SettingsView: View {
                 }
             }.padding(28).frame(maxWidth: .infinity)
         }.frame(width: 650, height: 520).onAppear(perform: load)
+            .onReceive(model.$requestedSettingsSection) { requested in
+                guard let requested else { return }
+                section = requested; feedback = nil
+                model.requestedSettingsSection = nil
+            }
+            .onChange(of: model.settingsRevision) { _ in
+                // Onboarding saved prepare-on-copy or the decider; show the saved values.
+                if let settings = model.settings {
+                    privacyState.outputs = Set(settings.precomposeSettings.outputs)
+                    decider = (settings.providers["decider"] as? [String: Any])?["kind"] as? String ?? "rules"
+                }
+            }
             .onChange(of: generator) { kind in
                 apiKey = ""
                 let existing = model.settings?.providers["generator"] as? [String: Any] ?? [:]
@@ -145,7 +165,28 @@ struct SettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(6)
                 }.frame(height: 90).overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.secondary.opacity(0.25)))
             }
+            Divider()
+            about.id("about")
         }
+    }
+    private var about: some View {
+        HStack(spacing: 12) {
+            if let icon = NSImage(named: NSImage.applicationIconName) {
+                Image(nsImage: icon).resizable().frame(width: 34, height: 34)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.tr("About Peesuto", "关于 Peesuto")).font(.system(size: 13, weight: .medium))
+                Text(model.tr("Version ", "版本 ") + Self.version).font(.system(size: 11)).foregroundColor(.secondary)
+            }
+            Spacer()
+            Button(model.tr("Show welcome guide", "重新查看欢迎引导"), action: showOnboarding).buttonStyle(.link)
+        }
+    }
+    static var version: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let short = info["CFBundleShortVersionString"] as? String ?? "dev"
+        if let build = info["CFBundleVersion"] as? String, !build.isEmpty { return "\(short) (\(build))" }
+        return short
     }
     private func setOpenAtLogin(_ enabled: Bool) {
         guard !model.previewMode else { return }
@@ -173,10 +214,13 @@ struct SettingsView: View {
                               "任何内容都能转成二维码，所以它不参与自动选模板，只用这个快捷键或结果窗的模板菜单。"))
                     .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             }.padding(.top, 6)
+            Divider()
+            prepareOnCopy.id("prepare")
+            Divider()
             Text(model.tr("Click a shortcut and press your keys. Clear it to disable. Changes apply after saving.", "点击快捷键后直接按键录入，清除即可停用。保存后生效。"))
                 .font(.system(size: 11)).foregroundColor(.secondary)
-            Text(model.tr("If the destination changes, the result is copied for manual pasting. If you copy new content, your clipboard is preserved. Video requires ffmpeg.", "输入位置变化时，只复制结果供手动粘贴；如果复制了新内容，会保留当前剪贴板。视频需要 ffmpeg。"))
-                .font(.system(size: 11)).foregroundColor(.secondary)
+            Text(model.tr("The result is pasted into the app in front and stays on the clipboard. Without Accessibility, or in a password field, it is only copied. Video requires ffmpeg.", "结果会粘贴到当前最前面的应用，并保留在剪贴板中。未授予辅助功能权限或在密码输入框中时只复制。视频需要 ffmpeg。"))
+                .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.previewMode {
                 Text(model.tr("Preview checks bindings but does not register global shortcuts.", "预览版仅检查配置，不注册全局快捷键。"))
                     .font(.system(size: 11)).foregroundColor(.secondary)
@@ -188,6 +232,26 @@ struct SettingsView: View {
             Text(model.tr("Images fit their content by default. GIF and video keep a fixed frame and scroll long content.", "图片默认贴合内容；GIF 与视频保持固定画幅，长内容会滚动呈现。"))
                 .font(.system(size: 11)).foregroundColor(.secondary)
         }
+    }
+    /// Bound to the same state as 「隐私与预合成」 (`privacyState.outputs`).
+    private var prepareOnCopy: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label(model.tr("Prepare on copy", "复制后预先生成"), systemImage: "bolt").font(.system(size: 13, weight: .medium))
+            HStack(spacing: 18) {
+                prepareToggle("image", "Image", "图片")
+                prepareToggle("gif", "GIF", "GIF")
+                prepareToggle("video", "Video", "视频")
+            }
+            Text(model.tr("Copying renders in the background with local rules, so the shortcut pastes instantly. Pauses in Low Power Mode.",
+                          "复制时用本地规则在后台提前生成，按快捷键即可立即粘贴。低电量模式下暂停。"))
+                .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    private func prepareToggle(_ kind: String, _ en: String, _ zh: String) -> some View {
+        Toggle(model.tr(en, zh), isOn: Binding(
+            get: { privacyState.outputs.contains(kind) },
+            set: { if $0 { privacyState.outputs.insert(kind) } else { privacyState.outputs.remove(kind) } }))
+            .toggleStyle(.checkbox)
     }
     private func frameRow(_ kind: String, _ en: String, _ zh: String) -> some View {
         HStack {
@@ -323,10 +387,14 @@ struct SettingsView: View {
             return
         }
         if section == 3 {
-            do { try settings.setFrames(frames) } catch {
+            do {
+                try settings.setFrames(frames)
+                try settings.setPrecomposeOutputs(Array(privacyState.outputs))
+            } catch {
                 feedback = model.tr("Could not save the frames.", "画幅保存失败。"); failed = true
                 return
             }
+            Task { _ = try? await model.configureCore() }
             let previous = model.shortcuts
             do {
                 try registerShortcuts(shortcuts)

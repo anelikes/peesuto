@@ -24,6 +24,7 @@ final class ClipboardPanel: NSPanel {
     private var settingsWindow: NSWindow?
     private var statusItem: NSStatusItem!
     private var taskPanel: NSPanel?
+    private var onboardingWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let preview = CommandLine.arguments.contains("--preview") || Bundle.main.object(forInfoDictionaryKey: "PeesutoPreview") as? Bool == true
@@ -61,7 +62,59 @@ final class ClipboardPanel: NSPanel {
                 model.notice = model.tr("Some shortcuts are unavailable. Check Settings → Shortcuts.", "部分快捷键不可用，请检查「设置 → 快捷键」。")
             }
         }
-        showPanel()
+        // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id].
+        let arguments = CommandLine.arguments
+        func argument(_ name: String) -> Int? {
+            guard preview, let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
+            return Int(arguments[index + 1])
+        }
+        if let section = argument("--settings-section") {
+            model.requestedSettingsSection = section
+            if let index = arguments.firstIndex(of: "--settings-anchor"), index + 1 < arguments.count {
+                model.requestedSettingsAnchor = arguments[index + 1]
+            }
+            showSettings()
+        } else if let step = argument("--onboarding-step") {
+            showOnboarding(step: step)
+        } else if !preview, model.settings?.shouldShowOnboarding == true {
+            showOnboarding(step: 0)
+        } else {
+            showPanel()
+        }
+    }
+
+    func showOnboarding(step: Int) {
+        onboardingWindow?.close()
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 540),
+                              styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
+        window.title = model.tr("Welcome to Peesuto", "欢迎使用 Peesuto")
+        window.delegate = self
+        let hosting = NSHostingView(rootView: OnboardingView(
+            model: model, initialStep: step,
+            openAISettings: { [weak self] in
+                self?.model.requestedSettingsSection = 1
+                self?.showSettings()
+            },
+            finish: { [weak window] in window?.close() }))
+        // The SwiftUI root has a fixed size; do not let it resize the window to add the title bar.
+        hosting.sizingOptions = []
+        window.contentView = hosting
+        // The content runs under the transparent title bar: 760×540 overall.
+        window.setFrame(NSRect(x: 0, y: 0, width: 760, height: 540), display: false)
+        window.center()
+        onboardingWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === onboardingWindow else { return }
+        // Seen once it has been shown and closed, however it was closed.
+        if !model.previewMode { try? model.settings?.markOnboardingSeen() }
+        onboardingWindow = nil
     }
 
     func rebuildMenus() {
@@ -123,7 +176,7 @@ final class ClipboardPanel: NSPanel {
                         self.model.error = self.model.tr("Could not restore all shortcuts. Check settings.", "无法恢复全部快捷键，请检查设置。")
                     }
                 }
-            }))
+            }, showOnboarding: { [weak self] in self?.showOnboarding(step: 0) }))
             window.title = model.tr("Settings", "设置")
             window.center()
             settingsWindow = window

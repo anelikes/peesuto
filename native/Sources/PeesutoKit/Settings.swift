@@ -275,6 +275,35 @@ public enum MediaShortcuts {
         for (id, accelerator) in defaults { result[id] = saved[id] ?? accelerator }
         return result
     }
+
+    /// Keycap labels for an accelerator in macOS order (⌃⌥⇧⌘, then the key).
+    /// Empty for a disabled or unreadable shortcut.
+    public static func glyphs(_ accelerator: String) -> [String] {
+        let parts = accelerator.lowercased().split(separator: "+").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard parts.count >= 2, let key = parts.last, !key.isEmpty else { return [] }
+        var control = false, option = false, shift = false, command = false
+        for part in parts.dropLast() {
+            switch part {
+            case "cmdorctrl", "commandorcontrol", "cmd", "command", "super", "meta": command = true
+            case "ctrl", "control": control = true
+            case "alt", "option": option = true
+            case "shift": shift = true
+            default: return []
+            }
+        }
+        let names: [String: String] = [
+            "space": "Space", "return": "↩", "enter": "↩", "tab": "⇥", "escape": "esc", "esc": "esc",
+            "backspace": "⌫", "delete": "⌦", "up": "↑", "arrowup": "↑", "down": "↓", "arrowdown": "↓",
+            "left": "←", "arrowleft": "←", "right": "→", "arrowright": "→"
+        ]
+        var result: [String] = []
+        if control { result.append("⌃") }
+        if option { result.append("⌥") }
+        if shift { result.append("⇧") }
+        if command { result.append("⌘") }
+        result.append(names[key] ?? key.uppercased())
+        return result
+    }
 }
 
 /// User-facing text for a Core "compose" failure, told apart by its code.

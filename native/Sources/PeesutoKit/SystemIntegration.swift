@@ -1,7 +1,6 @@
 import AppKit
 import ApplicationServices
 import Carbon
-import CryptoKit
 
 /// No clipboard data is read until the application explicitly starts this monitor.
 @MainActor
@@ -94,36 +93,30 @@ public enum PasteResult: Equatable {
     case failed(reason: String)
 }
 
-/// A one-operation target token. AX handles and text digests never leave memory.
-public struct DirectPasteTarget {
-    /// Callers also use this to verify their input text/types were read from one clipboard generation.
-    public let clipboardChangeCount: Int
-    fileprivate let application: NSRunningApplication?
-    fileprivate let focus: DirectFocusSnapshot?
+/// Why a shortcut result was copied but not pasted.
+public enum DirectPasteBlock: Equatable, Sendable {
+    /// Accessibility is not granted, so no key event can be sent.
+    case accessibility
+    /// Secure event input is on (a password field has focus).
+    case secureInput
+    /// Peesuto itself is frontmost; pasting would target our own window.
+    case selfFrontmost
 }
 
-struct DirectFocusState: Equatable {
-    let processID: pid_t
-    let selectionLocation: Int
-    let selectionLength: Int
-    let valueDigest: Data
-    let windowTitle: String?
-    let role: String
+public enum DirectPasteOutcome: Equatable {
+    case pasted
+    case copiedOnly(DirectPasteBlock)
+    case failed(reason: String)
 }
 
-fileprivate struct DirectFocusSnapshot {
-    let state: DirectFocusState
-    let window: AXUIElement
-    let element: AXUIElement
-}
-
-enum DirectPastePolicy {
-    static func canReplaceClipboard(captured: Int?, current: Int) -> Bool {
-        captured == current
-    }
-    static func canPaste(initial: DirectFocusState?, current: DirectFocusState?, sameWindow: Bool,
-                         sameElement: Bool, trusted: Bool, secureInput: Bool) -> Bool {
-        initial != nil && current != nil && initial == current && sameWindow && sameElement && trusted && !secureInput
+/// Media shortcuts express the intent to paste where the user is now, so the
+/// only reasons not to press ⌘V are the ones below.
+public enum DirectPaste {
+    public static func decide(trusted: Bool, secureInput: Bool, frontmostIsSelf: Bool) -> DirectPasteBlock? {
+        if !trusted { return .accessibility }
+        if secureInput { return .secureInput }
+        if frontmostIsSelf { return .selfFrontmost }
+        return nil
     }
 }
 
@@ -219,81 +212,29 @@ public final class PasteController {
     public func pasteFile(_ url: URL) async -> PasteResult { await deliver(written: copyFile(url)) }
     public func pasteFiles(_ urls: [URL]) async -> PasteResult { await deliver(written: copyFiles(urls)) }
 
-    /// Capture on the direct action's hotkey, before any UI is shown. Even when
-    /// AX is unavailable, keep the clipboard generation to protect later copies.
-    public func captureDirectTarget() -> DirectPasteTarget {
-        let count = NSPasteboard.general.changeCount
-        let app = NSWorkspace.shared.frontmostApplication
-        let external = app.flatMap { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier ? $0 : nil }
-        return DirectPasteTarget(clipboardChangeCount: count, application: external,
-                                 focus: external.flatMap { Self.directFocus(for: $0) })
+    /// Media shortcut delivery: write the result (marked as our own write) and
+    /// press ⌘V into whatever app is frontmost now. The result stays on the
+    /// clipboard either way.
+    public func pasteText(toFrontmost text: String) -> DirectPasteOutcome {
+        deliverToFrontmost { self.copyText(text) }
     }
-
-    public func pasteText(_ text: String, ifUnchanged target: DirectPasteTarget?) -> PasteResult {
-        deliverDirect(target: target) { self.copyText(text) }
-    }
-    public func pasteImage(_ image: Data, ifUnchanged target: DirectPasteTarget?) -> PasteResult {
+    public func pasteImage(toFrontmost image: Data) -> DirectPasteOutcome {
         guard let png = Self.normalizedPNG(image) else { return .failed(reason: "Could not read the rendered image.") }
-        return deliverDirect(target: target) { Self.write([Self.imageItem(png)]) }
+        return deliverToFrontmost { Self.write([Self.imageItem(png)]) }
     }
-    public func pasteFile(_ url: URL, ifUnchanged target: DirectPasteTarget?) -> PasteResult {
-        pasteFiles([url], ifUnchanged: target)
-    }
-    public func pasteFiles(_ urls: [URL], ifUnchanged target: DirectPasteTarget?) -> PasteResult {
-        guard let items = Self.fileItems(urls) else { return .failed(reason: "The rendered file is unavailable.") }
-        return deliverDirect(target: target) { Self.write(items) }
+    public func pasteFile(toFrontmost url: URL) -> DirectPasteOutcome {
+        guard let items = Self.fileItems([url]) else { return .failed(reason: "The rendered file is unavailable.") }
+        return deliverToFrontmost { Self.write(items) }
     }
 
-    private func deliverDirect(target: DirectPasteTarget?, write: () -> Bool) -> PasteResult {
-        guard let target, DirectPastePolicy.canReplaceClipboard(captured: target.clipboardChangeCount,
-                                                               current: NSPasteboard.general.changeCount) else {
-            return .failed(reason: "Your clipboard changed. The result is ready, and your newer clipboard was preserved.")
-        }
+    private func deliverToFrontmost(write: () -> Bool) -> DirectPasteOutcome {
         guard write() else { return .failed(reason: "Could not write to the clipboard.") }
-        let writtenCount = NSPasteboard.general.changeCount
-        guard let application = target.application, !application.isTerminated,
-              let original = target.focus, let current = Self.directFocus(for: application),
-              DirectPastePolicy.canPaste(initial: original.state, current: current.state,
-                                         sameWindow: CFEqual(original.window, current.window),
-                                         sameElement: CFEqual(original.element, current.element),
-                                         trusted: AXIsProcessTrusted(), secureInput: IsSecureEventInputEnabled()),
-              NSWorkspace.shared.frontmostApplication?.processIdentifier == application.processIdentifier else {
-            return .copiedOnly(reason: "Copied. The original insertion point could not be verified; press ⌘V yourself.")
+        let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        if let block = DirectPaste.decide(trusted: AXIsProcessTrusted(), secureInput: IsSecureEventInputEnabled(),
+                                          frontmostIsSelf: frontmost == ProcessInfo.processInfo.processIdentifier) {
+            return .copiedOnly(block)
         }
-        guard NSPasteboard.general.changeCount == writtenCount else {
-            return .failed(reason: "Your clipboard changed before pasting. The newer clipboard was preserved.")
-        }
-        // Deliberately never activate an app, show UI, or restore a stale focus.
-        return Self.pressPaste()
-    }
-
-    private static func directFocus(for application: NSRunningApplication) -> DirectFocusSnapshot? {
-        guard AXIsProcessTrusted(), !IsSecureEventInputEnabled(), !application.isTerminated,
-              application.processIdentifier != ProcessInfo.processInfo.processIdentifier,
-              NSWorkspace.shared.frontmostApplication?.processIdentifier == application.processIdentifier else { return nil }
-        let app = AXUIElementCreateApplication(application.processIdentifier)
-        AXUIElementSetMessagingTimeout(app, 0.15)
-        guard let window = ContextCapture.element(app, kAXFocusedWindowAttribute),
-              let element = ContextCapture.element(app, kAXFocusedUIElementAttribute) else { return nil }
-        AXUIElementSetMessagingTimeout(element, 0.15)
-        AXUIElementSetMessagingTimeout(window, 0.15)
-        guard let role = ContextCapture.string(element, kAXRoleAttribute),
-              role != "AXSecureTextField", ContextCapture.string(element, kAXSubroleAttribute) != "AXSecureTextField",
-              ["AXTextField", "AXTextArea", "AXComboBox"].contains(role),
-              let raw = ContextCapture.attribute(element, kAXSelectedTextRangeAttribute), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
-        var range = CFRange()
-        guard AXValueGetValue(unsafeBitCast(raw, to: AXValue.self), .cfRange, &range),
-              range.location >= 0, range.length >= 0,
-              let value = ContextCapture.attribute(element, kAXValueAttribute) as? String else { return nil }
-        let count = value.utf16.count
-        guard range.location <= count, range.length <= count - range.location else { return nil }
-        let state = DirectFocusState(processID: application.processIdentifier, selectionLocation: range.location,
-                                     selectionLength: range.length, valueDigest: Data(SHA256.hash(data: Data(value.utf8))),
-                                     windowTitle: ContextCapture.string(window, kAXTitleAttribute), role: role)
-        // AX calls can block; recheck focus after collecting the payload.
-        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == application.processIdentifier,
-              let latest = ContextCapture.element(app, kAXFocusedUIElementAttribute), CFEqual(latest, element) else { return nil }
-        return DirectFocusSnapshot(state: state, window: window, element: element)
+        return Self.pressPaste() == .pasted ? .pasted : .failed(reason: "Could not create the paste key event.")
     }
 
     private func deliver(written: Bool) async -> PasteResult {
