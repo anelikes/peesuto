@@ -12,19 +12,19 @@ export const BUILTIN_ACTIONS: readonly ActionSpec[] = [
     id: "paste-card", name: "Paste as card", builtin: true,
     description: "Render the text as a still card (PNG) through Pocket Motion.",
     trigger: { menu: true },
-    input: "clipboard", needs: "render", output: "image", render: { aspect: "chat", animate: "never" },
+    input: "clipboard", needs: "render", output: "image", render: { animate: "never" },
   },
   {
     id: "paste-gif", name: "Paste as GIF", builtin: true,
     description: "Render the text as a short animated card (GIF).",
     trigger: { menu: true },
-    input: "clipboard", needs: "render", output: "gif", render: { aspect: "chat", animate: "always" },
+    input: "clipboard", needs: "render", output: "gif", render: { animate: "always" },
   },
   {
     id: "paste-video", name: "Paste as video", builtin: true,
     description: "Render the text as a short animated video (MP4). Requires ffmpeg.",
     trigger: { menu: true },
-    input: "clipboard", needs: "render", output: "video", render: { aspect: "chat", animate: "always" },
+    input: "clipboard", needs: "render", output: "video", render: { animate: "always" },
   },
   {
     id: "paste-translate", name: "Paste translation", builtin: true,

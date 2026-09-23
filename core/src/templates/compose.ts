@@ -5,15 +5,28 @@ import { ComposeError, normalizeText, unsupportedScript, type ComposeOptions, ty
 import { splitEmoji, stageEmoji, stripEmoji } from "../render/emoji.ts";
 import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, type TemplateMotion, type TemplatePlan } from "./types.ts";
+import { FRAMES, TEMPLATE_MAX_GRAPHEMES, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
-/** GIF/MP4 content taller than the canvas by more than `threshold` scrolls in a
- * fixed canvas instead of growing it: a still start, an eased scroll at
+/** GIF/MP4 content taller than the frame scrolls through it (the frame never
+ * grows): a still start, an eased scroll at
  * `pxPerS` (faster when it would exceed `maxMs`), and a still end. */
-export const TEMPLATE_SCROLL = { threshold: 1.15, pxPerS: 120, startMs: 900, minMs: 1500, maxMs: 12000, endMs: 1500 } as const;
+export const TEMPLATE_SCROLL = { pxPerS: 120, startMs: 900, minMs: 1500, maxMs: 12000, endMs: 1500 } as const;
 const SIZES = [24, 28, 32, 36, 40, 44, 48, 52, 56, 64, 72, 80, 96, 112, 128, 144, 160] as const;
-const VIEW = { chat: { width: 1080, height: 1080 }, doc: { width: 1920, height: 1080 }, social: { width: 1080, height: 1920 } };
+/** A layout's canvas: `height` is the minimum canvas height (content may grow
+ * it); `fit` is the height templates size their type against. Fixed frames use
+ * the frame height for both; the automatic frame fits against a square and
+ * starts the canvas at a per-template minimum so it hugs the content. */
+interface View { width: number; height: number; fit: number }
+/** The automatic image frame, as tokens. */
+export const AUTO_FRAME = {
+  widths: [1080, 1440, 1920],
+  /** Minimum height / width, so a short text is not a thin strip. */
+  minRatio: { text: 0.75, stat: 0.75, quote: 0.6 } as Partial<Record<TemplateId, number>>,
+  defaultMinRatio: 0.5,
+  /** Content that starts wider: tables with this many columns, code lines this long. */
+  wideTableColumns: 4, wideCodeLine: 56,
+} as const;
 /** The text template's styles as tokens, so a redesign changes numbers here,
  * not layout code. Sizes are clamped to SIZES (the measurer's baked sizes). */
 export const TEXT_STYLES = {
@@ -144,7 +157,7 @@ function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number,
         if (nextDone + measure.width(nextRun, size, glyph.bold) > width + 0.01) break;
         done = nextDone; run = nextRun; bold = glyph.bold; count++;
       }
-      if (!count) throw new ComposeError("overflow", "A character cannot fit in this template column. Choose a wider aspect.");
+      if (!count) throw new ComposeError("overflow", "A character cannot fit in this template column. Choose a wider frame.");
       if (start + count < end) {
         let firstVisible = -1;
         for (let i = start; i < start + count; i++) if (glyphs[i]!.text.trim()) { firstVisible = i; break; }
@@ -195,7 +208,37 @@ export function wrapTemplateText(text: string, width: number, size: number, bold
 export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): TemplateLayout {
   if (plan.template !== plan.content.kind) throw new ComposeError("catalog", "Template and structured content do not match.");
   if (!templateHasVariant(plan.template, plan.variant)) throw new ComposeError("catalog", "Unknown template variant.");
-  const view = VIEW[plan.aspect];
+  if (plan.aspect !== "auto") {
+    const frame = FRAMES[plan.aspect];
+    if (!frame) throw new ComposeError("catalog", "Unknown card frame.");
+    return layoutAt(plan, measure, { ...frame, fit: frame.height });
+  }
+  // Automatic: the narrowest width tier the content allows, trying wider ones
+  // when it overflows; the canvas starts at the template's minimum height.
+  const widths = AUTO_FRAME.widths.filter((w) => w >= autoWidth(plan));
+  let last: unknown;
+  for (const width of widths) {
+    const minRatio = AUTO_FRAME.minRatio[plan.template] ?? AUTO_FRAME.defaultMinRatio;
+    try { return layoutAt(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width }); }
+    catch (error) {
+      if (!(error instanceof ComposeError) || error.code !== "overflow") throw error;
+      last = error;
+    }
+  }
+  throw last;
+}
+
+/** Where the automatic frame starts: wide tables, long code lines and
+ * sideways diagrams begin at the second width tier. */
+function autoWidth(plan: TemplatePlan): number {
+  const content = plan.content;
+  const wide = (content.kind === "table" && content.headers.length >= AUTO_FRAME.wideTableColumns)
+    || (content.kind === "code" && content.code.split("\n").some((line) => graphemes(line).length > AUTO_FRAME.wideCodeLine))
+    || (content.kind === "diagram" && (content.direction === "LR" || content.direction === "RL"));
+  return AUTO_FRAME.widths[wide ? 1 : 0]!;
+}
+
+function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): TemplateLayout {
   const editorial = plan.variant === "editorial";
   const W = view.width, margin = 88, inner = W - margin * 2;
   const layout: TemplateLayout = { width: W, height: view.height, background: "#f1eee7", lines: [], shapes: [], images: [], assets: {} };
@@ -225,7 +268,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
       const source = content.paragraphs.join("\n\n");
       const accentAt = accentMask(source, plan.emphasis);
       const glyphs = graphemes(normalizeText(source, "plain")).map((text, i) => ({ text, bold: style.bold || (accentAt[i] === true && style.accentBold), ...(accentAt[i] ? { color: style.accent } : {}) }));
-      const boxW = W - style.margin * 2, boxH = view.height - style.margin * 2;
+      const boxW = W - style.margin * 2, boxH = view.fit - style.margin * 2;
       const lineH = (size: number) => Math.ceil(measure.lineHeight(size, style.bold) * style.leading);
       const heightAt = (lines: StyledGlyph[][], size: number) => lines.length * lineH(size) - (lineH(size) - measure.lineHeight(size, style.bold));
       // The largest size whose wrapped text fits the box; smaller text may grow the canvas.
@@ -290,7 +333,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
         const geometry = layoutDiagram(content, boxFor, { rankGap: Math.round(tier.rankGap * (horizontal ? 0.7 : 1)), nodeGap: tier.nodeGap, labelGap: 12, dummyWidth: 8 }, labelBox);
         // The largest tier that fits the whole card. Height alone never pushes
         // text below 32 px: from there the card grows (animations scroll).
-        const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.height - margin * 2;
+        const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.fit - margin * 2;
         chosen = { geometry, tier, boxes };
         if (fitsCard || (fitsWidth && tier.size <= 32)) break;
         if (fitsWidth && !widest) widest = chosen;
@@ -615,7 +658,7 @@ export function scrollTiming(distance: number): ScrollTiming {
 }
 /** Whether an animated layout scrolls rather than growing the canvas. */
 export function scrolls(motion: TemplateMotion, layoutHeight: number, viewHeight: number): boolean {
-  return motion !== "none" && layoutHeight > Math.round(viewHeight * TEMPLATE_SCROLL.threshold);
+  return motion !== "none" && layoutHeight > viewHeight;
 }
 
 interface EngineMeasurer {
@@ -653,10 +696,11 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     };
     const layout = layoutTemplate(plan, metrics);
     const count = layout.lines.reduce((total, line) => total + graphemes(line.text).length, 0);
-    const viewHeight = VIEW[plan.aspect].height;
-    const scroll = scrolls(plan.motion, layout.height, viewHeight);
-    const frameHeight = scroll ? viewHeight : layout.height;
-    const timing = scroll ? scrollTiming(layout.height - viewHeight) : templateTiming(plan.motion, count);
+    // GIF/MP4 keep their frame strictly: taller content scrolls through it.
+    const frame = plan.aspect === "auto" ? undefined : FRAMES[plan.aspect];
+    const scroll = frame !== undefined && scrolls(plan.motion, layout.height, frame.height);
+    const frameHeight = scroll ? frame!.height : layout.height;
+    const timing = scroll ? scrollTiming(layout.height - frame!.height) : templateTiming(plan.motion, count);
     const groups = Math.max(1, ...layout.lines.map((line) => line.group + 1), ...layout.shapes.map((shape) => (shape.group ?? -1) + 1), ...layout.images.map((image) => (image.group ?? -1) + 1));
     // Grouped shapes and images appear with their group: in reading order, or
     // when the typewriter reaches the group's first character.

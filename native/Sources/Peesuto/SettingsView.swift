@@ -9,6 +9,7 @@ struct SettingsView: View {
     var recordingChanged: (Bool) -> Void
     @State private var section = 0
     @State private var shortcuts: [String: String] = [:]
+    @State private var frames = ["image": "auto", "gif": "1:1", "video": "1:1"]
     @State private var retention = 30
     @State private var smart = true
     @State private var blacklist = ""
@@ -169,6 +170,22 @@ struct SettingsView: View {
                 Text(model.tr("Preview checks bindings but does not register global shortcuts.", "预览版仅检查配置，不注册全局快捷键。"))
                     .font(.system(size: 11)).foregroundColor(.secondary)
             }
+            Divider()
+            frameRow("image", "Image frame", "图片画幅")
+            frameRow("gif", "GIF frame", "GIF 画幅")
+            frameRow("video", "Video frame", "视频画幅")
+            Text(model.tr("Images fit their content by default. GIF and video keep a fixed frame and scroll long content.", "图片默认贴合内容；GIF 与视频保持固定画幅，长内容会滚动呈现。"))
+                .font(.system(size: 11)).foregroundColor(.secondary)
+        }
+    }
+    private func frameRow(_ kind: String, _ en: String, _ zh: String) -> some View {
+        HStack {
+            Text(model.tr(en, zh)).font(.system(size: 12, weight: .medium))
+            Spacer()
+            Picker("", selection: Binding(get: { frames[kind] ?? OutputFrames.defaultFrame(kind: kind) }, set: { frames[kind] = $0 })) {
+                ForEach(OutputFrames.options(kind: kind), id: \.self) { Text(model.frameName($0)).tag($0) }
+            }.labelsHidden().pickerStyle(.segmented).frame(width: kind == "image" ? 260 : 210)
+                .accessibilityLabel(model.tr(en, zh))
         }
     }
     private func shortcutRow(_ id: String, _ en: String, _ zh: String) -> some View {
@@ -270,6 +287,7 @@ struct SettingsView: View {
         diagnostics = model.core?.recentDiagnostics ?? []
         guard let settings = model.settings else { return }
         shortcuts = model.shortcuts; retention = settings.retentionDays
+        frames = ["image": settings.frame(kind: "image"), "gif": settings.frame(kind: "gif"), "video": settings.frame(kind: "video")]
         smart = settings.bool("smart_paste", default: true)
         blacklist = settings.blacklist.joined(separator: "\n")
         offline = settings.providers["offline"] as? Bool ?? false
@@ -285,12 +303,16 @@ struct SettingsView: View {
     private func save() {
         guard let settings = model.settings else { return }
         if section == 3 {
+            do { try settings.setFrames(frames) } catch {
+                feedback = model.tr("Could not save the frames.", "画幅保存失败。"); failed = true
+                return
+            }
             let previous = model.shortcuts
             do {
                 try registerShortcuts(shortcuts)
                 do { try settings.setValues(["native_shortcuts": shortcuts, "hotkey": shortcuts["panel"] ?? ""]) }
                 catch { try? registerShortcuts(previous); throw error }
-                feedback = model.tr("Shortcuts saved", "快捷键已保存"); failed = false
+                feedback = model.tr("Saved", "已保存"); failed = false
             } catch {
                 feedback = model.tr("Could not save shortcuts. Check for duplicates or keys used by another app.", "快捷键保存失败，请检查是否重复或被其他应用占用。")
                 failed = true

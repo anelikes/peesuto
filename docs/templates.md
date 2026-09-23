@@ -129,14 +129,35 @@ fails instead of fabricating content. Long content must fit a bounded expanded
 canvas or produce an explicit overflow error; new templates do not silently
 truncate text to make it fit.
 
+## Frames
+
+| Frame | Size | Used by |
+|---|---|---|
+| auto | width 1080 (1440 for tables of 4+ columns, code lines over 56 characters and sideways diagrams; wider again on overflow), height hugging the content | images, by default |
+| 1:1 | 1080×1080 | GIF and video by default; images on request |
+| 4:5 | 1080×1350 | on request |
+| 16:9 | 1920×1080 | on request |
+| 9:16 | 1080×1920 | on request |
+
+`auto` starts the canvas at a minimum height (0.75 of the width for text and
+statistics, 0.6 for quotes, 0.5 otherwise, so a short line is not a thin strip)
+and grows with the content; type is still sized against a square, so a short
+line stays large. A fixed frame is exact when the content fits. A PNG in a
+fixed frame grows taller rather than dropping content; GIF and MP4 never grow,
+content taller than the frame scrolls. `auto` for GIF/MP4 means 1:1. Legacy
+`chat`, `doc` and `social` still work (1:1, 16:9, 9:16). The numbers are
+`AUTO_FRAME` in `core/src/templates/compose.ts` and `FRAMES` in
+`core/src/templates/types.ts`. The native app keeps one frame per output kind
+(Settings → Shortcuts) and a per-result frame menu.
+
 ## Output and motion
 
 - PNG always uses the complete static layout, even when a typewriter override was supplied.
 - GIF/MP4 can use a still composition, sequential reveal, or typewriter appearance.
 - Typewriter appearance uses grapheme clusters and the final layout, keeping line breaks stable.
 - Animation has a bounded duration and a readable ending. An unsupported or oversized input is reported explicitly.
-- Tall content scrolls in GIF/MP4. When the layout is more than 15% taller than
-  the canvas, the frame stays canvas-sized and the content scrolls: 0.9 s still,
+- Tall content scrolls in GIF/MP4. When the layout is taller than the frame,
+  the frame keeps its size and the content scrolls: 0.9 s still,
   an eased scroll at 120 px/s (at least 1.5 s, at most 12 s, faster for longer
   content), then 1.5 s still on the end. Content is shown whole while it
   scrolls; reveal and typewriter apply only to content that fits. The numbers

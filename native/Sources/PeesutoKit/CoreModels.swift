@@ -145,6 +145,8 @@ public struct CoreTemplateSelection: Codable, Sendable {
     public let availableTemplates: [String]
     /// Why the model's template pick was not used, when it failed.
     public let decisionError: CoreDecisionError?
+    /// The frame Core actually used, normalized (e.g. "auto", "1:1").
+    public let aspect: String?
 }
 
 public struct CoreDecisionError: Codable, Sendable {

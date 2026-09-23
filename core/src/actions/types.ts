@@ -3,7 +3,6 @@
  * from the clipboard into an input. Declared as JSON so users can write
  * their own and packs can ship them; the built-ins use the same shape.
  */
-import type { Aspect } from "../dsl.ts";
 import type { ClipItem, Context } from "../pick/types.ts";
 import type { TemplateOverride } from "../templates/types.ts";
 
@@ -24,7 +23,8 @@ export interface ActionSpec {
   readonly maxTokens?: number;
   readonly output: ActionOutput;
   /** Render actions. */
-  readonly render?: { readonly aspect?: Aspect; readonly animate?: "auto" | "always" | "never" };
+  /** `aspect`: auto, 1:1, 4:5, 16:9, 9:16 (or legacy chat/doc/social); absent = the output's default. */
+  readonly render?: { readonly aspect?: string; readonly animate?: "auto" | "always" | "never" };
   /** Set on shipped actions; user files cannot claim it. */
   readonly builtin?: boolean;
   /** The pack an action came from, when it did. */
@@ -36,7 +36,7 @@ export interface ActionInput {
   readonly item?: ClipItem;
   readonly context?: Context;
   /** Overrides for render actions from the UI (aspect toggle, another take). */
-  readonly aspect?: Aspect;
+  readonly aspect?: string;
   readonly fresh?: boolean;
   /** Explicit presentation overrides; content is always parsed from text. */
   readonly template?: TemplateOverride;

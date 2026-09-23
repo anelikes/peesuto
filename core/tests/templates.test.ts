@@ -306,5 +306,15 @@ describe("constrained template decisions", () => {
     expect(text).toEqual({ kind: "text", paragraphs: ["@nok 明天吃这个不 👨‍👩‍👧"] });
     expect(parsed.sourceText).toContain(" ");
   });
+  test("frames: legacy names map, animated outputs never use auto, defaults follow the output", async () => {
+    const d = (output: "image" | "gif" | "video", aspect?: string) => decideTemplate("少即是多。", { output, decider: null, ...(aspect ? { aspect } : {}) }).then((r) => r.plan.aspect);
+    expect(await d("image")).toBe("auto");
+    expect(await d("gif")).toBe("1:1");
+    expect(await d("video")).toBe("1:1");
+    expect(await d("gif", "auto")).toBe("1:1");
+    expect(await d("image", "doc")).toBe("16:9");
+    expect(await d("video", "4:5")).toBe("4:5");
+    await expect(d("image", "2:3")).rejects.toThrow(TemplateInputError);
+  });
 });
 

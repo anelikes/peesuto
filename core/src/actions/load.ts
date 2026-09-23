@@ -8,7 +8,7 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { ASPECTS } from "../dsl.ts";
+import { LEGACY_ASPECTS, TEMPLATE_ASPECTS } from "../templates/types.ts";
 import { BUILTIN_ACTIONS } from "./builtin.ts";
 import { ActionError, type ActionSpec } from "./types.ts";
 
@@ -32,7 +32,8 @@ export function parseActionSpec(raw: unknown, origin = "action"): ActionSpec {
   if (r.needs === "render") {
     if (!["image", "gif", "video"].includes(r.output as string)) bad("a render action outputs image, gif or video");
     const ren = (r.render ?? {}) as Record<string, unknown>;
-    if (ren.aspect !== undefined && !ASPECTS.includes(ren.aspect as never)) bad(`render.aspect must be one of ${ASPECTS.join("|")}`);
+    const aspects: string[] = [...TEMPLATE_ASPECTS, ...Object.keys(LEGACY_ASPECTS)];
+    if (ren.aspect !== undefined && !aspects.includes(ren.aspect as string)) bad(`render.aspect must be one of ${aspects.join("|")}`);
     if (ren.animate !== undefined && !["auto", "always", "never"].includes(ren.animate as string)) bad("render.animate must be auto, always or never");
   }
   if (r.trigger !== undefined) {

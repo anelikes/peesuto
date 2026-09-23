@@ -14,5 +14,5 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({
-  version: 1, template: content.kind, variant, motion, sourceText: JSON.stringify(content), content, aspect: "chat", ...(emphasis ? { emphasis } : {}),
+  version: 1, template: content.kind, variant, motion, sourceText: JSON.stringify(content), content, aspect: "1:1", ...(emphasis ? { emphasis } : {}),
 });

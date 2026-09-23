@@ -9,11 +9,16 @@ struct OutputPreview {
     let sourceText: String?
     let template: CoreTemplateSelection?
     let format: String?
+    /// The frame requested for this result (nil for text outputs).
+    let frame: String?
     init(title: String, text: String?, url: URL?, sourceText: String? = nil,
-         template: CoreTemplateSelection? = nil, format: String? = nil) {
+         template: CoreTemplateSelection? = nil, format: String? = nil, frame: String? = nil) {
         self.title = title; self.text = text; self.url = url
         self.sourceText = sourceText; self.template = template; self.format = format
+        self.frame = frame
     }
+    /// The frame Core reports it used, falling back to the requested one.
+    var usedFrame: String? { template?.aspect ?? frame }
 }
 
 @MainActor final class AppState: ObservableObject {
@@ -349,20 +354,37 @@ struct OutputPreview {
         default: return tr("Still", "静态")
         }
     }
-    func rerender(templateID: String? = nil, variant: String? = nil, motion: String? = nil, format: String? = nil) {
+    func frameName(_ frame: String) -> String { frame == "auto" ? tr("Auto", "自动") : frame }
+
+    /// The saved default frame for an action, by its output kind.
+    func defaultFrame(actionID: String) -> String? {
+        let kind = OutputFrames.kind(output: actions.first(where: { $0.id == actionID })?.output) ?? OutputFrames.kind(actionID: actionID)
+        guard let kind else { return nil }
+        return settings?.frame(kind: kind) ?? OutputFrames.defaultFrame(kind: kind)
+    }
+
+    /// `frame` applies to this rerender only; the saved default is unchanged.
+    func rerender(templateID: String? = nil, variant: String? = nil, motion: String? = nil, format: String? = nil, frame: String? = nil) {
         guard !busy, let output, let text = output.sourceText, let selectedTemplate = output.template else { return }
         let chosenFormat = format ?? output.format ?? "png"
         let actionID = chosenFormat == "mp4" ? "paste-video" : chosenFormat == "gif" ? "paste-gif" : "paste-card"
+        let kind = OutputFrames.kind(output: chosenFormat) ?? "image"
+        // Same kind keeps this result's frame; a new kind takes its saved default.
+        let sameKind = OutputFrames.kind(output: output.format) == kind
+        let chosenFrame = frame.map { OutputFrames.normalize($0, kind: kind) }
+            ?? (sameKind ? output.frame.map { OutputFrames.normalize($0, kind: kind) } : nil)
+            ?? settings?.frame(kind: kind) ?? OutputFrames.defaultFrame(kind: kind)
         let changingTemplate = templateID != nil && templateID != selectedTemplate.id
         let options = CoreTemplateOptions(id: templateID ?? selectedTemplate.id,
             variant: variant ?? (changingTemplate ? nil : selectedTemplate.variant),
             motion: motion ?? (changingTemplate || (format != nil && output.format == "png") ? nil : selectedTemplate.motion))
         execute(actionID: actionID, title: output.title, text: text, target: nil, options: options,
-                keepPreview: true, rememberVariant: variant != nil)
+                frame: chosenFrame, keepPreview: true, rememberVariant: variant != nil)
     }
 
     private func execute(actionID: String, title: String, text: String, target: DirectPasteTarget?,
-                         options: CoreTemplateOptions? = nil, keepPreview: Bool = false, rememberVariant: Bool = false) {
+                         options: CoreTemplateOptions? = nil, frame: String? = nil,
+                         keepPreview: Bool = false, rememberVariant: Bool = false) {
         actionRevision += 1
         let revision = actionRevision
         error = nil; notice = nil; busy = true
@@ -380,7 +402,8 @@ struct OutputPreview {
                 try Task.checkCancellation()
                 try await configureCore()
                 try Task.checkCancellation()
-                let input = CoreActionInput(text: text, aspect: settings?.string("aspect", default: "chat") ?? "chat",
+                let requestedFrame = frame ?? defaultFrame(actionID: actionID)
+                let input = CoreActionInput(text: text, aspect: requestedFrame,
                     template: options, templatePreferences: settings?.values["template_styles"] as? [String: String])
                 taskStatus = title + "…"
                 let kind = actions.first(where: { $0.id == actionID })?.output
@@ -399,7 +422,8 @@ struct OutputPreview {
                 if !Task.isCancelled {
                     output = OutputPreview(title: title, text: response.result.text,
                                            url: response.result.path.map { URL(fileURLWithPath: $0) },
-                                           sourceText: text, template: response.result.meta?.template, format: response.result.format)
+                                           sourceText: text, template: response.result.meta?.template, format: response.result.format,
+                                           frame: requestedFrame)
                     if templates.isEmpty, let core { templates = (try? await core.templates().templates) ?? [] }
                     try Task.checkCancellation()
                     if rememberVariant, let selected = response.result.meta?.template {

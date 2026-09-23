@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Frames: images fit their content by default (width by content, height hugging it above a per-template minimum); GIF and video keep a strict fixed frame (1:1 by default, also 4:5, 16:9, 9:16) and scroll tall content. The native app has an image, GIF and video frame setting and a per-result frame menu; `meta.template.aspect` reports the frame used.
 - Studio (`bun run studio`): a local page that decides and renders clipboard scenarios or any pasted text in every template, style, motion and format, with a cache keyed by the template code so edited style tokens re-render on reload; links per scenario (`#<id>`); the static gallery reuses it.
 - Diagram template: Mermaid flowcharts (fenced or bare) and plain arrow chains become a layered node diagram in two styles (Flow, Blueprint), with decision diamonds, edge labels, dotted and thick links, cycles, and a rank-by-rank reveal.
 - Mixed Chinese and Latin lines no longer break at a far-back space ("第 1" alone on a line); `scripts/gallery.ts` renders a preview page of realistic scenarios in every template, style, motion and format.

@@ -124,10 +124,10 @@ describe("text template", () => {
 });
 
 describe("tall animations scroll", () => {
-  test("only animated layouts clearly taller than the canvas scroll", () => {
+  test("an animated layout taller than its frame scrolls; a still one never does", () => {
     expect(scrolls("none", 3000, 1080)).toBe(false);
-    expect(scrolls("reveal", 1200, 1080)).toBe(false);
-    expect(scrolls("reveal", 1300, 1080)).toBe(true);
+    expect(scrolls("reveal", 1080, 1080)).toBe(false);
+    expect(scrolls("reveal", 1082, 1080)).toBe(true);
     expect(scrolls("typewriter", 1300, 1080)).toBe(true);
   });
   test("scroll timing: reading speed, clamped, with still start and end", () => {
@@ -157,5 +157,35 @@ test("a far-back space in mixed Chinese and Latin text does not strand a stub li
   expect(lines[0]!.length).toBeGreaterThan(10);
   // English still breaks between words.
   expect(wrapTemplateText("Make it work, make it right", 14 * 32, 32, false, tight)).toEqual(["Make it work, ", "make it right"]);
+});
+
+describe("frames", () => {
+  const text = (t: string): TemplateContent => ({ kind: "text", paragraphs: [t] });
+  test("fixed frames have their exact size when the content fits", () => {
+    for (const [aspect, w, h] of [["1:1", 1080, 1080], ["4:5", 1080, 1350], ["16:9", 1920, 1080], ["9:16", 1080, 1920]] as const) {
+      const layout = layoutTemplate({ ...samplePlan(text("少即是多。")), aspect }, metrics);
+      expect([layout.width, layout.height]).toEqual([w, h]);
+    }
+  });
+  test("auto hugs the content above the template's minimum height", () => {
+    const short = layoutTemplate({ ...samplePlan(text("少即是多。")), aspect: "auto" }, metrics);
+    expect(short.width).toBe(1080);
+    expect(short.height).toBe(810); // text minimum ratio 0.75
+    const list = layoutTemplate({ ...samplePlan({ kind: "list", ordered: true, items: ["一", "二"] }), aspect: "auto" }, metrics);
+    expect(list.height).toBeLessThan(1080);
+    expect(list.height).toBeGreaterThanOrEqual(540);
+    const long = layoutTemplate({ ...samplePlan({ kind: "list", ordered: true, items: Array.from({ length: 30 }, (_, i) => `第 ${i + 1} 项`) }), aspect: "auto" }, metrics);
+    expect(long.height).toBeGreaterThan(1080);
+    const last = long.lines.at(-1)!;
+    expect(long.height - (last.y + last.height)).toBeLessThan(260); // no empty square below
+  });
+  test("auto starts wide content wider and widens on overflow", () => {
+    const table = layoutTemplate({ ...samplePlan({ kind: "table", headers: ["a", "b", "c", "d", "e"], rows: [["1", "2", "3", "4", "5"]] }), aspect: "auto" }, metrics);
+    expect(table.width).toBe(1440);
+    const fan = { kind: "diagram" as const, direction: "TD" as const, nodes: [{ id: "r", label: "root", shape: "rect" as const }, ...Array.from({ length: 8 }, (_, i) => ({ id: `n${i}`, label: `节点名称${i}`, shape: "rect" as const }))],
+      edges: Array.from({ length: 8 }, (_, i) => ({ from: "r", to: `n${i}`, line: "solid" as const, arrow: true })) };
+    expect(() => layoutTemplate({ ...samplePlan(fan), aspect: "1:1" }, metrics)).toThrow();
+    expect(layoutTemplate({ ...samplePlan(fan), aspect: "auto" }, metrics).width).toBeGreaterThan(1080);
+  });
 });
 

@@ -40,7 +40,7 @@ Only responses and opted-in lifecycle events are written to stdout; diagnostics 
 | `pick` | `context`, `candidates[]`, `fresh?` | `result {ranked[], shouldPaste, source}` |
 | `actions.list` / `actions.reload` | — | `actions[]`, `problems[]` |
 | `templates.list` | — | bilingual `templates[]` with variants and motions |
-| `run-action` | `action` (id), `input {text, item?, context?, aspect?, fresh?, template?, templatePreferences?}`, `candidates?[]`, `events?` | `result` (text, or path+format for image/GIF/video), `pick?` |
+| `run-action` | `action` (id), `input {text, item?, context?, aspect?, fresh?, template?, templatePreferences?}`, `candidates?[]`, `events?` | `result` (text, or path+format for image/GIF/video; `meta.template.aspect` is the frame used), `pick?` |
 | `render` | `dsl`, `out?`, `events?` | `path`, `format`, `frames`, `ms` |
 | `shutdown` | — | — |
 

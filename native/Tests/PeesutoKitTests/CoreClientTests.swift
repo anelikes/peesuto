@@ -13,17 +13,19 @@ final class CoreClientTests: XCTestCase {
         if cmd == 'run-action':
             assert req['input']['template'] == {'id':'chat', 'variant':'editorial', 'motion':'typewriter'}
             assert req['input']['templatePreferences'] == {'quote':'classic'}
-            res['result'] = {'output':'gif','format':'gif','path':'/synthetic.gif','ms':12,'meta':{'template':{'id':'chat','variant':'editorial','motion':'typewriter','decisionSource':'override','availableTemplates':['chat','document']}}}
+            assert req['input']['aspect'] == '4:5'
+            res['result'] = {'output':'gif','format':'gif','path':'/synthetic.gif','ms':12,'meta':{'template':{'id':'chat','variant':'editorial','motion':'typewriter','decisionSource':'override','availableTemplates':['chat','document'],'aspect':'4:5'}}}
             emit(res)
             continue
         """)
         defer { try? FileManager.default.removeItem(at: root) }
         let catalog = try await client.templates()
         XCTAssertEqual(catalog.templates.first?.nameZh, "对话")
-        let response = try await client.runAction(action: "paste-gif", input: CoreActionInput(text: "A: Hi\nB: Hello",
+        let response = try await client.runAction(action: "paste-gif", input: CoreActionInput(text: "A: Hi\nB: Hello", aspect: "4:5",
             template: CoreTemplateOptions(id: "chat", variant: "editorial", motion: "typewriter"), templatePreferences: ["quote": "classic"]))
         XCTAssertEqual(response.result.meta?.template?.availableTemplates, ["chat", "document"])
         XCTAssertEqual(response.result.meta?.template?.motion, "typewriter")
+        XCTAssertEqual(response.result.meta?.template?.aspect, "4:5")
         await client.shutdown()
     }
     private final class StateRecorder: @unchecked Sendable {

@@ -73,7 +73,7 @@ the native action-management UI is still incomplete.
 | `system` | string | optional system prompt |
 | `maxTokens` | integer | optional |
 | `output` | `text` \| `image` \| `gif` \| `video` \| `file` | generator → `text`; render runtime → `image`, `gif` or `video` (MP4); generic `file` output is not implemented |
-| `render.aspect` | `chat` \| `doc` \| `social` | render actions; the panel can override |
+| `render.aspect` | `auto` \| `1:1` \| `4:5` \| `16:9` \| `9:16` (legacy `chat` \| `doc` \| `social` = 1:1, 16:9, 9:16) | render actions; absent = the output's default (image `auto`, GIF and video `1:1`); the panel's per-format frame setting overrides |
 | `render.animate` | `auto` \| `always` \| `never` | `auto` lets the decider choose |
 
 `video` is implemented by the render runtime and the `paste-video` built-in.

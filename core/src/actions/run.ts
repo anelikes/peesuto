@@ -65,7 +65,8 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
           throw error;
         }
       }
-      const aspect = input.aspect ?? spec.render?.aspect ?? "chat";
+      // Absent means the output's default: images fit their content, GIF/MP4 are 1:1.
+      const aspect = input.aspect ?? spec.render?.aspect;
       let decision;
       try {
         decision = await decideTemplate(input.text, { aspect, decider: deps.decider, output: spec.output,
@@ -83,7 +84,7 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
         throw new ActionError("run", `${spec.id}: the card came out static`);
       }
       return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: {
-        template: { id: plan.template, variant: plan.variant, motion: plan.motion, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
+        template: { id: plan.template, variant: plan.variant, motion: plan.motion, aspect: plan.aspect, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
         lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
       } };
     }

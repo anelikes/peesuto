@@ -124,7 +124,7 @@ struct PanelView: View {
                 }
             }.buttonStyle(.borderless).foregroundColor(.secondary)
             if let output = model.output {
-                if let selection = output.template { templateControls(selection, format: output.format ?? "png") }
+                if let selection = output.template { templateControls(selection, format: output.format ?? "png", frame: output.usedFrame) }
                 if let failure = output.template?.decisionError {
                     Label(model.tr("The AI style pick was unavailable (\(failure.kind)), so local rules chose this template.",
                                    "AI 风格选择暂不可用（\(failure.kind)），已由本地规则选择模板。"), systemImage: "info.circle")
@@ -206,7 +206,9 @@ struct PanelView: View {
         }.controlSize(.large)
     }
 
-    private func templateControls(_ selection: CoreTemplateSelection, format: String) -> some View {
+    private func templateControls(_ selection: CoreTemplateSelection, format: String, frame: String?) -> some View {
+        let kind = OutputFrames.kind(output: format) ?? "image"
+        let currentFrame = OutputFrames.normalize(frame, kind: kind)
         let spec = model.templates.first { $0.id == selection.id }
         let variant = spec?.variants.first { $0.id == selection.variant }
         return HStack(spacing: 12) {
@@ -231,6 +233,16 @@ struct PanelView: View {
                     .help(model.tr("Motion", "动效"))
             }
             Spacer(minLength: 0)
+            Menu {
+                ForEach(OutputFrames.options(kind: kind), id: \.self) { option in
+                    Button { model.rerender(frame: option) } label: {
+                        if option == currentFrame { Label(model.frameName(option), systemImage: "checkmark") }
+                        else { Text(model.frameName(option)) }
+                    }
+                }
+            } label: { Text(model.frameName(currentFrame)) }
+                .fixedSize()
+                .help(model.tr("Frame for this result (the default is in Settings → Shortcuts)", "本次结果的画幅（默认值在「设置 → 快捷键」中）"))
             Menu {
                 Button("PNG") { model.rerender(format: "png") }
                 Button("GIF") { model.rerender(format: "gif") }

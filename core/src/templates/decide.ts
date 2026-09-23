@@ -1,15 +1,15 @@
-import { isAspect, type Aspect } from "../dsl.ts";
 import type { JevRequest } from "../questions.ts";
 import type { CardDecider } from "../render/pipeline.ts";
 import { parseTemplates, type ParsedTemplates } from "./parse.ts";
 import { templateHasVariant, templateRegistration } from "./registry.ts";
 import { ProviderError } from "../provider/types.ts";
-import { MOTIONS, TEMPLATE_IDS, VARIANT_IDS, TemplateInputError, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
+import { DEFAULT_ASPECT, MOTIONS, TEMPLATE_IDS, VARIANT_IDS, TemplateInputError, templateAspect, type TemplateAspect, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
 
 export const TEMPLATE_CONFIDENCE = 0.65;
 
 export interface TemplateDecisionOptions {
-  readonly aspect: Aspect;
+  /** A TemplateAspect or a legacy name (chat, doc, social); absent means the output's default. */
+  readonly aspect?: string;
   readonly decider: CardDecider | null;
   readonly output: "image" | "gif" | "video";
   readonly override?: TemplateOverride;
@@ -103,7 +103,8 @@ function decisionErrorOf(error: unknown): NonNullable<TemplateDecision["decision
 
 /** Jev can select only presentation metadata. Content never comes from its answer. */
 export async function decideTemplate(text: string, options: TemplateDecisionOptions): Promise<TemplateDecision> {
-  if (!isAspect(options.aspect)) throw new TemplateInputError("Unknown card aspect.");
+  const aspect: TemplateAspect | undefined = options.aspect === undefined ? DEFAULT_ASPECT[options.output] : templateAspect(options.aspect, options.output);
+  if (!aspect) throw new TemplateInputError("Unknown card frame. Use auto, 1:1, 4:5, 16:9 or 9:16.");
   const parsed = parseTemplates(text);
   const availableTemplates = [...parsed.candidates.keys()];
   const override = validateOverride(options.override);
@@ -158,7 +159,7 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
   if (!allowMotion) motion = "none";
   if (requireMotion && motion === "none") motion = DEFAULT_MOTION;
   return {
-    plan: { version: 1, template, variant, motion, sourceText: parsed.sourceText, content: parsed.candidates.get(template)!, aspect: options.aspect, ...(emphasis ? { emphasis } : {}) },
+    plan: { version: 1, template, variant, motion, sourceText: parsed.sourceText, content: parsed.candidates.get(template)!, aspect, ...(emphasis ? { emphasis } : {}) },
     decisionSource,
     availableTemplates,
     ...(decisionError ? { decisionError } : {}),
