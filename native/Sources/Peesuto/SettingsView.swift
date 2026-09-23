@@ -44,12 +44,13 @@ struct SettingsView: View {
                 category(1, "AI & actions", "AI 与动作", "sparkles")
                 category(2, "History & privacy", "历史与隐私", "lock.shield")
                 category(4, "Privacy & precompose", "隐私与预合成", "eye.slash")
+                category(5, "Templates", "模板", "square.grid.2x2")
                 Spacer()
                 Text(model.tr("Native preview", "原生预览版")).font(.system(size: 10)).foregroundColor(.secondary).padding(12)
             }.padding(14).frame(width: 166).background(Color(NSColor.controlBackgroundColor))
             Divider()
             VStack(alignment: .leading, spacing: 20) {
-                Text(section == 0 ? model.tr("General", "通用") : section == 1 ? model.tr("AI & actions", "AI 与动作") : section == 3 ? model.tr("Shortcuts", "快捷键") : section == 4 ? model.tr("Privacy & precompose", "隐私与预合成") : model.tr("History & privacy", "历史与隐私"))
+                Text(section == 0 ? model.tr("General", "通用") : section == 1 ? model.tr("AI & actions", "AI 与动作") : section == 3 ? model.tr("Shortcuts", "快捷键") : section == 4 ? model.tr("Privacy & precompose", "隐私与预合成") : section == 5 ? model.tr("Templates", "模板") : model.tr("History & privacy", "历史与隐私"))
                     .font(.system(size: 22, weight: .semibold))
                 ScrollViewReader { scroller in
                     ScrollView {
@@ -59,6 +60,7 @@ struct SettingsView: View {
                             if section == 2 { privacy }
                             if section == 3 { shortcutSettings }
                             if section == 4 { PrivacySettingsView(model: model, state: privacyState) }
+                            if section == 5 { TemplatesSettingsView(model: model) }
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 4)
                     }
                     .onReceive(model.$requestedSettingsAnchor) { anchor in
@@ -70,7 +72,11 @@ struct SettingsView: View {
                 HStack {
                     if let feedback { Text(feedback).font(.system(size: 11)).foregroundColor(failed ? .orange : .secondary).fixedSize(horizontal: false, vertical: true) }
                     Spacer()
-                    Button(model.tr("Save changes", "保存更改"), action: save).buttonStyle(.borderedProminent)
+                    if section == 5 {
+                        Text(model.tr("Changes apply immediately", "更改即时生效")).font(.system(size: 11)).foregroundColor(.secondary)
+                    } else {
+                        Button(model.tr("Save changes", "保存更改"), action: save).buttonStyle(.borderedProminent)
+                    }
                 }
             }.padding(28).frame(maxWidth: .infinity)
         }.frame(width: 650, height: 520).onAppear(perform: load)

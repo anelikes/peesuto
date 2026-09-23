@@ -323,7 +323,8 @@ struct OutputPreview {
         do {
             if !coreConfiguredOnce { try await configureCore() }
             _ = try await core.precompose(text: text, frames: settings.precomposeFrames,
-                                          templatePreferences: settings.templatePreferences)
+                                          templatePreferences: settings.templatePreferences,
+                                          disabledTemplates: settings.disabledTemplates)
         } catch {
             let kind = (error as? CoreError)?.kind ?? (error is CancellationError ? "cancelled" : "error")
             let line = "precompose: request failed (\(kind))"
@@ -394,6 +395,13 @@ struct OutputPreview {
     }
 
     func templateName(_ spec: CoreTemplateSpec) -> String { isChinese ? spec.nameZh : spec.name }
+    /// The template list for Settings, from Core when it has not been fetched yet; false when Core cannot answer.
+    @discardableResult func loadTemplates() async -> Bool {
+        if !templates.isEmpty { return true }
+        guard let core, let list = try? await core.templates().templates else { return false }
+        templates = list
+        return true
+    }
     /// A layout failure, told apart by its reason: characters the font lacks,
     /// nothing to draw, or content that really does not fit.
     func composeFailureMessage(_ failure: CoreError) -> String { ComposeFailureText.message(failure, tr: tr) }
@@ -457,7 +465,8 @@ struct OutputPreview {
                 try Task.checkCancellation()
                 let requestedFrame = frame ?? defaultFrame(actionID: actionID)
                 let input = CoreActionInput(text: text, aspect: requestedFrame,
-                    template: options, templatePreferences: settings?.templatePreferences)
+                    template: options, templatePreferences: settings?.templatePreferences,
+                    disabledTemplates: settings?.disabledTemplates)
                 taskStatus = title + "…"
                 let kind = actions.first(where: { $0.id == actionID })?.output
                 let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)

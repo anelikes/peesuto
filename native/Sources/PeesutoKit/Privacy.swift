@@ -174,6 +174,25 @@ extension SettingsStore {
     public var templatePreferences: [String: String]? {
         values["template_styles"] as? [String: String]
     }
+    /// Templates the user turned off for automatic choice, sorted; empty when none.
+    public var disabledTemplates: [String] {
+        Set(values["templates_disabled"] as? [String] ?? []).sorted()
+    }
+    public func setTemplateEnabled(_ id: String, _ enabled: Bool) throws {
+        var off = Set(disabledTemplates)
+        if enabled { off.remove(id) } else { off.insert(id) }
+        try set("templates_disabled", value: off.sorted())
+    }
+    public func setTemplateStyle(_ id: String, variant: String?) throws {
+        var styles = templatePreferences ?? [:]
+        styles[id] = variant
+        try set("template_styles", value: styles)
+    }
+    /// Every template on, no remembered styles.
+    public func resetTemplates() throws {
+        try set("templates_disabled", value: [String]())
+        try set("template_styles", value: [String: String]())
+    }
 }
 
 /// First-run onboarding gate. Bump `currentVersion` when the onboarding

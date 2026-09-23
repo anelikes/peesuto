@@ -51,6 +51,8 @@ final class ClipboardPanel: NSPanel {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 760, height: 530)
+        // It hides when focus leaves, so the window buttons would only be clutter.
+        for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { panel.standardWindowButton(kind)?.isHidden = true }
         panel.delegate = self
         panel.contentView = NSHostingView(rootView: PanelView(model: model, openSettings: { [weak self] in self?.showSettings() }))
         panel.center()

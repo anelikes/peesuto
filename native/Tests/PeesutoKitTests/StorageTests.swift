@@ -151,6 +151,28 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try SettingsStore(directory: directory).language, "en")
     }
 
+    func testTemplateSettingsRoundTripAndReset() throws {
+        let settings = try SettingsStore(directory: directory)
+        XCTAssertEqual(settings.disabledTemplates, [])
+        try settings.setTemplateEnabled("table", false)
+        try settings.setTemplateEnabled("code", false)
+        try settings.setTemplateEnabled("table", false)
+        try settings.setTemplateStyle("code", variant: "editorial")
+        let reopened = try SettingsStore(directory: directory)
+        XCTAssertEqual(reopened.disabledTemplates, ["code", "table"])
+        XCTAssertEqual(reopened.templatePreferences, ["code": "editorial"])
+        try reopened.setTemplateEnabled("code", true)
+        try reopened.setTemplateStyle("code", variant: nil)
+        XCTAssertEqual(reopened.disabledTemplates, ["table"])
+        XCTAssertEqual(reopened.templatePreferences, [:])
+        try reopened.resetTemplates()
+        XCTAssertEqual(try SettingsStore(directory: directory).disabledTemplates, [])
+        // The list reaches Core with each request.
+        let input = CoreActionInput(text: "x", disabledTemplates: ["table"])
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any]
+        XCTAssertEqual(json?["disabledTemplates"] as? [String], ["table"])
+    }
+
     func testJevServicesShareOneKeyBetweenDeciderAndGenerator() throws {
         let settings = try SettingsStore(directory: directory)
         try settings.setProvider(track: "decider", fields: ["kind": "openrouter", "tokenRef": "pocket-paste/openrouter"])

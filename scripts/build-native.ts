@@ -46,6 +46,8 @@ await cp(join(stage, "resources"), join(resources, "resources"), { recursive: tr
 await cp(join(native, "Resources/AppIcon.icns"), join(resources, "AppIcon.icns"));
 // Onboarding sample cards (rendered by scripts/onboarding-assets.ts).
 await cp(join(native, "Resources/Onboarding"), join(resources, "Onboarding"), { recursive: true });
+// Template previews for Settings › Templates (rendered by scripts/template-previews.ts).
+await cp(join(native, "Resources/TemplatePreviews"), join(resources, "TemplatePreviews"), { recursive: true });
 const version = (await Bun.file(join(REPO_ROOT, "package.json")).json()).version;
 // Monotonic build number: the commit count of the checked-out history.
 const counter = Bun.spawn(["git", "-C", REPO_ROOT, "rev-list", "--count", "HEAD"], { stdout: "pipe", stderr: "pipe" });

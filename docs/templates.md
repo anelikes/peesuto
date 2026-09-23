@@ -225,6 +225,17 @@ automatically paste. Changing a style successfully remembers it in native
 `settings.json` under `template_styles`; explicit choices take precedence over
 saved preferences, which take precedence over automatic style decisions.
 
+Settings › Templates shows every template with a preview of each style
+(`native/Resources/TemplatePreviews/<template>-<variant>.png`, rendered by
+`bun scripts/template-previews.ts` at 1:1; rerun it after a template's look
+changes). A style clicked there is the saved preference above; a template
+switched off is stored as `templates_disabled` and sent as
+`disabledTemplates` with every `run-action` and `precompose` request. Rules and
+the model then choose among the templates left on, while choosing by hand still
+reaches all of them; `document` is the fallback and cannot be switched off, and
+`qr` is never chosen automatically anyway. The list is part of the precompose
+cache key.
+
 The older DSL `render` request remains for deterministic fixtures and CLI
 compatibility. Its existing truncation behavior is unchanged; new media actions
 use the structured pipeline. Keep those contracts distinct in tests and UI claims.

@@ -236,9 +236,10 @@ public actor CoreClient {
     /// its short timeout fails only this call, never restarting Core.
     /// `frames` maps "image"/"gif"/"video" to a frame (Core's `aspect`).
     public func precompose(text: String, frames: [String: String], templatePreferences: [String: String]? = nil,
-                           timeout: TimeInterval = 5) async throws -> CorePrecomposeReply {
+                           disabledTemplates: [String]? = nil, timeout: TimeInterval = 5) async throws -> CorePrecomposeReply {
         var body: [String: Any] = ["cmd": "precompose", "text": text, "frames": frames]
         if let templatePreferences { body["templatePreferences"] = templatePreferences }
+        if let disabledTemplates, !disabledTemplates.isEmpty { body["disabledTemplates"] = disabledTemplates }
         return try await request(body, timeout: timeout, soft: true)
     }
 
