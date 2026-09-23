@@ -291,6 +291,12 @@ function wordStarts(glyphs: readonly StyledGlyph[]): Set<number> {
   }
   return starts;
 }
+/** Lines broken inside a Latin word since the last reset; grownLayout rejects
+ * a larger type step that needs one (layout is synchronous, so this is safe). */
+let brokenWords = 0;
+const LETTER = /^[\p{L}\p{N}]$/u;
+const CJK = /[\u2e80-\u9fff\uac00-\ud7a3\uf900-\ufaff\uff00-\uffef]/u;
+
 function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number, measure: TemplateMeasure): StyledGlyph[][] {
   const result: StyledGlyph[][] = [];
   const starts = wordStarts(glyphs);
@@ -318,18 +324,36 @@ function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number,
         // starts follow its spaces. Mixed text no longer strands "Gatekeeper"
         // when the Chinese after it could stay on the line.
         const full = count, floor = start + Math.ceil(full / 2);
-        if (!starts.has(start + full) && !/\s/u.test(glyphs[start + full - 1]!.text)) {
+        // A word start is no break when kinsoku would move it back into the
+        // word (English "crop," must not become "cro" + "p,").
+        const breakable = (i: number) => starts.has(i) && !NO_LINE_START.test(glyphs[i]!.text);
+        if (!breakable(start + full) && !/\s/u.test(glyphs[start + full - 1]!.text)) {
           let best = -1;
           for (let i = start + full - 1; i >= floor; i--) {
             if (/\s/u.test(glyphs[i]!.text) && firstVisible >= 0 && firstVisible < i) { best = Math.max(best, i + 1); break; }
           }
           for (let i = start + full - 1; i >= floor; i--) {
-            if (starts.has(i) && !/\s/u.test(glyphs[i]!.text)) { best = Math.max(best, i); break; }
+            if (breakable(i) && !/\s/u.test(glyphs[i]!.text)) { best = Math.max(best, i); break; }
+          }
+          // Splitting a Latin word is worse than a short line: look past the
+          // half-line floor for the last space before it.
+          const b = glyphs[start + full - 1]!.text, a = glyphs[start + full]!.text;
+          if (best <= start && LETTER.test(b) && LETTER.test(a) && !CJK.test(b + a)) {
+            for (let i = floor - 1; i > start; i--) {
+              if (/\s/u.test(glyphs[i]!.text) && firstVisible >= 0 && firstVisible < i) { best = i + 1; break; }
+            }
           }
           if (best > start) count = best - start;
         }
       }
-      if (start + count < end) count = kinsoku(glyphs, start, count);
+      if (start + count < end) {
+        count = kinsoku(glyphs, start, count);
+        // Spaces at a break hang at the end of the line instead of indenting the next one.
+        while (start + count < end && /^[ \t]$/u.test(glyphs[start + count]!.text)) count++;
+        if (start + count >= end) { result.push(glyphs.slice(start, end)); break; }
+        const before = glyphs[start + count - 1]!.text, after = glyphs[start + count]!.text;
+        if (LETTER.test(before) && LETTER.test(after) && !CJK.test(before + after)) brokenWords++;
+      }
       result.push(glyphs.slice(start, start + count)); start += count;
     }
   };
@@ -418,8 +442,11 @@ function grownLayout(plan: TemplatePlan, measure: TemplateMeasure, view: View): 
   const steps = TEMPLATE_GROW[plan.template] ?? [1];
   let layout: TemplateLayout | undefined;
   for (const k of steps) {
+    brokenWords = 0;
     try { layout = layoutAt(plan, measure, view, k); }
     catch (error) { if (k === 1) throw error; continue; }
+    // Larger type is only worth it if no word has to be split to fit.
+    if (k !== 1 && brokenWords) continue;
     if (layout.height <= view.height) return layout;
   }
   return layout ?? layoutAt(plan, measure, view, 1);
@@ -1018,12 +1045,14 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         for (const p of panels) p.height = h;
         bottom = margin + h;
       } else {
-        const titleCol = Math.round(W * s.titleCol);
+        // The title column holds the longest title on one line when it can (up to 45% of the width).
+        const widest = Math.max(...content.columns.map((c) => Math.ceil(measure.width(c.title, s.titleSize, true))));
+        const titleCol = Math.min(Math.round(W * 0.45), Math.max(Math.round(W * s.titleCol), margin + widest + 48));
         let y = 0;
         for (const [i, column] of content.columns.entries()) {
           const p = s.panels[i]!, band = rect(0, y, W, 0, p.fill); pinned.add(band);
           const firstLine = layout.lines.length, firstShape = layout.shapes.length;
-          const titleH = block(column.title, margin, y + margin, titleCol - margin - 24, s.titleSize, true, p.title, { leading: 1.1 });
+          const titleH = block(column.title, margin, y + margin, titleCol - margin - 48, s.titleSize, true, p.title, { leading: 1.1 });
           const end = items(titleCol, y + margin, W - margin - titleCol, column, p);
           const contentH = Math.max(titleH, end - y - margin) + 2 * margin;
           // Two full-bleed bands: the first takes at least half the frame, the second the rest.
