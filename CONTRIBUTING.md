@@ -14,7 +14,8 @@ agreed before the work is done.
 
 ## Setup
 
-- macOS with Swift 5.9 or newer for the native desktop.
+- macOS 13 or later with Xcode 16.4 or newer (Swift 6.x) for the native
+  desktop; CI uses Xcode 16.4 on `macos-15`.
 - Bun 1.3.x (CI pins 1.3.11).
 - Rust stable with the `wasm32-unknown-unknown` target; the engine's
   rasteriser is built to wasm: `rustup target add wasm32-unknown-unknown`.

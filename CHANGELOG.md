@@ -7,8 +7,15 @@ section here becomes one.
 
 ## Unreleased
 
-- Removed the legacy desktop source, UI build dependencies and tag-triggered release workflow. `native/` is now the only desktop entry point; CI builds/tests the native app and bundled Core. Manual workflow artifacts are validation builds only; native signing, notarization, updating and missing management UI remain unfinished.
+- GIF and video actions can no longer come out as a single still frame: "none" is not offered as motion when an action needs motion, an override of it falls back to "reveal", and a one-frame GIF/MP4 is an error.
+- Over-long text is refused before any model call or layout; wrapping is linear.
+- Renders have a deadline (240 s image/GIF, 600 s MP4, `PASTE_RENDER_TIMEOUT_MS`); a hung engine or ffmpeg process group is killed.
+- Generated files in the cards directory are pruned after each render (older than 24 h or beyond the newest 30).
+- A failed decider still renders with the fallback, and the error now comes back as `decisionError` in the action result.
+- A failed render never deletes a caller's existing file; the daemon answers an unknown `cmd` with a usage error carrying the request id.
+- Minimum macOS is now 13.0 (the bundled Bun requires it); builds are arm64 only. CI's macOS jobs moved to `macos-15` with Xcode 16.4 selected explicitly.
 
+- Removed the legacy desktop source, UI build dependencies and tag-triggered release workflow. `native/` is now the only desktop entry point; CI builds/tests the native app and bundled Core. Manual workflow artifacts are validation builds only; native signing, notarization, updating and missing management UI remain unfinished.
 
 - Native media shortcuts: configurable `⌘⌥1` image, `⌘⌥2` GIF and `⌘⌥3` video operate on copied text without opening history. Includes a key recorder, conflict rollback, task status window and conservative automatic paste with focus/clipboard guards. Added the `paste-video` MP4 action (requires locally installed ffmpeg), native video playback, unique result files and opt-in Core lifecycle events; active tasks no longer trigger the daemon idle timeout.
 
@@ -16,9 +23,9 @@ section here becomes one.
 
 - Recorded the native architecture decision: SwiftUI + AppKit replaces the retired desktop while retaining Bun Core and Pocket Motion. Image/GIF/video generation is a core product capability. The migration plan includes data compatibility, task lifecycle, a simpler bilingual GUI and actual `.app` acceptance; the first native implementation is now available; complete migration remains unfinished.
 
-- English and Simplified Chinese UI, with a persistent language selector in Settings → General (system default). Changes update all windows, built-in action labels, the tray and updater dialogs without a restart or discarding unsaved settings. User content and custom action names stay unchanged.
+- English and Simplified Chinese UI, with a language selector in Settings → General (system default). User content and custom action names stay unchanged.
 
-- The app is called Peesuto: productName, window titles, tray, dialogs, onboarding, the Homebrew cask (`peesuto`) and the release title. The identifier stays com.peesuto.desktop; the repository and internal paths keep the name pocket-paste.
+- The app is called Peesuto. The identifier is com.peesuto.desktop; the repository and internal paths keep the name pocket-paste.
 - Cloudflare decider: posts to Workers AI's `/ai/run` with `{model, input}`
   and unwraps the run record `{state, result: {answers}}`; the old per-model
   path answered "No route for that URI". First verified against the real
@@ -30,19 +37,18 @@ section here becomes one.
 - Actions: JSON format, five built-ins, user files and packs, `paste --action`.
 - Core daemon over JSON lines for the desktop app.
 - Proxy worker: hosted mode with subscriber tokens, quota, rate limit, generate, me, packs.
-- Release engineering docs and workflow; privacy audit checklist.
-- macOS shell: history panel with smart paste, encrypted history, Accessibility context, actions in tray and hotkeys, settings for both provider tracks, privacy and exclusions.
+- Release status docs and a manual native validation build; privacy audit checklist.
 - Card corpus of 100 samples; composer truncation, wrapping, script refusal, emphasis by the decider's word list.
-- Style packs: catalog fragments merged at load; subscription pane with license key, /v1/me and pack install; updater wired behind a public key; release DMG build.
+- Style packs: catalog fragments merged into the Core catalog at load. Installing packs and the account/subscription UI are not in the native app yet.
 - Privacy baseline 0.1.0: five automated checks pass; manual list recorded.
 - Generator: thinking models on Ollama (qwen3.5, gemma4) answered with empty content and the action reported success; the openai-compatible generator now detects it, retries with `reasoning_effort: "none"`, learns, and exposes `reasoning` and `timeoutMs` (settings, providers.json, env). An action whose generator returns nothing is an error.
-- Engine: pinned to the public anelikes/pocket-motion v0.2.1 (the private branch stack replayed, plus paths through fileURLToPath); CI and release clone it without a credential, Rust pinned to 1.97.1 for the wasm build.
+- Engine: pinned to the public anelikes/pocket-motion v0.2.1 (the private branch stack replayed, plus paths through fileURLToPath); CI clones it without a credential, Rust pinned to 1.97.1 for the wasm build.
 - Decider `rules`, now the default: card kinds by the rule classifier (moved from the corpus script into core, 91% on the corpus), geometry by the length heuristics, picks by the heuristic; nothing configured, nothing leaves. Decider `laya`: a local Laya model behind `scripts/laya/server.py`, blended into the pick at a low weight; `docs/laya.md`.
 
 The foundation — M0 of `PLAN.md`, which was M1 to M3 of the plan's first
 edition: the render chain as a package, the engine as a pinned dependency,
 the sidecar proven to run outside the repository, and the decision layer
-with its providers. No app yet beyond the Tauri 2 scaffold.
+with its providers. No desktop app yet.
 
 ### Added
 
@@ -94,7 +100,6 @@ with its providers. No app yet beyond the Tauri 2 scaffold.
   SHA-256 of the frames they render to at the pinned engine
   (`core/fixtures/digests.json`); 96 unit tests; CI runs the unit tests on
   Ubuntu and the fixture renders at the pinned engine on macOS.
-- Tauri 2 scaffold in `app/`.
 - `PLAN.md`: the v1 implementation plan, second edition: a smart clipboard
   first, cards as one action, two-track self-hostable providers.
 

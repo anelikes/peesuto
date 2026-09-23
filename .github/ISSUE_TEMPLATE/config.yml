@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/anelikes/peesuto/security/advisories/new
-    about: Report privately, not as an issue. SECURITY.md has the details.
+    url: mailto:security@peesuto.com
+    about: Email security@peesuto.com; do not open an issue. SECURITY.md has the details.

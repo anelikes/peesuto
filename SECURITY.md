@@ -65,12 +65,10 @@ manager, permission and target-app checks remain in `docs/privacy-audit.md`.
 
 ## Reporting a vulnerability
 
-Please do not open a public issue for a security problem. Either
-
-- email **security@peesuto.com** — TODO(user): replace this placeholder
-  with an address you read; the domain is not set up — or
-- use GitHub's private reporting on this repository: *Security → Report a
-  vulnerability*.
+Please do not open a public issue for a security problem. Email
+**security@peesuto.com**. GitHub's private vulnerability reporting
+(*Security → Report a vulnerability*) will open as a second channel when the
+repository becomes public; until then, email is the only channel.
 
 Include the version or commit, the provider in use, steps to reproduce and
 what an attacker gains. Expect an acknowledgement within 7 days and a fix or

@@ -13,12 +13,15 @@ You need Apple Silicon, macOS 14 or later, and about 1.5 GB of disk.
 
 ## 1. Install the runtime
 
+`server.py` lives in `scripts/laya/` of this repository; copy it from your
+checkout (there is no public download URL while the repository is private).
+
 ```bash
 brew install uv                                  # or: pip install uv
 mkdir -p ~/laya && cd ~/laya
 uv venv --python 3.11 .venv
 uv pip install --python .venv/bin/python laya-mlx
-curl -O https://raw.githubusercontent.com/anelikes/peesuto/main/scripts/laya/server.py
+cp /path/to/your/peesuto-checkout/scripts/laya/server.py .   # from your checkout
 ```
 
 ## 2. Get a checkpoint

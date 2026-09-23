@@ -58,8 +58,8 @@ N2–N4 部分实现，N5 已切换原生 CI/打包并移除旧桌面，正式�
    中文、英文、跟随系统保留；普通用户流程不暴露 sidecar、引擎路径和调试日志。
 7. **核心输出完整。** PNG/GIF 保持既有渲染结果；视频动作已接入 MP4，当前使用
    本机 ffmpeg。正式编码器分发、目标应用兼容与完整视频验收仍是独立交付项。
-8. **可发布。** 真实原生 `.app`、DMG、原生更新链路与 CI；签名、公证和旧版升级路径
-   均须验证。前端构建成功不等于原生应用已构建或可交付。
+8. **可发布。** 真实原生 `.app`、DMG、原生更新链路与 CI；签名与公证须验证。
+   最低 macOS 13.0，当前仅 arm64。前端构建成功不等于原生应用已构建或可交付。
 
 ## 2. 架构
 
@@ -154,7 +154,8 @@ pocket-paste/
   native/                SwiftUI + AppKit 原生工程、系统/存储/通信模块与测试
   docs/native-migration.md 原生迁移边界、GUI 方向与验收
   proxy/                 可自部署的 Jev 代理 worker（dev 与 hosted 两种模式）
-  scripts/               engine.ts、bundle-sidecar.ts、fetch-emoji.ts、probe-pick.ts
+  scripts/               engine.ts、build-native.ts（原生 .app 构建与打包）、bundle-sidecar.ts、
+                         fetch-emoji.ts、probe-pick.ts
 ```
 
 ## 4. 里程碑
@@ -217,8 +218,8 @@ Keychain、保留期、设置与凭证。保留应用标识和数据格式；读
 手动构建工作流仅上传原生验证 ZIP，不响应 tag 自动发布、不创建 Release、不使用旧
 更新签名与元数据。引擎依赖的 Rust/WASM 保留；不删除生产用户数据与历史发布产物。
 
-尚需实现 Developer ID 签名、公证、安装包、原生更新机制与正式分发，并验证旧安装的
-手动替换或升级路径。移除旧项目并不等于缺失 GUI、真实数据/权限/粘贴验收已完成。
+尚需实现 Developer ID 签名、公证、DMG 安装包、原生更新机制、Homebrew cask 与正式分发
+（旧桌面从未发布，无旧安装需要升级桥接）；签名与公证的具体步骤见 [docs/RELEASING.md](docs/RELEASING.md)。移除旧项目并不等于缺失 GUI、真实数据/权限/粘贴验收已完成。
 交付准确的 `native/dist/Peesuto.app` 路径、版本与验证记录，不能以编译通过代替实际应用验收。
 
 以下 M0–M8 仅为历史成果与待办记录，其中旧桌面命令/文件已不可用于当前 checkout，
@@ -413,6 +414,8 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
 - 扩展性借 deepseek-harness 的思想不借框架：命名事件加派发模式、命令式 hook、
   可撤销注册；特权核心保留，隐私层先于一切事件。（2026-09-22 用户）
 - 免费本地首跑：decider 默认 `rules`；Laya 作为本地模型选项保留，不内置。（2026-09-22 用户）
+- 最低 macOS 由 12.0 提高到 13.0：随包的 Bun 二进制 minos 为 13.0，12 上无法运行 Core；
+  同时可直接使用 SMAppService 实现登录项。（2026-09-23）
 
 ## 6. 风险与退路
 
@@ -426,7 +429,7 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
 | Core 与渲染内存 | Bun、WASM、字体与全帧 GIF 缓存 | 按需启动、任务完成后空闲退出、限制帧缓存；测量整个进程树 |
 | 长渲染阻塞请求 | 当前 daemon 串行处理 | 隔离渲染工作；同一引擎构建串行，取消不能只隐藏 UI |
 | 旧数据或授权失效 | 数据、Keychain 或 TCC 身份变化 | 保持标识与格式，副本验收；读取失败进入锁定态，不清库 |
-| 原生更新不兼容 | 旧 Tauri updater 无法直接使用新产物 | N5 验证升级桥接或明确手动安装路径，保留回退产物 |
+| 原生更新链路缺失 | 首个原生版本发布后无法自动推送修复 | 旧桌面从未发布，无需桥接；N5 在首发前选定并验证原生更新方案（建议 Sparkle） |
 | hook 拖慢或丢内容 | 慢 hook 卡住入库或粘贴 | 入库 200 ms 预算超时即存；粘贴改写只在确认后；失败不阻断 |
 
 ## 7. 用户待办
@@ -440,10 +443,12 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
    v0.2.0 = 补丁 0013 到 0015，v0.2.1 = fileURLToPath 修复；engine.json 钉 v0.2.1，
    CI 无需任何凭证。qianiaoo/pocketjs-motion 只作归档，之后的引擎迭代都在公开
    仓库。`~/.pocket-paste/engine` 的绕行还在，等 v0.2.1 随包发布后再拆。
-2. M7：Developer ID Application 证书要由公司团队（Hangzhou Muke，Team ID
-   QVWNDXA74U）的 Account Holder 创建，用户角色是 Admin；用户本机生成 CSR 交给
-   Account Holder 签发，再导出 .p12。六个 Apple secrets 与 notarytool 凭证的命令
-   见 docs/RELEASING.md。updater 密钥对已生成并写入 secret（2026-09-22）。
-3. M8：Cloudflare 部署与域名（peesuto.com，托管默认 api.peesuto.com）、计费平台、
-   条款审阅。应用对用户可见的名字定为 Peesuto（2026-09-22，productName、窗口、托盘、
-   对话框、cask 都已改；内部名与路径仍是 pocket-paste）。
+2. N5 签名：Developer ID Application 证书只能由团队的 Account Holder 创建；用户本机
+   生成 CSR 交给 Account Holder 签发，再导出 .p12。随后按 docs/RELEASING.md
+   「Signing & notarization」提供 notarytool 凭证与 CI secrets。
+3. 更新方案决策：原生版需选定更新机制（建议 Sparkle，EdDSA 签名的 appcast）。
+   同时决定是否删除已不再使用的 `TAURI_SIGNING_PRIVATE_KEY` 仓库 secret 与本机
+   `~/.tauri` 密钥：从未发布过任何版本，没有安装依赖它，删除无兼容影响。
+4. DMG 与 Homebrew cask 是 N5 工作，由 agent 在签名可用后完成；用户只需审阅发布。
+5. M8（不变）：Cloudflare 部署与域名（peesuto.com，托管默认 api.peesuto.com）、计费平台、
+   条款审阅。对外产品名 Peesuto，内部名与路径仍是 pocket-paste。

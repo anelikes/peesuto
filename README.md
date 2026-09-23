@@ -124,7 +124,9 @@ in a symlink tree under `.work/`; see the engine build isolation rules in
 
 ## Build the native app
 
-On macOS, after preparing the pinned engine:
+On macOS, after preparing the pinned engine. The app requires macOS 13 or
+later and is built for Apple Silicon (arm64) only; building needs Xcode 16.4
+or newer.
 
 ```bash
 swift test --package-path native
