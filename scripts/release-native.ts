@@ -99,10 +99,40 @@ await sign(app);
 // 3. Verify.
 await run(["codesign", "--verify", "--strict", "--deep", "--verbose=2", app]);
 await run(["codesign", "-d", "--entitlements", "-", "--xml", join(macos, "paste")]);
+
+/** Submit a file for notarization and wait; returns the submission id, or fails with Apple's log. */
+async function notarizeFile(file: string): Promise<string> {
+  const result = await run(["xcrun", "notarytool", "submit", file, "--keychain-profile", notaryProfile!, "--wait", "--output-format", "json"], { allowFailure: true });
+  let parsed: { id?: string; status?: string } = {};
+  try { parsed = JSON.parse(result.out.slice(result.out.indexOf("{"), result.out.lastIndexOf("}") + 1)); } catch {}
+  const id = parsed.id ?? "";
+  console.log(`Notarization of ${basename(file)}: id ${id || "(unknown)"}, status ${parsed.status ?? "(unknown)"}`);
+  if (result.code !== 0 || parsed.status !== "Accepted") {
+    if (id) await run(["xcrun", "notarytool", "log", id, "--keychain-profile", notaryProfile!], { allowFailure: true });
+    fail(`notarization of ${basename(file)} was not accepted; see the log above.`);
+  }
+  return id;
+}
+
+// 3b. Notarize and staple the app itself, so a first launch works offline
+// after it is copied out of the DMG (a ticket stapled only to the DMG does
+// not travel with the app).
+const submissions: string[] = [];
+if (notarize) {
+  const zip = join(REPO_ROOT, ".work/release/Peesuto-app.zip");
+  await mkdir(join(REPO_ROOT, ".work/release"), { recursive: true });
+  await rm(zip, { force: true });
+  await run(["ditto", "-c", "-k", "--keepParent", app, zip]);
+  submissions.push(await notarizeFile(zip));
+  await rm(zip, { force: true });
+  await run(["xcrun", "stapler", "staple", app]);
+  await run(["xcrun", "stapler", "validate", app]);
+}
 const gatekeeperApp = await run(["spctl", "-a", "-vv", "-t", "exec", app], { allowFailure: true });
 if (gatekeeperApp.code !== 0) console.log(notarize
-  ? "spctl rejects the app before notarization; this is expected and re-checked through the stapled DMG."
+  ? "spctl rejected the stapled app."
   : "spctl rejected the app (expected without a notarized Developer ID signature); continuing because of --no-notarize.");
+if (notarize && gatekeeperApp.code !== 0) fail("Gatekeeper rejects the notarized app.");
 
 // 4. DMG with the app and an /Applications link.
 const dmgName = `Peesuto-${version}-${arch}.dmg`;
@@ -118,18 +148,9 @@ await rm(staging, { recursive: true, force: true });
 await run(["codesign", "--force", timestamp, "--sign", identity, dmg]);
 await run(["codesign", "--verify", "--verbose=2", dmg]);
 
-// 5. Notarize, staple, verify.
-let submission = "";
+// 5. Notarize the DMG (it holds the stapled app), staple, verify.
 if (notarize) {
-  const result = await run(["xcrun", "notarytool", "submit", dmg, "--keychain-profile", notaryProfile!, "--wait", "--output-format", "json"], { allowFailure: true });
-  let parsed: { id?: string; status?: string } = {};
-  try { parsed = JSON.parse(result.out.slice(result.out.indexOf("{"), result.out.lastIndexOf("}") + 1)); } catch {}
-  submission = parsed.id ?? "";
-  console.log(`Notarization submission id: ${submission || "(unknown)"}, status: ${parsed.status ?? "(unknown)"}`);
-  if (result.code !== 0 || parsed.status !== "Accepted") {
-    if (submission) await run(["xcrun", "notarytool", "log", submission, "--keychain-profile", notaryProfile!], { allowFailure: true });
-    fail("notarization was not accepted; see the log above.");
-  }
+  submissions.push(await notarizeFile(dmg));
   await run(["xcrun", "stapler", "staple", dmg]);
   await run(["xcrun", "stapler", "validate", dmg]);
   await run(["spctl", "-a", "-vv", "-t", "open", "--context", "context:primary-signature", dmg]);
@@ -150,5 +171,5 @@ Release summary
   sha256     ${digest}  (${basename(dmg)}.sha256)
   version    ${version} (${arch})
   identity   ${identityName}${developerId ? "" : " (not Developer ID: local use only)"}
-  notarized  ${notarize ? `yes (submission ${submission}, stapled)` : "no (--no-notarize)"}
-  gatekeeper app ${gatekeeperApp.code === 0 ? "accepted" : "rejected before notarization"}`);
+  notarized  ${notarize ? `yes (app ${submissions[0]}, dmg ${submissions[1]}; both stapled)` : "no (--no-notarize)"}
+  gatekeeper app ${gatekeeperApp.code === 0 ? "accepted" : "rejected"}`);
