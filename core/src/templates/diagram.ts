@@ -177,11 +177,23 @@ export interface PlacedNode { id: string; x: number; y: number; width: number; h
 export interface Segment { x1: number; y1: number; x2: number; y2: number }
 export interface RoutedEdge {
   edge: DiagramEdge; points: { x: number; y: number }[]; rank: number;
-  /** Where to put the label box: its center. */
-  label?: { x: number; y: number; beside: boolean };
+  /**
+   * Where to put the label box: (x, y) is always its center, already clear of
+   * nodes, other labels and edge segments where the layout could manage it.
+   * `placement` names the rule that placed it, in rank terms (TD view: "above"
+   * is toward the source rank): beside the first run from the source, above or
+   * below a cross-axis run. `beside` is kept for older consumers and is always
+   * false, meaning "center the box on (x, y)".
+   */
+  label?: { x: number; y: number; beside: boolean; placement?: LabelPlacement };
 }
+export type LabelPlacement = "beside" | "above" | "below";
 export interface DiagramGeometry { width: number; height: number; nodes: PlacedNode[]; edges: RoutedEdge[]; ranks: number }
-export interface DiagramSpacing { rankGap: number; nodeGap: number; labelGap: number; dummyWidth: number }
+export interface DiagramSpacing {
+  rankGap: number; nodeGap: number; labelGap: number; dummyWidth: number;
+  /** Arrowhead size the renderer will draw (default 22): ports stay 1.6 arrows apart, last runs at least arrow + 12 long. */
+  arrow?: number;
+}
 
 interface LNode { key: string; real?: DiagramNode; size: DiagramBox; rank: number; order: number; cross: number }
 
@@ -275,9 +287,23 @@ export function layoutDiagram(content: DiagramContent, size: (node: DiagramNode)
     for (let r = ranks - 2; r >= 0; r--) sortBy(layers[r]!, down);
   }
 
+  // Ports: every side with several ports gets them 1.6 arrows apart across its
+  // middle 60%, so a crowded side widens the node. Diamonds keep one port.
+  const arrow = spacing.arrow ?? 22;
+  const lead = arrow + 12; // shortest final run into a node
+  const nodeOf = (key: string) => lnodes.get(key)!;
+  const outOf = new Map<string, number[]>(), inOf = new Map<string, number[]>();
+  const push = (map: Map<string, number[]>, key: string, n: number) => (map.get(key) ?? map.set(key, []).get(key)!).push(n);
+  chains.forEach(({ keys }, n) => { push(outOf, keys[0]!, n); push(inOf, keys[keys.length - 1]!, n); });
+  for (const l of lnodes.values()) {
+    if (!l.real || l.real.shape === "diamond") continue;
+    const most = Math.max(outOf.get(l.key)?.length ?? 0, inOf.get(l.key)?.length ?? 0);
+    if (most > 1) l.size = { ...l.size, width: Math.max(l.size.width, Math.ceil(most * 1.6 * arrow / 0.6)) };
+  }
+
   // Cross-axis coordinates: pack, then pull toward neighbours without overlap.
   const gap = (a: LNode, b: LNode) => (a.real && b.real ? spacing.nodeGap : spacing.nodeGap / 2) + (a.size.width + b.size.width) / 2;
-  const pack = (layer: LNode[]) => { let x = 0; layer.forEach((l, i) => { l.cross = i ? layer[i - 1]!.cross + gap(layer[i - 1]!, l) : l.size.width / 2; x = l.cross; }); return x; };
+  const pack = (layer: LNode[]) => { layer.forEach((l, i) => { l.cross = i ? layer[i - 1]!.cross + gap(layer[i - 1]!, l) : l.size.width / 2; }); };
   layers.forEach(pack);
   const settle = (layer: LNode[], neighbours: Map<string, string[]>) => {
     const want = layer.map((l) => { const ns = neighbours.get(l.key) ?? []; return ns.length ? ns.reduce((s, k) => s + lnodes.get(k)!.cross, 0) / ns.length : l.cross; });
@@ -293,114 +319,162 @@ export function layoutDiagram(content: DiagramContent, size: (node: DiagramNode)
     for (let r = 1; r < ranks; r++) settle(layers[r]!, up);
     for (let r = ranks - 2; r >= 0; r--) settle(layers[r]!, down);
   }
-  let minX = Infinity, maxX = -Infinity;
-  for (const l of lnodes.values()) { minX = Math.min(minX, l.cross - l.size.width / 2); maxX = Math.max(maxX, l.cross + l.size.width / 2); }
+  let minX = Infinity;
+  for (const l of lnodes.values()) minX = Math.min(minX, l.cross - l.size.width / 2);
   for (const l of lnodes.values()) l.cross -= minX;
-  const width = maxX - minX;
 
-  // Main axis: rank bands; a band gets extra room when edges leaving it carry labels.
+  // Port positions: sorted by the far end's cross position, evenly across 20%–80%.
+  const portOut = new Map<number, number>(), portIn = new Map<number, number>();
+  const spread = (key: string, list: { n: number; far: number }[], into: Map<number, number>) => {
+    const l = nodeOf(key);
+    list.sort((a, b) => a.far - b.far || a.n - b.n);
+    list.forEach((p, i) => into.set(p.n, list.length === 1 || l.real?.shape === "diamond" ? l.cross
+      : l.cross - l.size.width / 2 + l.size.width * (0.2 + 0.6 * (i + 0.5) / list.length)));
+  };
+  for (const [key, ns] of outOf) spread(key, ns.map((n) => ({ n, far: nodeOf(chains[n]!.keys[1]!).cross })), portOut);
+  for (const [key, ns] of inOf) spread(key, ns.map((n) => {
+    const keys = chains[n]!.keys;
+    return { n, far: keys.length === 2 ? portOut.get(n)! : nodeOf(keys[keys.length - 2]!).cross };
+  }), portIn);
+  // Where each out-port sits among its node's out-ports: 0 left … 1 right.
+  const outSide = new Map<number, number>();
+  for (const ns of outOf.values()) {
+    const sorted = ns.slice().sort((a, b) => portOut.get(a)! - portOut.get(b)! || nodeOf(chains[a]!.keys[1]!).cross - nodeOf(chains[b]!.keys[1]!).cross || a - b);
+    sorted.forEach((n, i) => outSide.set(n, (i + 0.5) / sorted.length));
+  }
+
+  // Channel users per gap (the gap under rank r hosts the bends of edges entering rank r + 1).
   const bandH = layers.map((layer) => Math.max(0, ...layer.map((l) => l.size.height)));
   const labelled = Array.from({ length: ranks }, () => 0);
-  for (const { d, keys } of chains) if (d.e.label) labelled[rank.get(keys[0]!)!]! = Math.max(labelled[rank.get(keys[0]!)!]!, horizontal ? labelSize(d.e.label).width : labelSize(d.e.label).height);
-  const top: number[] = [];
-  let y = 0;
-  for (let r = 0; r < ranks; r++) { top.push(y); y += bandH[r]! + spacing.rankGap + (labelled[r]! ? labelled[r]! + spacing.labelGap : 0); }
-  const height = y - spacing.rankGap - (labelled[ranks - 1]! ? labelled[ranks - 1]! + spacing.labelGap : 0);
-  const centerY = (l: LNode) => top[l.rank]! + bandH[l.rank]! / 2;
-
-  // Ports: spread along the facing side, ordered by the far end's position.
-  const nodeOf = (key: string) => lnodes.get(key)!;
-  const portsOut = new Map<string, { key: string; far: number }[]>(), portsIn = new Map<string, { key: string; far: number }[]>();
-  chains.forEach(({ keys }, n) => {
-    (portsOut.get(keys[0]!) ?? portsOut.set(keys[0]!, []).get(keys[0]!)!).push({ key: String(n), far: nodeOf(keys[1]!).cross });
-    const last = keys.length - 1;
-    (portsIn.get(keys[last]!) ?? portsIn.set(keys[last]!, []).get(keys[last]!)!).push({ key: String(n), far: nodeOf(keys[last - 1]!).cross });
+  const inner = (label: string): DiagramBox => { const b = labelSize(label); return horizontal ? { width: b.height, height: b.width } : b; };
+  for (const { d, keys } of chains) if (d.e.label) { const r = rank.get(keys[0]!)!; labelled[r] = Math.max(labelled[r]!, inner(d.e.label).height); }
+  const reserve = labelled.map((h) => h ? h + spacing.labelGap : 0);
+  const channelUsers: string[][] = Array.from({ length: ranks }, () => []);
+  const reversedFrom = Array.from({ length: ranks }, () => false);
+  chains.forEach(({ d, keys }, n) => {
+    for (let i = 1; i < keys.length; i++) channelUsers[nodeOf(keys[i]!).rank - 1]!.push(`${n}:${i}`);
+    if (reversed.has(d.e)) reversedFrom[rank.get(keys[0]!)!] = true;
   });
-  const portX = (map: Map<string, { key: string; far: number }[]>, key: string, n: number) => {
-    const l = nodeOf(key), list = map.get(key)!.slice().sort((a, b) => a.far - b.far);
-    if (list.length === 1 || l.real?.shape === "diamond") return l.cross;
-    const span = Math.min(l.size.width * 0.6, (list.length - 1) * 28);
-    return l.cross - span / 2 + span * list.findIndex((p) => p.key === String(n)) / (list.length - 1);
+  const CHANNEL = 10; // least distance between two channels
+  // A reversed edge's arrow lands on the upper node, so its first run is a final run too.
+  const channelTop = (r: number) => Math.max(reserve[r]! + 8, reversedFrom[r] ? lead : 0);
+
+  type Point = { x: number; y: number };
+  type Rect = { x: number; y: number; width: number; height: number };
+  const attempt = (extra: number[]) => {
+    // Main axis: rank bands, each gap holding its label room, channels and the final runs.
+    const gapSize = (r: number) => Math.max(reserve[r]! + spacing.rankGap, channelTop(r) + Math.max(0, channelUsers[r]!.length - 1) * CHANNEL + lead) + extra[r]!;
+    const top: number[] = [];
+    let y = 0;
+    for (let r = 0; r < ranks; r++) { top.push(y); y += bandH[r]! + (r < ranks - 1 ? gapSize(r) : 0); }
+    const height = y;
+    const centerY = (l: LNode) => top[l.rank]! + bandH[l.rank]! / 2;
+
+    // Channels: users sorted by the x they start from, spread between the label room and the final runs.
+    const channelY = new Map<string, number>();
+    const startOf = (u: string) => portOut.get(Number(u.split(":")[0]))!;
+    for (let r = 0; r < ranks - 1; r++) {
+      const users = channelUsers[r]!.slice().sort((a, b) => startOf(a) - startOf(b));
+      const lo = top[r]! + bandH[r]! + channelTop(r), hi = top[r + 1]! - lead;
+      users.forEach((u, k) => channelY.set(u, users.length === 1 ? (lo + hi) / 2 : lo + (hi - lo) * k / (users.length - 1)));
+    }
+
+    // Orthogonal routes in the direction ranks were assigned (reversed edges are flipped at the end).
+    const clean: Point[][] = chains.map(({ keys }, n) => {
+      const first = nodeOf(keys[0]!);
+      const pts: Point[] = [{ x: portOut.get(n)!, y: centerY(first) + first.size.height / 2 }];
+      for (let i = 1; i < keys.length; i++) {
+        const l = nodeOf(keys[i]!);
+        const x = i === keys.length - 1 ? portIn.get(n)! : l.cross;
+        const cy = channelY.get(`${n}:${i}`)!;
+        pts.push({ x: pts[pts.length - 1]!.x, y: cy }, { x, y: cy }, { x, y: l.real ? centerY(l) - l.size.height / 2 : top[l.rank]! });
+        if (!l.real) pts.push({ x, y: top[l.rank]! + bandH[l.rank]! });
+      }
+      // Drop zero-length runs (straight edges have no cross-axis leg) and collinear points.
+      return pts.filter((p, i) => i === 0 || p.x !== pts[i - 1]!.x || p.y !== pts[i - 1]!.y)
+        .filter((p, i, a) => i === 0 || i === a.length - 1 || !((a[i - 1]!.x === p.x && p.x === a[i + 1]!.x) || (a[i - 1]!.y === p.y && p.y === a[i + 1]!.y)));
+    });
+
+    // Labels: beside the first run (away from siblings), else above or below a cross-axis run.
+    const nodeBoxes: Rect[] = content.nodes.map((node) => { const l = lnodes.get(node.id)!; return { x: l.cross - l.size.width / 2, y: centerY(l) - l.size.height / 2, width: l.size.width, height: l.size.height }; });
+    const segments: Rect[] = clean.flatMap((pts) => pts.slice(1).map((b, i) => {
+      const a = pts[i]!;
+      return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.max(0.01, Math.abs(a.x - b.x)), height: Math.max(0.01, Math.abs(a.y - b.y)) };
+    }));
+    const placed: Rect[] = [];
+    const clear = (c: Rect) => {
+      const p = { x: c.x - 2, y: c.y - 2, width: c.width + 4, height: c.height + 4 };
+      return ![...nodeBoxes, ...placed, ...segments].some((o) => overlapping(p, o));
+    };
+    const labels = new Map<number, { x: number; y: number; placement: LabelPlacement }>();
+    const failed: number[] = [];
+    chains.forEach(({ d, keys }, n) => {
+      if (!d.e.label) return;
+      const box = inner(d.e.label), pts = clean[n]!;
+      const at = (x: number, y: number): Rect => ({ x: x - box.width / 2, y: y - box.height / 2, width: box.width, height: box.height });
+      const r = rank.get(keys[0]!)!, bottom = top[r]! + bandH[r]!;
+      const side = outSide.get(n)! < 0.5 ? -1 : 1; // a lone or middle port labels to the right
+      const besideAt = (s: number) => {
+        const x = pts[0]!.x + s * (8 + box.width / 2);
+        const out: Rect[] = [];
+        // The label room first, then sliding along the run toward the next rank.
+        for (let cy = bottom + reserve[r]! / 2; cy + box.height / 2 <= pts[1]!.y - 4; cy += 6) out.push(at(x, cy));
+        return out;
+      };
+      const runs = pts.slice(1).map((b, i) => [pts[i]!, b] as const).filter(([a, b]) => a.y === b.y && Math.abs(a.x - b.x) >= box.width + 24)
+        .sort(([a, b], [c, e]) => Math.abs(c.x - e.x) - Math.abs(a.x - b.x));
+      const candidates: [LabelPlacement, Rect][] = [
+        ...besideAt(side).map((c) => ["beside", c] as [LabelPlacement, Rect]),
+        ...runs.map(([a, b]) => ["above", at((a.x + b.x) / 2, a.y - 4 - box.height / 2)] as [LabelPlacement, Rect]),
+        ...runs.map(([a, b]) => ["below", at((a.x + b.x) / 2, a.y + 4 + box.height / 2)] as [LabelPlacement, Rect]),
+        ...besideAt(-side).map((c) => ["beside", c] as [LabelPlacement, Rect]),
+      ];
+      let pick = candidates.find(([, c]) => clear(c));
+      if (!pick) {
+        failed.push(n);
+        pick = ["beside", at(pts[0]!.x + side * (8 + box.width / 2), bottom + reserve[r]! / 2)];
+      }
+      placed.push(pick[1]);
+      labels.set(n, { x: pick[1].x + box.width / 2, y: pick[1].y + box.height / 2, placement: pick[0] });
+    });
+    return { height, centerY, clean, labels, failed, placed };
   };
 
-  // Channels: each gap between ranks hosts the horizontal runs of the edges crossing it.
-  const channelUsers: string[][] = Array.from({ length: ranks }, () => []);
-  const routes: { n: number; pts: { x: number; y: number }[] }[] = [];
-  chains.forEach(({ keys }, n) => {
-    const pts: { x: number; y: number }[] = [];
-    const sx = portX(portsOut, keys[0]!, n), tx = portX(portsIn, keys[keys.length - 1]!, n);
-    const first = nodeOf(keys[0]!);
-    pts.push({ x: sx, y: centerY(first) + first.size.height / 2 });
-    for (let i = 1; i < keys.length; i++) {
-      const l = nodeOf(keys[i]!);
-      const x = i === keys.length - 1 ? tx : l.cross;
-      const r = l.rank - 1;
-      channelUsers[r]!.push(`${n}:${i}`);
-      pts.push({ x: pts[pts.length - 1]!.x, y: NaN, }); // bend at the channel, y filled below
-      pts.push({ x, y: NaN });
-      pts.push({ x, y: l.real ? centerY(l) - l.size.height / 2 : top[l.rank]! });
-      if (!l.real) pts.push({ x, y: top[l.rank]! + bandH[l.rank]! });
-    }
-    routes.push({ n, pts });
-  });
-  // Assign channel offsets: sort users of a gap by the x they start from.
-  const channelY = new Map<string, number>();
-  for (let r = 0; r < ranks - 1; r++) {
-    const users = channelUsers[r]!;
-    const startOf = (u: string) => { const [n] = u.split(":").map(Number); return routes[n!]!.pts[0]!.x; };
-    users.sort((a, b) => startOf(a) - startOf(b));
-    const from = top[r]! + bandH[r]! + (labelled[r]! ? labelled[r]! + spacing.labelGap : 0);
-    const room = top[r + 1]! - from;
-    users.forEach((u, k) => channelY.set(u, from + room * (k + 1) / (users.length + 1)));
+  // A label that fits nowhere widens its rank gap and the layout runs again (at most 3 times).
+  const extra = Array.from({ length: ranks }, () => 0);
+  let result = attempt(extra);
+  for (let retry = 0; retry < 3 && result.failed.length; retry++) {
+    for (const r of new Set(result.failed.map((n) => rank.get(chains[n]!.keys[0]!)!))) extra[r]! += labelled[r]! + spacing.labelGap;
+    result = attempt(extra);
   }
-  const routed: RoutedEdge[] = [];
-  for (const { n, pts } of routes) {
-    const { d, keys } = chains[n]!;
-    let seg = 1;
-    for (let i = 1; i < pts.length; i++) {
-      if (Number.isNaN(pts[i]!.y)) {
-        const y = channelY.get(`${n}:${seg}`)!;
-        pts[i]!.y = y; pts[i + 1]!.y = y; i++; seg++;
-      }
-    }
-    // Drop zero-length runs (straight edges have no horizontal leg).
-    const clean = pts.filter((p, i) => i === 0 || p.x !== pts[i - 1]!.x || p.y !== pts[i - 1]!.y)
-      .filter((p, i, a) => i === 0 || i === a.length - 1 || !((a[i - 1]!.x === p.x && p.x === a[i + 1]!.x) || (a[i - 1]!.y === p.y && p.y === a[i + 1]!.y)));
-    const points = reversed.has(d.e) ? clean.slice().reverse() : clean;
-    let label: RoutedEdge["label"];
-    if (d.e.label) {
-      const box = labelSize(d.e.label);
-      const along = horizontal ? box.height : box.width;
-      // Prefer the longest horizontal (cross-axis) run; else beside the first vertical run.
-      let best: { x: number; y: number; len: number } | undefined;
-      for (let i = 1; i < clean.length; i++) {
-        const a = clean[i - 1]!, b = clean[i]!;
-        if (a.y === b.y && Math.abs(a.x - b.x) >= along + 24 && (!best || Math.abs(a.x - b.x) > best.len)) best = { x: (a.x + b.x) / 2, y: a.y, len: Math.abs(a.x - b.x) };
-      }
-      // Beside: in the room reserved under the source band, next to the line.
-      const r = rank.get(keys[0]!)!;
-      label = best ? { x: best.x, y: best.y, beside: false }
-        : { x: clean[0]!.x, y: top[r]! + bandH[r]! + (labelled[r]! + spacing.labelGap) / 2, beside: true };
-    }
-    routed.push({ edge: d.e, points, rank: rank.get(d.to)!, ...(label ? { label } : {}) });
-  }
+  const { centerY, clean, labels, placed } = result;
+
+  // Bounds: labels beside the outermost lines may reach past the nodes.
+  let x0 = 0, x1 = 0, y0 = 0, y1 = result.height;
+  for (const l of lnodes.values()) x1 = Math.max(x1, l.cross + l.size.width / 2);
+  for (const b of placed) { x0 = Math.min(x0, b.x); x1 = Math.max(x1, b.x + b.width); y0 = Math.min(y0, b.y); y1 = Math.max(y1, b.y + b.height); }
+  const width = x1 - x0, height = y1 - y0;
+  const shift = (p: Point): Point => ({ x: p.x - x0, y: p.y - y0 });
 
   // Map TD geometry to the requested direction.
-  let nodes: PlacedNode[] = content.nodes.map((node) => {
-    const l = lnodes.get(node.id)!;
-    return { id: node.id, x: l.cross - l.size.width / 2, y: centerY(l) - l.size.height / 2, width: l.size.width, height: l.size.height, rank: l.rank };
-  });
-  let W = width, H = height;
-  const map = (p: { x: number; y: number }) => {
-    let { x, y } = p;
+  const map = (p: Point) => {
+    let { x, y } = shift(p);
     if (content.direction === "BT" || content.direction === "RL") y = height - y;
     return horizontal ? { x: y, y: x } : { x, y };
   };
-  nodes = nodes.map((n) => {
-    const a = map({ x: n.x, y: n.y }), b = map({ x: n.x + n.width, y: n.y + n.height });
-    return { ...n, x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) };
+  const nodes: PlacedNode[] = content.nodes.map((node) => {
+    const l = lnodes.get(node.id)!;
+    const a = map({ x: l.cross - l.size.width / 2, y: centerY(l) - l.size.height / 2 }), b = map({ x: l.cross + l.size.width / 2, y: centerY(l) + l.size.height / 2 });
+    return { id: node.id, x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y), rank: l.rank };
   });
-  const edgesOut = routed.map((r) => ({ ...r, points: r.points.map(map), ...(r.label ? { label: { ...map(r.label), beside: r.label.beside } } : {}) }));
-  if (horizontal) [W, H] = [H, W];
-  return { width: W, height: H, nodes, edges: edgesOut, ranks };
+  const edgesOut: RoutedEdge[] = chains.map(({ d }, n) => {
+    const points = (reversed.has(d.e) ? clean[n]!.slice().reverse() : clean[n]!).map(map);
+    const label = labels.get(n);
+    return { edge: d.e, points, rank: rank.get(d.to)!, ...(label ? { label: { ...map(label), beside: false, placement: label.placement } } : {}) };
+  });
+  return horizontal ? { width: height, height: width, nodes, edges: edgesOut, ranks } : { width, height, nodes, edges: edgesOut, ranks };
+}
+
+function overlapping(a: { x: number; y: number; width: number; height: number }, b: typeof a) {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }

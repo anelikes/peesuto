@@ -13,46 +13,156 @@ export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRA
  * grows): a still start, an eased scroll at
  * `pxPerS` (faster when it would exceed `maxMs`), and a still end. */
 export const TEMPLATE_SCROLL = { pxPerS: 120, startMs: 900, minMs: 1500, maxMs: 12000, endMs: 1500 } as const;
-const SIZES = [24, 28, 32, 36, 40, 44, 48, 52, 56, 64, 72, 80, 96, 112, 128, 144, 160] as const;
+/** The measurer's baked font sizes; every drawn line uses one of them. */
+export const SIZES = [24, 28, 32, 36, 40, 44, 48, 52, 56, 64, 72, 80, 96, 112, 128, 144, 160] as const;
+/** The only glyphs a layout draws that are not in the source: ordered-list
+ * numbers (document and list). The measurer is warmed with them. */
+export const LAYOUT_GLYPHS = "0123456789";
 /** A layout's canvas: `height` is the minimum canvas height (content may grow
  * it); `fit` is the height templates size their type against. Fixed frames use
  * the frame height for both; the automatic frame fits against a square and
  * starts the canvas at a per-template minimum so it hugs the content. */
 interface View { width: number; height: number; fit: number }
+/* ───────────── Style tokens ─────────────
+ * Every colour, size and spacing a template uses lives in these tables;
+ * layoutAt() reads only them, so a redesign changes numbers here, not layout
+ * code. Font sizes must be SIZES members (the measurer's baked sizes);
+ * `grown()` snaps scaled sizes back to SIZES.
+ *
+ * Palette: one neutral paper + one night, and one signature hue per template.
+ *   paper #f4f1ea  page #fbfaf6  ink #18181b  ink-2 #5a5750  rule #dcd6ca
+ *   night #121316  night-ink #f2f0ea
+ *   text/poster vermilion #e5482e · document/diagram/qr cobalt #2d4fd0 · quote sienna #b5652a / amber #f0a53a
+ *   code green #2f9e5f · stat yellow #f4c430 · list violet #6a4fd6 · chat teal #0f7a70
+ *   table forest #1f5f47 · comparison rose #c93d6a
+ */
+
 /** The automatic image frame, as tokens. */
 export const AUTO_FRAME = {
   widths: [1080, 1440, 1920],
   /** Minimum height / width, so a short text is not a thin strip. */
-  minRatio: { text: 0.75, stat: 0.75, quote: 0.6, qr: 1 } as Partial<Record<TemplateId, number>>,
+  minRatio: { text: 0.75, stat: 0.75, quote: 0.75, qr: 1, comparison: 0.6 } as Partial<Record<TemplateId, number>>,
   defaultMinRatio: 0.5,
   /** Content that starts wider: tables with this many columns, code lines this long. */
   wideTableColumns: 4, wideCodeLine: 56,
 } as const;
-/** The text template's styles as tokens, so a redesign changes numbers here,
- * not layout code. Sizes are clamped to SIZES (the measurer's baked sizes). */
+
+/** Type steps tried largest-first for content that would otherwise leave a
+ * fixed frame half empty. The first step whose layout fits the frame (no
+ * growth) wins; step 1 is the fallback and may grow the canvas / scroll. */
+export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
+  document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1],
+};
+
+/** The text template: sizes are clamped to SIZES between minSize and maxSize. */
 export const TEXT_STYLES = {
-  /** Paper: quiet page, left-aligned, regular weight. */
-  classic: { background: "#f3efe6", ink: "#27241f", accent: "#b4532f", accentBold: true, bold: false, align: "left", margin: 104, minSize: 36, maxSize: 96, leading: 1.42, rule: false },
-  /** Ink: dark ground, centered, bold. */
-  editorial: { background: "#17201e", ink: "#f2ede1", accent: "#e7c06d", accentBold: false, bold: true, align: "center", margin: 112, minSize: 36, maxSize: 112, leading: 1.36, rule: true },
-  /** Poster: loud color, big tight type. */
-  poster: { background: "#e5482e", ink: "#fff6e8", accent: "#1d1a16", accentBold: false, bold: true, align: "left", margin: 96, minSize: 40, maxSize: 160, leading: 1.14, rule: false },
+  /** Paper: warm page, left, regular; a vermilion square marks the top-left. */
+  classic: { background: "#f4f1ea", ink: "#18181b", accent: "#e5482e", accentBold: true, bold: false, align: "left", margin: 104, minSize: 40, maxSize: 96, leading: 1.24,
+    rule: null, mark: { size: 24, gap: 40, color: "#e5482e" }, band: null },
+  /** Ink: night ground, centred bold, a yellow rule under the text. */
+  editorial: { background: "#121316", ink: "#f2f0ea", accent: "#f4c430", accentBold: false, bold: true, align: "center", margin: 112, minSize: 40, maxSize: 128, leading: 1.16,
+    rule: { width: 96, height: 8, color: "#f4c430" }, mark: null, band: null },
+  /** Poster: vermilion field, huge tight type, an ink band pinned to the bottom edge. */
+  poster: { background: "#e5482e", ink: "#fff8ee", accent: "#18181b", accentBold: false, bold: true, align: "left", margin: 88, minSize: 48, maxSize: 160, leading: 1.02,
+    rule: null, mark: null, band: { height: 28, color: "#18181b" } },
 } as const;
 
-/** Diagram styles as tokens, like TEXT_STYLES. Pills (Mermaid `([ ])`, `(( ))`,
- * arrow-chain ends are not special) take the accent; diamonds are decisions. */
-export const DIAGRAM_STYLES = {
-  /** Flow: light page, outlined white boxes, dark lines. */
-  classic: { background: "#f3f1ec", nodeFill: "#ffffff", border: "#2f5d52", borderWidth: 3, radius: 16, text: "#1f2a28",
-    decisionFill: "#fff6e3", decisionBorder: "#b8862f", accentFill: "#2f5d52", accentText: "#ffffff",
-    line: "#5b6b66", lineWidth: 3, labelFill: "#f3f1ec", labelText: "#56645f", pad: 1, square: false },
-  /** Blueprint: navy ground, light lines. */
-  editorial: { background: "#13233a", nodeFill: "#1b3150", border: "#7fb3e6", borderWidth: 3, radius: 16, text: "#e8f1fb",
-    decisionFill: "#243a5c", decisionBorder: "#f0c36a", accentFill: "#7fb3e6", accentText: "#10213a",
-    line: "#7fb3e6", lineWidth: 3, labelFill: "#13233a", labelText: "#a9c7e6", pad: 1.35, square: true },
+export const DOCUMENT_STYLES = {
+  /** Reading page: full-bleed white page, a cobalt masthead bar. */
+  classic: { background: "#fbfaf6", margin: 104, measure: 9999, masthead: { width: 56, height: 10, gap: 56, color: "#2d4fd0" }, rail: null,
+    h1: { size: 64, color: "#18181b", leading: 1.1 }, h2: { size: 48, color: "#2d4fd0", leading: 1.1 }, h3: { size: 40, color: "#18181b", leading: 1.1 },
+    body: { size: 40, bold: false, color: "#26262b", leading: 1.14 }, lede: null, gap: 32, headingGap: 48, afterHeading: 0,
+    list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#18191d", ink: "#e9e7e0", size: 32, leading: 1.02, radius: 16, pad: 32 } },
+  /** Editorial column: cobalt rail down the left, narrow measure, bold lede. */
+  editorial: { background: "#efebe2", margin: 96, measure: 800, masthead: null, rail: { width: 12, gap: 56, color: "#2d4fd0" },
+    h1: { size: 80, color: "#18181b", leading: 1.04 }, h2: { size: 40, color: "#2d4fd0", leading: 1.1 }, h3: { size: 36, color: "#2d4fd0", leading: 1.1 },
+    body: { size: 40, bold: false, color: "#2a2a2f", leading: 1.14 }, lede: { size: 52, bold: true, color: "#18181b", leading: 1.1 }, gap: 36, headingGap: 56, afterHeading: 4,
+    list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#1b2a6b", ink: "#eef1ff", size: 32, leading: 1.02, radius: 0, pad: 32 } },
 } as const;
-/** Size tiers tried in order until the diagram fits the card's width. */
-const DIAGRAM_TIERS = [
+
+export const QUOTE_STYLES = {
+  /** Book excerpt: cream page, side rule, regular text, small sienna mark (an SVG, not a glyph). */
+  classic: { background: "#efe6d3", ink: "#2a2118", bold: false, margin: 112, sizes: [64, 56, 52, 48, 44, 40], leading: 1.2,
+    mark: { size: 64, gap: 36, color: "#b5652a" }, rule: { width: 6, gap: 48, color: "#cdb58f" },
+    author: { size: 36, bold: false, color: "#8a5a2e", gap: 48, ruleWidth: 40, ruleHeight: 4 } },
+  /** Statement: espresso ground, big bold text, large amber mark; the author after an amber dash shape. */
+  editorial: { background: "#1a1511", ink: "#fbf3e4", bold: true, margin: 96, sizes: [96, 80, 72, 64, 56, 48, 44], leading: 1.1,
+    mark: { size: 128, gap: 40, color: "#f0a53a" }, rule: null,
+    author: { size: 36, bold: true, color: "#f0a53a", gap: 64, ruleWidth: 64, ruleHeight: 6 } },
+} as const;
+
+export const CODE_STYLES = {
+  /** Terminal: night panel, three dots, the language (from the fence only) at top right. */
+  classic: { background: "#0e1014", panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 64, dots: { size: 16, gap: 12, colors: ["#e0625a", "#e2b340", "#4fb86a"] } },
+    outer: 64, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.0,
+    lang: { size: 24, bold: false, color: "#6e7482", gap: 0 },
+    syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#6e7482", number: "#f4c430", punct: "#a7adb9" } },
+  /** Notebook: light page, green gutter bar, zebra rows. */
+  editorial: { background: "#f3f1ea", panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
+    ink: "#1d1d20", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.1,
+    lang: { size: 28, bold: true, color: "#2f9e5f", gap: 28 },
+    syntax: { keyword: "#2447c9", string: "#1d7a45", comment: "#8b877d", number: "#b8561e", punct: "#6a675f" } },
+} as const;
+
+export const STAT_STYLES = {
+  /** Big number: yellow field, left-aligned value, ink bar, label. */
+  classic: { background: "#f4c430", margin: 96, band: null, valueSizes: [160, 144, 128, 112, 96, 80], valueColor: "#18181b", valueLeading: 0.92,
+    bar: { width: 120, height: 12, gap: 48, color: "#18181b" }, labelSize: 56, labelColor: "#18181b", labelLeading: 1.14, labelMeasure: 820 },
+  /** Metric strip: night ground crossed by a full-bleed yellow band holding the value. */
+  editorial: { background: "#121316", margin: 96, band: { color: "#f4c430", pad: 56, gap: 56 }, valueSizes: [144, 128, 112, 96, 80, 72], valueColor: "#18181b", valueLeading: 0.92,
+    bar: null, labelSize: 52, labelColor: "#f2f0ea", labelLeading: 1.16, labelMeasure: 860 },
+} as const;
+
+export const LIST_STYLES = {
+  /** Checklist: page, violet numbers (ordered) or outlined boxes (unordered), hairlines. */
+  classic: { background: "#fbfaf6", margin: 96, card: null, size: 44, leading: 1.14, ink: "#18181b", indent: 88, gap: 30,
+    rule: "#e4dfd4", number: { size: 44, color: "#6a4fd6" }, box: { size: 36, border: 5, radius: 9, color: "#6a4fd6" }, dot: null },
+  /** Stacked steps: lavender ground, white cards, big violet numbers or a dot. */
+  editorial: { background: "#e9e5f6", margin: 80, card: { fill: "#ffffff", radius: 24, pad: 36, gap: 20 }, size: 44, leading: 1.14, ink: "#18181b", indent: 128, gap: 0,
+    rule: null, number: { size: 64, color: "#6a4fd6" }, box: null, dot: { size: 20, color: "#6a4fd6" } },
+} as const;
+
+export const CHAT_STYLES = {
+  /** Bubbles hug their text (at most maxRatio of the width); name and time sit above the bubble. */
+  classic: { background: "#e8ecf1", margin: 72, layout: "bubbles", size: 40, leading: 1.12, maxRatio: 0.78, radius: 32, padX: 32, padY: 22, gap: 36,
+    left: { fill: "#ffffff", ink: "#18181b" }, right: { fill: "#0f7a70", ink: "#ffffff" },
+    name: { size: 28, bold: true, color: "#56606e", gap: 10 }, time: { size: 24, color: "#8a919c" } },
+  /** Transcript: speaker column coloured per speaker, hairlines between turns. */
+  editorial: { background: "#f6f2ea", margin: 88, layout: "transcript", size: 40, leading: 1.14, ink: "#18181b", nameCol: 300, gap: 36, rule: "#dcd6ca",
+    speakers: ["#0f7a70", "#d23f25", "#2d4fd0", "#9a5a12"], name: { size: 32, bold: true }, time: { size: 24, color: "#8c887f" } },
+} as const;
+
+export const TABLE_STYLES = {
+  /** Data grid: white card, forest header, content-proportional columns, the largest size with ≤ maxLines lines per cell. */
+  classic: { background: "#eef0ec", margin: 72, layout: "grid", sizes: [56, 52, 48, 44, 40, 36, 32, 28], maxLines: 2, leading: 1.1, padX: 28, padY: 24,
+    card: { fill: "#ffffff", radius: 20 }, head: { fill: "#1f5f47", ink: "#ffffff" }, zebra: "#f2f5f1", ink: "#18181b", divider: "#e1e6df" },
+  /** Ledger: one record per row — the first cell as title, the other cells as label/value fields, up to perRow side by side. */
+  editorial: { background: "#f2efe6", margin: 88, layout: "ledger", titleSize: 48, labelSize: 28, valueSize: 40, leading: 1.12, perRow: 3,
+    marker: { size: 16, color: "#1f5f47" }, ink: "#18181b", label: "#7d786d", rule: "#d6cfbf", gap: 40, fieldGap: 16 },
+} as const;
+
+export const COMPARISON_STYLES = {
+  /** Side by side: muted "before" panel, rose "after" panel, both stretched to the frame. */
+  classic: { background: "#f4f1ea", margin: 72, layout: "columns", gap: 24, radius: 28, pad: 44, titleSize: 52, itemSize: 40, leading: 1.14, titleGap: 36, itemGap: 24, bullet: 12, titleCol: 0,
+    panels: [{ fill: "#e4dfd3", title: "#4a4740", ink: "#4a4740", bullet: "#9a958a" }, { fill: "#c93d6a", title: "#ffffff", ink: "#ffffff", bullet: "#ffd3e0" }] },
+  /** Split bands: two full-bleed horizontal bands (ink / rose), a title column + items. */
+  editorial: { background: "#18181b", margin: 88, layout: "bands", gap: 0, radius: 0, pad: 0, titleSize: 56, itemSize: 40, leading: 1.14, titleGap: 0, itemGap: 22, bullet: 12, titleCol: 0.3,
+    panels: [{ fill: "#18181b", title: "#ff8fb0", ink: "#f2f0ea", bullet: "#ff8fb0" }, { fill: "#c93d6a", title: "#ffffff", ink: "#ffffff", bullet: "#ffffff" }] },
+} as const;
+
+/** Diagram styles. Pills (Mermaid `([ ])`, `(( ))`) take the accent; diamonds are decisions. */
+export const DIAGRAM_STYLES = {
+  /** Flow: paper, white boxes with ink borders, ink pills, amber decisions. */
+  classic: { background: "#f4f1ea", nodeFill: "#ffffff", border: "#18181b", borderWidth: 3, radius: 16, text: "#18181b",
+    decisionFill: "#fff1c7", decisionBorder: "#c98a12", accentFill: "#18181b", accentText: "#ffffff",
+    line: "#55534e", lineWidth: 3, labelFill: "#f4f1ea", labelText: "#18181b", pad: 1, square: false },
+  /** Blueprint: cobalt ground, pale-blue lines, white pills, yellow labels. */
+  editorial: { background: "#14307f", nodeFill: "#1b3c96", border: "#bcd0ff", borderWidth: 3, radius: 16, text: "#ffffff",
+    decisionFill: "#20449f", decisionBorder: "#ffd166", accentFill: "#ffffff", accentText: "#14307f",
+    line: "#bcd0ff", lineWidth: 3, labelFill: "#14307f", labelText: "#ffd166", pad: 1.35, square: true },
+} as const;
+/** Diagram size tiers tried in order until the diagram fits the card's width. */
+export const DIAGRAM_TIERS = [
   { size: 56, labelSize: 36, nodeWidth: 440, padX: 40, padY: 26, minWidth: 160, rankGap: 96, nodeGap: 72, arrow: 30 },
   { size: 48, labelSize: 32, nodeWidth: 400, padX: 34, padY: 22, minWidth: 140, rankGap: 88, nodeGap: 64, arrow: 28 },
   { size: 40, labelSize: 28, nodeWidth: 360, padX: 30, padY: 20, minWidth: 120, rankGap: 80, nodeGap: 56, arrow: 26 },
@@ -61,13 +171,13 @@ const DIAGRAM_TIERS = [
   { size: 24, labelSize: 24, nodeWidth: 200, padX: 16, padY: 12, minWidth: 64, rankGap: 56, nodeGap: 24, arrow: 18 },
 ] as const;
 
-/** QR styles as tokens. Modules stay dark on light whatever the style: scanners
- * expect it. `card` puts the code on a light card over a coloured ground. */
+/** QR styles. Modules stay dark on light whatever the style: scanners expect
+ * it. `card` puts the code (quiet zone included) on a light card over a coloured ground. */
 export const QR_STYLES = {
   /** Plain: white page, black modules. */
   classic: { background: "#ffffff", light: "#ffffff", dark: "#111111", card: false, cardRadius: 0, cardPad: 0, caption: "#55595e", captionSize: 28 },
-  /** Card: brand ground, a white card holding the code, caption under it. */
-  editorial: { background: "#2f5d52", light: "#ffffff", dark: "#15201d", card: true, cardRadius: 28, cardPad: 40, caption: "#e7f1ec", captionSize: 28 },
+  /** Card: cobalt ground, a white card holding the code, white caption. */
+  editorial: { background: "#2d4fd0", light: "#ffffff", dark: "#111320", card: true, cardRadius: 32, cardPad: 48, caption: "#ffffff", captionSize: 32 },
 } as const;
 /** Quiet zone around the code, in modules (the QR specification asks for 4). */
 const QR_QUIET = 4;
@@ -221,6 +331,65 @@ export function wrapTemplateText(text: string, width: number, size: number, bold
   return wrapStyled(styledGlyphs(text, bold, false), width, size, measure).map((line) => line.map((glyph) => glyph.text).join(""));
 }
 
+/** Largest baked size not above n (the smallest baked size below that). */
+const snap = (n: number): number => [...SIZES].reverse().find((s) => s <= n) ?? SIZES[0];
+/** Objects whose `size` is a shape's side, not a font size. */
+const SHAPE_KEYS = new Set(["dot", "box", "marker", "dots", "mark", "masthead", "rail", "card", "bar", "band", "gutter", "zebra", "panel", "rule"]);
+/** Ratios and shape details that stay as they are when type grows. */
+const KEEP_KEYS = new Set(["margin", "leading", "maxRatio", "titleCol", "perRow", "maxLines", "border", "radius"]);
+/** A style `k` type steps larger: font sizes (keys ending in "size", members
+ * of "…sizes" arrays) snap to SIZES, spacing scales, ratios stay. */
+export function grown<T>(style: T, k: number, parent = ""): T {
+  if (k === 1 || style === null || typeof style !== "object") return style;
+  const out: Record<string, unknown> | unknown[] = Array.isArray(style) ? [] : {};
+  for (const [key, val] of Object.entries(style as Record<string, unknown>)) {
+    let next: unknown;
+    if (val && typeof val === "object") next = grown(val, k, key);
+    else if (typeof val !== "number" || KEEP_KEYS.has(key)) next = val;
+    else if ((/size$/i.test(key) && !SHAPE_KEYS.has(parent)) || /sizes$/i.test(parent)) next = snap(val * k);
+    else next = Math.round(val * k);
+    (out as Record<string, unknown>)[key] = next;
+  }
+  return out as T;
+}
+const pickStyle = <S extends Record<string, unknown>>(table: S, variant: string): S[keyof S] => (table[variant as keyof S] ?? table.classic) as S[keyof S];
+
+/** Syntax colour per grapheme of one code line. Colour only: the text is untouched. */
+const KEYWORDS = /^(const|let|var|function|return|if|else|for|while|class|import|from|export|default|async|await|new|def|fn|pub|mut|impl|struct|true|false|null|undefined|None|True|False|SELECT|FROM|WHERE|AND|OR|type|interface|extends|self)$/;
+interface SyntaxPalette { keyword: string; string: string; comment: string; number: string; punct: string }
+export function syntaxColors(line: string, palette: SyntaxPalette): (string | undefined)[] {
+  const glyphs = graphemes(line), offsets: number[] = [];
+  let offset = 0;
+  for (const glyph of glyphs) { offsets.push(offset); offset += glyph.length; }
+  const colors: (string | undefined)[] = glyphs.map(() => undefined);
+  const paint = (start: number, end: number, color: string) => { for (let i = 0; i < glyphs.length; i++) if (offsets[i]! >= start && offsets[i]! < end) colors[i] = color; };
+  const tokens = /(\/\/.*$|#\s.*$|^\s*#.*$)|(`[^`]*`?|"[^"]*"?|'[^']*'?)|(\b\d[\d_.]*\b)|([A-Za-z_]\w*)|([{}()[\];,.=<>+\-*/:!?&|$]+)/g;
+  for (const match of line.matchAll(tokens)) {
+    const start = match.index!, end = start + match[0].length;
+    if (match[1]) paint(start, end, palette.comment);
+    else if (match[2]) paint(start, end, palette.string);
+    else if (match[3]) paint(start, end, palette.number);
+    else if (match[4]) { if (KEYWORDS.test(match[4])) paint(start, end, palette.keyword); }
+    else if (match[5]) paint(start, end, palette.punct);
+  }
+  return colors;
+}
+/** The quote mark, drawn as a shape so no glyph is added to the source. */
+const QUOTE_MARK_PATH = "M4 60 L4 38 C4 20 12 8 28 2 L30 10 C20 15 16 22 16 30 L28 30 L28 60 Z M36 60 L36 38 C36 20 44 8 60 2 L62 10 C52 15 48 22 48 30 L60 30 L60 60 Z";
+
+/** Try the template's TEMPLATE_GROW steps largest-first; keep the first that
+ * fits the frame, else the step-1 layout (which may grow the canvas). */
+function grownLayout(plan: TemplatePlan, measure: TemplateMeasure, view: View): TemplateLayout {
+  const steps = TEMPLATE_GROW[plan.template] ?? [1];
+  let layout: TemplateLayout | undefined;
+  for (const k of steps) {
+    try { layout = layoutAt(plan, measure, view, k); }
+    catch (error) { if (k === 1) throw error; continue; }
+    if (layout.height <= view.height) return layout;
+  }
+  return layout ?? layoutAt(plan, measure, view, 1);
+}
+
 /** Pure layout: fonts supply real advances in production, a metric fixture in unit tests. */
 export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): TemplateLayout {
   if (plan.template !== plan.content.kind) throw new ComposeError("catalog", "Template and structured content do not match.");
@@ -228,7 +397,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   if (plan.aspect !== "auto") {
     const frame = FRAMES[plan.aspect];
     if (!frame) throw new ComposeError("catalog", "Unknown card frame.");
-    return layoutAt(plan, measure, { ...frame, fit: frame.height });
+    return grownLayout(plan, measure, { ...frame, fit: frame.height });
   }
   // Automatic: the narrowest width tier the content allows, trying wider ones
   // when it overflows; the canvas starts at the template's minimum height.
@@ -236,7 +405,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   let last: unknown;
   for (const width of widths) {
     const minRatio = AUTO_FRAME.minRatio[plan.template] ?? AUTO_FRAME.defaultMinRatio;
-    try { return layoutAt(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width }); }
+    try { return grownLayout(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width }); }
     catch (error) {
       if (!(error instanceof ComposeError) || error.code !== "overflow") throw error;
       last = error;
@@ -255,32 +424,67 @@ function autoWidth(plan: TemplatePlan): number {
   return AUTO_FRAME.widths[wide ? 1 : 0]!;
 }
 
-function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): TemplateLayout {
-  const editorial = plan.variant === "editorial";
-  const W = view.width, margin = 88, inner = W - margin * 2;
-  const layout: TemplateLayout = { width: W, height: view.height, background: "#f1eee7", lines: [], shapes: [], images: [], assets: {} };
+interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[] }
+
+/** One layout at type step `k` (TEMPLATE_GROW). */
+function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 1): TemplateLayout {
+  const W = view.width;
+  /** Per style; qr and diagram keep the default. */
+  let margin = 88;
+  const innerW = () => W - margin * 2;
+  const layout: TemplateLayout = { width: W, height: view.height, background: "#f4f1ea", lines: [], shapes: [], images: [], assets: {} };
   let bottom = margin, group = 0;
+  /** Shapes that settle() leaves in place (full-bleed bands). */
+  const pinned = new Set<object>();
+  let pinBottom: TemplateRect | undefined;
   const rect = (x: number, y: number, width: number, height: number, color: string, radius = 0): TemplateRect => {
     const value = { x, y, width, height, color, radius }; layout.shapes.push(value); return value;
   };
-  const block = (text: string, x: number, y: number, width: number, size = 40, bold = false, color = "#20272b", align: "left" | "center" = "left", groupID = group++, markdown = plan.template === "document", code = plan.template === "code"): number => {
-    const normalized = normalizeText(text, code ? "code" : "plain");
-    const lines = wrapStyled(styledGlyphs(normalized, bold, markdown), width, size, measure);
-    const height = Math.ceil(measure.lineHeight(size, bold) * 1.30);
+  const glyphsOf = (text: string, bold: boolean, o: BlockOptions = {}): StyledGlyph[] => {
+    const glyphs = styledGlyphs(normalizeText(text, o.code ? "code" : "plain"), bold, o.markdown ?? plan.template === "document");
+    if (o.colors) glyphs.forEach((glyph, i) => { const color = o.colors![i]; if (color) glyph.color = color; });
+    return glyphs;
+  };
+  const place = (glyphs: StyledGlyph[], x: number, y: number, width: number, size: number, bold: boolean, color: string, o: BlockOptions = {}): number => {
+    const { align = "left", leading = 1.3, groupID = group++ } = o;
+    const lines = wrapStyled(glyphs, width, size, measure);
+    const height = Math.ceil(measure.lineHeight(size, bold) * leading);
     for (const [index, line] of lines.entries()) {
       const advance = styledWidth(line, size, measure);
-      layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + (align === "center" ? (width - advance) / 2 : 0), y: y + index * height,
-        width: advance, size, height, bold, color, group: groupID, boldAt: line.map((g) => g.bold),
-        ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
+      const dx = align === "center" ? (width - advance) / 2 : align === "right" ? width - advance : 0;
+      layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + dx, y: y + index * height, width: advance, size, height, bold, color, group: groupID,
+        boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
     }
     bottom = Math.max(bottom, y + lines.length * height);
     return lines.length * height;
   };
-  const rule = (x: number, y: number, width: number, color = "#d9d4c9") => rect(x, y, width, 2, color);
+  const block = (text: string, x: number, y: number, width: number, size: number, bold: boolean, color: string, o: BlockOptions = {}) => place(glyphsOf(text, bold, o), x, y, width, size, bold, color, o);
+  const count = (text: string, width: number, size: number, bold: boolean) => wrapStyled(glyphsOf(text, bold), width, size, measure).length;
+  const lh = (size: number, leading: number, bold = false) => Math.ceil(measure.lineHeight(size, bold) * leading);
+  // Text is drawn top-aligned in its line box, the baseline at ~1.16 × size
+  // (Noto Sans SC's ascender); these are offsets from a line's top.
+  /** Where a marker beside the first line of `size` text is optically centred
+   * (between the CJK centre and the Latin x-height centre). */
+  const mid = (size: number) => Math.round(size * 0.8);
+  /** The first line's baseline: text beside text of another size aligns on it. */
+  const base = (size: number) => Math.round(size * 1.16);
+  const svg = (name: string, path: string, color: string, box = 64) => {
+    const file = `${name}-${color.slice(1)}.svg`;
+    layout.assets[file] ??= `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}" viewBox="0 0 ${box} ${box}"><path d="${path}" fill="${color}"/></svg>`;
+    return file;
+  };
+  /** Centre everything unpinned when the content is shorter than the frame. */
+  const settle = (top: number, end: number): number => {
+    const dy = Math.round((view.height - (end - top)) / 2) - top;
+    if (dy <= 0) return end;
+    for (const item of [...layout.lines, ...layout.shapes, ...layout.images]) if (!pinned.has(item)) item.y += dy;
+    return end + dy;
+  };
   const content = plan.content;
   switch (content.kind) {
     case "qr": {
-      const style = QR_STYLES[plan.variant as keyof typeof QR_STYLES] ?? QR_STYLES.classic;
+      const inner = innerW();
+      const style = pickStyle(QR_STYLES, plan.variant);
       layout.background = style.background;
       const matrix = encodeQr(content.data);
       const cells = matrix.size + QR_QUIET * 2;
@@ -290,8 +494,8 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
         captionLines = wrapStyled(styledGlyphs(normalizeText(captionText, "plain"), false, false), inner, style.captionSize, measure);
         if (captionLines.length > 2) captionLines = [];
       }
-      const lh = Math.ceil(measure.lineHeight(style.captionSize, false) * 1.3);
-      const captionH = captionLines.length ? 32 + captionLines.length * lh : 0;
+      const lineH = Math.ceil(measure.lineHeight(style.captionSize, false) * 1.3);
+      const captionH = captionLines.length ? 32 + captionLines.length * lineH : 0;
       const pad = style.card ? style.cardPad : 0;
       const room = Math.min(inner - pad * 2, view.fit - margin * 2 - captionH - pad * 2);
       // Whole pixels per module keep every edge sharp.
@@ -309,55 +513,57 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
       let y = top + side + pad * 2 + 32;
       for (const line of captionLines) {
         const advance = styledWidth(line, style.captionSize, measure);
-        layout.lines.push({ text: line.map((g) => g.text).join(""), x: (W - advance) / 2, y, width: advance, size: style.captionSize, height: lh,
+        layout.lines.push({ text: line.map((g) => g.text).join(""), x: (W - advance) / 2, y, width: advance, size: style.captionSize, height: lineH,
           bold: false, color: style.caption, group: bands, boldAt: line.map(() => false) });
-        y += lh;
+        y += lineH;
       }
       bottom = top + total;
       break;
     }
     case "text": {
-      const style = TEXT_STYLES[plan.variant as keyof typeof TEXT_STYLES] ?? TEXT_STYLES.classic;
-      layout.background = style.background;
+      const style = pickStyle(TEXT_STYLES, plan.variant);
+      layout.background = style.background; margin = style.margin;
       const source = content.paragraphs.join("\n\n");
       const accentAt = accentMask(source, plan.emphasis);
       const glyphs = graphemes(normalizeText(source, "plain")).map((text, i) => ({ text, bold: style.bold || (accentAt[i] === true && style.accentBold), ...(accentAt[i] ? { color: style.accent } : {}) }));
-      const boxW = W - style.margin * 2, boxH = view.fit - style.margin * 2;
+      const band = style.band?.height ?? 0;
+      const markRoom = style.mark ? style.mark.size + style.mark.gap : 0;
+      const boxW = W - margin * 2, boxH = view.fit - margin * 2 - band - markRoom;
       const lineH = (size: number) => Math.ceil(measure.lineHeight(size, style.bold) * style.leading);
       const heightAt = (lines: StyledGlyph[][], size: number) => lines.length * lineH(size) - (lineH(size) - measure.lineHeight(size, style.bold));
+      const ruleExtra = (size: number) => style.rule ? Math.round(size * 0.6) + style.rule.height : 0;
       // The largest size whose wrapped text fits the box; smaller text may grow the canvas.
       let size: number = style.minSize, lines = wrapStyled(glyphs, boxW, size, measure);
       for (const candidate of [...SIZES].reverse()) {
         if (candidate > style.maxSize || candidate < style.minSize) continue;
         const wrapped = wrapStyled(glyphs, boxW, candidate, measure);
-        if (heightAt(wrapped, candidate) <= boxH) { size = candidate; lines = wrapped; break; }
+        if (heightAt(wrapped, candidate) + ruleExtra(candidate) <= boxH) { size = candidate; lines = wrapped; break; }
       }
       // Balance: the narrowest measure that keeps the same number of lines.
       let lo = Math.floor(boxW * 0.5), hi = boxW;
       while (hi - lo > 8) {
-        const mid = Math.floor((lo + hi) / 2);
+        const midW = Math.floor((lo + hi) / 2);
         let trial: StyledGlyph[][] | undefined;
-        try { trial = wrapStyled(glyphs, mid, size, measure); } catch { trial = undefined; }
-        if (trial && trial.length <= lines.length) hi = mid; else lo = mid;
+        try { trial = wrapStyled(glyphs, midW, size, measure); } catch { trial = undefined; }
+        if (trial && trial.length <= lines.length) hi = midW; else lo = midW;
       }
-      const measureW = hi;
-      lines = wrapStyled(glyphs, measureW, size, measure);
+      lines = wrapStyled(glyphs, hi, size, measure);
       const total = heightAt(lines, size);
-      const top = Math.max(style.margin, Math.round((view.height - total) / 2 - size * 0.08));
-      const left = style.align === "center" ? (W - measureW) / 2 : style.margin;
+      const top = Math.max(margin + markRoom, Math.round((view.height - band - total - ruleExtra(size)) / 2 - size * 0.08));
+      const left = style.align === "center" ? (W - hi) / 2 : margin;
       for (const [index, line] of lines.entries()) {
         const advance = styledWidth(line, size, measure);
-        const x = style.align === "center" ? (W - advance) / 2 : left;
-        layout.lines.push({ text: line.map((g) => g.text).join(""), x, y: top + index * lineH(size), width: advance, size, height: lineH(size),
-          bold: style.bold, color: style.ink, group: group++, boldAt: line.map((g) => g.bold),
-          ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
+        layout.lines.push({ text: line.map((g) => g.text).join(""), x: style.align === "center" ? (W - advance) / 2 : left, y: top + index * lineH(size), width: advance, size, height: lineH(size),
+          bold: style.bold, color: style.ink, group: group++, boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
       }
-      if (style.rule) rect(style.align === "center" ? W / 2 - 40 : left, top + total + Math.round(size * 0.6), 80, 6, style.accent);
-      bottom = top + total + (style.rule ? Math.round(size * 0.6) + 6 : 0);
+      if (style.mark) rect(left, top - style.mark.gap - style.mark.size, style.mark.size, style.mark.size, style.mark.color);
+      if (style.rule) rect(style.align === "center" ? W / 2 - style.rule.width / 2 : left, top + total + Math.round(size * 0.6), style.rule.width, style.rule.height, style.rule.color);
+      bottom = top + total + ruleExtra(size) + band;
+      if (style.band) { const b = rect(0, 0, W, band, style.band.color); pinned.add(b); pinBottom = b; }
       break;
     }
     case "diagram": {
-      const style = DIAGRAM_STYLES[plan.variant as keyof typeof DIAGRAM_STYLES] ?? DIAGRAM_STYLES.classic;
+      const style = pickStyle(DIAGRAM_STYLES, plan.variant);
       layout.background = style.background;
       const horizontal = content.direction === "LR" || content.direction === "RL";
       const avail = W - margin * 2;
@@ -384,7 +590,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
             height: lines.length * Math.ceil(measure.lineHeight(tier.labelSize, false) * 1.2) + 10 };
         };
         // Sideways, the rank gap only has to hold an arrow.
-        const geometry = layoutDiagram(content, boxFor, { rankGap: Math.round(tier.rankGap * (horizontal ? 0.7 : 1)), nodeGap: tier.nodeGap, labelGap: 12, dummyWidth: 8 }, labelBox);
+        const geometry = layoutDiagram(content, boxFor, { rankGap: Math.round(tier.rankGap * (horizontal ? 0.7 : 1)), nodeGap: tier.nodeGap, labelGap: 12, dummyWidth: 8, arrow: tier.arrow }, labelBox);
         // The largest tier that fits the whole card. Height alone never pushes
         // text below 32 px: from there the card grows (animations scroll).
         const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.fit - margin * 2;
@@ -431,16 +637,15 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
         }
         if (routed.label && routed.edge.label) {
           const lines = wrapStyled(styledGlyphs(normalizeText(routed.edge.label, "plain"), false, false), tier.nodeWidth * 0.8, tier.labelSize, measure);
-          const lh = Math.ceil(measure.lineHeight(tier.labelSize, false) * 1.2);
+          const lineH = Math.ceil(measure.lineHeight(tier.labelSize, false) * 1.2);
           const lw = Math.max(...lines.map((line) => styledWidth(line, tier.labelSize, measure)));
           const cx = ox + routed.label.x, cy = oy + routed.label.y;
-          const verticalRun = routed.points.length > 1 && routed.points[0]!.x === routed.points[1]!.x;
-          const bx = routed.label.beside ? (verticalRun ? cx + 12 : cx - (lw + 20) / 2) : cx - (lw + 20) / 2;
-          const by = routed.label.beside ? (verticalRun ? cy - (lines.length * lh + 10) / 2 : cy - lines.length * lh - 18) : cy - (lines.length * lh + 10) / 2;
-          rect(bx, by, lw + 20, lines.length * lh + 10, style.labelFill, 8).group = group;
+          // The layout gives the label box's centre, whatever rule placed it.
+          const bx = cx - (lw + 20) / 2, by = cy - (lines.length * lineH + 10) / 2;
+          rect(bx, by, lw + 20, lines.length * lineH + 10, style.labelFill, 8).group = group;
           lines.forEach((line, i) => {
             const advance = styledWidth(line, tier.labelSize, measure);
-            layout.lines.push({ text: line.map((g) => g.text).join(""), x: bx + 10 + (lw - advance) / 2, y: by + 5 + i * lh, width: advance, size: tier.labelSize, height: lh,
+            layout.lines.push({ text: line.map((g) => g.text).join(""), x: bx + 10 + (lw - advance) / 2, y: by + 5 + i * lineH, width: advance, size: tier.labelSize, height: lineH,
               bold: false, color: style.labelText, group, boldAt: line.map(() => false) });
           });
         }
@@ -467,11 +672,11 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
           const bw = accent ? 0 : style.borderWidth;
           rect(x + bw, y + bw, w - bw * 2, h - bw * 2, fill, Math.max(0, radius - bw)).group = group;
         }
-        const lh = Math.ceil(measure.lineHeight(tier.size, false) * 1.25);
-        const top = y + (h - box.lines.length * lh) / 2;
+        const lineH = Math.ceil(measure.lineHeight(tier.size, false) * 1.25);
+        const top = y + (h - box.lines.length * lineH) / 2;
         box.lines.forEach((line, i) => {
           const advance = styledWidth(line, tier.size, measure);
-          layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + (w - advance) / 2, y: top + i * lh, width: advance, size: tier.size, height: lh,
+          layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + (w - advance) / 2, y: top + i * lineH, width: advance, size: tier.size, height: lineH,
             bold: accent, color: ink, group, boldAt: line.map(() => accent) });
         });
       }
@@ -482,215 +687,307 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
       break;
     }
     case "document": {
-      layout.background = editorial ? "#e9edf0" : "#ede9df";
-      const paper = rect(margin - 24, margin - 24, inner + 48, 0, "#fffdf8", 8);
-      let x = margin + 24, width = inner - 48, y = margin + 32;
-      if (editorial) {
-        rect(margin + 12, margin + 28, 9, 140, "#31584d");
-        block("01", margin + 40, margin + 16, 150, 80, true, "#31584d");
-        block("NOTES", margin + 40, margin + 132, 150, 24, true, "#697870");
-        x = margin + 236; width = inner - 260;
-      } else {
-        block("NOTES", x, y, width, 24, true, "#687068");
-        y += 62; rule(x, y, width); y += 40;
-      }
+      const s = grown(pickStyle(DOCUMENT_STYLES, plan.variant), k);
+      layout.background = s.background; margin = s.margin;
+      let x = margin, width = innerW(), y = margin;
+      if (s.rail) { x = margin + s.rail.width + s.rail.gap; width = Math.min(W - margin - x, s.measure); }
+      const top = y;
+      if (s.masthead) { rect(x, y, s.masthead.width, s.masthead.height, s.masthead.color); y += s.masthead.height + s.masthead.gap; }
       const blocks = content.blocks ?? content.paragraphs.map((text) => ({ kind: "paragraph" as const, text }));
+      // The lede sets off an opening paragraph from what follows: a lone or long
+      // paragraph (a whole note, a config dump) stays body text.
+      let firstParagraph = blocks.length > 1 && blocks[0]!.kind === "paragraph" && graphemes(blocks[0]!.text).length <= 140;
       for (const [index, item] of blocks.entries()) {
+        if (index) y += item.kind === "heading" ? s.headingGap : s.gap;
         if (item.kind === "heading") {
-          y += block(item.text, x, y, width, item.level === 1 ? 56 : item.level === 2 ? 48 : 40, true, "#253e35");
+          const h = s[`h${item.level}`];
+          y += block(item.text, x, y, width, h.size, true, h.color, { leading: h.leading }) + s.afterHeading;
         } else if (item.kind === "code") {
-          const h = block(item.code, x + 24, y + 24, width - 48, 28, false, "#dde8f1", "left", group++, false, true);
-          rect(x, y, width, h + 48, "#243440", 8); y += h + 48;
+          const c = s.code;
+          const h = block(item.code, x + c.pad, y + c.pad, width - c.pad * 2, c.size, false, c.ink, { code: true, markdown: false, leading: c.leading });
+          rect(x, y, width, h + c.pad * 2, c.fill, c.radius); y += h + c.pad * 2;
         } else if (item.kind === "list") {
           for (const [i, entry] of item.items.entries()) {
-            block(item.ordered ? `${i + 1}.` : "·", x + 4, y, 52, 36, true, "#447061");
-            y += block(entry, x + 62, y, width - 62, 36) + 16;
+            if (i) y += s.list.gap;
+            // Ordered numbers restate the source's own markers: digits only, nothing added.
+            if (item.ordered) block(String(i + 1), x, y, s.list.indent, s.body.size, true, s.list.color, { leading: s.body.leading });
+            else rect(x + 4, y + mid(s.body.size) - s.list.dot / 2, s.list.dot, s.list.dot, s.list.color, s.list.dot / 2);
+            y += block(entry, x + s.list.indent, y, width - s.list.indent, s.body.size, false, s.body.color, { leading: s.body.leading });
           }
-        } else y += block(item.text, x, y, width, editorial && index === 0 ? 56 : 40, editorial && index === 0);
-        y += editorial ? 38 : 30;
+        } else {
+          const t = s.lede && firstParagraph ? s.lede : s.body; firstParagraph = false;
+          y += block(item.text, x, y, width, t.size, t.bold, t.color, { leading: t.leading });
+        }
       }
-      paper.height = Math.max(view.height - margin * 2 + 48, y - paper.y + 20);
-      bottom = Math.max(bottom, paper.y + paper.height - margin);
+      if (s.rail) rect(margin, top, s.rail.width, y - top, s.rail.color);
+      bottom = settle(top, y);
       break;
     }
     case "quote": {
-      layout.background = editorial ? "#182c2b" : "#eee9de";
-      const ink = editorial ? "#fcf5df" : "#302d27";
-      let y = margin + (editorial ? 34 : 96);
-      if (editorial) {
-        block("“", margin, y - 34, 180, 160, true, "#badc9a");
-        y += 170;
-        y += block(content.text, margin + 12, y, inner - 24, 72, true, ink);
-        y += 56; rect(margin + 12, y, 112, 8, "#badc9a"); y += 38;
-      } else {
-        rect(margin, margin, 8, Math.max(300, view.height - margin * 2), "#b7a789");
-        block("“", margin + 40, margin - 8, 130, 128, false, "#a38962");
-        y += block(content.text, margin + 64, y, inner - 100, 48, false, ink);
-        y += 48;
+      const s = pickStyle(QUOTE_STYLES, plan.variant);
+      layout.background = s.background; margin = s.margin;
+      const x0 = margin + (s.rule ? s.rule.width + s.rule.gap : 0), width = W - margin - x0;
+      const authorH = content.author ? s.author.gap + lh(s.author.size, 1.2, s.author.bold) : 0;
+      const avail = view.fit - margin * 2 - s.mark.size - s.mark.gap - authorH;
+      const sizes: readonly number[] = s.sizes;
+      const size = sizes.find((sz) => count(content.text, width, sz, s.bold) * lh(sz, s.leading, s.bold) <= avail) ?? sizes[sizes.length - 1]!;
+      let y = margin; const top = y;
+      layout.images.push({ x: x0, y, width: s.mark.size, height: s.mark.size, src: svg("quote", QUOTE_MARK_PATH, s.mark.color), group: 0 });
+      y += s.mark.size + s.mark.gap;
+      y += block(content.text, x0, y, width, size, s.bold, s.ink, { leading: s.leading });
+      if (content.author) {
+        const a = s.author; y += a.gap;
+        // The dash before the author is a shape, not a "—" glyph.
+        rect(x0, y + mid(a.size) - a.ruleHeight / 2, a.ruleWidth, a.ruleHeight, a.color);
+        y += block(content.author, x0 + a.ruleWidth + 20, y, width - a.ruleWidth - 20, a.size, a.bold, a.color, { leading: 1.2 });
       }
-      if (content.author) y += block("— " + content.author, margin + (editorial ? 12 : 64), y, inner - 100, 28, false, editorial ? "#badc9a" : "#7a6d56");
-      bottom = y;
+      if (s.rule) rect(margin, top, s.rule.width, y - top, s.rule.color);
+      bottom = settle(top, y);
       break;
     }
     case "code": {
-      layout.background = editorial ? "#edf0eb" : "#121c28";
-      const panel = rect(margin - 24, margin - 24, inner + 48, 0, editorial ? "#fffefa" : "#202d3d", 18);
-      let y = margin + 32;
-      if (!editorial) {
-        ["#d47d79", "#d9b86f", "#80b19a"].forEach((color, i) => rect(margin + 12 + i * 30, y, 14, 14, color, 7));
-        y += 55;
-      } else {
-        block(content.language || "CODE", margin + 20, y, inner - 40, 28, true, "#447061");
-        y += 62; rule(margin + 20, y, inner - 40); y += 28;
-      }
-      const sourceLines = normalizeText(content.code, "code").split("\n");
-      for (const [index, line] of sourceLines.entries()) {
+      const s = pickStyle(CODE_STYLES, plan.variant);
+      layout.background = s.background; margin = s.outer;
+      const source = normalizeText(content.code, "code").split("\n");
+      const P = s.panel, G = s.gutter;
+      const codeX = P ? margin + P.pad : margin + (G?.width ?? 0) + (G?.gap ?? 0);
+      const codeW = P ? W - 2 * margin - 2 * P.pad : W - margin - codeX - (s.zebra?.pad ?? 0);
+      const langH = content.language && !P ? lh(s.lang.size, 1.2, s.lang.bold) + s.lang.gap : 0;
+      const availH = view.fit - 2 * margin - (P ? 2 * P.pad + P.header : langH);
+      const fits = (sz: number) => source.every((line) => measure.width(line, sz, false) <= codeW);
+      // The largest size that fits without wrapping and within the frame; else
+      // the largest unwrapped size at or below the floor (the canvas grows / scrolls).
+      const sizes: readonly number[] = s.sizes;
+      const size = sizes.find((sz) => fits(sz) && source.length * lh(sz, s.leading) <= availH)
+        ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
+      let y = margin; const top = y;
+      let panel: TemplateRect | undefined;
+      if (P) {
+        panel = rect(margin, y, W - 2 * margin, 0, P.fill, P.radius);
+        P.dots.colors.forEach((color, i) => rect(margin + P.pad + i * (P.dots.size + P.dots.gap), y + P.pad, P.dots.size, P.dots.size, color, P.dots.size / 2));
+        if (content.language) block(content.language, codeX, y + P.pad + P.dots.size / 2 - lh(s.lang.size, 1) / 2, codeW, s.lang.size, s.lang.bold, s.lang.color, { align: "right", leading: 1 });
+        y += P.pad + P.header;
+      } else if (content.language) y += block(content.language, codeX, y, codeW, s.lang.size, s.lang.bold, s.lang.color, { leading: 1.2 }) + s.lang.gap;
+      const codeTop = y;
+      for (const [index, line] of source.entries()) {
         const start = y;
-        if (editorial) block(String(index + 1).padStart(2, "0"), margin + 16, y, 70, 28, false, "#8b9890");
-        y += block(line, margin + (editorial ? 112 : 24), y, inner - (editorial ? 144 : 48), 32, false, editorial ? "#253e35" : "#dce7f1");
-        if (editorial && index % 2 === 0) rect(margin + 100, start, inner - 120, y - start, "#f0f3ed", 4);
-        y += 8;
+        const h = place(glyphsOf(line, false, { code: true, markdown: false, colors: syntaxColors(line, s.syntax) }), codeX, y, codeW, size, false, s.ink, { leading: s.leading });
+        if (s.zebra && index % 2 === 1) rect(codeX - s.zebra.pad, start, codeW + 2 * s.zebra.pad, h, s.zebra.color, s.zebra.radius);
+        y += h;
       }
-      panel.height = Math.max(260, y - panel.y + 34);
-      bottom = panel.y + panel.height;
+      if (G) rect(margin, codeTop, G.width, y - codeTop, G.color);
+      if (panel && P) { y += P.pad; panel.height = y - panel.y; }
+      bottom = settle(top, y);
       break;
     }
     case "stat": {
-      layout.background = editorial ? "#e7edeb" : "#f4f0e4";
-      if (editorial) {
-        const valueWidth = Math.round(inner * 0.42);
-        const panel = rect(margin - 12, margin + 72, valueWidth + 36, 0, "#264e44", 12);
-        const vh = block(content.value, margin + 12, margin + 110, valueWidth - 12, 128, true, "#d9edb5");
-        const lh = block(content.label, margin + valueWidth + 64, margin + 114, inner - valueWidth - 64, 44, false, "#29453c");
-        panel.height = Math.max(360, vh + 100, lh + 100);
-        bottom = panel.y + panel.height;
+      const s = pickStyle(STAT_STYLES, plan.variant);
+      layout.background = s.background; margin = s.margin;
+      const sizes: readonly number[] = s.valueSizes;
+      const size = sizes.find((sz) => measure.width(content.value, sz, true) <= innerW()) ?? sizes[sizes.length - 1]!;
+      let y = margin; const top = y;
+      if (s.band) {
+        const band = rect(0, y, W, 0, s.band.color);
+        // Figures sit high in a top-aligned line box (cap height ~0.73, no descent):
+        // lift them so their ink centres in the band.
+        band.height = block(content.value, margin, y + s.band.pad - Math.round(size * 0.13), innerW(), size, true, s.valueColor, { leading: s.valueLeading }) + s.band.pad * 2;
+        y += band.height + s.band.gap;
       } else {
-        let size = 160;
-        for (const candidate of [160, 144, 128, 112, 96, 80]) { size = candidate; if (measure.width(content.value, size, true) <= inner) break; }
-        let y = margin + 130;
-        y += block(content.value, margin, y, inner, size, true, "#285b49", "center");
-        y += 50; rect(W / 2 - 48, y, 96, 6, "#c4a66a"); y += 52;
-        y += block(content.label, margin + 72, y, inner - 144, 44, false, "#4b5145", "center");
-        bottom = y;
+        y += block(content.value, margin, y, innerW(), size, true, s.valueColor, { leading: s.valueLeading });
+        if (s.bar) { y += s.bar.gap; rect(margin, y, s.bar.width, s.bar.height, s.bar.color); y += s.bar.height + s.bar.gap; }
       }
+      y += block(content.label, margin, y, Math.min(innerW(), s.labelMeasure), s.labelSize, false, s.labelColor, { leading: s.labelLeading });
+      bottom = settle(top, y);
       break;
     }
     case "list": {
-      layout.background = editorial ? "#e9eef1" : "#faf7ef";
-      let y = margin + 24;
+      const s = grown(pickStyle(LIST_STYLES, plan.variant), k);
+      layout.background = s.background; margin = s.margin;
+      let y = margin; const top = y;
       for (const [index, item] of content.items.entries()) {
-        if (editorial) {
-          const h = block(item, margin + 144, y + 30, inner - 184, 40, index === 0, "#243840");
-          rect(margin, y, inner, h + 60, "#ffffff", 14);
-          block(String(index + 1).padStart(2, "0"), margin + 28, y + 22, 94, 56, true, "#4c7980");
-          y += h + 84;
+        if (s.card) {
+          if (index) y += s.card.gap;
+          const card = rect(margin, y, innerW(), 0, s.card.fill, s.card.radius);
+          const ty = y + s.card.pad;
+          const h = block(item, margin + s.indent, ty, innerW() - s.indent - s.card.pad, s.size, false, s.ink, { leading: s.leading });
+          if (content.ordered) block(String(index + 1), margin + s.card.pad, ty + base(s.size) - base(s.number.size), s.indent - s.card.pad, s.number.size, true, s.number.color, { leading: 1 });
+          else if (s.dot) rect(margin + s.card.pad + 8, ty + mid(s.size) - s.dot.size / 2, s.dot.size, s.dot.size, s.dot.color, s.dot.size / 2);
+          card.height = h + s.card.pad * 2; y += card.height;
         } else {
-          if (content.ordered) block(String(index + 1) + ".", margin + 4, y + 4, 80, 40, true, "#aa7f4b");
-          else { rect(margin + 4, y + 14, 26, 26, "#ad9470", 5); rect(margin + 9, y + 19, 16, 16, "#faf7ef", 2); }
-          y += block(item, margin + 88, y, inner - 100, 44);
-          y += 24; rule(margin + 88, y, inner - 100); y += 30;
+          if (index) { y += s.gap; if (s.rule) rect(margin + s.indent, y, innerW() - s.indent, 2, s.rule); y += 2 + s.gap; }
+          if (content.ordered) block(String(index + 1), margin, y, s.indent, s.number.size, true, s.number.color, { leading: s.leading });
+          else if (s.box) {
+            const b = s.box, by = y + mid(s.size) - b.size / 2;
+            rect(margin, by, b.size, b.size, b.color, b.radius);
+            rect(margin + b.border, by + b.border, b.size - b.border * 2, b.size - b.border * 2, s.background, b.radius - b.border);
+          }
+          y += block(item, margin + s.indent, y, innerW() - s.indent, s.size, false, s.ink, { leading: s.leading });
         }
       }
-      bottom = y;
+      bottom = settle(top, y);
       break;
     }
     case "chat": {
-      layout.background = editorial ? "#fbf7ef" : "#e9eff0";
-      let y = margin;
+      const s = grown(pickStyle(CHAT_STYLES, plan.variant), k);
+      layout.background = s.background; margin = s.margin;
       const speakers = [...new Set(content.turns.map((turn) => turn.speaker))];
-      for (const turn of content.turns) {
-        if (editorial) {
-          let speakerHeight = block(turn.speaker, margin, y + 20, 200, 28, true, "#547b70");
-          if (turn.time) speakerHeight += 6 + block(turn.time, margin, y + 26 + speakerHeight, 200, 24, false, "#8a9a93");
-          const textHeight = block(turn.text, margin + 242, y + 18, inner - 242, 40);
-          rule(margin, y, inner, "#b9c6ba");
-          y += Math.max(speakerHeight, textHeight) + 60;
+      let y = margin; const top = y;
+      for (const [index, turn] of content.turns.entries()) {
+        const who = speakers.indexOf(turn.speaker);
+        if ("left" in s) {
+          if (index) y += s.gap;
+          const right = who % 2 === 1, maxW = Math.round(innerW() * s.maxRatio), side = right ? s.right : s.left;
+          const nameW = Math.min(measure.width(turn.speaker, s.name.size, true), maxW);
+          const timeW = turn.time ? measure.width(turn.time, s.time.size, false) : 0;
+          // Name and time share a row when both fit on one; otherwise the time goes under the name.
+          const inline = !!turn.time && count(turn.speaker, maxW, s.name.size, true) === 1 && nameW + 16 + timeW <= maxW;
+          const edge = right ? W - margin - 8 : margin + 8;
+          const nx = right ? edge - (inline ? nameW + 16 + timeW : maxW) : edge;
+          let nameH = block(turn.speaker, nx, y, inline ? Math.ceil(nameW) + 1 : maxW, s.name.size, true, s.name.color, { leading: 1.2, align: right && !inline ? "right" : "left" });
+          if (turn.time) {
+            if (inline) block(turn.time, nx + nameW + 16, y + base(s.name.size) - base(s.time.size), Math.ceil(timeW) + 1, s.time.size, false, s.time.color, { leading: 1.2 });
+            else nameH += block(turn.time, right ? edge - maxW : edge, y + nameH, maxW, s.time.size, false, s.time.color, { leading: 1.2, align: right ? "right" : "left" });
+          }
+          y += nameH + s.name.gap;
+          const glyphs = glyphsOf(turn.text, false);
+          const textW = Math.max(s.size, ...wrapStyled(glyphs, maxW - 2 * s.padX, s.size, measure).map((line) => styledWidth(line, s.size, measure)));
+          const bubbleW = Math.ceil(textW + 2 * s.padX), bx = right ? W - margin - bubbleW : margin;
+          const bubble = rect(bx, y, bubbleW, 0, side.fill, s.radius);
+          bubble.height = place(glyphs, bx + s.padX, y + s.padY, maxW - 2 * s.padX, s.size, false, side.ink, { leading: s.leading }) + s.padY * 2 - Math.round(s.size * 0.12);
+          y += bubble.height;
         } else {
-          const right = speakers.indexOf(turn.speaker) % 2 === 1;
-          const bubbleW = Math.round(inner * 0.83), x = right ? W - margin - bubbleW : margin;
-          const bubble = rect(x, y, bubbleW, 0, right ? "#244c44" : "#ffffff", 26);
-          let top = y + 24;
-          top += block(turn.speaker, x + 28, top, bubbleW - 56, 24, true, right ? "#b3d4c4" : "#6c837e");
-          if (turn.time) top += 2 + block(turn.time, x + 28, top + 2, bubbleW - 56, 24, false, right ? "#8fb3a3" : "#95a5a1");
-          top += 12;
-          top += block(turn.text, x + 28, top, bubbleW - 56, 40, false, right ? "#ffffff" : "#263c3a");
-          bubble.height = top - y + 26; y = top + 48;
+          if (index) { y += s.gap; rect(margin, y, innerW(), 2, s.rule); y += 2 + s.gap; }
+          const color = s.speakers[who % s.speakers.length]!;
+          // The name's first line centres on the text's first line; the time goes under it.
+          const nameTop = y + base(s.size) - base(s.name.size);
+          let nameH = nameTop - y + block(turn.speaker, margin, nameTop, s.nameCol - 32, s.name.size, true, color, { leading: 1.2 });
+          if (turn.time) nameH += 6 + block(turn.time, margin, y + nameH + 6, s.nameCol - 32, s.time.size, false, s.time.color, { leading: 1.2 });
+          y += Math.max(nameH, block(turn.text, margin + s.nameCol, y, innerW() - s.nameCol, s.size, false, s.ink, { leading: s.leading }));
         }
       }
-      bottom = y;
+      bottom = settle(top, y);
       break;
     }
     case "table": {
       if (!content.headers.length || content.headers.length > 6 || content.rows.some((row) => row.length !== content.headers.length)) {
         throw new ComposeError("overflow", "A table needs 1–6 columns and the same number of cells in every row.");
       }
-      layout.background = editorial ? "#f2ede2" : "#e8eff0";
-      let y = margin;
-      if (editorial) {
-        for (const [rowIndex, row] of content.rows.entries()) {
-          block(String(rowIndex + 1).padStart(2, "0"), margin, y + 8, 100, 48, true, "#ad8260");
-          let rowY = y + 10;
-          for (const [index, cell] of row.entries()) {
-            const hh = block(content.headers[index]!, margin + 130, rowY, Math.round(inner * 0.28), 28, true, "#7a705f");
-            const vh = block(cell, margin + Math.round(inner * 0.43), rowY, Math.round(inner * 0.57), 36);
-            rowY += Math.max(hh, vh) + 22;
-          }
-          y = rowY + 12; rule(margin, y, inner, "#c5bda9"); y += 36;
+      const s = grown(pickStyle(TABLE_STYLES, plan.variant), k);
+      layout.background = s.background; margin = s.margin;
+      const cols = content.headers.length, all = [content.headers, ...content.rows];
+      let y = margin; const top = y;
+      if ("sizes" in s) {
+        const inner = innerW();
+        let pick: { size: number; widths: number[] } | undefined;
+        for (const size of s.sizes as readonly number[]) {
+          // Columns take their natural width; spare room is shared in proportion.
+          const natural = content.headers.map((_, c) => Math.max(...all.map((row, r) => measure.width(row[c]!, size, r === 0))) + 2 * s.padX);
+          const sum = natural.reduce((a, b) => a + b, 0);
+          const raw = sum <= inner ? natural.map((n) => n + (inner - sum) * n / sum) : natural.map((n) => Math.max(inner / cols * 0.6, n * inner / sum));
+          const scale = inner / raw.reduce((a, b) => a + b, 0), widths = raw.map((w) => w * scale);
+          const lines = all.map((row, r) => Math.max(...row.map((cell, c) => count(cell, widths[c]! - 2 * s.padX, size, r === 0))));
+          const height = lines.reduce((a, n) => a + n * lh(size, s.leading) + 2 * s.padY, 0);
+          pick = { size, widths };
+          if (Math.max(...lines) <= s.maxLines && height <= view.fit - 2 * margin) break;
         }
-      } else {
-        const col = inner / content.headers.length;
-        for (const [rowIndex, row] of [content.headers, ...content.rows].entries()) {
-          let rowHeight = 0;
+        const { size, widths } = pick!;
+        const card = rect(margin, y, inner, 0, s.card.fill, s.card.radius);
+        for (const [r, row] of all.entries()) {
           const rowY = y;
-          for (const [index, cell] of row.entries()) rowHeight = Math.max(rowHeight,
-            block(cell, margin + index * col + 20, y + 24, col - 40, rowIndex === 0 ? 32 : 28, rowIndex === 0, rowIndex === 0 ? "#ffffff" : "#263c3b"));
-          rowHeight += 48;
-          rect(margin, y, inner, rowHeight, rowIndex === 0 ? "#315c59" : rowIndex % 2 ? "#ffffff" : "#f3f7f5");
-          for (let i = 1; i < content.headers.length; i++) rect(margin + i * col, rowY, 1, rowHeight, "#d5dfda");
-          y += rowHeight;
+          const n = Math.max(...row.map((cell, c) => count(cell, widths[c]! - 2 * s.padX, size, r === 0)));
+          const rowH = n * lh(size, s.leading, r === 0) + 2 * s.padY;
+          // Rects have one radius: a square-cornered half covers the inner corners.
+          if (r === 0) { rect(margin, rowY, inner, rowH, s.head.fill, s.card.radius); rect(margin, rowY + rowH / 2, inner, rowH / 2, s.head.fill); }
+          else if (r % 2 === 0) {
+            if (r === all.length - 1) { rect(margin, rowY, inner, rowH, s.zebra, s.card.radius); rect(margin, rowY, inner, rowH / 2, s.zebra); }
+            else rect(margin, rowY, inner, rowH, s.zebra);
+          }
+          let x = margin;
+          for (const [c, cell] of row.entries()) {
+            if (c && r) rect(x, rowY, 2, rowH, s.divider);
+            block(cell, x + s.padX, rowY + s.padY, widths[c]! - 2 * s.padX, size, r === 0, r === 0 ? s.head.ink : s.ink, { leading: s.leading, markdown: false });
+            x += widths[c]!;
+          }
+          y += rowH;
+        }
+        card.height = y - card.y;
+      } else {
+        // Ledger: header[0] labels each record's title; every header is drawn with its value, so nothing is dropped.
+        const fields = cols - 1, per = Math.min(s.perRow, Math.max(1, fields));
+        const x0 = margin + s.marker.size + 24, fieldW = (W - margin - x0) / per;
+        for (const [r, row] of content.rows.entries()) {
+          if (r) { y += s.gap; rect(margin, y, innerW(), 2, s.rule); y += 2 + s.gap; }
+          y += block(content.headers[0]!, x0, y, W - margin - x0, s.labelSize, true, s.label, { leading: 1.2, markdown: false }) + 4;
+          rect(margin, y + mid(s.titleSize) - s.marker.size / 2, s.marker.size, s.marker.size, s.marker.color);
+          y += block(row[0]!, x0, y, W - margin - x0, s.titleSize, true, s.ink, { leading: s.leading, markdown: false }) + 20;
+          let rowMax = 0;
+          for (let c = 1; c < cols; c++) {
+            const slot = (c - 1) % per;
+            if (slot === 0 && c > 1) { y += rowMax + s.fieldGap; rowMax = 0; }
+            const fx = x0 + slot * fieldW;
+            const a = block(content.headers[c]!, fx, y, fieldW - 24, s.labelSize, true, s.label, { leading: 1.2, markdown: false });
+            const b = block(row[c]!, fx, y + a + 2, fieldW - 24, s.valueSize, false, s.ink, { leading: s.leading, markdown: false });
+            rowMax = Math.max(rowMax, a + 2 + b);
+          }
+          y += rowMax;
         }
       }
-      bottom = y;
+      bottom = settle(top, y);
       break;
     }
     case "comparison": {
       if (content.columns.length !== 2) throw new ComposeError("catalog", "Comparison templates require exactly two columns.");
-      layout.background = editorial ? "#f5f1e8" : "#e9eef0";
-      let y = margin;
-      const width = editorial ? inner : (inner - 32) / 2;
-      const heights: number[] = [];
-      for (const [index, column] of content.columns.entries()) {
-        const x = editorial ? margin : margin + index * (width + 32);
-        const top = editorial ? y : margin;
-        const panel = rect(x, top, width, 0, index === 0 ? "#ffffff" : "#244c44", 16);
-        const color = index === 0 ? "#253e35" : "#f0f7e9";
-        let cy = top + 32;
-        if (editorial) {
-          const titleH = block(column.title, x + 28, cy, 220, 44, true, color);
-          let bodyY = cy;
-          for (const item of column.items) { bodyY += block(item, x + 300, bodyY, width - 332, 36, false, color) + 24; }
-          cy += Math.max(titleH, bodyY - cy);
-        } else {
-          cy += block(column.title, x + 30, cy, width - 60, 44, true, color) + 32;
-          for (const item of column.items) { cy += block(item, x + 30, cy, width - 60, 36, false, color) + 30; }
+      const s = grown(pickStyle(COMPARISON_STYLES, plan.variant), k);
+      layout.background = s.background; margin = s.margin;
+      const items = (x: number, y: number, width: number, column: { items: readonly string[] }, p: { ink: string; bullet: string }) => {
+        for (const [j, item] of column.items.entries()) {
+          if (j) y += s.itemGap;
+          rect(x, y + mid(s.itemSize) - s.bullet / 2, s.bullet, s.bullet, p.bullet, 2);
+          y += block(item, x + s.bullet + 20, y, width - s.bullet - 20, s.itemSize, false, p.ink, { leading: s.leading });
         }
-        panel.height = Math.max(230, cy - top + 20); heights.push(panel.height);
-        if (editorial) y = top + panel.height + 28;
+        return y;
+      };
+      if (s.layout === "columns") {
+        const cw = (innerW() - s.gap) / 2, panels: TemplateRect[] = [];
+        for (const [i, column] of content.columns.entries()) {
+          const x = margin + i * (cw + s.gap), p = s.panels[i]!;
+          const panel = rect(x, margin, cw, 0, p.fill, s.radius); panels.push(panel);
+          let y = margin + s.pad;
+          y += block(column.title, x + s.pad, y, cw - 2 * s.pad, s.titleSize, true, p.title, { leading: 1.1 }) + s.titleGap;
+          y = items(x + s.pad, y, cw - 2 * s.pad, column, p);
+          panel.height = y + s.pad - margin;
+        }
+        // Both panels fill the frame height (never less than their content).
+        const h = Math.max(view.height - 2 * margin, ...panels.map((p) => p.height));
+        for (const p of panels) p.height = h;
+        bottom = margin + h;
+      } else {
+        const titleCol = Math.round(W * s.titleCol);
+        let y = 0;
+        for (const [i, column] of content.columns.entries()) {
+          const p = s.panels[i]!, band = rect(0, y, W, 0, p.fill); pinned.add(band);
+          const firstLine = layout.lines.length, firstShape = layout.shapes.length;
+          const titleH = block(column.title, margin, y + margin, titleCol - margin - 24, s.titleSize, true, p.title, { leading: 1.1 });
+          const end = items(titleCol, y + margin, W - margin - titleCol, column, p);
+          const contentH = Math.max(titleH, end - y - margin) + 2 * margin;
+          // Two full-bleed bands: the first takes at least half the frame, the second the rest.
+          const target = i === 0 ? Math.max(contentH, Math.round(view.height / 2)) : Math.max(contentH, view.height - y);
+          const dy = Math.round((target - contentH) / 2);
+          for (const line of layout.lines.slice(firstLine)) line.y += dy;
+          for (const shape of layout.shapes.slice(firstShape)) shape.y += dy;
+          band.height = target; y += target;
+        }
+        bottom = y - margin;
       }
-      if (!editorial) {
-        const maxH = Math.max(...heights);
-        // The two panels align at the bottom while retaining independent text.
-        layout.shapes.slice(-2).forEach((shape) => { shape.height = maxH; });
-        bottom = margin + maxH;
-      } else bottom = y;
       break;
     }
   }
-  const count = layout.lines.reduce((total, line) => total + graphemes(line.text).length, 0);
-  if ((!count && plan.content.kind !== "qr") || !plan.sourceText.trim()) throw new ComposeError("empty", "There is no text to render.");
-  if (count > TEMPLATE_LIMITS.maxGraphemes) throw new ComposeError("overflow", `This template contains ${count} characters; the supported maximum is ${TEMPLATE_LIMITS.maxGraphemes}. Split the source into smaller cards. No content was truncated.`);
+  const glyphCount = layout.lines.reduce((total, line) => total + graphemes(line.text).length, 0);
+  if ((!glyphCount && plan.content.kind !== "qr") || !plan.sourceText.trim()) throw new ComposeError("empty", "There is no text to render.");
+  if (glyphCount > TEMPLATE_LIMITS.maxGraphemes) throw new ComposeError("overflow", `This template contains ${glyphCount} characters; the supported maximum is ${TEMPLATE_LIMITS.maxGraphemes}. Split the source into smaller cards. No content was truncated.`);
   layout.height = Math.ceil(Math.max(view.height, bottom + margin) / 2) * 2;
   if (layout.height > TEMPLATE_LIMITS.maxHeight) throw new ComposeError("overflow", `The complete content needs ${layout.height}px of height (maximum ${TEMPLATE_LIMITS.maxHeight}px). Choose a wider aspect or split the source. No content was truncated.`);
+  if (pinBottom) pinBottom.y = layout.height - pinBottom.height;
   return layout;
 }
 
@@ -732,7 +1029,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   const api = await import(`${options.engine}/src/text/measure.ts`) as { openMeasurer(options: unknown): Promise<EngineMeasurer> };
   const serialized = JSON.stringify(plan.content);
   const caption = qr ? qrCaption(qr) : undefined;
-  const texts = qr ? ["0", ...(caption && !unsupportedScript(caption) ? [stripEmoji(caption)] : [])] : [stripEmoji(serialized), "NOTES CODE 0123456789.—“·"];
+  const texts = qr ? ["0", ...(caption && !unsupportedScript(caption) ? [stripEmoji(caption)] : [])] : [stripEmoji(serialized), LAYOUT_GLYPHS];
   if (qr && caption && unsupportedScript(caption)) plan = { ...plan, content: { ...qr, caption: false } };
   const m = await api.openMeasurer({
     face: { regular: `${options.engine}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${options.engine}/assets/fonts/NotoSansSC-Bold.otf` },

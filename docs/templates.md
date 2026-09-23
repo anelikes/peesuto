@@ -84,8 +84,7 @@ At most 40 nodes, 80 edges and 80 characters per label; labels are drawn
 verbatim. Layout is layered: ranks by longest path (cycles are reversed for
 ranking and drawn back up), points for edges that skip ranks so they bend
 around the nodes between, barycenter ordering, parent-aligned positions, and
-orthogonal routing with one channel per edge between ranks. Edge labels sit on
-a long horizontal run, or beside the line under the source. Size tiers from
+orthogonal routing with one channel per edge between ranks. Incoming and outgoing ports spread evenly over 20–80% of a node side (at least 1.6 arrowheads apart; the node widens if needed), and the last run into a node is at least an arrowhead plus 12 px. Edge labels try beside the first run (away from sibling edges), then above, then below a horizontal run, rejecting any spot that touches a node, another label or a line; if none fits, that rank gap grows. Size tiers from
 56 px down are tried until the diagram fits the card; height alone never pushes
 text below 32 px, the card grows instead (and an animation scrolls). A diagram
 too wide even at 24 px is an overflow error. Reveal and typewriter bring the

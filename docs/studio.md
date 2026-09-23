@@ -50,7 +50,7 @@ All in `core/src/templates/compose.ts`. Run `grep -n "_STYLES\|TEMPLATE_SCROLL\|
 | `TEMPLATE_SCROLL` | When tall GIF/MP4 content scrolls (`threshold` × canvas height) and how fast: `pxPerS`, start/end holds, min/max duration. |
 | `TEMPLATE_LIMITS` | Maximum height, grapheme limit, fps, typewriter duration cap, final hold. |
 
-The other templates (document, quote, code, stat, list, chat, table, comparison) still set colors and sizes inline in `layoutTemplate` (one `case` per template, `editorial ? … : …`). Moving them into `*_STYLES` tables would let a redesign edit only tokens.
+Every template reads its colours, sizes and spacing from a table in `core/src/templates/compose.ts`: `TEXT_STYLES`, `DOCUMENT_STYLES`, `QUOTE_STYLES`, `CODE_STYLES`, `STAT_STYLES`, `LIST_STYLES`, `CHAT_STYLES`, `TABLE_STYLES`, `COMPARISON_STYLES`, `DIAGRAM_STYLES` (+ `DIAGRAM_TIERS`), `QR_STYLES`, plus `TEMPLATE_GROW` (type steps tried when content would leave a fixed frame half empty), `AUTO_FRAME` and `TEMPLATE_SCROLL`. A redesign edits numbers there; font sizes must be members of `SIZES`.
 
 ## Static export
 

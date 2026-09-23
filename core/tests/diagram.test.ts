@@ -117,6 +117,78 @@ describe("diagram layout", () => {
   });
 });
 
+describe("diagram ports and labels", () => {
+  const arrow = 22;
+  const withArrow = { ...spacing, arrow };
+  const segs = (g: ReturnType<typeof layoutDiagram>) => g.edges.flatMap((e) => e.points.slice(1).map((b, i) => {
+    const a = e.points[i]!;
+    return { edge: e, x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.max(0.01, Math.abs(a.x - b.x)), height: Math.max(0.01, Math.abs(a.y - b.y)) };
+  }));
+  const labelBoxes = (g: ReturnType<typeof layoutDiagram>, size: (l: string) => { width: number; height: number }) =>
+    g.edges.filter((e) => e.label).map((e) => { const b = size(e.edge.label!); return { edge: e, x: e.label!.x - b.width / 2, y: e.label!.y - b.height / 2, width: b.width, height: b.height }; });
+  const finalRun = (e: { points: { x: number; y: number }[] }) => { const a = e.points.at(-2)!, b = e.points.at(-1)!; return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); };
+
+  for (const [direction, fan] of [["TD", 3], ["TD", 4], ["LR", 4], ["BT", 3], ["RL", 3]] as const) {
+    test(`${direction}: a fan-in of ${fan} lands evenly across 20–80% of the side, 1.6 arrows apart`, () => {
+      const src = Array.from({ length: fan }, (_, i) => ` s${i} --> t`).join("\n");
+      const g = layoutDiagram(parseMermaid(`flowchart ${direction}\n${src}`)!, box(120, 60), withArrow, label);
+      const t = g.nodes.find((n) => n.id === "t")!;
+      const horizontal = direction === "LR" || direction === "RL";
+      const [lo, len] = horizontal ? [t.y, t.height] : [t.x, t.width];
+      const ends = g.edges.map((e) => { const p = e.points.at(-1)!; return horizontal ? p.y : p.x; }).sort((a, b) => a - b);
+      ends.forEach((x, i) => expect(x - lo).toBeCloseTo(len * (0.2 + 0.6 * (i + 0.5) / fan), 6));
+      for (let i = 1; i < ends.length; i++) expect(ends[i]! - ends[i - 1]!).toBeGreaterThanOrEqual(1.6 * arrow - 1e-6);
+      // Sorted by source position: landing order matches the sources' order, so fan-ins never cross.
+      const bySource = g.edges.slice().sort((a, b) => (horizontal ? a.points[0]!.y - b.points[0]!.y : a.points[0]!.x - b.points[0]!.x));
+      expect(bySource.map((e) => horizontal ? e.points.at(-1)!.y : e.points.at(-1)!.x)).toEqual(ends);
+      for (const e of g.edges) expect(finalRun(e)).toBeGreaterThanOrEqual(arrow + 12);
+    });
+  }
+  test("outgoing ports spread too; a diamond keeps one centre port", () => {
+    const g = layoutDiagram(parseMermaid("flowchart TD\n a --> b & c & d\n q{x} --> r & s")!, box(120, 60), withArrow, label);
+    const starts = (id: string) => g.edges.filter((e) => e.edge.from === id).map((e) => e.points[0]!.x);
+    expect(new Set(starts("a")).size).toBe(3);
+    const q = g.nodes.find((n) => n.id === "q")!;
+    for (const x of starts("q")) expect(x).toBeCloseTo(q.x + q.width / 2, 6);
+  });
+  test("final runs are at least arrow + 12 long, also on a tight rank gap and a cycle", () => {
+    for (const source of ["flowchart TD\n A-->B\n A-->C\n B-->D\n C-->D\n A-->D\n D-->A", "flowchart LR\n a --> b & c & d\n b & c & d --> e"]) {
+      const g = layoutDiagram(parseMermaid(source)!, box(120, 60), { ...spacing, rankGap: 20, arrow: 30 }, label);
+      for (const e of g.edges) expect(finalRun(e)).toBeGreaterThanOrEqual(42);
+    }
+  });
+  const cases: [string, string][] = [
+    ["decision", "flowchart TD\n A([开始]) --> B{可以吗?}\n B -->|是| C[做]\n B -->|否| D[停]\n C --> E[完成]\n D -->|重试| B"],
+    ["fan-out", "flowchart TD\n root --> |first| a & b & c\n root -->|fourth option| d\n a & b --> z"],
+    ["fan-out LR", "flowchart LR\n root --> |first| a & b & c\n root -->|fourth| d"],
+    ["decision BT", "flowchart BT\n A --> B{ok?}\n B -->|yes| C\n B -->|no| D"],
+  ];
+  for (const [name, source] of cases) test(`${name}: labels clear nodes, each other and other edges`, () => {
+    const size = (l: string) => ({ width: 16 + l.length * 12, height: 28 });
+    const g = layoutDiagram(parseMermaid(source)!, box(110, 56), withArrow, size);
+    const boxes = labelBoxes(g, size);
+    expect(boxes.length).toBe(g.edges.filter((e) => e.edge.label).length);
+    for (const b of boxes) {
+      expect(["beside", "above", "below"]).toContain(b.edge.label!.placement!);
+      expect(b.edge.label!.beside).toBe(false);
+      for (const n of g.nodes) expect(overlaps(b, n)).toBe(false);
+      for (const o of boxes) if (o !== b) expect(overlaps(b, o)).toBe(false);
+      for (const s of segs(g)) if (s.edge !== b.edge) expect(overlaps(b, s)).toBe(false);
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.y).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(g.width + 1e-6);
+      expect(b.y + b.height).toBeLessThanOrEqual(g.height + 1e-6);
+    }
+  });
+  test("yes/no branches of a decision label on opposite sides, away from each other", () => {
+    const g = layoutDiagram(parseMermaid("flowchart TD\n B{ok?} -->|yes| C\n B -->|no| D")!, box(110, 56), withArrow, label);
+    const [yes, no] = ["yes", "no"].map((l) => g.edges.find((e) => e.edge.label === l)!);
+    expect(yes!.label!.placement).toBe("beside");
+    expect(no!.label!.placement).toBe("beside");
+    expect(Math.sign(yes!.label!.x - yes!.points[0]!.x)).toBe(-Math.sign(no!.label!.x - no!.points[0]!.x));
+  });
+});
+
 describe("diagram composition", () => {
   const content = parseMermaid("flowchart TD\n A([开始]) --> B{可以吗?}\n B -->|是| C[做]\n B -->|否| D[停]")!;
   test("every label is drawn once, in rank order; nothing added", () => {

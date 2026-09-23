@@ -62,7 +62,8 @@ describe("structured template layouts", () => {
   test("Markdown blocks change typography while preserving code indentation and emphasis", () => {
     const source = "# Heading\n\nKeep **important** words.\n\n- one\n- two\n\n```ts\n\tconst value = 42;\n```";
     const layout = layoutTemplate(samplePlan({ kind: "document", paragraphs: [source], blocks: documentBlocks(source) }), metrics);
-    expect(layout.lines.find((line) => line.text === "Heading")?.size).toBe(56);
+    const body = layout.lines.find((line) => line.text.includes("important"))!;
+    expect(layout.lines.find((line) => line.text === "Heading")!.size).toBeGreaterThan(body.size);
     const strong = layout.lines.find((line) => line.text.includes("important"))!;
     expect(strong.text).toBe("Keep important words.");
     expect(strong.boldAt.slice(5, 14).every(Boolean)).toBe(true);
@@ -147,7 +148,16 @@ describe("tall animations scroll", () => {
     expect(texts).toContain("0:10");
     const time = layout.lines.find((line) => line.text === "22:10")!, name = layout.lines.find((line) => line.text === "nok")!;
     expect(time.size).toBeLessThanOrEqual(name.size);
-    expect(time.y).toBeGreaterThan(name.y);
+    // Bubbles: the time follows the name on its row, both above the bubble text.
+    expect(time.x).toBeGreaterThan(name.x + name.width);
+    expect(Math.abs(time.y - name.y)).toBeLessThan(name.height / 2);
+    const text = layout.lines.find((line) => line.text === "你好")!;
+    expect(text.y).toBeGreaterThanOrEqual(name.y + name.height);
+    // Transcript: the time sits under the name in the speaker column.
+    const transcript = layoutTemplate(samplePlan({ kind: "chat", turns: [{ speaker: "nok", time: "22:10", text: "你好" }] }, "editorial"), metrics);
+    const tTime = transcript.lines.find((line) => line.text === "22:10")!, tName = transcript.lines.find((line) => line.text === "nok")!;
+    expect(tTime.y).toBeGreaterThanOrEqual(tName.y + tName.height);
+    expect(tTime.x).toBe(tName.x);
   });
 });
 

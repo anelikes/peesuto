@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Template redesign (with Claude Design): one neutral paper and night plus a signature colour per template; every template reads a style table; short content grows a type step and is centred in fixed frames; code gets light syntax colouring; added labels (NOTES, 01, CODE, line numbers) are gone; quote marks and author dashes are shapes, not glyphs. Diagram ports spread over a node side and edge labels avoid nodes, lines and each other.
 - QR code: `paste-qr` (⌘⌥4) encodes the copied text exactly as a QR code, in two styles, with a caption for one short line; never chosen automatically and never sent to a model; too-long text is an explicit error.
 - Fix: the app bundle now ships core's own packages (gifenc, qrcode-generator) and Core runs with `--no-install`. Installed outside the repository, GIF rendering failed offline and Bun would otherwise have fetched the package from npm at runtime, outside the egress layer. The bundler proves offline resolution from a copy outside the repository.
 - Precompose (off by default): each copied text is rendered in the background as an image, GIF and/or video, so the paste shortcut returns it at once; local rules decide unless the model is allowed; texts with secrets, long texts, Low Power Mode and busy moments are skipped; a new copy cancels older work, an explicit action preempts it.
