@@ -257,3 +257,44 @@ public enum KeychainSecrets {
         return key
     }
 }
+
+/// Global shortcuts: the panel plus one direct-paste shortcut per media action.
+/// Saved settings that predate an action fall back to its default.
+public enum MediaShortcuts {
+    public static let panelDefault = "CmdOrCtrl+Shift+V"
+    public static let defaults: [(id: String, accelerator: String)] = [
+        ("paste-card", "CmdOrCtrl+Alt+1"), ("paste-gif", "CmdOrCtrl+Alt+2"),
+        ("paste-video", "CmdOrCtrl+Alt+3"), ("paste-qr", "CmdOrCtrl+Alt+4")
+    ]
+    public static var actionIDs: [String] { defaults.map(\.id) }
+
+    /// `saved` is `native_shortcuts`; `legacyPanel` the older `hotkey` value.
+    /// An empty saved string means the user disabled that shortcut.
+    public static func resolve(saved: [String: String], legacyPanel: String?) -> [String: String] {
+        var result = ["panel": saved["panel"] ?? legacyPanel ?? panelDefault]
+        for (id, accelerator) in defaults { result[id] = saved[id] ?? accelerator }
+        return result
+    }
+}
+
+/// User-facing text for a Core "compose" failure, told apart by its code.
+public enum ComposeFailureText {
+    public static func message(_ failure: CoreError, tr: (String, String) -> String) -> String {
+        switch failure.code {
+        case "unsupported-script":
+            let list = failure.characterLabels.joined(separator: ", ")
+            return list.isEmpty
+                ? tr("The card font cannot draw some characters in this text. Nothing was rendered or removed.", "卡片字体无法显示这段文字中的部分字符，未生成也未删减内容。")
+                : tr("The card font cannot draw: \(list). Remove them and retry; nothing was removed for you.", "卡片字体无法显示：\(list)。请删去后重试；没有自动删减内容。")
+        case "empty":
+            return tr("There is no text to render.", "没有可生成的文字。")
+        case "catalog":
+            return tr("This template or style is not available for this content.", "这段内容不能使用该模板或风格。")
+        case "qr-too-long":
+            return tr("This text is too long for one QR code (keep it under about 2,900 English characters or 950 Chinese characters).",
+                      "内容太长，放不进一个二维码（大约 950 个汉字或 2900 个英文字符以内）。")
+        default:
+            return tr("This content could not fit safely. Try a shorter excerpt; no text was silently removed.", "内容无法完整排入画面，请缩短后重试；没有静默删减文字。")
+        }
+    }
+}

@@ -227,11 +227,7 @@ struct OutputPreview {
     var selected: ClipRecord? { items.first { $0.id == selectedID } }
     var isChinese: Bool { Language.isChinese(language) }
     var shortcuts: [String: String] {
-        let saved = settings?.values["native_shortcuts"] as? [String: String] ?? [:]
-        return ["panel": saved["panel"] ?? settings?.hotkey ?? "CmdOrCtrl+Shift+V",
-                "paste-card": saved["paste-card"] ?? "CmdOrCtrl+Alt+1",
-                "paste-gif": saved["paste-gif"] ?? "CmdOrCtrl+Alt+2",
-                "paste-video": saved["paste-video"] ?? "CmdOrCtrl+Alt+3"]
+        MediaShortcuts.resolve(saved: settings?.values["native_shortcuts"] as? [String: String] ?? [:], legacyPanel: settings?.hotkey)
     }
 
     func refresh() {
@@ -326,6 +322,7 @@ struct OutputPreview {
         case "paste-card": return tr("Create image", "生成图片")
         case "paste-gif": return tr("Create GIF", "生成 GIF")
         case "paste-video": return tr("Create video", "生成视频")
+        case "paste-qr": return tr("Paste as QR code", "粘贴为二维码")
         case "paste-translate": return tr("Translate to English", "翻译为英文")
         case "paste-summary": return tr("Summarize", "生成摘要")
         default: return action.name
@@ -358,7 +355,13 @@ struct OutputPreview {
             error = tr("Clipboard or input changed. Try the shortcut again.", "剪贴板或输入状态已变化，请重新按快捷键。")
             notice = nil; showTaskStatus?(); return
         }
-        let title = actionID == "paste-card" ? tr("Create image", "生成图片") : actionID == "paste-gif" ? tr("Create GIF", "生成 GIF") : tr("Create video", "生成视频")
+        let title: String
+        switch actionID {
+        case "paste-card": title = tr("Create image", "生成图片")
+        case "paste-gif": title = tr("Create GIF", "生成 GIF")
+        case "paste-qr": title = tr("Create QR code", "生成二维码")
+        default: title = tr("Create video", "生成视频")
+        }
         execute(actionID: actionID, title: title, text: text, target: target)
         showTaskStatus?()
     }
@@ -366,21 +369,7 @@ struct OutputPreview {
     func templateName(_ spec: CoreTemplateSpec) -> String { isChinese ? spec.nameZh : spec.name }
     /// A layout failure, told apart by its reason: characters the font lacks,
     /// nothing to draw, or content that really does not fit.
-    func composeFailureMessage(_ failure: CoreError) -> String {
-        switch failure.code {
-        case "unsupported-script":
-            let list = failure.characterLabels.joined(separator: ", ")
-            return list.isEmpty
-                ? tr("The card font cannot draw some characters in this text. Nothing was rendered or removed.", "卡片字体无法显示这段文字中的部分字符，未生成也未删减内容。")
-                : tr("The card font cannot draw: \(list). Remove them and retry; nothing was removed for you.", "卡片字体无法显示：\(list)。请删去后重试；没有自动删减内容。")
-        case "empty":
-            return tr("There is no text to render.", "没有可生成的文字。")
-        case "catalog":
-            return tr("This template or style is not available for this content.", "这段内容不能使用该模板或风格。")
-        default:
-            return tr("This content could not fit safely. Try a shorter excerpt; no text was silently removed.", "内容无法完整排入画面，请缩短后重试；没有静默删减文字。")
-        }
-    }
+    func composeFailureMessage(_ failure: CoreError) -> String { ComposeFailureText.message(failure, tr: tr) }
 
     func variantName(_ variant: CoreTemplateVariant) -> String { isChinese ? variant.nameZh : variant.name }
     func motionName(_ motion: String) -> String {

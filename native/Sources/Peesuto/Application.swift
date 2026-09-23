@@ -70,7 +70,7 @@ final class ClipboardPanel: NSPanel {
         let media = NSMenuItem(title: model.tr("Paste as", "粘贴为"), action: nil, keyEquivalent: "")
         let mediaMenu = NSMenu()
         mediaMenu.autoenablesItems = false
-        for (id, en, zh) in [("paste-card", "Image", "图片"), ("paste-gif", "GIF", "GIF"), ("paste-video", "Video", "视频")] {
+        for (id, en, zh) in [("paste-card", "Image", "图片"), ("paste-gif", "GIF", "GIF"), ("paste-video", "Video", "视频"), ("paste-qr", "QR code", "二维码")] {
             let item = mediaMenu.addItem(withTitle: model.tr(en, zh), action: #selector(runMedia(_:)), keyEquivalent: "")
             item.representedObject = id
             item.target = self

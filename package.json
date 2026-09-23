@@ -17,6 +17,7 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "gifenc": "^1.0.3"
+    "gifenc": "^1.0.3",
+    "qrcode-generator": "1.4.4"
   }
 }

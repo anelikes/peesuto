@@ -48,6 +48,9 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   }
   const prose = parseText(text, candidates);
   if (prose) candidates.set("text", prose);
+  // Anything can be a QR code: the exact source (surrounding whitespace aside),
+  // not the cleaned text. It is never preferred.
+  candidates.set("qr", { kind: "qr", data: sourceText.replace(/^\s+|\s+$/g, "") });
   // A recognized structure wins; short plain prose is typography; the rest is a document.
   const preferred = PREFERENCE.find((id) => candidates.has(id)) ?? (prose ? "text" : "document");
   return { sourceText, preferred, candidates };

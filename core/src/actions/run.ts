@@ -96,7 +96,8 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   let decision;
   try {
     decision = await decideTemplate(text, { aspect, decider: deps.decider, output: spec.output,
-      override: input.template, preferences: input.templatePreferences, animate: spec.render?.animate });
+      // A fixed-template action (paste-qr) keeps its template unless the user picks another.
+      override: input.template ?? (spec.render?.template ? { id: spec.render.template } : undefined), preferences: input.templatePreferences, animate: spec.render?.animate });
   } catch (error) {
     if (error instanceof TemplateInputError) throw new ActionError("input", error.message);
     throw error;

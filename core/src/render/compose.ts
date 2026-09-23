@@ -78,7 +78,7 @@ export interface ComposeResult {
  * glyphs for part of the text. `empty`: nothing is left to show once the
  * text is normalised. `catalog`: the DSL names something the catalog lacks.
  */
-export type ComposeErrorCode = "overflow" | "unsupported-script" | "empty" | "catalog";
+export type ComposeErrorCode = "overflow" | "unsupported-script" | "empty" | "catalog" | "qr-too-long";
 
 export class ComposeError extends Error {
   readonly code: ComposeErrorCode;

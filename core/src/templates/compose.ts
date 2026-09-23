@@ -5,6 +5,7 @@ import { ComposeError, normalizeText, unsupportedScript, type ComposeOptions, ty
 import { splitEmoji, stageEmoji, stripEmoji } from "../render/emoji.ts";
 import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
+import { encodeQr, qrRuns } from "./qr.ts";
 import { FRAMES, TEMPLATE_MAX_GRAPHEMES, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -22,7 +23,7 @@ interface View { width: number; height: number; fit: number }
 export const AUTO_FRAME = {
   widths: [1080, 1440, 1920],
   /** Minimum height / width, so a short text is not a thin strip. */
-  minRatio: { text: 0.75, stat: 0.75, quote: 0.6 } as Partial<Record<TemplateId, number>>,
+  minRatio: { text: 0.75, stat: 0.75, quote: 0.6, qr: 1 } as Partial<Record<TemplateId, number>>,
   defaultMinRatio: 0.5,
   /** Content that starts wider: tables with this many columns, code lines this long. */
   wideTableColumns: 4, wideCodeLine: 56,
@@ -59,6 +60,22 @@ const DIAGRAM_TIERS = [
   { size: 28, labelSize: 24, nodeWidth: 260, padX: 22, padY: 16, minWidth: 84, rankGap: 64, nodeGap: 36, arrow: 20 },
   { size: 24, labelSize: 24, nodeWidth: 200, padX: 16, padY: 12, minWidth: 64, rankGap: 56, nodeGap: 24, arrow: 18 },
 ] as const;
+
+/** QR styles as tokens. Modules stay dark on light whatever the style: scanners
+ * expect it. `card` puts the code on a light card over a coloured ground. */
+export const QR_STYLES = {
+  /** Plain: white page, black modules. */
+  classic: { background: "#ffffff", light: "#ffffff", dark: "#111111", card: false, cardRadius: 0, cardPad: 0, caption: "#55595e", captionSize: 28 },
+  /** Card: brand ground, a white card holding the code, caption under it. */
+  editorial: { background: "#2f5d52", light: "#ffffff", dark: "#15201d", card: true, cardRadius: 28, cardPad: 40, caption: "#e7f1ec", captionSize: 28 },
+} as const;
+/** Quiet zone around the code, in modules (the QR specification asks for 4). */
+const QR_QUIET = 4;
+/** The caption under a QR code: the data itself when it is one short line (a URL, a word), never anything else. */
+export function qrCaption(content: { data: string; caption?: boolean }): string | undefined {
+  if (content.caption === false || content.data.includes("\n") || graphemes(content.data).length > 60) return;
+  return content.data;
+}
 
 /** True for each grapheme of `source` inside the first verbatim occurrence of `emphasis`. */
 function accentMask(source: string, emphasis: string | undefined): boolean[] {
@@ -262,6 +279,43 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
   const rule = (x: number, y: number, width: number, color = "#d9d4c9") => rect(x, y, width, 2, color);
   const content = plan.content;
   switch (content.kind) {
+    case "qr": {
+      const style = QR_STYLES[plan.variant as keyof typeof QR_STYLES] ?? QR_STYLES.classic;
+      layout.background = style.background;
+      const matrix = encodeQr(content.data);
+      const cells = matrix.size + QR_QUIET * 2;
+      const captionText = qrCaption(content);
+      let captionLines: StyledGlyph[][] = [];
+      if (captionText) {
+        captionLines = wrapStyled(styledGlyphs(normalizeText(captionText, "plain"), false, false), inner, style.captionSize, measure);
+        if (captionLines.length > 2) captionLines = [];
+      }
+      const lh = Math.ceil(measure.lineHeight(style.captionSize, false) * 1.3);
+      const captionH = captionLines.length ? 32 + captionLines.length * lh : 0;
+      const pad = style.card ? style.cardPad : 0;
+      const room = Math.min(inner - pad * 2, view.fit - margin * 2 - captionH - pad * 2);
+      // Whole pixels per module keep every edge sharp.
+      const module = Math.max(2, Math.floor(room / cells));
+      const side = module * cells;
+      const total = side + pad * 2 + captionH;
+      const top = Math.max(margin, Math.round((view.height - total) / 2));
+      const x0 = Math.round((W - side) / 2), y0 = top + pad;
+      if (style.card) rect(x0 - pad, top, side + pad * 2, side + pad * 2, style.light, style.cardRadius);
+      else rect(x0, y0, side, side, style.light);
+      const bands = 12;
+      for (const run of qrRuns(matrix)) {
+        rect(x0 + (QR_QUIET + run.col) * module, y0 + (QR_QUIET + run.row) * module, run.length * module, module, style.dark).group = Math.floor(run.row * bands / matrix.size);
+      }
+      let y = top + side + pad * 2 + 32;
+      for (const line of captionLines) {
+        const advance = styledWidth(line, style.captionSize, measure);
+        layout.lines.push({ text: line.map((g) => g.text).join(""), x: (W - advance) / 2, y, width: advance, size: style.captionSize, height: lh,
+          bold: false, color: style.caption, group: bands, boldAt: line.map(() => false) });
+        y += lh;
+      }
+      bottom = top + total;
+      break;
+    }
     case "text": {
       const style = TEXT_STYLES[plan.variant as keyof typeof TEXT_STYLES] ?? TEXT_STYLES.classic;
       layout.background = style.background;
@@ -633,7 +687,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View): Tem
     }
   }
   const count = layout.lines.reduce((total, line) => total + graphemes(line.text).length, 0);
-  if (!count || !plan.sourceText.trim()) throw new ComposeError("empty", "There is no text to render.");
+  if ((!count && plan.content.kind !== "qr") || !plan.sourceText.trim()) throw new ComposeError("empty", "There is no text to render.");
   if (count > TEMPLATE_LIMITS.maxGraphemes) throw new ComposeError("overflow", `This template contains ${count} characters; the supported maximum is ${TEMPLATE_LIMITS.maxGraphemes}. Split the source into smaller cards. No content was truncated.`);
   layout.height = Math.ceil(Math.max(view.height, bottom + margin) / 2) * 2;
   if (layout.height > TEMPLATE_LIMITS.maxHeight) throw new ComposeError("overflow", `The complete content needs ${layout.height}px of height (maximum ${TEMPLATE_LIMITS.maxHeight}px). Choose a wider aspect or split the source. No content was truncated.`);
@@ -669,13 +723,17 @@ interface EngineMeasurer {
 }
 
 export async function composeTemplate(plan: TemplatePlan, options: ComposeOptions): Promise<TemplateComposeResult> {
-  const script = unsupportedScript(plan.sourceText);
+  // A QR code carries any script; only its optional caption needs glyphs.
+  const qr = plan.content.kind === "qr" ? plan.content : undefined;
+  const script = qr ? undefined : unsupportedScript(plan.sourceText);
   if (script) throw new ComposeError("unsupported-script", `The card font does not support ${script}; no content was rendered or truncated.`);
   const work = resolve(options.work), dir = `${work}/compositions/paste`;
   await mkdir(dir, { recursive: true });
   const api = await import(`${options.engine}/src/text/measure.ts`) as { openMeasurer(options: unknown): Promise<EngineMeasurer> };
   const serialized = JSON.stringify(plan.content);
-  const texts = [stripEmoji(serialized), "NOTES CODE 0123456789.—“·"];
+  const caption = qr ? qrCaption(qr) : undefined;
+  const texts = qr ? ["0", ...(caption && !unsupportedScript(caption) ? [stripEmoji(caption)] : [])] : [stripEmoji(serialized), "NOTES CODE 0123456789.—“·"];
+  if (qr && caption && unsupportedScript(caption)) plan = { ...plan, content: { ...qr, caption: false } };
   const m = await api.openMeasurer({
     face: { regular: `${options.engine}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${options.engine}/assets/fonts/NotoSansSC-Bold.otf` },
     sizes: SIZES.flatMap((px) => [{ px, bold: false }, { px, bold: true }]), texts, density: 1,
@@ -684,6 +742,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   try {
     for (const text of texts) {
       const missing = m.unmapped(text, 40, false);
+      if (missing.length && qr) { plan = { ...plan, content: { ...qr, caption: false } }; continue; }
       if (missing.length) {
         const shown = [...new Set(missing)].slice(0, 8);
         const names = shown.map((c) => `U+${c.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0")}${/\S/u.test(c) && !/\p{C}/u.test(c) ? ` ${c}` : ""}`);

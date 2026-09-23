@@ -40,7 +40,13 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
   { id: "diagram", name: "Diagram", nameZh: "流程图", variants: [
     { id: "classic", name: "Flow", nameZh: "流程" }, { id: "editorial", name: "Blueprint", nameZh: "蓝图" },
   ], motions: MOTIONS },
+  { id: "qr", name: "QR code", nameZh: "二维码", variants: [
+    { id: "classic", name: "Plain", nameZh: "纯净" }, { id: "editorial", name: "Card", nameZh: "卡片" },
+  ], motions: ["none", "reveal"] },
 ];
+
+/** Templates the model and the local rules never pick; only an explicit override does. */
+export const MANUAL_TEMPLATES: readonly TemplateId[] = ["qr"];
 
 export function templateRegistration(id: TemplateId): TemplateRegistration {
   return TEMPLATE_REGISTRY.find((entry) => entry.id === id)!;

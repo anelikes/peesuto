@@ -1,7 +1,7 @@
 import type { JevRequest } from "../questions.ts";
 import type { CardDecider } from "../render/pipeline.ts";
 import { parseTemplates, type ParsedTemplates } from "./parse.ts";
-import { templateHasVariant, templateRegistration } from "./registry.ts";
+import { MANUAL_TEMPLATES, templateHasVariant, templateRegistration } from "./registry.ts";
 import { ProviderError } from "../provider/types.ts";
 import { modelContentOf, type ModelContentInfo } from "../privacy/decider.ts";
 import { DEFAULT_ASPECT, MOTIONS, TEMPLATE_IDS, VARIANT_IDS, TemplateInputError, templateAspect, type TemplateAspect, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
@@ -66,7 +66,7 @@ export function modelEmphasisCandidates(paragraphs: readonly string[], sourceTex
 }
 
 export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boolean, requireMotion = false, modelContent?: ModelContentInfo): JevRequest {
-  const eligible = [...parsed.candidates.keys()];
+  const eligible = [...parsed.candidates.keys()].filter((id) => !MANUAL_TEMPLATES.includes(id));
   const text = parsed.candidates.get("text");
   const words = text?.kind === "text" ? modelEmphasisCandidates(text.paragraphs, parsed.sourceText, modelContent) : [];
   return {
@@ -150,7 +150,7 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
     try {
       const modelContent = modelContentOf(options.decider);
       const answers = await options.decider.ask(buildTemplateRequest(parsed, allowMotion, requireMotion, modelContent));
-      const choice = confidentChoice(answers, "template", availableTemplates) as TemplateId | undefined;
+      const choice = confidentChoice(answers, "template", availableTemplates.filter((id) => !MANUAL_TEMPLATES.includes(id))) as TemplateId | undefined;
       if (choice) {
         template = choice;
         const selectedVariant = confidentChoice(answers, "variant", templateRegistration(template).variants.map((v) => `${template}.${v.id}`));
@@ -178,6 +178,8 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
   if (override.motion && !(requireMotion && override.motion === "none")) motion = override.motion;
   if (!allowMotion) motion = "none";
   if (requireMotion && motion === "none") motion = DEFAULT_MOTION;
+  // A template that registers fewer motions takes its closest one.
+  if (!templateRegistration(template).motions.includes(motion)) motion = allowMotion ? DEFAULT_MOTION : "none";
   return {
     plan: { version: 1, template, variant, motion, sourceText: parsed.sourceText, content: parsed.candidates.get(template)!, aspect, ...(emphasis ? { emphasis } : {}) },
     decisionSource,

@@ -33,6 +33,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Table | Data grid | Editorial ledger | |
 | Comparison | Side by side | Split panels | |
 | Diagram | Flow | Blueprint | |
+| QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
 A style id is valid only for the templates that register it: `poster` exists
@@ -92,6 +93,21 @@ diagram in rank by rank, the edges into a rank just before its nodes. Styles
 are `DIAGRAM_STYLES`; size tiers `DIAGRAM_TIERS`, both in
 `core/src/templates/compose.ts`. Arrowheads and diamonds are small SVGs the
 engine bakes; everything else is boxes and text.
+
+### QR code: any text, by shortcut only
+
+Every text can become a QR code, so QR is never chosen automatically: it is
+always among a result's available templates (the template menu can switch to
+it), the model is never offered it, and the `paste-qr` action (⌘⌥4) always
+uses it without asking a model. The data is the source exactly (surrounding
+whitespace aside; invisible characters are kept), UTF-8, error correction M,
+falling back to L; past 2,953 bytes (about 980 Chinese characters) it is a
+`qr-too-long` error, never a truncation. Modules are whole pixels with a
+4-module quiet zone, dark on light in every style (scanners expect it). A
+caption repeats the data under the code only when it is one line of at most
+60 characters (a URL, a word) the font can draw; nothing else is written. Any
+script works, since only the caption needs glyphs. Motions: still, or reveal
+row band by row band. Styles are `QR_STYLES` in `core/src/templates/compose.ts`.
 
 ### Line breaking (all templates)
 

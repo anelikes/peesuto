@@ -27,6 +27,12 @@ export const BUILTIN_ACTIONS: readonly ActionSpec[] = [
     input: "clipboard", needs: "render", output: "video", render: { animate: "always" },
   },
   {
+    id: "paste-qr", name: "Paste as QR code", builtin: true,
+    description: "Encode the copied text, exactly, as a QR code image. Never decided automatically; no model is asked.",
+    trigger: { menu: true },
+    input: "clipboard", needs: "render", output: "image", render: { animate: "never", template: "qr" },
+  },
+  {
     id: "paste-translate", name: "Paste translation", builtin: true,
     description: "Translate the text to English (edit the prompt for another language).",
     trigger: { menu: true },

@@ -38,4 +38,6 @@ export const SCENARIOS: readonly Scenario[] = [
   { id: "privacy-chat", title: "消息里夹着令牌与密码", text: "我把测试环境的登录信息发你：\n账号 demo，密码：Fake#2026pass\n接口加请求头 Authorization: Bearer FAKEtoken0000fake1111FAKE 就行，用完记得换掉。", group: "隐私" },
   { id: "privacy-contact", title: "联系方式（个人信息规则默认关闭）", text: "周五评审改到 3 点，有问题找小王：13800000000，wang.fake@example.com。GitHub 令牌 ghp_FAKEfakeFAKEfakeFAKEfakeFAKEfake0000 已作废。", group: "隐私" },
   { id: "arrow-branches", title: "多行箭头链（分支与汇合）", text: "登录 -> 首页 -> 设置\n首页 -> 历史\n历史 -> 详情 -> 设置", group: "流程图" },
+  { id: "qr-url", title: "网址（用 ⌘⌥4 转二维码）", text: "https://peesuto.com/download?ref=clipboard", group: "二维码" },
+  { id: "qr-note", title: "多行留言（二维码不参与自动选择）", text: "明天下午三点，老地方见。\n记得带上那本《诗意的世界》🎉", group: "二维码" },
 ];

@@ -4,7 +4,7 @@
  * their own and packs can ship them; the built-ins use the same shape.
  */
 import type { ClipItem, Context } from "../pick/types.ts";
-import type { TemplateOverride } from "../templates/types.ts";
+import type { TemplateId, TemplateOverride } from "../templates/types.ts";
 
 export type ActionNeeds = "decider" | "generator" | "render" | "none";
 export type ActionOutput = "text" | "image" | "gif" | "video" | "file";
@@ -24,7 +24,9 @@ export interface ActionSpec {
   readonly output: ActionOutput;
   /** Render actions. */
   /** `aspect`: auto, 1:1, 4:5, 16:9, 9:16 (or legacy chat/doc/social); absent = the output's default. */
-  readonly render?: { readonly aspect?: string; readonly animate?: "auto" | "always" | "never" };
+  readonly render?: { readonly aspect?: string; readonly animate?: "auto" | "always" | "never";
+    /** Always this template (e.g. "qr"); no model is asked. */
+    readonly template?: TemplateId };
   /** Set on shipped actions; user files cannot claim it. */
   readonly builtin?: boolean;
   /** The pack an action came from, when it did. */

@@ -167,6 +167,12 @@ struct SettingsView: View {
             shortcutRow("paste-card", "Paste as image", "粘贴为图片")
             shortcutRow("paste-gif", "Paste as GIF", "粘贴为 GIF")
             shortcutRow("paste-video", "Paste as video", "粘贴为视频")
+            VStack(alignment: .leading, spacing: 4) {
+                shortcutRow("paste-qr", "Paste as QR code", "粘贴为二维码", symbol: "qrcode")
+                Text(model.tr("Any content can become a QR code, so it never takes part in automatic template choice. Use this shortcut or the result window's template menu.",
+                              "任何内容都能转成二维码，所以它不参与自动选模板，只用这个快捷键或结果窗的模板菜单。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }.padding(.top, 6)
             Text(model.tr("Click a shortcut and press your keys. Clear it to disable. Changes apply after saving.", "点击快捷键后直接按键录入，清除即可停用。保存后生效。"))
                 .font(.system(size: 11)).foregroundColor(.secondary)
             Text(model.tr("If the destination changes, the result is copied for manual pasting. If you copy new content, your clipboard is preserved. Video requires ffmpeg.", "输入位置变化时，只复制结果供手动粘贴；如果复制了新内容，会保留当前剪贴板。视频需要 ffmpeg。"))
@@ -193,9 +199,10 @@ struct SettingsView: View {
                 .accessibilityLabel(model.tr(en, zh))
         }
     }
-    private func shortcutRow(_ id: String, _ en: String, _ zh: String) -> some View {
+    private func shortcutRow(_ id: String, _ en: String, _ zh: String, symbol: String? = nil) -> some View {
         HStack {
-            Text(model.tr(en, zh)).font(.system(size: 12, weight: .medium))
+            if let symbol { Label(model.tr(en, zh), systemImage: symbol).font(.system(size: 12, weight: .medium)) }
+            else { Text(model.tr(en, zh)).font(.system(size: 12, weight: .medium)) }
             Spacer()
             ShortcutRecorder(value: Binding(get: { shortcuts[id] ?? "" }, set: { shortcuts[id] = $0 }),
                              emptyTitle: model.tr("Disabled", "未启用"), recordingTitle: model.tr("Press shortcut…", "请按快捷键…"),

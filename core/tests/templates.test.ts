@@ -15,7 +15,9 @@ describe("template registry", () => {
     for (const entry of TEMPLATE_REGISTRY) {
       expect(entry.variants.length).toBeGreaterThanOrEqual(2);
       expect(new Set(entry.variants.map((variant) => variant.id)).size).toBe(entry.variants.length);
-      expect(entry.motions).toEqual([...MOTIONS]);
+      expect(entry.motions.every((m) => MOTIONS.includes(m))).toBe(true);
+      expect(entry.motions).toContain("none");
+      if (entry.id !== "qr") expect(entry.motions).toEqual([...MOTIONS]);
       expect(entry.nameZh.length).toBeGreaterThan(0);
       expect(entry.variants.some((variant) => variant.id === "poster")).toBe(entry.id === "text");
     }

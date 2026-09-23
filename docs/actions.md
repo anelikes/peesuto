@@ -16,7 +16,7 @@ change where actions appear; it must preserve access to enabled actions.
 
 The native desktop currently provides shortcuts that can be recorded or disabled for
 opening history and three direct clipboard actions. Defaults are ⌘⌥1 for
-`paste-card`, ⌘⌥2 for `paste-gif`, and ⌘⌥3 for `paste-video`. Record a binding
+`paste-card`, ⌘⌥2 for `paste-gif`, ⌘⌥3 for `paste-video`, and ⌘⌥4 for `paste-qr`. Record a binding
 in **Settings → Shortcuts**, or clear it to disable; changes apply on save.
 Bindings are stored in `settings.json` under `native_shortcuts`, separately
 from action JSON declarations. Arbitrary custom-action shortcut registration
@@ -73,6 +73,7 @@ the native action-management UI is still incomplete.
 | `system` | string | optional system prompt |
 | `maxTokens` | integer | optional |
 | `output` | `text` \| `image` \| `gif` \| `video` \| `file` | generator → `text`; render runtime → `image`, `gif` or `video` (MP4); generic `file` output is not implemented |
+| `render.template` | a template id | render actions; always this template (the model is not asked); the result view can still switch |
 | `render.aspect` | `auto` \| `1:1` \| `4:5` \| `16:9` \| `9:16` (legacy `chat` \| `doc` \| `social` = 1:1, 16:9, 9:16) | render actions; absent = the output's default (image `auto`, GIF and video `1:1`); the panel's per-format frame setting overrides |
 | `render.animate` | `auto` \| `always` \| `never` | `auto` lets the decider choose |
 
@@ -94,6 +95,7 @@ distribution and full target-app video acceptance remain N4 work.
 | `paste-card` | render | a still PNG card |
 | `paste-gif` | render | an animated GIF card |
 | `paste-video` | render | an animated MP4 card; requires local ffmpeg |
+| `paste-qr` | render | the copied text, exactly, as a QR code image (`render.template: "qr"`; no model is asked) |
 | `paste-translate` | generator | English translation |
 | `paste-summary` | generator | three-sentence summary in the input's language |
 

@@ -1,6 +1,6 @@
 import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -53,7 +53,10 @@ export type TemplateContent =
   | { readonly kind: "table"; readonly headers: readonly string[]; readonly rows: readonly (readonly string[])[] }
   | { readonly kind: "comparison"; readonly columns: readonly { readonly title: string; readonly items: readonly string[] }[] }
   /** A Mermaid flowchart or plain arrow chains: labels verbatim from the source. */
-  | { readonly kind: "diagram"; readonly direction: DiagramDirection; readonly nodes: readonly DiagramNode[]; readonly edges: readonly DiagramEdge[] };
+  | { readonly kind: "diagram"; readonly direction: DiagramDirection; readonly nodes: readonly DiagramNode[]; readonly edges: readonly DiagramEdge[] }
+  /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
+   * chosen automatically; only the paste-qr action or an explicit override. */
+  | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };
 
 export interface TemplatePlan {
   readonly version: 1;

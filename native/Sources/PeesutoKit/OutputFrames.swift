@@ -19,7 +19,7 @@ public enum OutputFrames {
 
     public static func kind(actionID: String) -> String? {
         switch actionID {
-        case "paste-card": return "image"
+        case "paste-card", "paste-qr": return "image"
         case "paste-gif": return "gif"
         case "paste-video": return "video"
         default: return nil
