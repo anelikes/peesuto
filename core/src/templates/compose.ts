@@ -3,9 +3,9 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { ComposeError, normalizeText, unsupportedScript, type ComposeOptions, type ComposeResult } from "../render/compose.ts";
 import { splitEmoji, stageEmoji, stripEmoji } from "../render/emoji.ts";
-import type { TemplateMotion, TemplatePlan } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, type TemplateMotion, type TemplatePlan } from "./types.ts";
 
-export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: 2400, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
+export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
 const SIZES = [24, 28, 32, 36, 40, 44, 48, 52, 56, 64, 72, 80, 96, 112, 128, 144, 160] as const;
 const VIEW = { chat: { width: 1080, height: 1080 }, doc: { width: 1920, height: 1080 }, social: { width: 1080, height: 1920 } };
 export interface TemplateMeasure {
@@ -51,21 +51,34 @@ function styledWidth(glyphs: readonly StyledGlyph[], size: number, measure: Temp
 }
 function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number, measure: TemplateMeasure): StyledGlyph[][] {
   const result: StyledGlyph[][] = [];
-  let explicit: StyledGlyph[] = [];
-  const flush = () => {
-    if (!explicit.length) { result.push([]); return; }
-    while (explicit.length) {
-      let count = 0;
-      while (count < explicit.length && styledWidth(explicit.slice(0, count + 1), size, measure) <= width + 0.01) count++;
-      if (!count) throw new ComposeError("overflow", "A character cannot fit in this template column. Choose a wider aspect.");
-      if (count < explicit.length) for (let i = count - 1; i > 0; i--) {
-        if (/\s/u.test(explicit[i]!.text) && explicit.slice(0, i).some((g) => g.text.trim())) { count = i + 1; break; }
+  // One explicit line is glyphs[start, end). Work with indices instead of
+  // re-slicing, and measure incrementally: finished same-weight runs keep
+  // their width, only the open run is re-measured (identical to styledWidth).
+  const wrapRange = (start: number, end: number) => {
+    if (start === end) { result.push([]); return; }
+    while (start < end) {
+      let done = 0, run = "", bold = glyphs[start]!.bold, count = 0;
+      while (start + count < end) {
+        const glyph = glyphs[start + count]!;
+        let nextDone = done, nextRun = run + glyph.text;
+        if (glyph.bold !== bold && run) { nextDone = done + measure.width(run, size, bold); nextRun = glyph.text; }
+        if (nextDone + measure.width(nextRun, size, glyph.bold) > width + 0.01) break;
+        done = nextDone; run = nextRun; bold = glyph.bold; count++;
       }
-      result.push(explicit.slice(0, count)); explicit = explicit.slice(count);
+      if (!count) throw new ComposeError("overflow", "A character cannot fit in this template column. Choose a wider aspect.");
+      if (start + count < end) {
+        let firstVisible = -1;
+        for (let i = start; i < start + count; i++) if (glyphs[i]!.text.trim()) { firstVisible = i; break; }
+        for (let i = start + count - 1; i > start; i--) {
+          if (/\s/u.test(glyphs[i]!.text) && firstVisible >= 0 && firstVisible < i) { count = i - start + 1; break; }
+        }
+      }
+      result.push(glyphs.slice(start, start + count)); start += count;
     }
   };
-  for (const glyph of glyphs) { if (glyph.text === "\n") flush(); else explicit.push(glyph); }
-  flush();
+  let lineStart = 0;
+  for (let i = 0; i < glyphs.length; i++) if (glyphs[i]!.text === "\n") { wrapRange(lineStart, i); lineStart = i + 1; }
+  wrapRange(lineStart, glyphs.length);
   return result;
 }
 

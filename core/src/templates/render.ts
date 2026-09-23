@@ -1,10 +1,11 @@
 /** Structured template output uses Pocket Motion, without changing legacy DSL fixtures. */
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { EngineError, ensureWorkTree, runEngine } from "../engine.ts";
+import { EngineError, ensureWorkTree, renderDeadline, runEngine } from "../engine.ts";
 import type { RenderOptions, RenderResult } from "../render/card.ts";
 import { encodeCardGif } from "../render/gif.ts";
+import { pruneOutputs, writeOutput } from "../render/outputs.ts";
 import { resolveFFmpeg, videoEnvironment } from "../render/video.ts";
 import { ComposeError } from "../render/compose.ts";
 import { composeTemplate, type TemplateComposeResult } from "./compose.ts";
@@ -22,29 +23,34 @@ export function templateGifWidth(width: number, height: number, frames: number):
   return target;
 }
 
-export async function prepareTemplate(plan: TemplatePlan, options: RenderOptions): Promise<TemplateComposeResult & { ms: { compose: number; build: number } }> {
+export async function prepareTemplate(plan: TemplatePlan, options: RenderOptions, deadline?: number): Promise<TemplateComposeResult & { ms: { compose: number; build: number } }> {
   await ensureWorkTree(options.engine, options.work);
   const started = performance.now();
   // A still export must contain every character, never animation frame zero.
   const composed = await composeTemplate(options.format === "png" ? { ...plan, motion: "none" } : plan, options);
   if (options.format === "gif") templateGifWidth(composed.width, composed.height, composed.frames);
   const composedAt = performance.now();
-  await runEngine(options.work, ["build", "compositions/paste"]);
+  await runEngine(options.work, ["build", "compositions/paste"], {}, { deadline });
   return { ...composed, ms: { compose: Math.round(composedAt - started), build: Math.round(performance.now() - composedAt) } };
 }
 
 export async function renderTemplate(plan: TemplatePlan, options: RenderOptions): Promise<RenderResult & TemplateComposeResult> {
   const format = options.format ?? (plan.motion === "none" ? "png" : "gif");
   const ffmpeg = format === "mp4" ? resolveFFmpeg({ executable: options.ffmpeg }) : undefined;
-  const prepared = await prepareTemplate(plan, { ...options, format });
+  // One deadline for the whole render: build, frames and encoding together.
+  const deadline = renderDeadline(format);
+  const prepared = await prepareTemplate(plan, { ...options, format }, deadline);
   const path = options.out ? resolve(options.out) : join(options.outDir ?? options.work, `template-${randomUUID()}.${format}`);
   await mkdir(dirname(path), { recursive: true });
   const started = performance.now();
-  try {
-    if (format === "mp4") await runEngine(options.work, ["render", "compositions/paste", "--format", "mp4", "--out", path], await videoEnvironment(options.work, ffmpeg!));
-    else if (format === "gif") await encodeCardGif({ engine: options.engine, work: options.work, out: path, width: templateGifWidth(prepared.width, prepared.height, prepared.frames) });
-    else await runEngine(options.work, ["frame", "compositions/paste", "--at", "0", "--out", path]);
-    if ((await stat(path)).size === 0) throw new EngineError("Template output is empty.");
-  } catch (error) { await rm(path, { force: true }); throw error; }
+  // Written under a private name and renamed on success; a failure never
+  // deletes a file the caller already had at `out`.
+  await writeOutput(path, async (temp) => {
+    if (format === "mp4") await runEngine(options.work, ["render", "compositions/paste", "--format", "mp4", "--out", temp], await videoEnvironment(options.work, ffmpeg!), { deadline });
+    else if (format === "gif") await encodeCardGif({ engine: options.engine, work: options.work, out: temp, width: templateGifWidth(prepared.width, prepared.height, prepared.frames), deadline });
+    else await runEngine(options.work, ["frame", "compositions/paste", "--at", "0", "--out", temp], {}, { deadline });
+    if ((await stat(temp)).size === 0) throw new EngineError("Template output is empty.");
+  });
+  if (!options.out) await pruneOutputs(dirname(path), path);
   return { ...prepared, path, format, ms: { ...prepared.ms, frame: Math.round(performance.now() - started) } };
 }

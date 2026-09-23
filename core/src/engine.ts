@@ -148,19 +148,70 @@ export function bunIsOnPath(): boolean {
   try { return realpathSync(found) === realpathSync(process.execPath); } catch { return false; }
 }
 
+/** Default render deadlines; `PASTE_RENDER_TIMEOUT_MS` overrides both. The
+ * native shell's request timeouts (300 s / 720 s) sit above these so Core's
+ * error, not the shell's, reaches the user. */
+export const RENDER_TIMEOUT_MS = { still: 240_000, video: 600_000 } as const;
+
+export class EngineTimeoutError extends EngineError {}
+
+/** Milliseconds a render of `format` may take, all engine children included. */
+export function renderTimeoutMs(format: "png" | "gif" | "mp4" | undefined): number {
+  const override = Number(process.env.PASTE_RENDER_TIMEOUT_MS);
+  if (Number.isFinite(override) && override > 0) return override;
+  return format === "mp4" ? RENDER_TIMEOUT_MS.video : RENDER_TIMEOUT_MS.still;
+}
+
+/** An absolute deadline (performance.now() clock) for one render. */
+export function renderDeadline(format: "png" | "gif" | "mp4" | undefined): number {
+  return performance.now() + renderTimeoutMs(format);
+}
+
+export interface RunEngineOptions {
+  /** Absolute performance.now() deadline shared by every child of one render. */
+  readonly deadline?: number;
+}
+
+/** Children still running, so an exiting Core does not orphan their groups. */
+const liveGroups = new Set<number>();
+let exitHookInstalled = false;
+function killGroup(pid: number): void {
+  try { process.kill(-pid, "SIGKILL"); } catch { try { process.kill(pid, "SIGKILL"); } catch { /* already gone */ } }
+}
+
 /**
  * Run an engine CLI command from the work tree. The engine spawns `bun` by
  * name for builds, so the directory of the Bun running us is put first on
  * PATH: the build then runs under the same Bun that boots the result, which
  * the engine's build record insists on.
+ *
+ * The child leads its own process group; past the deadline the whole group
+ * (engine, its bun build, ffmpeg) is killed and an EngineTimeoutError thrown.
  */
-export async function runEngine(work: string, args: readonly string[], env: Record<string, string> = {}): Promise<RunResult> {
+export async function runEngine(work: string, args: readonly string[], env: Record<string, string> = {}, options: RunEngineOptions = {}): Promise<RunResult> {
   const t0 = performance.now();
+  const mp4 = args.includes("mp4");
+  const deadline = options.deadline ?? renderDeadline(mp4 ? "mp4" : undefined);
+  const label = args.slice(0, 2).join(" ");
+  const remaining = Math.max(0, deadline - t0);
+  if (remaining === 0) throw new EngineTimeoutError(`engine ${label} did not start: the render deadline had already passed.`);
   const p = Bun.spawn([process.execPath, "src/cli/main.ts", ...args], {
-    cwd: work, stdout: "pipe", stderr: "pipe",
+    cwd: work, stdout: "pipe", stderr: "pipe", detached: true,
     env: { ...process.env, PATH: (await bunOnPath(join(work, ".bin"))).PATH, ...env },
   });
-  const [stdout, stderr, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
-  if (code !== 0) throw new EngineError(`engine ${args.slice(0, 2).join(" ")} failed (${code}):\n${stdout}${stderr}`);
-  return { stdout, stderr, ms: Math.round(performance.now() - t0) };
+  if (!exitHookInstalled) { exitHookInstalled = true; process.once("exit", () => { for (const pid of liveGroups) killGroup(pid); }); }
+  liveGroups.add(p.pid);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; killGroup(p.pid); }, remaining);
+  try {
+    const [stdout, stderr, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+    if (timedOut) throw new EngineTimeoutError(`engine ${label} timed out after ${Math.round((performance.now() - t0) / 1000)} s and was stopped. Try a shorter text, PNG, or set PASTE_RENDER_TIMEOUT_MS.`);
+    if (code !== 0) throw new EngineError(`engine ${label} failed (${code}):\n${stdout}${stderr}`);
+    return { stdout, stderr, ms: Math.round(performance.now() - t0) };
+  } finally {
+    clearTimeout(timer);
+    // The leader has exited; stop anything it left behind in its group.
+    if (timedOut) killGroup(p.pid);
+    liveGroups.delete(p.pid);
+  }
 }

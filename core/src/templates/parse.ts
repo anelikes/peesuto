@@ -1,5 +1,5 @@
 import { classify } from "../render/classify.ts";
-import { TemplateInputError, type DocumentBlock, type TemplateContent, type TemplateId } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TemplateInputError, type DocumentBlock, type TemplateContent, type TemplateId } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -11,6 +11,7 @@ export interface ParsedTemplates {
  * Ambiguous text always retains a document candidate and is never rewritten. */
 export function parseTemplates(sourceText: string): ParsedTemplates {
   if (typeof sourceText !== "string" || !sourceText.trim()) throw new TemplateInputError("Template input must contain text.");
+  assertTemplateLength(sourceText);
   const normalized = sourceText.replace(/\r\n?/g, "\n");
   // Blank boundary lines do not change structure. Leading indentation and
   // trailing tabs can be meaningful code, nesting, or empty TSV cells.
@@ -213,4 +214,25 @@ export function documentBlocks(text: string): DocumentBlock[] {
   }
   flush();
   return blocks;
+}
+
+/** Count graphemes up to `limit + 1`, so a huge clipboard costs no more than the limit. */
+function exceedsGraphemes(text: string, limit: number): number | undefined {
+  if (text.length <= limit) return; // A grapheme is at least one UTF-16 unit.
+  let count = 0;
+  for (const part of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)) {
+    if (/^\s+$/u.test(part.segment)) continue;
+    if (++count > limit) return count;
+  }
+}
+
+/** Reject over-long input before any provider call, work-tree preparation or
+ * layout. Only non-whitespace graphemes count. Markup the templates strip
+ * (`**`, `|`, `#`) does count, so a markup-heavy source right at the limit
+ * may be refused here; layout still enforces the exact rendered limit. */
+export function assertTemplateLength(text: string): void {
+  if (typeof text !== "string") return;
+  if (exceedsGraphemes(text, TEMPLATE_MAX_GRAPHEMES) !== undefined) {
+    throw new TemplateInputError(`This text has more than ${TEMPLATE_MAX_GRAPHEMES} characters, the maximum for one card. Split the source into smaller cards. No content was truncated.`);
+  }
 }

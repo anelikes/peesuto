@@ -32,7 +32,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { applyPalette, GIFEncoder, quantize } from "gifenc";
-import { EngineError } from "../engine.ts";
+import { EngineError, EngineTimeoutError } from "../engine.ts";
 
 /* ---- the engine surface this encoder uses -------------------------------- */
 interface ResolvedComposition {
@@ -95,6 +95,8 @@ export interface CardGifOptions {
   readonly colors?: number;
   /** Inter-frame deltas (default true); false writes every frame whole. */
   readonly delta?: boolean;
+  /** performance.now() deadline, checked between frames (rendering is in-process). */
+  readonly deadline?: number;
 }
 
 export interface CardGifResult {
@@ -139,6 +141,8 @@ export async function encodeCardGif(o: CardGifOptions): Promise<CardGifResult> {
     });
     source.audit();
     for (let f = 0; f < c.durationFrames; f += step) {
+      // Frames render in-process; the deadline is checked between frames.
+      if (o.deadline !== undefined && performance.now() > o.deadline) throw new EngineTimeoutError("gif encoding timed out and was stopped. Try a shorter text, PNG, or set PASTE_RENDER_TIMEOUT_MS.");
       await source.seekFrame(f);
       const scaled = downscaleBox(source.read(), physW, physH, width);
       size = { width: scaled.width, height: scaled.height };

@@ -122,13 +122,17 @@ export function errorOf(e: unknown): { kind: string; message: string } {
   return { kind: "error", message };
 }
 
-/** Parse one request line; a malformed line gets an error response with id -1. */
+const COMMANDS: readonly Request["cmd"][] = ["health", "config.set", "pick", "actions.list", "actions.reload", "templates.list", "run-action", "render", "shutdown"];
+
+/** Parse one request line. A malformed line gets an error response carrying
+ * the request's id when one is readable, otherwise id -1. */
 export function parseRequest(line: string): Request | Response {
-  try {
-    const r = JSON.parse(line) as Partial<Request>;
-    if (typeof r !== "object" || r === null || typeof r.id !== "number" || typeof r.cmd !== "string") return { id: -1, ok: false, kind: "usage", message: "a request is {id: number, cmd: string, …}" };
-    return r as Request;
-  } catch (e) {
-    return { id: -1, ok: false, kind: "usage", message: `not JSON: ${(e as Error).message}` };
-  }
+  let r: Partial<Request> | null;
+  try { r = JSON.parse(line) as Partial<Request> | null; }
+  catch (e) { return { id: -1, ok: false, kind: "usage", message: `not JSON: ${(e as Error).message}` }; }
+  if (typeof r !== "object" || r === null || Array.isArray(r)) return { id: -1, ok: false, kind: "usage", message: "a request is {id: number, cmd: string, …}" };
+  const id = typeof r.id === "number" && Number.isFinite(r.id) ? r.id : -1;
+  if (id === -1 || typeof r.cmd !== "string") return { id, ok: false, kind: "usage", message: "a request is {id: number, cmd: string, …}" };
+  if (!COMMANDS.includes(r.cmd)) return { id, ok: false, cmd: r.cmd, kind: "usage", message: `unknown cmd ${r.cmd}` };
+  return r as Request;
 }

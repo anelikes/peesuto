@@ -2,13 +2,14 @@
  * DSL → card. compose → engine build → PNG, GIF, or an MP4 through ffmpeg.
  */
 import { randomUUID } from "node:crypto";
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { Catalog } from "../catalog.ts";
 import type { Dsl } from "../dsl.ts";
-import { EngineError, ensureWorkTree, runEngine } from "../engine.ts";
+import { EngineError, ensureWorkTree, renderDeadline, runEngine } from "../engine.ts";
 import { composeCard, type ComposeResult } from "./compose.ts";
 import { encodeCardGif } from "./gif.ts";
+import { pruneOutputs, writeOutput } from "./outputs.ts";
 import { resolveFFmpeg, videoEnvironment } from "./video.ts";
 
 export interface RenderOptions {
@@ -34,13 +35,13 @@ export interface RenderResult extends ComposeResult {
 }
 
 /** compose + build; the composition is then ready for `frame` or `render`. */
-export async function prepareCard(dsl: Dsl, o: RenderOptions): Promise<ComposeResult & { readonly ms: { compose: number; build: number } }> {
+export async function prepareCard(dsl: Dsl, o: RenderOptions, deadline?: number): Promise<ComposeResult & { readonly ms: { compose: number; build: number } }> {
   await ensureWorkTree(o.engine, o.work);
   await mkdir(join(o.work, "compositions/paste"), { recursive: true });
   const t0 = performance.now();
   const composed = await composeCard(dsl, { engine: o.engine, work: o.work, emojiCache: o.emojiCache, emojiBundle: o.emojiBundle, catalog: o.catalog });
   const t1 = performance.now();
-  await runEngine(o.work, ["build", "compositions/paste"]);
+  await runEngine(o.work, ["build", "compositions/paste"], {}, { deadline });
   const t2 = performance.now();
   return { ...composed, ms: { compose: Math.round(t1 - t0), build: Math.round(t2 - t1) } };
 }
@@ -55,23 +56,25 @@ export async function frameCard(o: RenderOptions, at: number, out: string): Prom
 export async function renderCard(dsl: Dsl, o: RenderOptions): Promise<RenderResult> {
   // Refuse a missing encoder before composition/build work begins.
   const ffmpeg = o.format === "mp4" ? resolveFFmpeg({ executable: o.ffmpeg }) : undefined;
-  const prepared = await prepareCard(dsl, o);
+  // One deadline for the whole render: build, frames and encoding together.
+  const deadline = renderDeadline(o.format ?? "gif");
+  const prepared = await prepareCard(dsl, o, deadline);
   const format = o.format ?? (prepared.frames > 1 ? "gif" : "png");
   const path = o.out ? resolve(o.out) : join(o.outDir ?? o.work, `card-${randomUUID()}.${format}`);
   await mkdir(dirname(path), { recursive: true });
   const t0 = performance.now();
-  if (format === "mp4") {
-    try {
-      await runEngine(o.work, ["render", "compositions/paste", "--format", "mp4", "--out", path], await videoEnvironment(o.work, ffmpeg!));
-      if ((await stat(path)).size === 0) throw new EngineError("Video export produced an empty MP4 file.");
-    } catch (error) {
-      await rm(path, { force: true });
-      throw error;
+  // Written under a private name and moved into place on success, so a
+  // failure never deletes a file the caller already had at `out`.
+  await writeOutput(path, async (temp) => {
+    if (format === "mp4") {
+      await runEngine(o.work, ["render", "compositions/paste", "--format", "mp4", "--out", temp], await videoEnvironment(o.work, ffmpeg!), { deadline });
+      if ((await stat(temp)).size === 0) throw new EngineError("Video export produced an empty MP4 file.");
+    } else if (format === "gif") {
+      await encodeCardGif({ engine: o.engine, work: o.work, out: temp, deadline });
+    } else {
+      await runEngine(o.work, ["frame", "compositions/paste", "--at", "0", "--out", temp], {}, { deadline });
     }
-  } else if (format === "gif") {
-    await encodeCardGif({ engine: o.engine, work: o.work, out: path });
-  } else {
-    await runEngine(o.work, ["frame", "compositions/paste", "--at", "0", "--out", path]);
-  }
+  });
+  if (!o.out) await pruneOutputs(dirname(path), path);
   return { ...prepared, path, format, ms: { ...prepared.ms, frame: Math.round(performance.now() - t0) } };
 }

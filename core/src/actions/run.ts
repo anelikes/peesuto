@@ -3,6 +3,7 @@
  * any particular action: a generator action is a prompt, a render action is
  * the card chain with the action's overrides, smart paste is the pick.
  */
+import { rm } from "node:fs/promises";
 import type { Catalog } from "../catalog.ts";
 import type { JevRequest } from "../questions.ts";
 import { pick } from "../pick/index.ts";
@@ -73,11 +74,16 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
         if (error instanceof TemplateInputError) throw new ActionError("input", error.message);
         throw error;
       }
-      const { plan, decisionSource, availableTemplates } = decision;
-      const r = await renderTemplate(plan, { ...deps.render, catalog: deps.catalog, format: spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png", ffmpeg });
-      if (spec.output === "gif" && r.format !== "gif") throw new ActionError("run", `${spec.id}: the card came out static`);
+      const { plan, decisionSource, availableTemplates, decisionError } = decision;
+      const format = spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png";
+      const r = await renderTemplate(plan, { ...deps.render, catalog: deps.catalog, format, ffmpeg });
+      // GIF/MP4 must animate unless the action is explicitly static ("never").
+      if (format !== "png" && spec.render?.animate !== "never" && (r.format !== format || plan.motion === "none" || r.frames <= 1)) {
+        await rm(r.path, { force: true });
+        throw new ActionError("run", `${spec.id}: the card came out static`);
+      }
       return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: {
-        template: { id: plan.template, variant: plan.variant, motion: plan.motion, decisionSource, availableTemplates },
+        template: { id: plan.template, variant: plan.variant, motion: plan.motion, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
         lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
       } };
     }

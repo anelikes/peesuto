@@ -60,6 +60,14 @@ describe("daemon", () => {
     expect(parseRequest('{"id":7,"cmd":"health"}')).toMatchObject({ id: 7, cmd: "health" });
   });
 
+  test("parseRequest answers an unknown cmd with the request's own id", () => {
+    expect(parseRequest('{"id":9,"cmd":"format-disk"}')).toEqual({ id: 9, ok: false, cmd: "format-disk", kind: "usage", message: "unknown cmd format-disk" });
+    expect(parseRequest('{"id":4}')).toMatchObject({ id: 4, ok: false, kind: "usage" });
+    expect(parseRequest('{"id":"4","cmd":"health"}')).toMatchObject({ id: -1, ok: false });
+    expect(parseRequest("null")).toMatchObject({ id: -1, ok: false });
+    expect(parseRequest("[1]")).toMatchObject({ id: -1, ok: false });
+  });
+
   test("task events are opt-in, content-free, and preserve the final response", async () => {
     const d = new Daemon(await host()); await d.init();
     await d.handle({ id: 1, cmd: "config.set", generator: { kind: "stub" } });

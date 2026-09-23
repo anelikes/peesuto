@@ -4,6 +4,8 @@ export const TEMPLATE_IDS = ["document", "quote", "code", "stat", "list", "chat"
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 export const VARIANT_IDS = ["classic", "editorial"] as const;
 export type VariantId = (typeof VARIANT_IDS)[number];
+/** Visible graphemes one card may hold (TEMPLATE_LIMITS.maxGraphemes). */
+export const TEMPLATE_MAX_GRAPHEMES = 2400;
 export const MOTIONS = ["none", "reveal", "typewriter"] as const;
 export type TemplateMotion = (typeof MOTIONS)[number];
 
@@ -45,6 +47,9 @@ export interface TemplateDecision {
   readonly plan: TemplatePlan;
   readonly decisionSource: TemplateDecisionSource;
   readonly availableTemplates: readonly TemplateId[];
+  /** Set when the model decider failed; rendering used the local fallback.
+   * `kind` is an ERROR_KINDS value such as "provider:auth" or "provider:offline". */
+  readonly decisionError?: { readonly kind: string; readonly message: string };
 }
 
 export class TemplateInputError extends Error {}

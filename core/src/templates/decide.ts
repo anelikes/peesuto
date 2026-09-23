@@ -3,6 +3,7 @@ import type { JevRequest } from "../questions.ts";
 import type { CardDecider } from "../render/pipeline.ts";
 import { parseTemplates, type ParsedTemplates } from "./parse.ts";
 import { templateRegistration } from "./registry.ts";
+import { ProviderError } from "../provider/types.ts";
 import { MOTIONS, TEMPLATE_IDS, VARIANT_IDS, TemplateInputError, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
 
 export const TEMPLATE_CONFIDENCE = 0.65;
@@ -17,7 +18,15 @@ export interface TemplateDecisionOptions {
   readonly animate?: "auto" | "always" | "never";
 }
 
-export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boolean): JevRequest {
+/** Motion choices offered to the model. When motion is required (a GIF or MP4
+ * that is not explicitly static) "none" is not a choice at all. */
+function motionChoices(allowMotion: boolean, requireMotion: boolean): Record<string, string> {
+  if (!allowMotion) return { none: "still image" };
+  const animated = { reveal: "reveal content groups in reading order", typewriter: "reveal the existing text progressively" };
+  return requireMotion ? animated : { none: "one still composition", ...animated };
+}
+
+export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boolean, requireMotion = false): JevRequest {
   const eligible = [...parsed.candidates.keys()];
   return {
     state: { clipboard: parsed.sourceText },
@@ -32,7 +41,7 @@ export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boole
       },
       motion: {
         type: "choice", instructions: "Choose how the existing content appears; never change its words. Still images require none.",
-        criteria: allowMotion ? { none: "one still composition", reveal: "reveal content groups in reading order", typewriter: "reveal the existing text progressively" } : { none: "still image" },
+        criteria: motionChoices(allowMotion, requireMotion),
       },
     },
   };
@@ -59,6 +68,13 @@ function validateOverride(override: TemplateOverride | undefined): TemplateOverr
   return override;
 }
 
+/** Why a model decision could not be used; rendering continued with the local fallback. */
+function decisionErrorOf(error: unknown): NonNullable<TemplateDecision["decisionError"]> {
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof ProviderError) return { kind: `provider:${error.code}`, message };
+  return { kind: "error", message };
+}
+
 /** Jev can select only presentation metadata. Content never comes from its answer. */
 export async function decideTemplate(text: string, options: TemplateDecisionOptions): Promise<TemplateDecision> {
   if (!isAspect(options.aspect)) throw new TemplateInputError("Unknown card aspect.");
@@ -71,33 +87,45 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
   let template: TemplateId = override.id ?? parsed.preferred;
   let variant: VariantId = "classic";
   const allowMotion = options.output !== "image" && options.animate !== "never";
-  let motion: TemplateMotion = allowMotion ? "reveal" : "none";
+  // A GIF or MP4 action must animate unless its author explicitly chose "never".
+  const requireMotion = allowMotion;
+  const DEFAULT_MOTION: TemplateMotion = "reveal";
+  let motion: TemplateMotion = allowMotion ? DEFAULT_MOTION : "none";
   let decisionSource: TemplateDecision["decisionSource"] = "rules";
+  let decisionError: TemplateDecision["decisionError"];
   const hasOverride = override.id !== undefined || override.variant !== undefined || override.motion !== undefined;
   // Manual rerendering must be stable and must not launch another provider call.
   if (hasOverride) decisionSource = "override";
   else if (options.decider && !["rules", "none"].includes(options.decider.name)) {
     try {
-      const answers = await options.decider.ask(buildTemplateRequest(parsed, allowMotion));
+      const answers = await options.decider.ask(buildTemplateRequest(parsed, allowMotion, requireMotion));
       const choice = confidentChoice(answers, "template", availableTemplates) as TemplateId | undefined;
       if (choice) {
         template = choice;
         const selectedVariant = confidentChoice(answers, "variant", templateRegistration(template).variants.map((v) => `${template}.${v.id}`));
         if (selectedVariant) variant = selectedVariant.slice(template.length + 1) as VariantId;
-        const selectedMotion = confidentChoice(answers, "motion", allowMotion ? MOTIONS : ["none"]);
+        const allowedMotions = !allowMotion ? ["none"] : requireMotion ? MOTIONS.filter((m) => m !== "none") : MOTIONS;
+        const selectedMotion = confidentChoice(answers, "motion", allowedMotions);
         if (selectedMotion) motion = selectedMotion as TemplateMotion;
         decisionSource = "jev";
       } else decisionSource = "fallback";
-    } catch { decisionSource = "fallback"; }
+    } catch (error) {
+      // Keep rendering with the local decision, but tell the caller why.
+      decisionSource = "fallback";
+      decisionError = decisionErrorOf(error);
+    }
   }
   const preferred = options.preferences?.[template];
   if (preferred && VARIANT_IDS.includes(preferred as VariantId)) variant = preferred as VariantId;
   if (override.variant) variant = override.variant;
-  if (override.motion) motion = override.motion;
+  // A "none" override cannot make a required animation static.
+  if (override.motion && !(requireMotion && override.motion === "none")) motion = override.motion;
   if (!allowMotion) motion = "none";
+  if (requireMotion && motion === "none") motion = DEFAULT_MOTION;
   return {
     plan: { version: 1, template, variant, motion, sourceText: parsed.sourceText, content: parsed.candidates.get(template)!, aspect: options.aspect },
     decisionSource,
     availableTemplates,
+    ...(decisionError ? { decisionError } : {}),
   };
 }

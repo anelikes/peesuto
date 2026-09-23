@@ -3,6 +3,7 @@ import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts
 import { parseTemplates } from "../src/templates/parse.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, TEMPLATE_IDS, TemplateInputError } from "../src/templates/types.ts";
+import { ProviderError } from "../src/provider/types.ts";
 
 const base = { aspect: "chat" as const, output: "gif" as const, decider: null };
 const choice = (value: string, confidence = 0.9) => ({ choice: value, probabilities: { [value]: confidence } });
@@ -194,6 +195,49 @@ describe("constrained template decisions", () => {
   test("PNG always has motion none, including explicit motion overrides", async () => {
     const result = await decideTemplate("Text", { ...base, output: "image", override: { motion: "typewriter" } });
     expect(result.plan.motion).toBe("none");
-    expect((await decideTemplate("Text", { ...base, output: "video", override: { motion: "none" } })).plan.motion).toBe("none");
+  });
+  test("GIF/MP4 cannot be made static by an override or a model answer", async () => {
+    for (const output of ["gif", "video"] as const) {
+      expect((await decideTemplate("Text", { ...base, output, override: { motion: "none" } })).plan.motion).toBe("reveal");
+      expect((await decideTemplate("Text", { ...base, output, animate: "always", override: { motion: "none" } })).plan.motion).toBe("reveal");
+      expect((await decideTemplate("Text", { ...base, output, override: { motion: "typewriter" } })).plan.motion).toBe("typewriter");
+      const answered = await decideTemplate("“A quote.”", { ...base, output, decider: decider({ template: choice("quote"), motion: choice("none") }) });
+      expect(answered.decisionSource).toBe("jev");
+      expect(answered.plan.motion).toBe("reveal");
+    }
+    const request = buildTemplateRequest(parseTemplates("Text"), true, true);
+    expect(Object.keys((request.questions.motion as { criteria: object }).criteria)).toEqual(["reveal", "typewriter"]);
+  });
+  test("an explicitly static animation action keeps motion none", async () => {
+    const result = await decideTemplate("Text", { ...base, output: "gif", animate: "never", override: { motion: "typewriter" } });
+    expect(result.plan.motion).toBe("none");
+  });
+  test("over-long input is refused before the decider or any render work", async () => {
+    let called = false;
+    const ask = async () => { called = true; return null; };
+    const long = "字".repeat(2401);
+    await expect(decideTemplate(long, { ...base, decider: { name: "remote", ask } })).rejects.toThrow(TemplateInputError);
+    await expect(decideTemplate(long, { ...base, decider: { name: "remote", ask } })).rejects.toThrow("2400");
+    expect(called).toBe(false);
+    expect(() => parseTemplates("x".repeat(1_000_000))).toThrow(TemplateInputError);
+    // Whitespace does not count toward the visible limit.
+    expect(parseTemplates(`${"a ".repeat(2400)}`).sourceText.length).toBe(4800);
+    await decideTemplate("字".repeat(2400), { ...base, decider: { name: "remote", ask } });
+    expect(called).toBe(true);
+  });
+  test("a failed decider still renders with the fallback and reports why", async () => {
+    for (const code of ["auth", "quota", "offline", "timeout"] as const) {
+      const result = await decideTemplate("Revenue: $42", { ...base, decider: { name: "remote", ask: async () => { throw new ProviderError(code, `${code} failed`); } } });
+      expect(result.decisionSource).toBe("fallback");
+      expect(result.plan.template).toBe("stat");
+      expect(result.decisionError).toEqual({ kind: `provider:${code}`, message: `${code} failed` });
+    }
+    const other = await decideTemplate("Text", { ...base, decider: { name: "remote", ask: async () => { throw new TypeError("boom"); } } });
+    expect(other.decisionError).toEqual({ kind: "error", message: "boom" });
+    const ok = await decideTemplate("“A quote.”", { ...base, decider: decider({ template: choice("quote") }) });
+    expect("decisionError" in ok).toBe(false);
+    const lowConfidence = await decideTemplate("“A quote.”", { ...base, decider: decider(null) });
+    expect(lowConfidence.decisionSource).toBe("fallback");
+    expect("decisionError" in lowConfidence).toBe(false);
   });
 });
