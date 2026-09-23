@@ -465,7 +465,7 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
    域名 peesuto.com 仍需用于官网与邮箱。对外产品名 Peesuto，内部名与路径仍是 pocket-paste。
 6. 让 security@peesuto.com 能收信（SECURITY.md 把它定为私有期间唯一的漏洞报告渠道）：
    peesuto.com 接入 Cloudflare 后，用 Email Routing 转发到常用邮箱，发一封测试信确认。
-7. 开源前（2026-09-24）：决定 Apple 开发者签名主体（现为杭州木可；面向海外可考虑澳洲公司，
-   公开发布前换成本最低，之后换会让老用户重新授予辅助功能权限）；注册 Peesuto 商标
-   （IP Australia，经马德里体系延伸到美国、欧盟）；视需要建 GitHub 组织 `peesuto` 承接仓库；
-   开打赏渠道（GitHub Sponsors 或 Polar）；公开前清查 git 历史中的敏感信息。
+7. 开源前（2026-09-24 用户已定）：签名主体保持杭州木可；不建 GitHub 组织、不开打赏，
+   到约 1k star 再议；商标暂不注册（费用见对话，需要时再办）。git 历史已用 gitleaks
+   扫过（122 个提交）：10 处命中全是测试用假数据，`.env`、证书和 HANDOFF.md 从未入库。
+   公开后提交作者邮箱（mukeinc@、qianiaoo@）会随历史可见。
