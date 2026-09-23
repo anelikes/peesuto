@@ -91,6 +91,8 @@ await cp(join(REPO_ROOT, "core/src"), join(resources, "core"), { recursive: true
 // network request outside core's egress layer. The native app also launches
 // Core with --no-install; the check below proves nothing is missing.
 const ROOT_NM = join(REPO_ROOT, "node_modules");
+/** Core modules the offline probe also imports (relative to resources/core). */
+const CORE_ENTRY_MODULES = ["highlight.js/lib/core", "./templates/highlight.ts"];
 const coreRoots = Object.keys((JSON.parse(await readFile(join(REPO_ROOT, "package.json"), "utf8")) as { dependencies?: Record<string, string> }).dependencies ?? {});
 const corePkgs = await packageClosure(coreRoots, ROOT_NM);
 for (const name of coreRoots) if (!corePkgs.includes(name)) throw new Error(`core dependency ${name} is not installed; run bun install`);
@@ -126,10 +128,14 @@ await chmod(bin, 0o755);
   const probe = await mkdtemp(join(tmpdir(), "peesuto-core-probe-"));
   try {
     await cp(join(resources, "core"), join(probe, "core"), { recursive: true });
-    const script = coreRoots.map((name) => `await import(${JSON.stringify(name)});`).join("") + `console.log("ok");`;
+    // Package names alone would load only each package's main entry: the
+    // subpath entries core really imports (highlight.js/lib/core and its
+    // languages) are proven by importing the modules that use them.
+    const entries = [...coreRoots, ...CORE_ENTRY_MODULES];
+    const script = entries.map((name) => `await import(${JSON.stringify(name)});`).join("") + `console.log("ok");`;
     const p = Bun.spawn([bin, "--no-install", "-e", script], { cwd: join(probe, "core"), stdout: "pipe", stderr: "pipe", env: { ...process.env, BUN_INSTALL_CACHE_DIR: join(probe, "cache") } });
     const [stdout, stderr, code] = [await new Response(p.stdout).text(), await new Response(p.stderr).text(), await p.exited];
-    if (code !== 0 || stdout.trim() !== "ok") throw new Error(`bundled core cannot resolve its packages offline (${coreRoots.join(", ")}):\n${stderr.trim()}`);
+    if (code !== 0 || stdout.trim() !== "ok") throw new Error(`bundled core cannot resolve its packages offline (${entries.join(", ")}):\n${stderr.trim()}`);
     console.log(`core packages: ${corePkgs.join(", ")} (resolve offline)`);
   } finally { await rm(probe, { recursive: true, force: true }); }
 }

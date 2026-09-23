@@ -80,3 +80,24 @@ integration("a tall GIF scrolls through a fixed canvas and ends on the last mess
   expect(png.height).toBeGreaterThan(1080);
 }, 240_000);
 
+
+integration("code cards are set in Peesuto Code, and fall back to Noto Sans SC for a glyph it lacks", async () => {
+  const sidecar = async () => JSON.parse(await Bun.file(join(options.work, "compositions/paste/pocket-motion.json")).text()) as { fonts: { regular: string; bold: string } };
+  const layoutFont = async () => (JSON.parse(await Bun.file(join(options.work, "compositions/paste/template-layout.json")).text()) as { font: string }).font;
+  const code = "def 求和(a, b):\n    # 计算两个数的和 🎉\n    return a + b";
+  const mono = await renderTemplate({ ...samplePlan({ kind: "code", code, language: "python" }, "classic"), sourceText: code }, { ...options, format: "png", out: join(output, "code-mono.png") });
+  expect(mono.truncated).toBe(false);
+  const fonts = (await sidecar()).fonts;
+  expect(fonts).toEqual({ regular: "compositions/paste/fonts/PeesutoCode-Regular.ttf", bold: "compositions/paste/fonts/PeesutoCode-Bold.ttf" });
+  for (const path of Object.values(fonts)) expect(await Bun.file(join(options.work, path)).exists()).toBe(true);
+  expect(await layoutFont()).toBe("peesuto-code");
+  // 體 is outside GB2312, so outside the Peesuto Code subset.
+  const traditional = "# 繁體註解\nprint(1)";
+  await renderTemplate({ ...samplePlan({ kind: "code", code: traditional, language: "python" }, "editorial"), sourceText: traditional }, { ...options, format: "png", out: join(output, "code-fallback.png") });
+  expect((await sidecar()).fonts.regular).toBe("assets/fonts/NotoSansSC-Regular.otf");
+  expect(await layoutFont()).toBe("noto-sans-sc");
+  // Other templates keep Noto Sans SC, document code blocks included.
+  const source = "说明\n\n```py\nprint(1)\n```";
+  await renderTemplate({ ...samplePlan({ kind: "document", paragraphs: [source], blocks: documentBlocks(source) }), sourceText: source }, { ...options, format: "png", out: join(output, "document-code.png") });
+  expect((await sidecar()).fonts.regular).toBe("assets/fonts/NotoSansSC-Regular.otf");
+}, 240_000);

@@ -93,6 +93,36 @@ are `DIAGRAM_STYLES`; size tiers `DIAGRAM_TIERS`, both in
 `core/src/templates/compose.ts`. Arrowheads and diamonds are small SVGs the
 engine bakes; everything else is boxes and text.
 
+### Code: monospace type and syntax colour
+
+- Font: the whole code card (both styles, the language label included) is set
+  in Peesuto Code, a Sarasa Mono SC 1.0.41 subset shipped in
+  `core/src/render/fonts/` (Latin, Greek, Cyrillic, symbols, box drawing, kana,
+  full-width forms and all of GB2312; see the README there). CJK is exactly two
+  columns wide, so indentation and alignment hold in mixed code. The composition
+  gets its own copy (hard link or copy) under `compositions/paste/fonts/`, since
+  engine font paths must stay inside the work tree. If any non-emoji character of
+  the card is missing from Peesuto Code (traditional Chinese outside GB2312,
+  say), the whole card falls back to Noto Sans SC; there is no error and no mixed
+  font. Every other template keeps Noto Sans SC, and code blocks inside a
+  document stay proportional: one font pair per composition.
+- Highlighter: highlight.js (pinned, pure JS) with 24 registered languages:
+  TypeScript, JavaScript, Python, Go, Rust, Java, Kotlin, Swift, C, C++, C#,
+  Ruby, PHP, SQL, Bash, shell sessions, JSON, YAML, XML/HTML, CSS, Markdown,
+  diff, Dockerfile, INI/TOML. Its output is decoded to one colour per grapheme,
+  and the decoded text must equal the source line for line; any mismatch or
+  error falls back to the built-in regex colouring (`syntaxColors`). Colour
+  only: the text is never changed.
+- Language: the fence language when highlight.js knows it or its alias (`py`,
+  `ts`, `sh`, `html`, `toml`…); otherwise automatic detection over the
+  registered languages only. A snippet under two lines and 40 characters whose
+  detection is unsure (relevance below 5) keeps the regex colouring.
+- Colours: `CODE_STYLES.<style>.syntax` maps token classes to keyword, string,
+  number, comment, function (function and other titles), type (types, classes,
+  built-ins), property (attributes, properties, variables, parameters), literal
+  (true/false/null, symbols), meta (tags, selectors, decorators, headings, diff
+  deletions; diff additions use string), punct (operators, punctuation).
+
 ### QR code: any text, by shortcut only
 
 Every text can become a QR code, so QR is never chosen automatically: it is
@@ -213,3 +243,11 @@ caches. This test renders every registered variant and compares the typewriter's
 frame, ending hold and complete PNG export. The macOS render CI runs this suite.
 Native bundle and interface acceptance is recorded in
 [the template baseline](../baselines/templates-native-0.1.0.md).
+
+## Third-party notices
+
+- Peesuto Code is a renamed subset of [Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic)
+  (Sarasa Mono SC 1.0.41), © 2015-2025 Renzhi Li and portions © The Inter Project Authors,
+  Adobe and Google, under the SIL Open Font License 1.1: `core/src/render/fonts/OFL.txt`.
+- [highlight.js](https://highlightjs.org/) 11.12.0, © 2006 Ivan Sagalaev and contributors,
+  BSD 3-Clause License (shipped with its package in the sidecar's `core/node_modules/highlight.js/LICENSE`).

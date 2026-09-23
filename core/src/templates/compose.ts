@@ -1,11 +1,13 @@
 /** Native engine compositions for structured templates. Legacy DSL composition stays unchanged. */
-import { mkdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { copyFile, link, mkdir, rm, stat } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ComposeError, normalizeText, unsupportedScript, type ComposeOptions, type ComposeResult } from "../render/compose.ts";
 import { splitEmoji, stageEmoji, stripEmoji } from "../render/emoji.ts";
 import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { encodeQr, qrRuns } from "./qr.ts";
+import { highlight, type CodePalette } from "./highlight.ts";
 import { FRAMES, TEMPLATE_MAX_GRAPHEMES, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -91,17 +93,25 @@ export const QUOTE_STYLES = {
     author: { size: 36, bold: true, color: "#f0a53a", gap: 64, ruleWidth: 64, ruleHeight: 6 } },
 } as const;
 
+/** Code styles. The whole card is set in Peesuto Code (CODE_FONT). `syntax`
+ * colours highlight.js token classes (see templates/highlight.ts):
+ * keyword, string, number, comment, function (function and other titles),
+ * type (types, classes, built-ins), property (attributes, properties,
+ * variables, parameters), literal (true/false/null, symbols), meta (tags,
+ * selectors, decorators, headings, diff deletions), punct (operators). */
 export const CODE_STYLES = {
   /** Terminal: night panel, three dots, the language (from the fence only) at top right. */
   classic: { background: "#0e1014", panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 64, dots: { size: 16, gap: 12, colors: ["#e0625a", "#e2b340", "#4fb86a"] } },
     outer: 64, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.0,
     lang: { size: 24, bold: false, color: "#6e7482", gap: 0 },
-    syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#6e7482", number: "#f4c430", punct: "#a7adb9" } },
+    syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#7d8494", number: "#f4c430", function: "#f5a45d", type: "#5fd0c5",
+      property: "#eaa3c9", literal: "#f4c430", meta: "#ff7b72", punct: "#a7adb9" } },
   /** Notebook: light page, green gutter bar, zebra rows. */
   editorial: { background: "#f3f1ea", panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
     ink: "#1d1d20", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.1,
     lang: { size: 28, bold: true, color: "#2f9e5f", gap: 28 },
-    syntax: { keyword: "#2447c9", string: "#1d7a45", comment: "#8b877d", number: "#b8561e", punct: "#6a675f" } },
+    syntax: { keyword: "#2447c9", string: "#1d7a45", comment: "#77736a", number: "#b0501a", function: "#7a3fb0", type: "#0e7282",
+      property: "#a3365f", literal: "#b0501a", meta: "#c0392b", punct: "#6a675f" } },
 } as const;
 
 export const STAT_STYLES = {
@@ -376,6 +386,14 @@ export function syntaxColors(line: string, palette: SyntaxPalette): (string | un
     else if (match[5]) paint(start, end, palette.punct);
   }
   return colors;
+}
+/** Syntax colour per grapheme of every line of `source` (normalized code):
+ * highlight.js when it knows or detects the language and reproduces the text
+ * exactly, else syntaxColors() line by line. Colour only. */
+export function codeColors(source: string, language: string | undefined, palette: CodePalette): (string | undefined)[][] {
+  const highlighted = highlight(source, language);
+  if (!highlighted) return source.split("\n").map((line) => syntaxColors(line, palette));
+  return highlighted.keys.map((keys) => keys.map((key) => key && palette[key]));
 }
 /** The quote mark, drawn as a shape so no glyph is added to the source. */
 const QUOTE_MARK_PATH = "M4 60 L4 38 C4 20 12 8 28 2 L30 10 C20 15 16 22 16 30 L28 30 L28 60 Z M36 60 L36 38 C36 20 44 8 60 2 L62 10 C52 15 48 22 48 30 L60 30 L60 60 Z";
@@ -772,9 +790,10 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         y += P.pad + P.header;
       } else if (content.language) y += block(content.language, codeX, y, codeW, s.lang.size, s.lang.bold, s.lang.color, { leading: 1.2 }) + s.lang.gap;
       const codeTop = y;
+      const colors = codeColors(source.join("\n"), content.language, s.syntax);
       for (const [index, line] of source.entries()) {
         const start = y;
-        const h = place(glyphsOf(line, false, { code: true, markdown: false, colors: syntaxColors(line, s.syntax) }), codeX, y, codeW, size, false, s.ink, { leading: s.leading });
+        const h = place(glyphsOf(line, false, { code: true, markdown: false, colors: colors[index] }), codeX, y, codeW, size, false, s.ink, { leading: s.leading });
         if (s.zebra && index % 2 === 1) rect(codeX - s.zebra.pad, start, codeW + 2 * s.zebra.pad, h, s.zebra.color, s.zebra.radius);
         y += h;
       }
@@ -1015,6 +1034,49 @@ export function scrolls(motion: TemplateMotion, layoutHeight: number, viewHeight
   return motion !== "none" && layoutHeight > viewHeight;
 }
 
+/** The one font pair a template composition is set in. */
+export type TemplateFont = "noto-sans-sc" | "peesuto-code";
+/** Peesuto Code (Sarasa Mono SC subset, SIL OFL 1.1; see render/fonts/README.md) ships with core. */
+export const CODE_FONT_DIR = fileURLToPath(new URL("../render/fonts/", import.meta.url));
+export const CODE_FONT = { regular: "PeesutoCode-Regular.ttf", bold: "PeesutoCode-Bold.ttf" } as const;
+/** Where a staged code font sits in the composition, relative to the work tree root. */
+const CODE_FONT_STAGE = "compositions/paste/fonts";
+
+/** Code cards use Peesuto Code unless it lacks a (non-emoji) glyph of the
+ * content: then the whole card falls back to Noto Sans SC, without an error.
+ * Every other template keeps Noto Sans SC. */
+export function chooseTemplateFont(template: TemplateId, missingInCodeFont: readonly string[]): TemplateFont {
+  return template === "code" && missingInCodeFont.length === 0 ? "peesuto-code" : "noto-sans-sc";
+}
+
+/** Face files for the measurer (absolute) and the composition (work-tree relative, no ".."). */
+export function fontFaces(font: TemplateFont, engine: string): { measure: { regular: string; bold: string }; composition: { regular: string; bold: string } } {
+  if (font === "peesuto-code") return {
+    measure: { regular: join(CODE_FONT_DIR, CODE_FONT.regular), bold: join(CODE_FONT_DIR, CODE_FONT.bold) },
+    composition: { regular: `${CODE_FONT_STAGE}/${CODE_FONT.regular}`, bold: `${CODE_FONT_STAGE}/${CODE_FONT.bold}` },
+  };
+  return {
+    measure: { regular: `${engine}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${engine}/assets/fonts/NotoSansSC-Bold.otf` },
+    composition: { regular: "assets/fonts/NotoSansSC-Regular.otf", bold: "assets/fonts/NotoSansSC-Bold.otf" },
+  };
+}
+
+/** Put the code font inside the composition (`<dir>/fonts/`): the engine only
+ * takes font paths inside the work tree, and never gets written into. A hard
+ * link when the volume allows it, else a copy; an up-to-date file is kept. */
+async function stageFont(font: TemplateFont, dir: string): Promise<void> {
+  if (font !== "peesuto-code") return;
+  await mkdir(join(dir, "fonts"), { recursive: true });
+  for (const name of Object.values(CODE_FONT)) {
+    const from = join(CODE_FONT_DIR, name), to = join(dir, "fonts", name);
+    const source = await stat(from);
+    const current = await stat(to).catch(() => undefined);
+    if (current && (current.ino === source.ino || (current.size === source.size && current.mtimeMs >= source.mtimeMs))) continue;
+    await rm(to, { force: true });
+    try { await link(from, to); } catch { await copyFile(from, to); }
+  }
+}
+
 interface EngineMeasurer {
   measure(size: number, bold?: boolean): (text: string) => number;
   lineHeight(size: number, bold?: boolean): number;
@@ -1034,11 +1096,21 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   const caption = qr ? qrCaption(qr) : undefined;
   const texts = qr ? ["0", ...(caption && !unsupportedScript(caption) ? [stripEmoji(caption)] : [])] : [stripEmoji(serialized), LAYOUT_GLYPHS];
   if (qr && caption && unsupportedScript(caption)) plan = { ...plan, content: { ...qr, caption: false } };
-  const m = await api.openMeasurer({
-    face: { regular: `${options.engine}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${options.engine}/assets/fonts/NotoSansSC-Bold.otf` },
+  const charset = await Bun.file(new URL("../render/charset.txt", import.meta.url)).text();
+  // The measure cache is keyed by the face files' content (and charset, sizes),
+  // so Noto and Peesuto Code metrics live in separate cache directories.
+  const open = (font: TemplateFont) => api.openMeasurer({
+    face: fontFaces(font, options.engine).measure,
     sizes: SIZES.flatMap((px) => [{ px, bold: false }, { px, bold: true }]), texts, density: 1,
-    cache: { charset: await Bun.file(new URL("../render/charset.txt", import.meta.url)).text(), dir: `${work}/dist/.measure` },
+    cache: { charset, dir: `${work}/dist/.measure` },
   });
+  let font: TemplateFont = plan.template === "code" ? "peesuto-code" : "noto-sans-sc";
+  let m = await open(font);
+  if (font === "peesuto-code") {
+    // A glyph the code font lacks (emoji aside) sets the whole card in Noto Sans SC instead.
+    const chosen = chooseTemplateFont(plan.template, texts.flatMap((text) => m.unmapped(text, 40, false)));
+    if (chosen !== font) { await m.close(); font = chosen; m = await open(font); }
+  }
   try {
     for (const text of texts) {
       const missing = m.unmapped(text, 40, false);
@@ -1120,13 +1192,14 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     }
     await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}; text positions are fixed across frames.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length || layout.images.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${body}\n</View>));\n`);
     await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(keyframes)},animation:${JSON.stringify(animations)}}});\n`);
+    await stageFont(font, dir);
     await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: timing.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1,
-      fonts: { regular: "assets/fonts/NotoSansSC-Regular.otf", bold: "assets/fonts/NotoSansSC-Bold.otf" } }, null, 2));
+      fonts: fontFaces(font, options.engine).composition }, null, 2));
     await Bun.write(`${dir}/pocket.json`, JSON.stringify({ $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
       id: "dev.pocket-stack.motion-paste", name: "pocketjs-motion-paste", title: `${plan.template} ${plan.variant}`, version: "0.0.0",
       engine: { capabilities: { requires: ["text.glyphs.baked"] } },
       app: { entry: "compositions/paste/main.tsx", output: "motion-paste", framework: "solid", viewport: { fixed: { logical: [layout.width, frameHeight], presentation: "native" } } } }, null, 2));
-    await Bun.write(`${dir}/template-layout.json`, JSON.stringify({ template: plan.template, variant: plan.variant, width: layout.width, height: layout.height, frameHeight, scroll,
+    await Bun.write(`${dir}/template-layout.json`, JSON.stringify({ template: plan.template, variant: plan.variant, font, width: layout.width, height: layout.height, frameHeight, scroll,
       lines: layout.lines.map(({ text: _text, ...geometry }) => geometry), timing: { frames: timing.frames, revealMs: timing.revealMs, holdMs: timing.holdMs } }, null, 2));
     return { dir, lines: layout.lines.length, size: Math.max(...layout.lines.map((line) => line.size)), frames: timing.frames,
       emoji: emoji.length, truncated: false, width: layout.width, height: frameHeight, template: plan.template, variant: plan.variant, motion: plan.motion, scroll };
