@@ -6,6 +6,7 @@
  * fail because a model did.
  */
 import type { JevRequest } from "../questions.ts";
+import { modelContentOf } from "../privacy/decider.ts";
 import { heuristicRank } from "./heuristic.ts";
 import { buildPickRequest, NONE, type BuildOptions } from "./question.ts";
 import { PickError, type ClipItem, type Context, type PickAnswers, type PickDecider, type PickResult, type RankedItem } from "./types.ts";
@@ -43,7 +44,14 @@ export async function pick(ctx: Context, candidates: readonly ClipItem[], decide
   const kept = candidates.filter((c) => !c.excluded);
   const now = opts.now ?? Date.now();
   const heuristic = heuristicRank(ctx, kept, now);
-  const { body, ids } = buildPickRequest(ctx, kept, opts);
+  // Behind a privacy-wrapped decider, redact before summaries cut the text:
+  // a key truncated at 80 characters may no longer match its rule.
+  const mc = modelContentOf(decider);
+  const hide = mc && mc.mode !== "raw" ? mc.redact : null;
+  const { body, ids } = hide
+    ? buildPickRequest({ ...ctx, ...(ctx.label !== undefined ? { label: hide(ctx.label) } : {}), ...(ctx.before !== undefined ? { before: hide(ctx.before) } : {}), ...(ctx.after !== undefined ? { after: hide(ctx.after) } : {}) },
+      kept.map((c) => ({ ...c, preview: hide(c.preview), ...(c.text !== undefined ? { text: hide(c.text) } : {}) })), opts)
+    : buildPickRequest(ctx, kept, opts);
   const fallback: PickResult = { ranked: heuristic.ranked, shouldPaste: heuristic.shouldPaste, source: "heuristic", question: body };
   if (!decider || ids.length === 0) return fallback;
 

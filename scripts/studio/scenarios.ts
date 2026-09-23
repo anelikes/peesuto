@@ -33,5 +33,9 @@ export const SCENARIOS: readonly Scenario[] = [
   { id: "mermaid-cycle", title: "Mermaid 带回环", text: "flowchart TD\n  A[写代码] --> B[跑测试]\n  B -- 失败 --> A\n  B -- 通过 --> C[提交]\n  C -.-> D[(发布)]", group: "流程图" },
   { id: "mermaid-lr", title: "Mermaid 横向流水线", text: "graph LR\n  clip[剪贴板] --> parse[解析] --> decide[选模板] --> layout[排版] --> render[渲染]", group: "流程图" },
   { id: "arrow-chain", title: "一行箭头链", text: "需求 → 设计 → 开发 → 测试 → 上线", group: "流程图" },
+  // 隐私：以下密钥全是编造的（FAKE），只用来看脱敏效果，任何服务都不认。
+  { id: "privacy-env", title: "带密钥的配置片段", text: "# 本地开发配置\nOPENAI_API_KEY=sk-proj-FAKEfake0000FAKEfake1111FAKE\nDATABASE_URL=postgres://app:fake-pass-123@db.internal:5432/app\nDEBUG=true", group: "隐私" },
+  { id: "privacy-chat", title: "消息里夹着令牌与密码", text: "我把测试环境的登录信息发你：\n账号 demo，密码：Fake#2026pass\n接口加请求头 Authorization: Bearer FAKEtoken0000fake1111FAKE 就行，用完记得换掉。", group: "隐私" },
+  { id: "privacy-contact", title: "联系方式（个人信息规则默认关闭）", text: "周五评审改到 3 点，有问题找小王：13800000000，wang.fake@example.com。GitHub 令牌 ghp_FAKEfakeFAKEfakeFAKEfakeFAKEfake0000 已作废。", group: "隐私" },
   { id: "arrow-branches", title: "多行箭头链（分支与汇合）", text: "登录 -> 首页 -> 设置\n首页 -> 历史\n历史 -> 详情 -> 设置", group: "流程图" },
 ];

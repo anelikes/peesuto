@@ -43,8 +43,11 @@ export async function main(argv: readonly string[]): Promise<number> {
   const engine = await engineFor(appData, resources);
   if (engine && engineMissing(engine).length) console.error("daemon: engine incomplete");
 
+  // The bundle's VERSION names the engine and core commits: the precompose cache key's code version.
+  let bundled: string | undefined;
+  try { if (resources) bundled = `${VERSION}+${(await Bun.file(join(resources, "VERSION")).text()).trim()}`; } catch { /* dev tree: hashed from core/src */ }
   const host: DaemonHost = {
-    version: VERSION, appData, engine, emojiBundle: resources ? join(resources, "emoji") : join(REPO_ROOT, ".work/emoji-all"),
+    version: VERSION, appData, engine, ...(bundled ? { coreVersion: bundled } : {}), emojiBundle: resources ? join(resources, "emoji") : join(REPO_ROOT, ".work/emoji-all"),
     async resolveProviders(cfg) {
       const providers: ProvidersConfig = {
         decider: (cfg.decider as ProvidersConfig["decider"]) ?? { kind: "none" },
@@ -64,7 +67,14 @@ export async function main(argv: readonly string[]): Promise<number> {
   let stop: (code: number) => void = () => {};
   const done = new Promise<number>((resolve) => { stop = resolve; });
   const pauseIdle = () => { if (timer) clearTimeout(timer); timer = undefined; };
-  const touch = () => { pauseIdle(); if (idleMs > 0) timer = setTimeout(() => { console.error("daemon: idle, exiting"); stop(0); }, idleMs); };
+  const touch = () => {
+    pauseIdle();
+    if (idleMs > 0) timer = setTimeout(() => {
+      // Precompose work in the background is pending work too.
+      if (daemon.busy()) { touch(); return; }
+      console.error("daemon: idle, exiting"); stop(0);
+    }, idleMs);
+  };
   touch();
 
   const out = (o: unknown) => { process.stdout.write(JSON.stringify(o) + "\n"); };

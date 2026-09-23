@@ -29,7 +29,7 @@ export interface StudioOptions {
 /** Hash of the code that decides and draws templates, plus the engine pin. */
 export async function codeVersion(repo: string): Promise<string> {
   const hasher = new Bun.CryptoHasher("sha256");
-  for (const dir of ["core/src/templates", "core/src/render"]) {
+  for (const dir of ["core/src/templates", "core/src/render", "core/src/privacy"]) {
     const names = (await readdir(join(repo, dir))).filter((n) => n.endsWith(".ts")).sort();
     for (const name of names) hasher.update(`${dir}/${name}\0`).update(await readFile(join(repo, dir, name))).update("\0");
   }
@@ -108,7 +108,8 @@ interface Job {
   error?: { kind: string; message: string };
 }
 
-interface PlanRequest { scenario?: string; text?: string; imageFrame?: string; motionFrame?: string; decider?: string; formats?: Partial<Formats> }
+interface PlanRequest { scenario?: string; text?: string; imageFrame?: string; motionFrame?: string; decider?: string; formats?: Partial<Formats>; modelContent?: string }
+const MODEL_CONTENT = ["raw", "redacted", "structure"] as const;
 interface Frames { readonly imageFrame: string; readonly motionFrame: string }
 
 export async function startStudio(o: StudioOptions) {
@@ -160,7 +161,7 @@ export async function startStudio(o: StudioOptions) {
   }
   let debounce: Timer | undefined;
   const onChange = () => { clearTimeout(debounce); debounce = setTimeout(() => void refreshVersion(), 250); };
-  for (const dir of ["core/src/templates", "core/src/render"]) watch(join(o.repo, dir), onChange);
+  for (const dir of ["core/src/templates", "core/src/render", "core/src/privacy"]) watch(join(o.repo, dir), onChange);
   watch(join(o.repo, "engine.json"), onChange);
 
   // --- queue ---
@@ -224,13 +225,17 @@ export async function startStudio(o: StudioOptions) {
       imageFrame: IMAGE_FRAMES.includes(body.imageFrame as never) ? body.imageFrame! : "auto",
       motionFrame: MOTION_FRAMES.includes(body.motionFrame as never) ? body.motionFrame! : "1:1",
     };
-    const decider = body.decider === "jev" && jev ? "jev" : "rules";
+    const mode = MODEL_CONTENT.includes(body.modelContent as never) ? body.modelContent! : "redacted";
+    // What Jev receives can change its answer, so the mode is part of the decider's identity; rules never see a model.
+    const decider = body.decider === "jev" && jev ? `jev:${mode}` : "rules";
     const f = body.formats ?? {};
     const formats: Formats = { png: f.png !== false, others: f.others !== false, gif: f.gif !== false, mp4: f.mp4 !== false, frames: f.frames === true };
     return { frames, decider, formats };
   };
-  const plan = (text: string, frames: Frames, decider: string, formats: Formats, autoOnly = false) =>
-    planner.call<PlanResult>(version, { op: "plan", text, ...frames, decider, formats, video: Boolean(o.ffmpeg), answersDir, autoOnly });
+  const plan = (text: string, frames: Frames, decider: string, formats: Formats, autoOnly = false) => {
+    const [kind, modelContent] = decider.split(":");
+    return planner.call<PlanResult>(version, { op: "plan", text, ...frames, decider: kind, modelContent, formats, video: Boolean(o.ffmpeg), answersDir, autoOnly });
+  };
   const failure = (error: unknown, status = 422) => { const e = error as WorkerError; return Response.json({ error: { kind: e.kind ?? "Error", message: e.message } }, { status }); };
 
   const page = join(import.meta.dir, "page.html");
@@ -263,6 +268,16 @@ export async function startStudio(o: StudioOptions) {
           const admitted = await admit(text, frames, decider, result.jobs, true);
           return Response.json({ version, decision: result.decision, jobs: admitted });
         } catch (error) { return failure(error); }
+      }
+
+      if (req.method === "POST" && path === "/api/privacy") {
+        const body = (await req.json().catch(() => ({}))) as PlanRequest & { mode?: string };
+        const scenario = body.scenario ? SCENARIOS.find((s) => s.id === body.scenario) : undefined;
+        const text = scenario?.text ?? body.text;
+        if (!text) return Response.json({ error: { kind: "input", message: "没有文字" } }, { status: 400 });
+        await refreshVersion();
+        try { return Response.json(await planner.call(version, { op: "privacy", text, mode: MODEL_CONTENT.includes(body.mode as never) ? body.mode : "redacted" })); }
+        catch (error) { return failure(error); }
       }
 
       if (req.method === "POST" && path === "/api/overview") {

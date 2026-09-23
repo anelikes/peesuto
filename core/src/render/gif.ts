@@ -32,7 +32,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { applyPalette, GIFEncoder, quantize } from "gifenc";
-import { EngineError, EngineTimeoutError } from "../engine.ts";
+import { EngineError, EngineTimeoutError, throwIfAborted } from "../engine.ts";
 
 /* ---- the engine surface this encoder uses -------------------------------- */
 interface ResolvedComposition {
@@ -97,6 +97,8 @@ export interface CardGifOptions {
   readonly delta?: boolean;
   /** performance.now() deadline, checked between frames (rendering is in-process). */
   readonly deadline?: number;
+  /** Checked between frames: aborting stops the encoder with EngineAbortedError. */
+  readonly signal?: AbortSignal;
 }
 
 export interface CardGifResult {
@@ -143,6 +145,9 @@ export async function encodeCardGif(o: CardGifOptions): Promise<CardGifResult> {
     for (let f = 0; f < c.durationFrames; f += step) {
       // Frames render in-process; the deadline is checked between frames.
       if (o.deadline !== undefined && performance.now() > o.deadline) throw new EngineTimeoutError("gif encoding timed out and was stopped. Try a shorter text, PNG, or set PASTE_RENDER_TIMEOUT_MS.");
+      throwIfAborted(o.signal);
+      // Background work yields between frames so requests keep being answered.
+      if (o.signal) await new Promise((r) => setImmediate(r));
       await source.seekFrame(f);
       const scaled = downscaleBox(source.read(), physW, physH, width);
       size = { width: scaled.width, height: scaled.height };
@@ -155,6 +160,7 @@ export async function encodeCardGif(o: CardGifOptions): Promise<CardGifResult> {
     await source?.dispose();
   }
 
+  throwIfAborted(o.signal);
   const gif = encodeGif(frames, size.width, size.height, { fps: c.fps / step, colors: o.colors, delta: o.delta });
   await mkdir(dirname(o.out), { recursive: true });
   await Bun.write(o.out, gif);

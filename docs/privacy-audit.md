@@ -19,7 +19,9 @@ See the [migration compatibility requirements](native-migration.md).
 
 | data | stored | leaves the machine | switch |
 |---|---|---|---|
-| clipboard text, RTF, HTML | encrypted SQLite in App Support; key in Keychain | only as part of a decider question or a generator prompt, and only for the item you act on | decider = rules or none, generator = none, or Offline |
+| clipboard text, RTF, HTML | encrypted SQLite in App Support; key in Keychain | only as part of a decider question or a generator prompt, and only for the item you act on (with precompose + 「预合成也使用 AI 模型」, for every copied text). Decider questions to a network decider carry the text as the model-content mode allows: redacted by default, see [privacy-rules.md](privacy-rules.md) | decider = rules or none, generator = none, or Offline; mode 仅发结构 |
+| precomposed cards (every copied text, when precompose is on) | rendered files in `App Support/cards/`, pruned like other outputs (newest 30, one day); results indexed in memory only | never, unless 「预合成也使用 AI 模型」 is on: then each copied text reaches the decider, redacted per the mode | precompose outputs = none (default); 「包含密钥时不预合成」 (default on) |
+| privacy rules (custom patterns and replacements) | the shell's settings file; sent to Core with `config.set`, kept in memory | never | — |
 | images, files copied | thumbnail + original under App Support | never | history off |
 | app bundle id per item | with the item | as part of the pick question's state (bundle id only) | decider = rules or none |
 | focused field context (role, label, text around the caret) | never stored | as part of the pick question, redacted per level | smart paste off, or decider = rules or none |
@@ -55,6 +57,39 @@ Run each and confirm nothing lands in history:
       marked `local: true`.
 - [ ] Grep `egress.log` and the app's stderr for any clipboard text used in
       the test; zero hits.
+
+## 3a. What the model receives (privacy rules)
+
+- [ ] Decider = cloudflare (or proxy), mode 敏感信息脱敏: copy a text with a
+      fake key (`sk-proj-FAKE…`), a `password: …` line and a
+      `postgres://user:pass@host` URL; run paste as card. Capture the request
+      (proxy under `wrangler dev` logs the body, or a local endpoint decider)
+      and confirm it holds `[密钥]` / `[密码]` and none of the fake values;
+      the emphasis criteria contain none of them either.
+- [ ] Mode 仅发结构: the same request holds only `x`, `0`, `字`,
+      punctuation and placeholders, and no emphasis question.
+- [ ] Mode 原文: the request holds the text as copied.
+- [ ] Decider = rules, none or laya: no request leaves the machine (laya is
+      local and receives the original).
+- [ ] Smart paste with a history item longer than 80 characters that ends in
+      a key: the pick request holds the placeholder, not half the key.
+- [ ] A custom rule with 「图片中也替换」 changes the rendered card; without it
+      the card shows the original and only the request is changed.
+- [ ] Settings' test box (`privacy.preview`) shows the same model text as the
+      captured request.
+
+## 3b. Precompose
+
+- [ ] Precompose off (default): copying text renders nothing; `cards/` does
+      not grow.
+- [ ] Precompose on, 「预合成也使用 AI 模型」 off: copying text renders a card
+      in `cards/` and `egress.log` gains no line.
+- [ ] 「包含密钥时不预合成」 on: copying a text with a fake key renders nothing.
+- [ ] Concealed/transient copies, excluded apps and Peesuto's own writes are
+      never precomposed.
+- [ ] 「预合成也使用 AI 模型」 on with a network decider: every copy adds one
+      `egress.log` line, and the captured request is redacted per the mode.
+- [ ] Low Power Mode or a serious thermal state: nothing is precomposed.
 
 ## 4. Storage
 

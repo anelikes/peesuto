@@ -30,6 +30,16 @@ export interface ActionDeps {
   readonly candidates?: () => Promise<ClipItem[]> | ClipItem[];
   /** The catalog with style packs merged in. */
   readonly catalog?: Catalog;
+  /** Render actions: the text as it is rendered (privacy rules marked alsoInOutput). */
+  readonly outputText?: (text: string) => string;
+  /** The template renderer; tests substitute a fake engine. */
+  readonly renderTemplate?: typeof renderTemplate;
+}
+
+/** Background rendering (precompose): cancellable and at low priority. */
+export interface RenderControl {
+  readonly signal?: AbortSignal;
+  readonly lowPriority?: boolean;
 }
 
 export function fillTemplate(template: string, input: ActionInput): string {
@@ -54,40 +64,7 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
       if (text === "") throw new ActionError("run", `${spec.id}: ${r.model} returned nothing`);
       return { output: "text", text, model: r.model, ms: ms() };
     }
-    case "render": {
-      if (!deps.render) throw new ActionError("needs", `${spec.id} needs the render engine; it is not available`);
-      if (spec.output !== "image" && spec.output !== "gif" && spec.output !== "video") throw new ActionError("spec", `${spec.id}: a render action outputs image, gif or video`);
-      let ffmpeg: string | undefined;
-      if (spec.output === "video") {
-        try { ffmpeg = resolveFFmpeg({ executable: deps.render.ffmpeg }); }
-        catch (error) {
-          if (error instanceof VideoUnavailableError) throw new ActionError("needs", error.message);
-          throw error;
-        }
-      }
-      // Absent means the output's default: images fit their content, GIF/MP4 are 1:1.
-      const aspect = input.aspect ?? spec.render?.aspect;
-      let decision;
-      try {
-        decision = await decideTemplate(input.text, { aspect, decider: deps.decider, output: spec.output,
-          override: input.template, preferences: input.templatePreferences, animate: spec.render?.animate });
-      } catch (error) {
-        if (error instanceof TemplateInputError) throw new ActionError("input", error.message);
-        throw error;
-      }
-      const { plan, decisionSource, availableTemplates, decisionError } = decision;
-      const format = spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png";
-      const r = await renderTemplate(plan, { ...deps.render, catalog: deps.catalog, format, ffmpeg });
-      // GIF/MP4 must animate unless the action is explicitly static ("never").
-      if (format !== "png" && spec.render?.animate !== "never" && (r.format !== format || plan.motion === "none" || r.frames <= 1)) {
-        await rm(r.path, { force: true });
-        throw new ActionError("run", `${spec.id}: the card came out static`);
-      }
-      return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: {
-        template: { id: plan.template, variant: plan.variant, motion: plan.motion, aspect: plan.aspect, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
-        lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
-      } };
-    }
+    case "render": return renderAction(spec, input, deps, {}, t0);
     case "decider": {
       const candidates = deps.candidates ? await deps.candidates() : input.item ? [input.item] : [];
       const ctx: Context = input.context ?? { level: 0, appBundleId: "" };
@@ -96,4 +73,45 @@ export async function runAction(spec: ActionSpec, input: ActionInput, deps: Acti
       return { output: "text", text: top?.item.text ?? input.text, ms: ms(), pick: result };
     }
   }
+}
+
+/** A render action: decide a template for the (output-rule-transformed) text, render it. */
+export async function renderAction(spec: ActionSpec, input: ActionInput, deps: ActionDeps, control: RenderControl = {}, t0 = performance.now()): Promise<ActionResult> {
+  const ms = () => Math.round(performance.now() - t0);
+  if (!input.text?.trim()) throw new ActionError("input", `${spec.id}: nothing to work on`);
+  if (!deps.render) throw new ActionError("needs", `${spec.id} needs the render engine; it is not available`);
+  if (spec.output !== "image" && spec.output !== "gif" && spec.output !== "video") throw new ActionError("spec", `${spec.id}: a render action outputs image, gif or video`);
+  let ffmpeg: string | undefined;
+  if (spec.output === "video") {
+    try { ffmpeg = resolveFFmpeg({ executable: deps.render.ffmpeg }); }
+    catch (error) {
+      if (error instanceof VideoUnavailableError) throw new ActionError("needs", error.message);
+      throw error;
+    }
+  }
+  // Absent means the output's default: images fit their content, GIF/MP4 are 1:1.
+  const aspect = input.aspect ?? spec.render?.aspect;
+  // Rules marked "also in output" change what is drawn; the model sees at most this text.
+  const text = deps.outputText ? deps.outputText(input.text) : input.text;
+  let decision;
+  try {
+    decision = await decideTemplate(text, { aspect, decider: deps.decider, output: spec.output,
+      override: input.template, preferences: input.templatePreferences, animate: spec.render?.animate });
+  } catch (error) {
+    if (error instanceof TemplateInputError) throw new ActionError("input", error.message);
+    throw error;
+  }
+  const { plan, decisionSource, availableTemplates, decisionError } = decision;
+  const format = spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png";
+  const render = deps.renderTemplate ?? renderTemplate;
+  const r = await render(plan, { ...deps.render, catalog: deps.catalog, format, ffmpeg, signal: control.signal, lowPriority: control.lowPriority });
+  // GIF/MP4 must animate unless the action is explicitly static ("never").
+  if (format !== "png" && spec.render?.animate !== "never" && (r.format !== format || plan.motion === "none" || r.frames <= 1)) {
+    await rm(r.path, { force: true });
+    throw new ActionError("run", `${spec.id}: the card came out static`);
+  }
+  return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: {
+    template: { id: plan.template, variant: plan.variant, motion: plan.motion, aspect: plan.aspect, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
+    lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
+  } };
 }

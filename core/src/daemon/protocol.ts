@@ -20,14 +20,37 @@ import type { TEMPLATE_REGISTRY } from "../templates/registry.ts";
 
 export type Request =
   | { id: number; cmd: "health" }
-  | { id: number; cmd: "config.set"; decider?: unknown; generator?: unknown; offline?: boolean; secrets?: Record<string, string>; egressLog?: string }
+  | { id: number; cmd: "config.set"; decider?: unknown; generator?: unknown; offline?: boolean; secrets?: Record<string, string>; egressLog?: string; privacy?: PrivacySettings; precompose?: PrecomposeSettings }
   | { id: number; cmd: "pick"; context: Context; candidates: ClipItem[]; fresh?: boolean }
   | { id: number; cmd: "actions.list" }
   | { id: number; cmd: "actions.reload" }
   | { id: number; cmd: "templates.list" }
   | { id: number; cmd: "run-action"; action: string; input: ActionInput; candidates?: ClipItem[]; events?: boolean }
   | { id: number; cmd: "render"; dsl: Dsl; out?: string; events?: boolean }
+  | { id: number; cmd: "privacy.rules" }
+  | { id: number; cmd: "privacy.preview"; text: string }
+  | { id: number; cmd: "precompose"; text: string; frames?: { image?: string; gif?: string; video?: string }; templatePreferences?: Readonly<Record<string, string>> }
   | { id: number; cmd: "shutdown" };
+
+/** `config.set`'s privacy section; absent means the defaults (mode "redacted", built-in defaults, no rules). */
+export interface PrivacySettings {
+  readonly modelContent?: "raw" | "redacted" | "structure";
+  readonly builtins?: Readonly<Record<string, boolean>>;
+  readonly rules?: readonly {
+    readonly id: string; readonly name: string;
+    readonly match: "text" | "keywords" | "regex";
+    readonly pattern: string; readonly replacement: string;
+    readonly caseSensitive?: boolean; readonly wholeWord?: boolean; readonly alsoInOutput?: boolean; readonly enabled?: boolean;
+  }[];
+}
+
+/** `config.set`'s precompose section; absent means off. */
+export interface PrecomposeSettings {
+  readonly outputs?: readonly ("image" | "gif" | "video")[];
+  readonly useModel?: boolean;
+  readonly skipSecrets?: boolean;
+  readonly maxChars?: number;
+}
 
 export type Response =
   | { id: number; ok: true; cmd: "health"; version: string; engine: string | null; providers: { decider: string; generator: string; offline: boolean }; uptimeMs: number; packs: { id: string; name: string; version: string; kind: "actions" | "styles" }[] }
@@ -37,6 +60,10 @@ export type Response =
   | { id: number; ok: true; cmd: "templates.list"; templates: typeof TEMPLATE_REGISTRY }
   | { id: number; ok: true; cmd: "run-action"; result: ActionResult; pick?: PickResult }
   | { id: number; ok: true; cmd: "render"; path: string; format: string; frames: number; ms: Record<string, number> }
+  | { id: number; ok: true; cmd: "privacy.rules"; builtins: { id: string; name: string; nameZh: string; description: string; descriptionZh: string; defaultEnabled: boolean; enabled: boolean }[] }
+  | { id: number; ok: true; cmd: "privacy.preview"; modelText: string; outputText: string; spans: { start: number; end: number; ruleId: string; replacement: string }[]; containsSecret: boolean }
+  | { id: number; ok: true; cmd: "precompose"; queued: true }
+  | { id: number; ok: true; cmd: "precompose"; queued: false; skipped: "off" | "secret" | "too-long" | "empty" }
   | { id: number; ok: true; cmd: "shutdown" }
   | { id: number; ok: false; cmd?: string; kind: string; message: string; code?: string; characters?: string[] };
 

@@ -2,7 +2,7 @@
 import { mkdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { EngineError, ensureWorkTree, renderDeadline, runEngine } from "../engine.ts";
+import { EngineError, ensureWorkTree, renderDeadline, runEngine, throwIfAborted } from "../engine.ts";
 import type { RenderOptions, RenderResult } from "../render/card.ts";
 import { encodeCardGif } from "../render/gif.ts";
 import { pruneOutputs, writeOutput } from "../render/outputs.ts";
@@ -24,13 +24,15 @@ export function templateGifWidth(width: number, height: number, frames: number):
 }
 
 export async function prepareTemplate(plan: TemplatePlan, options: RenderOptions, deadline?: number): Promise<TemplateComposeResult & { ms: { compose: number; build: number } }> {
+  throwIfAborted(options.signal);
   await ensureWorkTree(options.engine, options.work);
   const started = performance.now();
   // A still export must contain every character, never animation frame zero.
   const composed = await composeTemplate(options.format === "png" ? { ...plan, motion: "none" } : plan, options);
   if (options.format === "gif") templateGifWidth(composed.width, composed.height, composed.frames);
   const composedAt = performance.now();
-  await runEngine(options.work, ["build", "compositions/paste"], {}, { deadline });
+  throwIfAborted(options.signal);
+  await runEngine(options.work, ["build", "compositions/paste"], {}, { deadline, signal: options.signal, lowPriority: options.lowPriority });
   return { ...composed, ms: { compose: Math.round(composedAt - started), build: Math.round(performance.now() - composedAt) } };
 }
 
@@ -45,10 +47,12 @@ export async function renderTemplate(plan: TemplatePlan, options: RenderOptions)
   const started = performance.now();
   // Written under a private name and renamed on success; a failure never
   // deletes a file the caller already had at `out`.
+  const run = { deadline, signal: options.signal, lowPriority: options.lowPriority };
   await writeOutput(path, async (temp) => {
-    if (format === "mp4") await runEngine(options.work, ["render", "compositions/paste", "--format", "mp4", "--out", temp], await videoEnvironment(options.work, ffmpeg!), { deadline });
-    else if (format === "gif") await encodeCardGif({ engine: options.engine, work: options.work, out: temp, width: templateGifWidth(prepared.width, prepared.height, prepared.frames), deadline });
-    else await runEngine(options.work, ["frame", "compositions/paste", "--at", "0", "--out", temp], {}, { deadline });
+    if (format === "mp4") await runEngine(options.work, ["render", "compositions/paste", "--format", "mp4", "--out", temp], await videoEnvironment(options.work, ffmpeg!), run);
+    else if (format === "gif") await encodeCardGif({ engine: options.engine, work: options.work, out: temp, width: templateGifWidth(prepared.width, prepared.height, prepared.frames), deadline, signal: options.signal });
+    else await runEngine(options.work, ["frame", "compositions/paste", "--at", "0", "--out", temp], {}, run);
+    throwIfAborted(options.signal);
     if ((await stat(temp)).size === 0) throw new EngineError("Template output is empty.");
   });
   if (!options.out) await pruneOutputs(dirname(path), path);

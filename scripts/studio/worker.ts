@@ -7,8 +7,9 @@
  *   {"id":1,"op":"plan","text":"…","imageFrame":"auto","motionFrame":"1:1","decider":"rules","formats":{…},"video":true,"answersDir":"…","autoOnly":false}
  *   {"id":2,"op":"render","plan":{…},"format":"png","out":"/abs/file.png","engine":{…}}
  *   {"id":3,"op":"registry"}
+ *   {"id":4,"op":"privacy","text":"…","mode":"raw"|"redacted"|"structure"}
  */
-import { errorOf, planText, registrySummary, renderJob } from "./pipeline.ts";
+import { errorOf, modelContentMode, planText, privacyView, registrySummary, renderJob } from "./pipeline.ts";
 
 export const REPLY_PREFIX = "@@studio ";
 
@@ -16,9 +17,10 @@ type Request = { id: number; op: string; [key: string]: any };
 
 async function handle(req: Request): Promise<unknown> {
   switch (req.op) {
-    case "plan": return await planText(req.text, { imageFrame: req.imageFrame, motionFrame: req.motionFrame, decider: req.decider, answersDir: req.answersDir, formats: req.formats, video: req.video, autoOnly: req.autoOnly });
+    case "plan": return await planText(req.text, { imageFrame: req.imageFrame, motionFrame: req.motionFrame, decider: req.decider, answersDir: req.answersDir, formats: req.formats, video: req.video, autoOnly: req.autoOnly, modelContent: modelContentMode(req.modelContent) });
     case "render": return await renderJob(req.plan, req.format, req.out, req.engine);
     case "registry": return registrySummary();
+    case "privacy": return privacyView(req.text, modelContentMode(req.mode));
     default: throw new Error(`unknown op ${req.op}`);
   }
 }

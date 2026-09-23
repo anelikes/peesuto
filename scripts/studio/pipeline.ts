@@ -15,6 +15,8 @@
 import { join } from "node:path";
 import { cachedProvider, createProvider } from "../../core/src/provider/index.ts";
 import type { CardDecider } from "../../core/src/render/pipeline.ts";
+import { privateDecider } from "../../core/src/privacy/decider.ts";
+import { applyOutputRules, compilePrivacy, containsSecret, DEFAULT_PRIVACY, MODEL_CONTENT_MODES, redactForModel, structureOnly, type ModelContentMode } from "../../core/src/privacy/rules.ts";
 import { decideTemplate } from "../../core/src/templates/decide.ts";
 import { TEMPLATE_REGISTRY, templateRegistration } from "../../core/src/templates/registry.ts";
 import { renderTemplate } from "../../core/src/templates/render.ts";
@@ -87,12 +89,44 @@ export function registrySummary() {
   return TEMPLATE_REGISTRY.map((t) => ({ id: t.id, name: t.nameZh, variants: t.variants.map((v) => ({ id: v.id, name: v.nameZh })), motions: t.motions.map((m) => ({ id: m, name: motionName(m) })) }));
 }
 
-/** null is the app's local rules decision. "jev" needs PASTE_CF_TOKEN and PASTE_CF_ACCOUNT_ID. */
-export function makeDecider(kind: DeciderKind, answersDir: string): CardDecider | null {
+export const modelContentMode = (value: unknown): ModelContentMode => (MODEL_CONTENT_MODES.includes(value as ModelContentMode) ? value as ModelContentMode : "redacted");
+/** The app's privacy rules with the built-in defaults, in `mode`. */
+const privacyIn = (mode: ModelContentMode) => compilePrivacy({ ...DEFAULT_PRIVACY, modelContent: mode });
+
+/** null is the app's local rules decision. "jev" needs PASTE_CF_TOKEN and PASTE_CF_ACCOUNT_ID;
+ * like the app, it receives the text as the model-content mode allows. */
+export function makeDecider(kind: DeciderKind, answersDir: string, mode: ModelContentMode = "redacted"): CardDecider | null {
   if (kind === "rules") return null;
   const accountId = process.env.PASTE_CF_ACCOUNT_ID, token = process.env.PASTE_CF_TOKEN;
   if (!accountId || !token) throw new Error("Jev (Cloudflare) 需要环境变量 PASTE_CF_TOKEN 和 PASTE_CF_ACCOUNT_ID（仓库根 .env）");
-  return cachedProvider(createProvider({ kind: "cloudflare", accountId, token }), answersDir);
+  return privateDecider(cachedProvider(createProvider({ kind: "cloudflare", accountId, token }), answersDir), privacyIn(mode));
+}
+
+/** One piece of the model text: plain, or a span a rule replaced (or, in 原文 mode, would have). */
+export interface ModelSegment { readonly text: string; readonly ruleId?: string; readonly original?: string }
+export interface PrivacyView {
+  readonly mode: ModelContentMode;
+  readonly modelText: string;
+  readonly segments: readonly ModelSegment[];
+  readonly outputText: string;
+  readonly containsSecret: boolean;
+}
+
+/** What privacy.preview answers for `text` under `mode` (built-in rules at their defaults), as segments to highlight. */
+export function privacyView(text: string, mode: ModelContentMode): PrivacyView {
+  const privacy = privacyIn(mode);
+  const { spans } = redactForModel(text, privacy);
+  const gap = (t: string) => (mode === "structure" ? structureOnly(t) : t);
+  const segments: ModelSegment[] = [];
+  let at = 0;
+  for (const s of spans) {
+    if (s.start > at) segments.push({ text: gap(text.slice(at, s.start)) });
+    const original = text.slice(s.start, s.end);
+    segments.push({ text: mode === "raw" ? original : s.replacement, ruleId: s.ruleId, original });
+    at = s.end;
+  }
+  if (at < text.length) segments.push({ text: gap(text.slice(at)) });
+  return { mode, modelText: segments.map((s) => s.text).join(""), segments, outputText: applyOutputRules(text, privacy), containsSecret: containsSecret(text, privacy) };
 }
 export const jevAvailable = () => Boolean(process.env.PASTE_CF_TOKEN && process.env.PASTE_CF_ACCOUNT_ID);
 
@@ -101,9 +135,9 @@ export const jevAvailable = () => Boolean(process.env.PASTE_CF_TOKEN && process.
  * automatic PNG. Jev's style and emphasis are kept for the chosen template's
  * GIF/MP4 (its plan is reused with another motion, not re-decided).
  */
-export async function planText(text: string, o: { imageFrame: ImageFrame; motionFrame: MotionFrame; decider: DeciderKind; answersDir: string; formats: Formats; video: boolean; autoOnly?: boolean }): Promise<PlanResult> {
+export async function planText(text: string, o: { imageFrame: ImageFrame; motionFrame: MotionFrame; decider: DeciderKind; answersDir: string; formats: Formats; video: boolean; autoOnly?: boolean; modelContent?: ModelContentMode }): Promise<PlanResult> {
   const started = performance.now();
-  const auto = await decideTemplate(text, { aspect: o.imageFrame, output: "image", decider: makeDecider(o.decider, o.answersDir) });
+  const auto = await decideTemplate(text, { aspect: o.imageFrame, output: "image", decider: makeDecider(o.decider, o.answersDir, modelContentMode(o.modelContent)) });
   const ms = Math.round(performance.now() - started);
   const chosen = auto.plan.template;
   const registration = templateRegistration(chosen);

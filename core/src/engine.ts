@@ -170,7 +170,23 @@ export function renderDeadline(format: "png" | "gif" | "mp4" | undefined): numbe
 export interface RunEngineOptions {
   /** Absolute performance.now() deadline shared by every child of one render. */
   readonly deadline?: number;
+  /** Aborting kills the child's whole process group and throws EngineAbortedError. */
+  readonly signal?: AbortSignal;
+  /** Run the child at a lower scheduling priority (background work). */
+  readonly lowPriority?: boolean;
 }
+
+/** A render stopped on purpose (a newer request replaced it), not a failure. */
+export class EngineAbortedError extends EngineError {
+  constructor(message = "render cancelled") { super(message); }
+}
+
+/** Throw EngineAbortedError when `signal` has fired. */
+export function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new EngineAbortedError();
+}
+
+const NICE = ["/usr/bin/nice", "/bin/nice"].find((p) => existsSync(p));
 
 /** Children still running, so an exiting Core does not orphan their groups. */
 const liveGroups = new Set<number>();
@@ -195,23 +211,31 @@ export async function runEngine(work: string, args: readonly string[], env: Reco
   const label = args.slice(0, 2).join(" ");
   const remaining = Math.max(0, deadline - t0);
   if (remaining === 0) throw new EngineTimeoutError(`engine ${label} did not start: the render deadline had already passed.`);
-  const p = Bun.spawn([process.execPath, "src/cli/main.ts", ...args], {
+  throwIfAborted(options.signal);
+  // `nice` execs the command, so the pid (and the process group) stay the child's.
+  const prefix = options.lowPriority && NICE ? [NICE, "-n", "10"] : [];
+  const p = Bun.spawn([...prefix, process.execPath, "src/cli/main.ts", ...args], {
     cwd: work, stdout: "pipe", stderr: "pipe", detached: true,
     env: { ...process.env, PATH: (await bunOnPath(join(work, ".bin"))).PATH, ...env },
   });
   if (!exitHookInstalled) { exitHookInstalled = true; process.once("exit", () => { for (const pid of liveGroups) killGroup(pid); }); }
   liveGroups.add(p.pid);
   let timedOut = false;
+  let aborted = false;
   const timer = setTimeout(() => { timedOut = true; killGroup(p.pid); }, remaining);
+  const onAbort = () => { aborted = true; killGroup(p.pid); };
+  options.signal?.addEventListener("abort", onAbort, { once: true });
   try {
     const [stdout, stderr, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+    if (aborted) throw new EngineAbortedError(`engine ${label} was cancelled`);
     if (timedOut) throw new EngineTimeoutError(`engine ${label} timed out after ${Math.round((performance.now() - t0) / 1000)} s and was stopped. Try a shorter text, PNG, or set PASTE_RENDER_TIMEOUT_MS.`);
     if (code !== 0) throw new EngineError(`engine ${label} failed (${code}):\n${stdout}${stderr}`);
     return { stdout, stderr, ms: Math.round(performance.now() - t0) };
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener("abort", onAbort);
     // The leader has exited; stop anything it left behind in its group.
-    if (timedOut) killGroup(p.pid);
+    if (timedOut || aborted) killGroup(p.pid);
     liveGroups.delete(p.pid);
   }
 }

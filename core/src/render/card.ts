@@ -26,6 +26,10 @@ export interface RenderOptions {
   /** Output path; defaults to a unique file under outDir so earlier results remain valid. */
   readonly out?: string;
   readonly outDir?: string;
+  /** Background work: aborting kills the engine's process group and stops GIF encoding. */
+  readonly signal?: AbortSignal;
+  /** Engine children run at a lower priority (precompose). */
+  readonly lowPriority?: boolean;
 }
 
 export interface RenderResult extends ComposeResult {

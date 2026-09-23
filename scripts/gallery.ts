@@ -16,7 +16,7 @@
  */
 import { cp, mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { ALL_FORMATS, errorOf, frameName, IMAGE_FRAMES, MOTION_FRAMES, planText, renderJob, type ImageFrame, type JobGroup, type MotionFrame } from "./studio/pipeline.ts";
+import { ALL_FORMATS, errorOf, frameName, IMAGE_FRAMES, MOTION_FRAMES, planText, privacyView, renderJob, type ImageFrame, type JobGroup, type MotionFrame } from "./studio/pipeline.ts";
 import { SCENARIOS, type Scenario } from "./studio/scenarios.ts";
 
 const argv = process.argv.slice(2);
@@ -33,7 +33,7 @@ if (!IMAGE_FRAMES.includes(imageFrame)) { console.error(`gallery: --image-frame 
 if (!MOTION_FRAMES.includes(motionFrame)) { console.error(`gallery: --motion-frame must be one of ${MOTION_FRAMES.join(", ")}`); process.exit(1); }
 
 interface Shot { label: string; file: string; kind: "png" | "gif" | "mp4"; group: JobGroup; note?: string }
-interface Section { scenario: Scenario; chosen: string; candidates: string[]; shots: Shot[]; error?: string }
+interface Section { scenario: Scenario; chosen: string; candidates: string[]; shots: Shot[]; error?: string; model?: string }
 
 const engine = join(out, ".engine");
 await mkdir(out, { recursive: true });
@@ -44,7 +44,9 @@ const GROUP_PREFIX: Record<JobGroup, string> = { chosen: "", frames: "画幅："
 
 const sections: Section[] = [];
 for (const scenario of SCENARIOS.filter((s) => !only || only.includes(s.id))) {
-  const section: Section = { scenario, chosen: "", candidates: [], shots: [] };
+  // What a model would receive in the default mode, shown when a privacy rule matched.
+  const view = privacyView(scenario.text, "redacted");
+  const section: Section = { scenario, chosen: "", candidates: [], shots: [], ...(view.segments.some((x) => x.ruleId) ? { model: view.modelText } : {}) };
   sections.push(section);
   try {
     const { decision, jobs } = await planText(scenario.text, { imageFrame, motionFrame, decider: "rules", answersDir: join(out, ".answers"), formats: ALL_FORMATS, video: video && Boolean(ffmpeg) });
@@ -96,6 +98,7 @@ figcaption{padding:8px 10px;font-size:12px}figcaption small{display:block;color:
 ${sections.map((s) => `<section id="${s.scenario.id}"><h2>${esc(s.scenario.title)}</h2>
 <div class="meta">自动选择：<b>${esc(s.chosen)}</b>　可选模板：${s.candidates.map(esc).join("、")}</div>
 <pre>${esc(s.scenario.text)}</pre>
+${s.model ? `<div class="meta">模型收到（敏感信息脱敏，默认）：</div><pre>${esc(s.model)}</pre>` : ""}
 ${s.error ? `<p class="err">${esc(s.error)}</p>` : ""}
 <div class="grid">${s.shots.map((shot) => `<figure>${media(shot)}<figcaption>${esc(shot.label)}<small>${esc(shot.note ?? "")}</small></figcaption></figure>`).join("")}</div></section>`).join("\n")}
 `;

@@ -12,6 +12,9 @@
  * --account-id, --token, --hosted-url; or the environment PASTE_PROVIDER,
  * PASTE_PROXY_URL, PASTE_CF_ACCOUNT_ID, PASTE_CF_TOKEN, PASTE_TOKEN,
  * PASTE_HOSTED_URL. Answers are cached by text (--fresh asks again).
+ * What a network decider receives: --model-content raw|redacted|structure (or
+ * PASTE_MODEL_CONTENT; default redacted, docs/privacy-rules.md). Local deciders
+ * (rules, none, laya) get the original text.
  * PASTE_OFFLINE=1 refuses every network request. With --app-data, every
  * request that leaves the machine is logged to <app-data>/egress.log
  * (destination, purpose and byte counts; never content).
@@ -31,6 +34,8 @@ import { cachedProvider, createGenerator, createProvider, DEV_PROXY_URL, generat
 import { ActionError, loadActions, runAction } from "./actions/index.ts";
 import { answersToDsl, buildRequest, fallbackDsl, isCardAnswers } from "./questions.ts";
 import { ComposeError } from "./render/compose.ts";
+import { deciderForModel } from "./privacy/decider.ts";
+import { compilePrivacy, MODEL_CONTENT_MODES, type ModelContentMode } from "./privacy/rules.ts";
 import { renderCard } from "./render/card.ts";
 
 function parseArgv(argv: readonly string[]) {
@@ -66,6 +71,10 @@ export async function main(argv: readonly string[]): Promise<number> {
   const json = flags.has("json");
   const log = (s: string) => { if (!json) console.log(s); };
 
+  const mode = str("model-content") ?? process.env.PASTE_MODEL_CONTENT ?? "redacted";
+  if (!MODEL_CONTENT_MODES.includes(mode as ModelContentMode)) throw new UsageError(`--model-content must be ${MODEL_CONTENT_MODES.join(", ")}`);
+  const privacy = compilePrivacy({ modelContent: mode as ModelContentMode, builtins: {}, rules: [] });
+
   const aspectRaw = str("aspect") ?? "chat";
   if (!isAspect(aspectRaw)) throw new UsageError(`--aspect must be chat, doc or social`);
   const aspect = aspectRaw;
@@ -81,7 +90,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     if (!spec) throw new UsageError(`no action ${actionId}; have ${actions.map((a) => a.id).join(", ")}`);
     const cfg = providerConfig(str, flags.has("provider") ? undefined : process.env);
     const cacheDir = str("cache-dir") ?? join(appData ?? join(REPO_ROOT, ".work"), "answers");
-    const decider = cfg.kind === "none" ? null : cfg.kind === "rules" ? createProvider(cfg) : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") });
+    const decider = deciderForModel(cfg.kind === "none" ? null : cfg.kind === "rules" ? createProvider(cfg) : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") }), cfg.kind, privacy);
     const genCfg = generatorFromEnv(process.env);
     const generator = genCfg.kind === "none" ? null : createGenerator(genCfg);
     const render = spec.needs === "render" ? await renderDeps(str, appData) : null;
@@ -105,7 +114,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     if (length > MAX_TEXT_CHARS) throw new InputError(`text is ${length} characters; a card takes at most ${MAX_TEXT_CHARS}`);
     const cfg = providerConfig(str, flags.has("provider") ? undefined : process.env);
     const cacheDir = str("cache-dir") ?? join(appData ?? join(REPO_ROOT, ".work"), "answers");
-    const provider = cfg.kind === "none" || cfg.kind === "rules" ? createProvider(cfg) : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") });
+    const provider = deciderForModel(cfg.kind === "none" || cfg.kind === "rules" ? createProvider(cfg) : cachedProvider(createProvider(cfg), cacheDir, { fresh: flags.has("fresh") }), cfg.kind, privacy)!;
     const t0 = performance.now();
     const { body } = buildRequest(text);
     const answers = await provider.ask(body);
@@ -176,7 +185,7 @@ paste --action paste-card "text" [--frame auto|1:1|4:5|16:9|9:16]   # render act
 paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY,
                                            #   PASTE_GEN_REASONING (none|low|medium|high, default learn), PASTE_GEN_TIMEOUT_MS
       [--provider rules|none|laya|proxy|cloudflare|hosted] [--laya-url URL] [--proxy-url URL] [--account-id ID] [--token T] [--hosted-url URL]
-      [--work DIR] [--app-data DIR] [--engine-resources DIR] [--cache-dir DIR]
+      [--model-content raw|redacted|structure] [--work DIR] [--app-data DIR] [--engine-resources DIR] [--cache-dir DIR]
 pbpaste | paste --stdin
 paste --dsl job.json`;
 

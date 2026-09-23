@@ -69,6 +69,13 @@ figcaption a:hover{text-decoration:underline}
 .tile .media{min-height:120px}
 .empty{color:var(--muted);padding:40px 0}
 .errline{background:var(--err-bg);color:var(--err);border-radius:8px;padding:10px 12px;white-space:pre-wrap}
+.privacy{margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.privacy .head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px;margin-bottom:6px}
+.privacy .head b{font-weight:600}
+.privacy pre{margin:0 0 8px;white-space:pre-wrap;word-break:break-word;font:12px/1.55 ui-monospace,Menlo,monospace;max-height:200px;overflow:auto}
+.privacy mark{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 2px}
+.privacy mark.raw{background:var(--err-bg);color:var(--err)}
+.privacy .k{color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
@@ -77,7 +84,7 @@ figcaption a:hover{text-decoration:underline}
   <nav id="nav"></nav>
   <footer>
     <div>代码版本 <code id="ver">…</code></div>
-    <div style="margin:4px 0 8px">改动 core/src/templates、core/src/render 或 engine.json 会自动换版本</div>
+    <div style="margin:4px 0 8px">改动 core/src/templates、core/src/render、core/src/privacy 或 engine.json 会自动换版本</div>
     <button class="btn" id="clear">清空缓存重新渲染</button>
   </footer>
 </aside>
@@ -87,6 +94,7 @@ figcaption a:hover{text-decoration:underline}
     <div class="group"><span class="cap">动图/视频画幅</span><div class="seg" id="motionFrame"></div></div>
     <div class="group" id="formats"><span class="cap">渲染</span></div>
     <div class="group"><span class="cap">决策</span><div class="seg" id="decider"></div></div>
+    <div class="group"><span class="cap">发给模型</span><div class="seg" id="modelContent"></div></div>
     <div class="qstate" id="qstate"></div>
   </div>
   <div class="banner" id="banner">模板代码已改变，点击刷新</div>
@@ -106,6 +114,9 @@ const MOTION_FRAMES = IMAGE_FRAMES.slice(1);
 const frameName = (f) => f === "auto" ? "自动" : f;
 const FORMATS = [["png", "本模板各风格 PNG"], ["frames", "画幅对比"], ["others", "其他可选模板"], ["gif", "GIF 动效"], ["mp4", "MP4 视频"]];
 const SOURCE = { rules: "本地规则", jev: "Jev", fallback: "回退到本地规则", override: "手动指定" };
+const MODES = [["raw", "原文", "原样发送"], ["redacted", "敏感信息脱敏", "密钥等换成 [密钥] 这类占位符（默认）"], ["structure", "仅发结构", "脱敏后把字母、数字、汉字都换成 x、0、字"]];
+const MODE_NAME = Object.fromEntries(MODES.map(([id, name]) => [id, name]));
+const RULE_ZH = { "api-keys": "API 密钥", "private-keys": "私钥", jwt: "JWT 令牌", "bearer-tokens": "授权头", "connection-strings": "链接里的密码", "secret-assignments": "配置里的密码与密钥", "random-tokens": "随机字符串", email: "邮箱", phone: "手机号", "id-card": "身份证号", "bank-card": "银行卡号" };
 const GROUPS = [["chosen", "自动选择的模板 · 全部风格"], ["frames", "画幅对比 · 经典风格 PNG · 每个图片画幅"], ["other", "其他可选模板"], ["motion", "GIF 动效"], ["video", "视频"]];
 
 function pick(list, value, fallback) { return list.some(([id]) => id === value) ? value : fallback; }
@@ -117,6 +128,7 @@ const S = {
   decider: store.get("decider", "rules"),
   formats: Object.assign({ png: true, frames: false, others: true, gif: true, mp4: true }, store.get("formats", {})),
   custom: store.get("custom", ""),
+  modelContent: pick(MODES, store.get("modelContent", "redacted"), "redacted"),
 };
 
 async function api(path, body) {
@@ -149,6 +161,36 @@ function buildToolbar() {
   decider.innerHTML = `<button data-id="rules" class="${S.decider === "rules" ? "on" : ""}">本地规则</button>`
     + `<button data-id="jev" class="${S.decider === "jev" ? "on" : ""}" ${S.info.jev ? "" : "disabled title=\"需要 .env 里的 PASTE_CF_TOKEN 和 PASTE_CF_ACCOUNT_ID\""}>Jev (Cloudflare)</button>`;
   decider.onclick = (e) => { const b = e.target.closest("button"); if (!b || b.disabled) return; S.decider = b.dataset.id; store.set("decider", S.decider); buildToolbar(); show(); };
+  const mode = $("#modelContent");
+  mode.innerHTML = MODES.map(([id, name, tip]) => `<button data-id="${id}" class="${S.modelContent === id ? "on" : ""}" title="${tip}">${name}</button>`).join("");
+  mode.onclick = (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.modelContent = b.dataset.id; store.set("modelContent", S.modelContent); buildToolbar();
+    // Local rules never ask a model: only the panel changes. With Jev the decision can change too.
+    if (S.decider === "jev") show();
+    else { const box = $("#privacy"); if (box && S.lastText != null) privacyPanel(++S.privacySeq, S.lastText, box); }
+  };
+}
+
+// ---- 模型收到的内容 ----
+S.privacySeq = 0;
+async function privacyPanel(seq, text, box) {
+  box.innerHTML = `<div class="head"><b>模型收到的内容</b><span class="k">${esc(MODE_NAME[S.modelContent])}</span></div><div class="k">计算中…</div>`;
+  const r = await api("/api/privacy", { text, mode: S.modelContent }).catch((e) => ({ error: { kind: "network", message: String(e) } }));
+  if (seq !== S.privacySeq) return;
+  if (r.error) { box.innerHTML = `<div class="errline">${esc(r.error.kind)}: ${esc(r.error.message)}</div>`; return; }
+  const hits = r.segments.filter((x) => x.ruleId);
+  const model = r.segments.map((x) => x.ruleId
+    ? `<mark class="${r.mode === "raw" ? "raw" : ""}" title="${esc(RULE_ZH[x.ruleId] ?? x.ruleId)}${r.mode === "raw" ? "（原文模式照样发送）" : ""}">${esc(x.text)}</mark>`
+    : esc(x.text)).join("");
+  const rules = [...new Set(hits.map((x) => RULE_ZH[x.ruleId] ?? x.ruleId))];
+  box.innerHTML = `<div class="head"><b>模型收到的内容</b><span class="k">${esc(MODE_NAME[r.mode])}</span>`
+    + `<span class="k">${hits.length ? `命中 ${hits.length} 处：${esc(rules.join("、"))}` : "没有命中规则"}</span>`
+    + (r.containsSecret ? `<span class="warn">包含密钥：开启「包含密钥时不预合成」时不会预合成</span>` : "")
+    + (S.decider === "rules" ? `<span class="k">当前决策是本地规则，不会发给模型；这里是改用模型时的样子</span>` : "")
+    + `</div><pre>${model || "（空）"}</pre>`
+    + `<div class="k">渲染用的文字（只有勾了「图片中也替换」的自定义规则会改它；Studio 只有内置规则，所以与原文相同）</div>`
+    + `<pre>${esc(r.outputText)}</pre>`;
 }
 
 function buildNav() {
@@ -273,7 +315,8 @@ async function show() {
 
 async function scenarioView(seq, target, root) {
   root.innerHTML = `<pre class="src">${esc(target.text)}</pre><div class="decision"><span class="spin" style="margin:0"></span><span>${S.decider === "jev" ? "正在问 Jev…" : "决策中…"}</span></div>`;
-  const body = { imageFrame: S.imageFrame, motionFrame: S.motionFrame, decider: S.decider, formats: S.formats, ...(target.scenario ? { scenario: target.scenario } : { text: target.text }) };
+  S.lastText = null;
+  const body = { imageFrame: S.imageFrame, motionFrame: S.motionFrame, decider: S.decider, modelContent: S.modelContent, formats: S.formats, ...(target.scenario ? { scenario: target.scenario } : { text: target.text }) };
   const r = await api("/api/plan", body).catch((e) => ({ error: { kind: "network", message: String(e) } }));
   if (seq !== S.seq) return;
   if (r.version) setVersion(r.version);
@@ -290,7 +333,9 @@ async function scenarioView(seq, target, root) {
       <span><span class="k">字数</span> ${chars}</span>
       <span><span class="k">候选模板</span> ${cands}</span>
       ${d.decisionError ? `<span class="warn">Jev 失败，已回退：${esc(d.decisionError.kind)} ${esc(d.decisionError.message)}</span>` : ""}
-    </div>`;
+    </div><div class="privacy" id="privacy"></div>`;
+  S.lastText = target.text;
+  privacyPanel(++S.privacySeq, target.text, $("#privacy"));
   for (const [group, title] of GROUPS) {
     const jobs = r.jobs.filter((j) => j.group === group);
     if (!jobs.length) continue;
@@ -303,7 +348,7 @@ async function scenarioView(seq, target, root) {
 
 async function overview(seq) {
   content().innerHTML = `<h2>全部场景总览</h2><p style="color:var(--muted);margin:0 0 14px">每个场景按${S.decider === "jev" ? " Jev " : "本地规则"}自动选择的第一张 PNG（图片画幅 ${frameName(S.imageFrame)}），点一下打开该场景。</p><div id="ov"><div class="decision"><span class="spin" style="margin:0"></span><span>决策中…</span></div></div>`;
-  const r = await api("/api/overview", { imageFrame: S.imageFrame, motionFrame: S.motionFrame, decider: S.decider }).catch((e) => ({ error: { kind: "network", message: String(e) } }));
+  const r = await api("/api/overview", { imageFrame: S.imageFrame, motionFrame: S.motionFrame, decider: S.decider, modelContent: S.modelContent }).catch((e) => ({ error: { kind: "network", message: String(e) } }));
   if (seq !== S.seq) return;
   if (r.version) setVersion(r.version);
   const root = $("#ov");

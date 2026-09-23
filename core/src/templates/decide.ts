@@ -3,6 +3,7 @@ import type { CardDecider } from "../render/pipeline.ts";
 import { parseTemplates, type ParsedTemplates } from "./parse.ts";
 import { templateHasVariant, templateRegistration } from "./registry.ts";
 import { ProviderError } from "../provider/types.ts";
+import { modelContentOf, type ModelContentInfo } from "../privacy/decider.ts";
 import { DEFAULT_ASPECT, MOTIONS, TEMPLATE_IDS, VARIANT_IDS, TemplateInputError, templateAspect, type TemplateAspect, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
 
 export const TEMPLATE_CONFIDENCE = 0.65;
@@ -28,13 +29,14 @@ function motionChoices(allowMotion: boolean, requireMotion: boolean): Record<str
 
 /** Words the text template may accent, in source order. Only whole words that
  * occur verbatim in the source are offered, so an answer cannot add text. */
-export function emphasisCandidates(paragraphs: readonly string[], limit = 12): string[] {
+export function emphasisCandidates(paragraphs: readonly string[], limit = 12, exclude?: (paragraph: string, start: number, end: number) => boolean): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const paragraph of paragraphs) {
     for (const part of new Intl.Segmenter(undefined, { granularity: "word" }).segment(paragraph)) {
       if (!part.isWordLike) continue;
       const word = part.segment;
+      if (exclude?.(paragraph, part.index, part.index + word.length)) continue;
       const cjk = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(word);
       if (cjk ? [...word].length < 2 : word.length < 4 && !/\d/.test(word)) continue;
       const key = word.toLowerCase();
@@ -46,10 +48,27 @@ export function emphasisCandidates(paragraphs: readonly string[], limit = 12): s
   return out;
 }
 
-export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boolean, requireMotion = false): JevRequest {
+/**
+ * Emphasis words a model may be offered. Behind a privacy-wrapped decider no
+ * word inside a redacted span is offered (the criterion key is the word
+ * itself, and keys are sent as they are), and in structure mode none at all.
+ */
+export function modelEmphasisCandidates(paragraphs: readonly string[], sourceText: string, modelContent?: ModelContentInfo): string[] {
+  if (!modelContent || modelContent.mode === "raw") return emphasisCandidates(paragraphs);
+  if (modelContent.mode === "structure") return [];
+  const hidden = modelContent.spans(sourceText).map((s) => sourceText.slice(s.start, s.end));
+  const byParagraph = new Map<string, { start: number; end: number }[]>();
+  return emphasisCandidates(paragraphs, 12, (paragraph, start, end) => {
+    if (!byParagraph.has(paragraph)) byParagraph.set(paragraph, modelContent.spans(paragraph));
+    const word = paragraph.slice(start, end);
+    return byParagraph.get(paragraph)!.some((s) => s.start < end && start < s.end) || hidden.some((h) => h.includes(word));
+  });
+}
+
+export function buildTemplateRequest(parsed: ParsedTemplates, allowMotion: boolean, requireMotion = false, modelContent?: ModelContentInfo): JevRequest {
   const eligible = [...parsed.candidates.keys()];
   const text = parsed.candidates.get("text");
-  const words = text?.kind === "text" ? emphasisCandidates(text.paragraphs) : [];
+  const words = text?.kind === "text" ? modelEmphasisCandidates(text.paragraphs, parsed.sourceText, modelContent) : [];
   return {
     state: { clipboard: parsed.sourceText },
     questions: {
@@ -129,7 +148,8 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
   if (hasOverride) decisionSource = "override";
   else if (options.decider && !["rules", "none"].includes(options.decider.name)) {
     try {
-      const answers = await options.decider.ask(buildTemplateRequest(parsed, allowMotion, requireMotion));
+      const modelContent = modelContentOf(options.decider);
+      const answers = await options.decider.ask(buildTemplateRequest(parsed, allowMotion, requireMotion, modelContent));
       const choice = confidentChoice(answers, "template", availableTemplates) as TemplateId | undefined;
       if (choice) {
         template = choice;
@@ -140,7 +160,7 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
         if (selectedMotion) motion = selectedMotion as TemplateMotion;
         const content = parsed.candidates.get(template);
         if (content?.kind === "text") {
-          const accent = confidentChoice(answers, "emphasis", emphasisCandidates(content.paragraphs));
+          const accent = confidentChoice(answers, "emphasis", modelEmphasisCandidates(content.paragraphs, parsed.sourceText, modelContent));
           if (accent) emphasis = accent;
         }
         decisionSource = "jev";
