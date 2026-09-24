@@ -373,6 +373,7 @@ struct ChooserSnapshot {
         case "paste-gif": return tr("Create GIF", "生成 GIF")
         case "paste-video": return tr("Create video", "生成视频")
         case "paste-qr": return tr("Paste as QR code", "粘贴为二维码")
+        case "paste-lyric": return tr("Paste as lyric motion", "粘贴为文字 PV")
         case "paste-translate": return tr("Translate to English", "翻译为英文")
         case "paste-summary": return tr("Summarize", "生成摘要")
         default: return action.name
@@ -422,6 +423,7 @@ struct ChooserSnapshot {
         case "paste-card": title = tr("Create image", "生成图片")
         case "paste-gif": title = tr("Create GIF", "生成 GIF")
         case "paste-qr": title = tr("Create QR code", "生成二维码")
+        case "paste-lyric": title = tr("Create lyric motion", "生成文字 PV")
         default: title = tr("Create video", "生成视频")
         }
         // Pin renders exactly like Paste as image (same action, frame and template
@@ -587,6 +589,11 @@ struct ChooserSnapshot {
                             if pinOutput(output) { notice = tr("Pinned to screen", "已贴到屏幕"); hideTaskStatus?() }
                         }
                     }
+                    // Lyric motion without ffmpeg: say that it is a GIF, and why.
+                    if response.result.meta?.fallback?.reason == "ffmpeg" {
+                        let why = tr("A GIF instead of an MP4: ffmpeg is not installed (brew install ffmpeg).", "已改为 GIF：未安装 ffmpeg（brew install ffmpeg）。")
+                        notice = [notice, why].compactMap { $0 }.joined(separator: " ")
+                    }
                 }
             } catch {
                 if Task.isCancelled { notice = tr("Cancelled", "已取消") }
@@ -662,7 +669,7 @@ struct ChooserSnapshot {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
-    /// Lyric results: hand the lyrics to JIZURA for a full lyric video. Its web
+    /// Lyric-motion results: hand the text to JIZURA for a full lyric video. Its web
     /// app takes no lyrics in the URL, so they are copied (as written, markup
     /// included) and the app opens for the user to paste.
     func openInJizura() {
@@ -670,7 +677,7 @@ struct ChooserSnapshot {
         let lyrics = JizuraHandoff.lyrics(from: source)
         guard !lyrics.isEmpty, paste.copyText(lyrics) else { error = tr("Could not copy this item.", "无法复制此项。"); return }
         NSWorkspace.shared.open(JizuraHandoff.url(for: localizer.language))
-        notice = tr("Lyrics copied — paste them in JIZURA", "歌词已复制——在 JIZURA 中粘贴")
+        notice = tr("Text copied — paste it in JIZURA", "文字已复制——在 JIZURA 中粘贴")
     }
 
     func copySelection() {

@@ -5,9 +5,9 @@ final class MediaShortcutsTests: XCTestCase {
     @MainActor func testDefaultsAreTheChooserAndHistoryWithMediaUnbound() throws {
         let resolved = MediaShortcuts.resolve(saved: [:], legacyPanel: nil)
         XCTAssertEqual(resolved, ["paste-as": "Alt+V", "panel": "Alt+Shift+V", "paste-card": "", "paste-gif": "",
-                                  "paste-video": "", "paste-qr": "", "pin-screen": ""])
+                                  "paste-video": "", "paste-lyric": "", "paste-qr": "", "pin-screen": ""])
         XCTAssertEqual(resolved, DefaultShortcuts.all)
-        XCTAssertEqual(MediaShortcuts.actionIDs, ["paste-card", "paste-gif", "paste-video", "paste-qr", "pin-screen"])
+        XCTAssertEqual(MediaShortcuts.actionIDs, ["paste-card", "paste-gif", "paste-video", "paste-lyric", "paste-qr", "pin-screen"])
         XCTAssertEqual(MediaShortcuts.glyphs(DefaultShortcuts.chooser), ["⌥", "V"])
         XCTAssertEqual(MediaShortcuts.glyphs(DefaultShortcuts.panel), ["⌥", "⇧", "V"])
         // Unbound shortcuts are skipped, the two bound ones parse (option alone is a valid modifier).
@@ -20,6 +20,7 @@ final class MediaShortcutsTests: XCTestCase {
         let resolved = MediaShortcuts.resolve(saved: saved, legacyPanel: "CmdOrCtrl+Shift+X")
         XCTAssertEqual(resolved["paste-as"], "Alt+V")
         XCTAssertEqual(resolved["paste-qr"], "")
+        XCTAssertEqual(resolved["paste-lyric"], "", "saved settings from before lyric motion leave it unbound")
         XCTAssertEqual(resolved["panel"], "CmdOrCtrl+Shift+P")
         XCTAssertEqual(resolved["paste-card"], "", "a disabled shortcut stays disabled")
         XCTAssertEqual(resolved["paste-video"], "CmdOrCtrl+Alt+9")
@@ -79,6 +80,25 @@ final class MediaShortcutsTests: XCTestCase {
     func testQRCodeActionUsesImageFrameAndTimeout() {
         XCTAssertEqual(OutputFrames.kind(actionID: "paste-qr"), "image")
         XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-qr"), 300)
+    }
+
+    func testLyricMotionUsesVideoFrameAndTimeout() {
+        XCTAssertEqual(OutputFrames.kind(actionID: "paste-lyric"), "video")
+        XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-lyric"), CoreClient.actionTimeout(actionID: "paste-video"))
+        XCTAssertEqual(ClipboardShortcutDelivery.of(shortcut: "paste-lyric"), .paste)
+        XCTAssertEqual(ClipboardShortcutDelivery.renderAction(shortcut: "paste-lyric"), "paste-lyric")
+    }
+
+    func testLyricMotionMessagesAndFallbackMetadata() throws {
+        let unfit = CoreError(kind: "compose", message: "unfit", code: "lyric-unfit")
+        XCTAssertTrue(ComposeFailureText.message(unfit, tr: Localizer(.english)).hasPrefix("Lyric motion is for words"))
+        XCTAssertTrue(ComposeFailureText.message(unfit, tr: Localizer(.chinese)).hasPrefix("文字 PV 适合文字"))
+        let long = CoreError(kind: "compose", message: "long", code: "lyric-too-long")
+        XCTAssertTrue(ComposeFailureText.message(long, tr: Localizer(.japanese)).hasPrefix("文字PVには長すぎます"))
+        let json = #"{"template":null,"fallback":{"from":"video","to":"gif","reason":"ffmpeg"}}"#
+        let meta = try JSONDecoder().decode(CoreActionMetadata.self, from: Data(json.utf8))
+        XCTAssertEqual(meta.fallback, CoreRenderFallback(from: "video", to: "gif", reason: "ffmpeg"))
+        XCTAssertNil(try JSONDecoder().decode(CoreActionMetadata.self, from: Data("{}".utf8)).fallback)
     }
 
     func testQRTooLongMessage() {

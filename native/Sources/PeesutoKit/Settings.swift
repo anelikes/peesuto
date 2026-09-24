@@ -290,10 +290,10 @@ public enum DefaultShortcuts {
     /// ⇧⌥V opens the clipboard history panel. (⌘B was proposed; on hold
     /// because ⌘B is Bold in nearly every editor.)
     public static let panel = "Alt+Shift+V"
-    /// Paste as image / GIF / video / QR / pin: bindable, unbound by default
-    /// (the chooser reaches them all).
+    /// Paste as image / GIF / video / lyric motion / QR / pin: bindable,
+    /// unbound by default (the chooser reaches them all).
     public static let media: [String: String] = [
-        "paste-card": "", "paste-gif": "", "paste-video": "", "paste-qr": "", MediaShortcuts.pinID: ""
+        "paste-card": "", "paste-gif": "", "paste-video": "", "paste-lyric": "", "paste-qr": "", MediaShortcuts.pinID: ""
     ]
     /// Every binding, as saved in `native_shortcuts`.
     public static var all: [String: String] {
@@ -314,7 +314,7 @@ public enum MediaShortcuts {
     /// Pins the clipboard image (or the image card of its text) to the screen; never pastes.
     public static let pinID = "pin-screen"
     /// The direct media shortcuts, in Settings order.
-    public static let actionIDs = ["paste-card", "paste-gif", "paste-video", "paste-qr", pinID]
+    public static let actionIDs = ["paste-card", "paste-gif", "paste-video", "paste-lyric", "paste-qr", pinID]
     public static var defaults: [(id: String, accelerator: String)] {
         ([chooserID] + actionIDs).map { ($0, DefaultShortcuts.all[$0] ?? "") }
     }
@@ -399,6 +399,12 @@ public enum ComposeFailureText {
         case "fidelity":
             return tr("This card would not match the copied text exactly, so it was not made. Try another template.",
                       "生成的卡片与复制的文字不能完全一致，因此没有生成。请换一个模板再试。")
+        case "lyric-unfit":
+            return tr("Lyric motion is for words; code, tables and links lose their layout that way. Use Image instead.",
+                      "文字 PV 适合文字；代码、表格和链接会失去版式。请改用图片。")
+        case "lyric-too-long":
+            return tr("Too long for Lyric motion (at most about 30 seconds as MP4, 14 as GIF). Copy a shorter passage, or use Image for a poster of all of it.",
+                      "内容太长，放不进一段文字 PV（MP4 最长约 30 秒，GIF 约 14 秒）。请复制短一些的段落，或改用图片生成完整的海报。")
         case "qr-too-long":
             return tr("This text is too long for one QR code (keep it under about 2,900 English characters or 950 Chinese characters).",
                       "内容太长，放不进一个二维码（大约 950 个汉字或 2900 个英文字符以内）。")

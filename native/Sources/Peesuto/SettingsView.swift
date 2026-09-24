@@ -251,6 +251,12 @@ struct SettingsView: View {
             shortcutRow("paste-gif", "Paste as GIF", "粘贴为 GIF", symbol: "square.stack.3d.forward.dottedline")
             shortcutRow("paste-video", "Paste as video", "粘贴为视频", symbol: "film")
             VStack(alignment: .leading, spacing: 4) {
+                shortcutRow("paste-lyric", "Paste as lyric motion", "粘贴为文字 PV", symbol: "textformat.size")
+                Text(model.tr("Any text as kinetic type: an MP4, or a GIF when ffmpeg is not installed. Never chosen automatically; L in the chooser, this shortcut, or the result window's template menu.",
+                              "任意文字做成动态文字视频：装了 ffmpeg 出 MP4，否则出 GIF。不参与自动选模板，只用选择器里的 L、这个快捷键或结果窗的模板菜单。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 4) {
                 shortcutRow("paste-qr", "Paste as QR code", "粘贴为二维码", symbol: "qrcode")
                 Text(model.tr("Any content can become a QR code, so it never takes part in automatic template choice. Use Q in the chooser, this shortcut, or the result window's template menu.",
                               "任何内容都能转成二维码，所以它不参与自动选模板，只用选择器里的 Q、这个快捷键或结果窗的模板菜单。"))

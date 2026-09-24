@@ -8,6 +8,8 @@ final class PasteChooserTests: XCTestCase {
         XCTAssertEqual(PasteChooser.key(keyCode: 5, characters: "g"), .choose(.gif))
         XCTAssertEqual(PasteChooser.key(keyCode: 46, characters: "m"), .choose(.video))
         XCTAssertEqual(PasteChooser.key(keyCode: 12, characters: "Q"), .choose(.qr), "shift does not matter")
+        XCTAssertEqual(PasteChooser.key(keyCode: 37, characters: "l"), .choose(.lyric))
+        XCTAssertEqual(PasteChooser.key(keyCode: 37, characters: "L"), .choose(.lyric))
         XCTAssertEqual(PasteChooser.key(keyCode: 35, characters: "p"), .choose(.pin))
         XCTAssertEqual(PasteChooser.key(keyCode: 4, characters: "h"), .choose(.history))
         XCTAssertEqual(PasteChooser.key(keyCode: 53, characters: "\u{1b}"), .cancel)
@@ -22,11 +24,14 @@ final class PasteChooserTests: XCTestCase {
         // A non-Latin layout falls back to the physical key.
         XCTAssertEqual(PasteChooser.key(keyCode: 5, characters: "п"), .choose(.gif))
         XCTAssertEqual(PasteChooser.key(keyCode: 35, characters: nil), .choose(.pin))
+        XCTAssertEqual(PasteChooser.key(keyCode: 37, characters: "д"), .choose(.lyric))
     }
 
     func testChoicesRunTheMediaShortcuts() {
-        XCTAssertEqual(PasteChooser.order.map(\.shortcutID), ["paste-card", "paste-gif", "paste-video", "paste-qr", "pin-screen", nil])
-        XCTAssertEqual(PasteChooser.order.map(\.keyLabel), ["↩", "G", "M", "Q", "P", "H"])
+        XCTAssertEqual(PasteChooser.order.map(\.shortcutID), ["paste-card", "paste-gif", "paste-video", "paste-lyric", "paste-qr", "pin-screen", nil])
+        XCTAssertEqual(PasteChooser.order.map(\.keyLabel), ["↩", "G", "M", "L", "Q", "P", "H"])
+        // Every chooser output is a media shortcut Settings can bind.
+        for choice in PasteChooser.order { if let id = choice.shortcutID { XCTAssertTrue(MediaShortcuts.actionIDs.contains(id), id) } }
         XCTAssertEqual(ClipboardShortcutDelivery.of(shortcut: PasteChoice.pin.shortcutID!), .pin)
         XCTAssertEqual(ClipboardShortcutDelivery.renderAction(shortcut: PasteChoice.pin.shortcutID!), PasteChoice.image.shortcutID)
     }
@@ -34,6 +39,7 @@ final class PasteChooserTests: XCTestCase {
     func testEnabledChoicesFollowTheClipboard() {
         for choice in PasteChooser.order { XCTAssertTrue(PasteChooser.isEnabled(choice, clipboard: .text), "\(choice)") }
         XCTAssertEqual(PasteChooser.order.filter { PasteChooser.isEnabled($0, clipboard: .image) }, [.pin, .history])
+        XCTAssertFalse(PasteChooser.isEnabled(.lyric, clipboard: .image), "lyric motion needs text")
         XCTAssertEqual(PasteChooser.order.filter { PasteChooser.isEnabled($0, clipboard: .none) }, [.history])
     }
 

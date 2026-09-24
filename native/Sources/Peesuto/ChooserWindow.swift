@@ -254,6 +254,7 @@ struct ChooserView: View {
         case .image: return "photo"
         case .gif: return "square.stack.3d.forward.dottedline"
         case .video: return "film"
+        case .lyric: return "textformat.size"
         case .qr: return "qrcode"
         case .pin: return "pin"
         case .history: return "clock.arrow.circlepath"
@@ -265,6 +266,7 @@ struct ChooserView: View {
         case .image: return model.tr("Image", "图片")
         case .gif: return "GIF"
         case .video: return model.tr("Video", "视频")
+        case .lyric: return model.tr("Lyric motion", "文字 PV")
         case .qr: return model.tr("QR code", "二维码")
         case .pin: return model.tr("Pin to screen", "贴到屏幕")
         case .history: return model.tr("Clipboard history", "剪贴板历史")

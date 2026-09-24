@@ -40,6 +40,7 @@ more key:
 | **Return** | Image: a PNG, pasted into the app you are typing in |
 | **G** | GIF: the same card, revealed line by line |
 | **M** | Video: MP4, made with the ffmpeg on your Mac |
+| **L** | Lyric motion: any text as kinetic type, cut into screens at its sentences and clauses (MP4, or a GIF without ffmpeg) |
 | **Q** | QR code: exactly the text you copied; never sent to a model |
 | **P** | Pin to screen: floats above every window; drag, pinch to zoom, double-click to close |
 | **H** | Clipboard history (also **⇧⌥V**) |
@@ -48,7 +49,7 @@ more key:
 your Mac and searchable. The panel hides as soon as you click elsewhere and
 can be pinned open.
 
-Image, GIF, video, QR code and pin can each get a direct shortcut in
+Image, GIF, video, lyric motion, QR code and pin can each get a direct shortcut in
 Settings › Shortcuts. They are unbound by default. Peesuto pastes only when
 it can verify the caret is still where you left it; otherwise the result is
 copied and you press ⌘V yourself. Something you copied in the meantime is
@@ -59,11 +60,11 @@ never overwritten.
 ## Templates
 
 <p align="center">
-  <img src="docs/images/templates.png" width="100%" alt="All 39 card styles: text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics, lyrics and QR code.">
+  <img src="docs/images/templates.png" width="100%" alt="All 39 card styles: text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics, lyric motion and QR code.">
 </p>
 
 Text · Document · Quote · Code · Statistic · List · Conversation · Table ·
-Comparison · Diagram · Info card · Release notes · QR code
+Comparison · Diagram · Info card · Release notes · Lyric motion · QR code
 
 Local rules pick the template. After pasting you can switch the style; in
 Settings › Templates you can choose a default style per template, turn

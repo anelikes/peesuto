@@ -3,7 +3,7 @@ import Foundation
 
 /// One line of the "Paste as…" chooser (⌥V).
 public enum PasteChoice: String, CaseIterable, Sendable {
-    case image, gif, video, qr, pin, history
+    case image, gif, video, lyric, qr, pin, history
 
     /// The media shortcut this choice runs, exactly as if its own key had been
     /// pressed; nil for history, which opens the panel.
@@ -12,6 +12,7 @@ public enum PasteChoice: String, CaseIterable, Sendable {
         case .image: return "paste-card"
         case .gif: return "paste-gif"
         case .video: return "paste-video"
+        case .lyric: return "paste-lyric"
         case .qr: return "paste-qr"
         case .pin: return MediaShortcuts.pinID
         case .history: return nil
@@ -24,6 +25,7 @@ public enum PasteChoice: String, CaseIterable, Sendable {
         case .image: return "↩"
         case .gif: return "G"
         case .video: return "M"
+        case .lyric: return "L"
         case .qr: return "Q"
         case .pin: return "P"
         case .history: return "H"
@@ -52,8 +54,8 @@ public enum ChooserKey: Equatable, Sendable {
 
 /// The chooser's rules, kept apart from AppKit so they can be tested.
 public enum PasteChooser {
-    /// Row order: the four outputs, then pin and history.
-    public static let order: [PasteChoice] = [.image, .gif, .video, .qr, .pin, .history]
+    /// Row order: the five outputs (lyric motion after video, the video it makes), then pin and history.
+    public static let order: [PasteChoice] = [.image, .gif, .video, .lyric, .qr, .pin, .history]
 
     /// The key press to act on. Letters are matched by the character the
     /// layout types (ignoring modifiers, so a still-held ⌥ from ⌥V does not
@@ -70,7 +72,7 @@ public enum PasteChooser {
            let scalar = character.unicodeScalars.first, scalar.isASCII, CharacterSet.letters.contains(scalar) {
             return letter(character)
         }
-        let physical: [UInt16: String] = [5: "g", 46: "m", 12: "q", 35: "p", 4: "h"]
+        let physical: [UInt16: String] = [5: "g", 46: "m", 37: "l", 12: "q", 35: "p", 4: "h"]
         return physical[keyCode].flatMap(letter)
     }
 
@@ -78,6 +80,7 @@ public enum PasteChooser {
         switch character {
         case "g": return .choose(.gif)
         case "m": return .choose(.video)
+        case "l": return .choose(.lyric)
         case "q": return .choose(.qr)
         case "p": return .choose(.pin)
         case "h": return .choose(.history)

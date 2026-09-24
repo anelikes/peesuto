@@ -168,6 +168,15 @@ public struct CoreActionMetadata: Codable, Sendable {
     public let template: CoreTemplateSelection?
     /// True when Core served a result rendered in the background; absent otherwise.
     public let precomposed: Bool?
+    /// Set when the action made another output than it names: paste-lyric's
+    /// GIF when ffmpeg is missing (`from` "video", `to` "gif", `reason` "ffmpeg").
+    public let fallback: CoreRenderFallback?
+}
+
+public struct CoreRenderFallback: Codable, Sendable, Equatable {
+    public let from: String
+    public let to: String
+    public let reason: String
 }
 
 /// A built-in privacy rule as listed by `privacy.rules`.

@@ -190,7 +190,7 @@ public actor CoreClient {
 
     public static func actionTimeout(actionID: String) -> TimeInterval? {
         switch actionID {
-        case "paste-video": return actionTimeout(output: "video")
+        case "paste-video", "paste-lyric": return actionTimeout(output: "video")
         case "paste-card", "paste-qr": return actionTimeout(output: "image")
         case "paste-gif": return actionTimeout(output: "gif")
         default: return nil

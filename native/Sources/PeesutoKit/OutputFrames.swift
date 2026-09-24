@@ -21,7 +21,7 @@ public enum OutputFrames {
         switch actionID {
         case "paste-card", "paste-qr": return "image"
         case "paste-gif": return "gif"
-        case "paste-video": return "video"
+        case "paste-video", "paste-lyric": return "video"
         default: return nil
         }
     }

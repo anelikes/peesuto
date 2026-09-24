@@ -23,7 +23,7 @@ final class PinShortcutTests: XCTestCase {
 
     func testPinIsNeverAPaste() {
         XCTAssertEqual(ClipboardShortcutDelivery.of(shortcut: MediaShortcuts.pinID), .pin)
-        for id in ["paste-card", "paste-gif", "paste-video", "paste-qr"] {
+        for id in ["paste-card", "paste-gif", "paste-video", "paste-lyric", "paste-qr"] {
             XCTAssertEqual(ClipboardShortcutDelivery.of(shortcut: id), .paste)
             XCTAssertEqual(ClipboardShortcutDelivery.renderAction(shortcut: id), id)
         }
