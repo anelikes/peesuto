@@ -1315,8 +1315,11 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
 }
 
 /** The runtime gate (templates/checks.ts): a layout that overflows its canvas
- * or draws text the source did not say is never rendered; size, overlap and
- * contrast findings are logged (kinds and counts only, never text). */
+ * is never rendered, nor one that fails the source ledger (ljg-card's check
+ * before output): every non-whitespace grapheme of the content drawn at least
+ * as often as it occurs, and nothing drawn that the content does not hold
+ * (generated numbers and the signature aside; QR's caption is optional).
+ * Size, overlap and contrast findings are logged (kinds and counts only). */
 export function guardLayout(layout: TemplateLayout, plan: TemplatePlan, log: (line: string) => void = (line) => console.error(line)): CheckViolation[] {
   const violations = checkLayout(layout, plan);
   const fatal = violations.find((v) => FATAL_CHECKS.includes(v.kind));

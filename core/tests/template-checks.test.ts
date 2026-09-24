@@ -63,6 +63,29 @@ describe("runtime guard", () => {
     const wide: TemplateLayout = { ...good() }; wide.lines = wide.lines.map((l, i) => (i ? l : { ...l, x: 1070 }));
     try { guardLayout(wide, plan, () => {}); throw new Error("no throw"); } catch (e) { expect((e as ComposeError).code).toBe("overflow"); }
   });
+  test("the source ledger: a dropped character is a fidelity error (code line numbers, list numbers and the signature are exempt)", () => {
+    const truncated: TemplateLayout = { ...good() }; truncated.lines = truncated.lines.map((l, i) => (i ? l : { ...l, text: l.text.slice(0, -1) }));
+    try { guardLayout(truncated, plan, () => {}); throw new Error("no throw"); } catch (e) { expect((e as ComposeError).code).toBe("fidelity"); }
+    // A repeated character must be drawn as often as the source has it.
+    const twice = samplePlan({ kind: "text", paragraphs: ["哈哈"] });
+    const once: TemplateLayout = { ...layoutTemplate(twice, metrics) }; once.lines = once.lines.map((l) => ({ ...l, text: "哈" }));
+    expect(() => guardLayout(once, twice, () => {})).toThrow(ComposeError);
+    const code = samplePlan({ kind: "code", code: "a = 1\nb = 2" });
+    expect(guardLayout(layoutTemplate({ ...code, signature: "@nya" }, metrics), code, () => {})).toEqual([]);
+    const ordered = samplePlan({ kind: "list", ordered: true, items: ["一", "二"] });
+    expect(guardLayout(layoutTemplate(ordered, metrics), ordered, () => {})).toEqual([]);
+    // QR: the caption may go, nothing else may be written.
+    const qr = samplePlan({ kind: "qr", data: "https://peesuto.com" });
+    const bare: TemplateLayout = { ...layoutTemplate(qr, metrics) }; bare.lines = [];
+    expect(guardLayout(bare, qr, () => {})).toEqual([]);
+  });
+  test("the ledger is cheap: a full card checks in a few milliseconds", () => {
+    const long = samplePlan({ kind: "document", paragraphs: Array.from({ length: 24 }, (_, i) => `第 ${i + 1} 段：把复杂的想法讲清楚，需要先把它想清楚，再删掉所有不必要的部分。Keep every word.`) });
+    const l = layoutTemplate(long, metrics);
+    const started = performance.now();
+    for (let i = 0; i < 10; i++) guardLayout(l, long, () => {});
+    expect((performance.now() - started) / 10).toBeLessThan(25);
+  });
   test("size and contrast are logged as kinds and counts, never text", () => {
     const faint: TemplateLayout = { ...good() }; faint.lines = faint.lines.map((l) => ({ ...l, color: "#e4dfd4" }));
     const logged: string[] = [];

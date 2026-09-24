@@ -29,8 +29,8 @@ export const CHECK_THRESHOLDS = {
 } as const;
 
 export type CheckKind = "size" | "overflow" | "overlap" | "contrast" | "untraceable" | "missing";
-/** Overflow and text the source did not say never ship; the rest is logged. */
-export const FATAL_CHECKS: readonly CheckKind[] = ["overflow", "untraceable"];
+/** Overflow, text the source did not say and source text left out never ship; the rest is logged. */
+export const FATAL_CHECKS: readonly CheckKind[] = ["overflow", "untraceable", "missing"];
 
 export interface CheckViolation {
   readonly kind: CheckKind;

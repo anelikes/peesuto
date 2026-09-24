@@ -144,8 +144,11 @@ that is not in the source (`untraceable`; ordered-list and code line numbers,
 marked `generated`, and the signature are exempt) and source text never drawn
 (`missing`). Thresholds are one constant, `CHECK_THRESHOLDS`. The principle
 tests run it over every sample, style, frame and signature; `composeTemplate`
-runs it on every card as a guard: overflow is an `overflow` error, untraceable
-text a `fidelity` error, and nothing is rendered; the other kinds go to stderr
+runs it on every card as a guard: overflow is an `overflow` error, and a
+failed source ledger a `fidelity` error (like ljg-card's check before output:
+every non-whitespace grapheme of the content drawn at least as often as it
+occurs, and nothing drawn the content does not hold; QR's caption is
+optional), and nothing is rendered; the other kinds go to stderr
 as kinds and counts (never text). The info card's muted colours are the known
 contrast findings (owner-approved). A future declarative template format would
 use the same checks as its publish gate: [template-spec.md](template-spec.md).
