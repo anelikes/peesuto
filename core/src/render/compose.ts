@@ -77,8 +77,10 @@ export interface ComposeResult {
  * `overflow`: not even one line fits. `unsupported-script`: the face has no
  * glyphs for part of the text. `empty`: nothing is left to show once the
  * text is normalised. `catalog`: the DSL names something the catalog lacks.
+ * `fidelity`: a template layout would draw text the source did not say, or
+ * leave some of it out (templates/checks.ts); nothing is rendered.
  */
-export type ComposeErrorCode = "overflow" | "unsupported-script" | "empty" | "catalog" | "qr-too-long";
+export type ComposeErrorCode = "overflow" | "unsupported-script" | "empty" | "catalog" | "qr-too-long" | "fidelity";
 
 export class ComposeError extends Error {
   readonly code: ComposeErrorCode;

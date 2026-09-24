@@ -331,6 +331,9 @@ public enum ComposeFailureText {
             return tr("There is no text to render.", "没有可生成的文字。")
         case "catalog":
             return tr("This template or style is not available for this content.", "这段内容不能使用该模板或风格。")
+        case "fidelity":
+            return tr("This card would not match the copied text exactly, so it was not made. Try another template.",
+                      "生成的卡片与复制的文字不能完全一致，因此没有生成。请换一个模板再试。")
         case "qr-too-long":
             return tr("This text is too long for one QR code (keep it under about 2,900 English characters or 950 Chinese characters).",
                       "内容太长，放不进一个二维码（大约 950 个汉字或 2900 个英文字符以内）。")

@@ -134,6 +134,22 @@ at the floor in either direction (see Diagram). The numbers are `READABILITY`
 in `core/src/templates/types.ts`; `core/tests/template-principles.test.ts`
 checks every template, style and frame.
 
+### Quality checks (all templates)
+
+`core/src/templates/checks.ts` inspects a finished layout: text below the
+readability floor (`size`), a line outside the canvas (`overflow`), text lines
+drawn over each other (`overlap`), text against the ground or shape beneath it
+below 4.5:1, or 3:1 from 48 px at the reference width (`contrast`), drawn text
+that is not in the source (`untraceable`; ordered-list and code line numbers,
+marked `generated`, and the signature are exempt) and source text never drawn
+(`missing`). Thresholds are one constant, `CHECK_THRESHOLDS`. The principle
+tests run it over every sample, style, frame and signature; `composeTemplate`
+runs it on every card as a guard: overflow is an `overflow` error, untraceable
+text a `fidelity` error, and nothing is rendered; the other kinds go to stderr
+as kinds and counts (never text). The info card's muted colours are the known
+contrast findings (owner-approved). A future declarative template format would
+use the same checks as its publish gate: [template-spec.md](template-spec.md).
+
 ### Card font
 
 Cards are set in Maple Mono by default, with a choice of Noto Sans SC in

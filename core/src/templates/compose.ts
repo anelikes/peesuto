@@ -10,6 +10,7 @@ import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
 import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
+import { FATAL_CHECKS, checkLayout, type CheckViolation } from "./checks.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
 /** GIF/MP4 content taller than the frame scrolls through it (the frame never
@@ -134,18 +135,18 @@ export const CODE_STYLES = {
      * across different hues (even black over orange, which turns brown) muddies them again. */
     backdrop: [{ arc: { from: { l: 0.34, c: 0.16, h: 272 }, to: { l: 0.76, c: 0.16, h: 62 }, turn: 150 }, segments: 8 }],
     panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 80, shadow: "shadow-lg", dots: { size: 22, gap: 14, colors: ["#ff5f57", "#febc2e", "#28c840"] } },
-    lineNumbers: { color: "#5b6272", gap: 32 },
+    lineNumbers: { color: "#858c9b", gap: 32 },
     outer: 88, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.0,
-    lang: { size: 32, bold: false, color: "#6e7482", gap: 0 },
+    lang: { size: 32, bold: false, color: "#8b93a3", gap: 0 },
     syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#7d8494", number: "#f4c430", function: "#f5a45d", type: "#5fd0c5",
       property: "#eaa3c9", literal: "#f4c430", meta: "#ff7b72", punct: "#a7adb9" } },
   /** Notebook: light page, zebra rows, the language in green. */
   editorial: { background: "#f3f1ea", signature: "#6b675e", backdrop: null, panel: null, outer: 88, gutter: null as RailSlot, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
-    lineNumbers: { color: "#a8a397", gap: 28 },
+    lineNumbers: { color: "#6b675e", gap: 28 },
     ink: "#1d1d20", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.1,
-    lang: { size: 32, bold: true, color: "#2f9e5f", gap: 28 },
-    syntax: { keyword: "#2447c9", string: "#1d7a45", comment: "#77736a", number: "#b0501a", function: "#7a3fb0", type: "#0e7282",
-      property: "#a3365f", literal: "#b0501a", meta: "#c0392b", punct: "#6a675f" } },
+    lang: { size: 32, bold: true, color: "#237a49", gap: 28 },
+    syntax: { keyword: "#2447c9", string: "#18703f", comment: "#6b675e", number: "#9a4516", function: "#7a3fb0", type: "#0c6878",
+      property: "#a3365f", literal: "#9a4516", meta: "#a8331f", punct: "#6a675f" } },
 } as const;
 
 export const STAT_STYLES = {
@@ -173,7 +174,7 @@ export const CHAT_STYLES = {
     name: { size: 32, bold: true, color: "#5a554c", gap: 10 }, time: { size: 32, color: "#6b675e" } },
   /** Transcript: speaker column coloured per speaker, hairlines between turns. */
   editorial: { background: "#f6f2ea", signature: "#6b675e", margin: 88, layout: "transcript", size: 40, leading: 1.14, ink: "#18181b", nameCol: 300, gap: 36, rule: "#dcd6ca",
-    speakers: ["#0f7a70", "#d23f25", "#2d4fd0", "#9a5a12"], name: { size: 32, bold: true }, time: { size: 32, color: "#8c887f" } },
+    speakers: ["#0f7a70", "#c0381f", "#2d4fd0", "#9a5a12"], name: { size: 32, bold: true }, time: { size: 32, color: "#6b675e" } },
 } as const;
 
 export const TABLE_STYLES = {
@@ -182,7 +183,7 @@ export const TABLE_STYLES = {
     card: { fill: "#ffffff", radius: 20 }, head: { fill: "#1f5f47", ink: "#ffffff" }, zebra: "#f2f5f1", ink: "#18181b", divider: "#e1e6df" },
   /** Ledger: one record per row — the first cell as title, the other cells as label/value fields, up to perRow side by side. */
   editorial: { background: "#f2efe6", signature: "#6b675e", margin: 88, layout: "ledger", titleSize: 48, labelSize: 32, valueSize: 40, leading: 1.12, perRow: 3,
-    marker: null as MarkerSlot, ink: "#18181b", label: "#7d786d", rule: "#d6cfbf", gap: 40, fieldGap: 16 },
+    marker: null as MarkerSlot, ink: "#18181b", label: "#6b675e", rule: "#d6cfbf", gap: 40, fieldGap: 16 },
 } as const;
 
 export const COMPARISON_STYLES = {
@@ -315,6 +316,8 @@ export interface TemplateLine {
   secondary?: boolean;
   /** The user's signature footer: not source text, exempt from the fidelity rules. */
   signature?: boolean;
+  /** Drawn by the layout, not the source: ordered-list and code line numbers (digits only). */
+  generated?: boolean;
 }
 export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number;
   /** A two-stop linear gradient instead of the flat colour (the engine draws 4 directions; colours may carry alpha). */
@@ -583,7 +586,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   throw last;
 }
 
-interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[]; secondary?: boolean; signature?: boolean }
+interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[]; secondary?: boolean; signature?: boolean; generated?: boolean }
 
 /** One layout at type step `k` (TEMPLATE_GROW). */
 function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 1): TemplateLayout {
@@ -630,7 +633,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const advance = styledWidth(line, size, measure);
       const dx = align === "center" ? (width - advance) / 2 : align === "right" ? width - advance : 0;
       layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + dx, y: y + index * height, width: advance, size, height, bold, color, group: groupID,
-        boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}), ...(o.secondary ? { secondary: true } : {}), ...(o.signature ? { signature: true } : {}) });
+        boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}), ...(o.secondary ? { secondary: true } : {}), ...(o.signature ? { signature: true } : {}), ...(o.generated ? { generated: true } : {}) });
     }
     bottom = Math.max(bottom, y + lines.length * height);
     return lines.length * height;
@@ -976,7 +979,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           for (const [i, entry] of item.items.entries()) {
             if (i) y += s.list.gap;
             // Ordered numbers restate the source's own markers: digits only, nothing added.
-            if (item.ordered) block(String(i + 1), x, y, s.list.indent, s.body.size, true, s.list.color, { leading: s.body.leading });
+            if (item.ordered) block(String(i + 1), x, y, s.list.indent, s.body.size, true, s.list.color, { leading: s.body.leading, generated: true });
             else rect(x + 4, y + mid(s.body.size) - s.list.dot / 2, s.list.dot, s.list.dot, s.list.color, s.list.dot / 2);
             y += block(entry, x + s.list.indent, y, width - s.list.indent, s.body.size, false, s.body.color, { leading: s.body.leading });
           }
@@ -1058,7 +1061,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const colors = codeColors(source.join("\n"), content.language, s.syntax);
       for (const [index, line] of source.entries()) {
         const start = y;
-        if (LN) block(String(index + 1), textX, y, gutterW(size) - LN.gap, size, false, LN.color, { align: "right", leading: s.leading, code: true, markdown: false, secondary: true });
+        if (LN) block(String(index + 1), textX, y, gutterW(size) - LN.gap, size, false, LN.color, { align: "right", leading: s.leading, code: true, markdown: false, secondary: true, generated: true });
         const h = place(glyphsOf(line, false, { code: true, markdown: false, colors: colors[index] }), codeX, y, codeW, size, false, s.ink, { leading: s.leading });
         if (s.zebra && index % 2 === 1) rect(textX - s.zebra.pad, start, textW + 2 * s.zebra.pad, h, s.zebra.color, s.zebra.radius);
         y += h;
@@ -1100,12 +1103,12 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           const card = rect(margin, y, innerW(), 0, s.card.fill, s.card.radius);
           const ty = y + s.card.pad;
           const h = block(item, margin + s.indent, ty, innerW() - s.indent - s.card.pad, s.size, false, s.ink, { leading: s.leading });
-          if (content.ordered) block(String(index + 1), margin + s.card.pad, ty + base(s.size) - base(s.number.size), s.indent - s.card.pad, s.number.size, true, s.number.color, { leading: 1 });
+          if (content.ordered) block(String(index + 1), margin + s.card.pad, ty + base(s.size) - base(s.number.size), s.indent - s.card.pad, s.number.size, true, s.number.color, { leading: 1, generated: true });
           else if (s.dot) rect(margin + s.card.pad + 8, ty + mid(s.size) - s.dot.size / 2, s.dot.size, s.dot.size, s.dot.color, s.dot.size / 2);
           card.height = h + s.card.pad * 2; y += card.height;
         } else {
           if (index) { y += s.gap; if (s.rule) rect(margin + s.indent, y, innerW() - s.indent, 2, s.rule); y += 2 + s.gap; }
-          if (content.ordered) block(String(index + 1), margin, y, s.indent, s.number.size, true, s.number.color, { leading: s.leading });
+          if (content.ordered) block(String(index + 1), margin, y, s.indent, s.number.size, true, s.number.color, { leading: s.leading, generated: true });
           else if (s.box) {
             const b = s.box, by = y + mid(s.size) - b.size / 2;
             rect(margin, by, b.size, b.size, b.color, b.radius);
@@ -1311,6 +1314,25 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   return layout;
 }
 
+/** The runtime gate (templates/checks.ts): a layout that overflows its canvas
+ * or draws text the source did not say is never rendered; size, overlap and
+ * contrast findings are logged (kinds and counts only, never text). */
+export function guardLayout(layout: TemplateLayout, plan: TemplatePlan, log: (line: string) => void = (line) => console.error(line)): CheckViolation[] {
+  const violations = checkLayout(layout, plan);
+  const fatal = violations.find((v) => FATAL_CHECKS.includes(v.kind));
+  if (fatal) {
+    throw fatal.kind === "overflow"
+      ? new ComposeError("overflow", `The ${plan.template} layout does not fit its canvas (${fatal.message}). No content was truncated.`)
+      : new ComposeError("fidelity", `The ${plan.template} layout does not match the copied text (${fatal.message}), so nothing was rendered.`);
+  }
+  if (violations.length) {
+    const counts = new Map<string, number>();
+    for (const v of violations) counts.set(v.kind, (counts.get(v.kind) ?? 0) + 1);
+    log(`templates: ${plan.template}/${plan.variant} ${layout.width}x${layout.height}: ${[...counts].map(([kind, n]) => `${n} ${kind}`).join(", ")}`);
+  }
+  return violations;
+}
+
 export interface TemplateTiming { frames: number; revealMs: number; holdMs: number; delay(index: number, total: number): number }
 export function templateTiming(motion: TemplateMotion, count: number): TemplateTiming {
   if (motion === "none") return { frames: 1, revealMs: 0, holdMs: 0, delay: () => 0 };
@@ -1446,6 +1468,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       lineHeight: (size, bold) => m.lineHeight(size, bold),
     };
     const layout = layoutTemplate(plan, metrics);
+    guardLayout(layout, plan);
     // The signature is drawn from the first frame and takes no part in reveal or typing.
     const count = layout.lines.reduce((total, line) => total + (line.signature ? 0 : graphemes(line.text).length), 0);
     // GIF/MP4 keep their frame strictly: taller content scrolls through it.

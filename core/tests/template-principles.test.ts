@@ -9,6 +9,7 @@ import {
 import { normalizeText } from "../src/render/compose.ts";
 import { documentBlocks } from "../src/templates/parse.ts";
 import { templateRegistration } from "../src/templates/registry.ts";
+import { checkLayout } from "../src/templates/checks.ts";
 import { READABILITY, type TemplateAspect, type TemplateContent } from "../src/templates/types.ts";
 import { TEMPLATE_SAMPLES, samplePlan } from "./fixtures/templates.ts";
 
@@ -212,6 +213,14 @@ describe("template principles", () => {
       const signed = layoutTemplate({ ...samplePlan(content, variant), signature: SIGNATURE }, metrics);
       if (signed.height !== 1080) throw new Error(`${content.kind}/${variant}: the signature grew the frame to ${signed.height}`);
     }
+  });
+  test("quality checks (checks.ts) pass for every sample, frame and signature; contrast only in the info card's owner-approved colours", () => {
+    eachLayout((layout, content, label) => {
+      for (const v of checkLayout(layout, { content })) {
+        if (v.kind === "contrast" && content.kind === "info") continue;
+        throw new Error(`${label}: ${v.kind}: ${v.message}`);
+      }
+    });
   });
   test("syntax colour changes colour only, never the text", () => {
     const line = 'const greet = (name) => `Hello, ${name}!`; // 你好';
