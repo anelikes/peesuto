@@ -25,7 +25,8 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
     { kind: "prompt", prompt: "nya@mbp:~/peesuto$ ", command: "git push 推送" },
     { kind: "output", text: "error: failed to push some refs", tone: "error" }, { kind: "exit", text: "[exit 1]", ok: false },
   ] },
-  { kind: "diff", files: [{ path: "core/src/render/fonts.ts", meta: [], hunks: [{ header: "@@ -1,4 +1,5 @@ export const FONTS = {", lines: [
+  { kind: "diff", commit: [{ text: "commit 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b (HEAD -> main)", role: "commit" }, { text: "Author: 林小雨 <lin@example.com>", role: "field" },
+    { text: "fix(fonts): code in Peesuto Code", role: "subject" }], files: [{ path: "core/src/render/fonts.ts", meta: [], hunks: [{ header: "@@ -1,4 +1,5 @@ export const FONTS = {", lines: [
     { type: "context", text: " export const FONTS = {" }, { type: "del", text: "-  code: \"NotoSansSC\"," }, { type: "add", text: "+  code: \"PeesutoCode\", // 等宽" },
     { type: "add", text: "+  fallback: \"NotoSansSC\"," }, { type: "context", text: "   text: \"NotoSansSC\"," }, { type: "context", text: " };" },
   ] }] }] },

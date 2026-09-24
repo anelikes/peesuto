@@ -8,7 +8,7 @@ import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
-import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type ChangeType, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
+import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type ChangeType, type DiffCommitLine, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
 import { CODE_FIELDS, stageField, type ColourField } from "./backdrop.ts";
 import { FATAL_CHECKS, checkLayout, diffCount, type CheckViolation } from "./checks.ts";
@@ -1035,7 +1035,11 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const bodies = content.files.flatMap((f) => f.hunks.flatMap((h) => h.lines.map((l) => normalizeText(l.type === "note" ? l.text : l.text.slice(1), "code"))));
       const totalRows = content.files.reduce((n, f) => n + f.meta.length + 2 + f.hunks.reduce((m, h) => m + 1 + h.lines.length, 0), 0);
       const textW = (sz: number) => rowW - 2 * textPad - signW(sz);
-      const availH = view.fit - 2 * margin - footerRoom() - content.files.length * (2 * s.title.padY + s.fileGap);
+      // A commit header (git show / format-patch) above the files: the subject bold (no larger than 1.25 × the meta size, below a Night diff path), the rest small.
+      const commitSize = (line: DiffCommitLine) => line.role === "subject" ? Math.min(s.title.size, [...SIZES].filter((sz) => sz <= s.meta.size * 1.25).at(-1)!) : s.meta.size;
+      const commitColor = (line: DiffCommitLine) => line.role === "subject" ? s.title.color : line.role === "commit" ? s.hunk.color : line.role === "message" ? s.context : s.meta.color;
+      const commitH = content.commit?.length ? content.commit.reduce((h, line) => h + count(line.text, innerW(), commitSize(line), line.role === "subject") * lh(commitSize(line), 1.25), 0) + s.fileGap : 0;
+      const availH = view.fit - 2 * margin - footerRoom() - commitH - content.files.length * (2 * s.title.padY + s.fileGap);
       const sizes: readonly number[] = s.sizes;
       const fits = (sz: number) => bodies.every((b) => measure.width(b, sz, false) <= textW(sz));
       const size = sizes.find((sz) => fits(sz) && totalRows * lh(sz, s.leading) <= availH) ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
@@ -1062,6 +1066,14 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         const S = s.summary, parts = [adds, dels].filter((n) => n > 0);
         return parts.reduce((w, n) => w + Math.ceil(measure.width(String(n), S.size, true)) + S.gap + S.sign, 0) + (parts.length - 1) * S.between;
       };
+      if (content.commit?.length) {
+        const g = group++;
+        for (const line of content.commit) {
+          const subject = line.role === "subject";
+          y += block(line.text, margin, y, innerW(), commitSize(line), subject, commitColor(line), { leading: 1.25, groupID: g, code: true, markdown: false, secondary: !subject, hang });
+        }
+        y += s.fileGap;
+      }
       for (const [f, file] of content.files.entries()) {
         if (f) y += s.fileGap;
         const g = group++;

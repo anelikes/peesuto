@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type ErrorTraceLine, type LyricLine, type LyricStanza, type StatsMetric, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffCommitLine, type DiffFile, type DiffLine, type ErrorTraceLine, type LyricLine, type LyricStanza, type StatsMetric, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -400,10 +400,80 @@ const diffPath = (raw: string): string | undefined => {
  * hunks of lines starting with `+`, `-`, a space or `\` (blank lines count as
  * context). Every line must be one of these, with at least one hunk and one
  * added or removed line; the hunk header's counts decide whether a `---` line
- * is a removed line or the next file's header.
+ * is a removed line or the next file's header. A `git show` or
+ * `git format-patch` commit header may sit above it (`commitHeader`).
  */
 export function parseDiff(text: string): TemplateContent | undefined {
   const lines = trimBlankLines(text).split("\n");
+  const header = commitHeader(lines);
+  if (header === null) return;
+  const diff = parseDiffLines(header ? header.rest : lines);
+  return diff && header ? { kind: "diff", commit: header.commit, files: diff.files } : diff;
+}
+
+/** `commit <sha>` (with its refs) at the top of `git show` / `git log -p`. */
+const COMMIT_LINE = /^commit [0-9a-f]{7,64}(?: \(.+\))?$/;
+/** The mbox separator `git format-patch` writes first (its date is fixed). */
+const MBOX_FROM = /^From [0-9a-f]{7,64} Mon Sep 17 00:00:00 2001$/;
+/** Fields under the commit line, any `--format` (`fuller` adds the dates and committer). */
+const COMMIT_FIELD = /^(?:Merge|Author|AuthorDate|Commit|CommitDate|Date):[\t ]*\S.*$/;
+/** Mail headers of a patch that are drawn; the others (MIME, Message-Id…) are transport and syntax. */
+const MAIL_DRAWN = /^(?:From|Date|To|Cc):/i;
+/** `--stat` lines between the message and the diff: recomputed by the card's summary, syntax. */
+const DIFFSTAT = /^ \S.*\| +(?:\d+ ?[+\-]*|Bin(?: .*)?)$|^ \d+ files? changed(?:, \d+ insertions?\(\+\))?(?:, \d+ deletions?\(-\))?$|^ (?:create|delete) mode \d+ \S.*$|^ (?:rename|copy) .+ \(\d+%\)$|^ mode change \d+ => \d+ .+$/;
+
+/**
+ * A commit header above a diff, from `git show` (`commit <sha>`, fields such as
+ * `Author:` and `Date:`, a blank line, the message indented four spaces) or
+ * `git format-patch` (`From <sha> Mon Sep 17 00:00:00 2001`, mail headers with
+ * `From:` and `Subject:`, a blank line, the message, `---`). An optional
+ * diffstat follows; a patch's `-- ` signature (git's version) ends it. Returns
+ * undefined when the text starts with no header, null when it starts like one
+ * but the header is broken (then it is not a diff at all).
+ */
+function commitHeader(lines: readonly string[]): { commit: DiffCommitLine[]; rest: string[] } | null | undefined {
+  const first = lines[0] ?? "", commit: DiffCommitLine[] = [{ text: first, role: "commit" }];
+  let i = 1;
+  const skipStat = () => { while (i < lines.length && (DIFFSTAT.test(lines[i]!) || !lines[i]!.trim())) i++; };
+  if (COMMIT_LINE.test(first)) {
+    for (; i < lines.length && COMMIT_FIELD.test(lines[i]!); i++) commit.push({ text: lines[i]!, role: "field" });
+    if (commit.length < 2 || lines[i]?.trim() !== "") return null;
+    for (; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (!line.trim()) continue;
+      if (!line.startsWith("    ")) break;
+      commit.push({ text: line.slice(4).trimEnd(), role: commit.some((l) => l.role === "subject") ? "message" : "subject" });
+    }
+    if (!commit.some((l) => l.role === "subject")) return null;
+    skipStat();
+    return { commit, rest: lines.slice(i) };
+  }
+  if (!MBOX_FROM.test(first)) return undefined;
+  let drawn = false, subject = false, from = false;
+  for (; i < lines.length && lines[i]!.trim(); i++) {
+    const line = lines[i]!;
+    if (/^[\t ]/.test(line)) {
+      // A folded header continues on an indented line; the fold is syntax.
+      if (drawn) { const last = commit.at(-1)!; commit[commit.length - 1] = { ...last, text: `${last.text} ${line.trim()}` }; }
+      continue;
+    }
+    if (!/^[A-Za-z][\w-]*:(?:[\t ]|$)/.test(line)) return null;
+    drawn = /^Subject:/i.test(line) || MAIL_DRAWN.test(line);
+    if (/^Subject:/i.test(line)) { subject = true; commit.push({ text: line, role: "subject" }); }
+    else if (drawn) { from ||= /^From:/i.test(line); commit.push({ text: line, role: "field" }); }
+  }
+  if (!subject || !from) return null;
+  for (i++; i < lines.length && lines[i] !== "---" && !/^diff --git /.test(lines[i]!); i++) if (lines[i]!.trim()) commit.push({ text: lines[i]!.trimEnd(), role: "message" });
+  if (lines[i] === "---") i++;
+  skipStat();
+  const rest = lines.slice(i);
+  // The patch's signature: "-- " and git's version under it.
+  const sig = rest.findLastIndex((line) => /^-- ?$/.test(line));
+  if (sig > 0 && rest.length - sig <= 3 && rest.slice(sig + 1).every((line) => !line || /^\d+\.\d+/.test(line))) rest.length = sig;
+  return { commit, rest: trimBlankLines(rest.join("\n")).split("\n") };
+}
+
+function parseDiffLines(lines: readonly string[]): { kind: "diff"; files: DiffFile[] } | undefined {
   if (lines.length < 2 || lines.length > 600) return;
   const files: { path?: string; oldPath?: string; meta: string[]; hunks: { header: string; lines: DiffLine[] }[] }[] = [];
   let file: (typeof files)[number] | undefined, hunk: (typeof files)[number]["hunks"][number] | undefined;

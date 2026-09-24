@@ -6,7 +6,7 @@ import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, STATS_STYLES, 
 import { lyricsComposition, lyricsMaxMs, lyricsViolations } from "../src/templates/lyrics.ts";
 import { TEMPLATE_GIF_FRAME_BUDGET } from "../src/templates/render.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
-import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature } from "../src/templates/types.ts";
+import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature, type TemplateContent } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
 
 const base = { aspect: "chat" as const, output: "gif" as const, decider: null };
@@ -601,6 +601,57 @@ describe("diff cards", () => {
       "- one\n- two\n+ three", "--- \ntitle\n---", "--- a/x\n+++ b/x", "@@ -1 +1 @@\n-a\n+b\nSome prose after it.", "@@ -1,2 +1,2 @@\n a\n b",
       "Pros:\n+ fast\n- expensive", "```ts\n@@ -1 +1 @@\n-a\n+b\n```",
     ]) expect(parseTemplates(source).candidates.has("diff")).toBe(false);
+  });
+  const body = "diff --git a/src/a.ts b/src/a.ts\nindex 3f2a1c9..8b7e4d0 100644\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,2 +1,2 @@\n const a = 1;\n-const b = 2;\n+const b = 3;";
+  const show = "commit 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b (HEAD -> main, origin/main)\nAuthor: 林小雨 <lin@example.com>\nDate:   Wed Sep 24 10:12:03 2026 +0800\n\n    fix(a): b is three\n\n    It was two.\n    Now it is three.\n\n" + body;
+  const patch = "From 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b Mon Sep 17 00:00:00 2001\nFrom: Lin <lin@example.com>\nDate: Wed, 24 Sep 2026 10:12:03 +0800\nSubject: [PATCH] fix(a): b is three, a subject\n folded onto a second line\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nIt was two.\n---\n src/a.ts | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\n" + body + "\n-- \n2.50.1 (Apple Git-155)\n";
+  test("a git show or format-patch header above the diff: its lines as written, the diff as before", () => {
+    const plain = parseTemplates(body).candidates.get("diff") as Extract<TemplateContent, { kind: "diff" }>;
+    const shown = parseTemplates(show);
+    expect(shown.preferred).toBe("diff");
+    expect(shown.candidates.get("diff")).toEqual({ kind: "diff", commit: [
+      { text: "commit 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b (HEAD -> main, origin/main)", role: "commit" },
+      { text: "Author: 林小雨 <lin@example.com>", role: "field" }, { text: "Date:   Wed Sep 24 10:12:03 2026 +0800", role: "field" },
+      { text: "fix(a): b is three", role: "subject" }, { text: "It was two.", role: "message" }, { text: "Now it is three.", role: "message" },
+    ], files: plain.files });
+    const mailed = parseTemplates(patch);
+    expect(mailed.preferred).toBe("diff");
+    // MIME headers, the ---, the diffstat and the signature are syntax; the folded Subject is one line.
+    expect(mailed.candidates.get("diff")).toEqual({ kind: "diff", commit: [
+      { text: "From 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b Mon Sep 17 00:00:00 2001", role: "commit" },
+      { text: "From: Lin <lin@example.com>", role: "field" }, { text: "Date: Wed, 24 Sep 2026 10:12:03 +0800", role: "field" },
+      { text: "Subject: [PATCH] fix(a): b is three, a subject folded onto a second line", role: "subject" }, { text: "It was two.", role: "message" },
+    ], files: plain.files });
+    // --stat and --format=fuller, a merge line, a short sha; a patch with no message.
+    const fuller = parseTemplates("commit 8d829cc\nMerge: 1a2b3c4 5d6e7f8\nAuthor:     Lin <lin@example.com>\nAuthorDate: Wed Sep 24 10:12:03 2026 +0800\nCommit:     Lin <lin@example.com>\nCommitDate: Wed Sep 24 10:12:03 2026 +0800\n\n    Merge branch 'b'\n\n src/a.ts | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n\n" + body).candidates.get("diff");
+    expect(fuller?.kind === "diff" && fuller.commit?.map((l) => l.role)).toEqual(["commit", "field", "field", "field", "field", "field", "subject"]);
+    const bare = parseTemplates("From 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b Mon Sep 17 00:00:00 2001\nFrom: Lin <lin@example.com>\nSubject: [PATCH 2/3] Bump\n\n---\n" + body).candidates.get("diff");
+    expect(bare?.kind === "diff" && bare.commit?.map((l) => l.text)).toEqual(["From 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b Mon Sep 17 00:00:00 2001", "From: Lin <lin@example.com>", "Subject: [PATCH 2/3] Bump"]);
+  });
+  test("not a diff with a header: a log without patches, a header over prose, broken headers, two commits", () => {
+    for (const source of [
+      "commit 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b\nAuthor: Lin <lin@example.com>\nDate:   Wed Sep 24 10:12:03 2026 +0800\n\n    fix(a): b is three",
+      "commit 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b\nAuthor: Lin <lin@example.com>\n\n    fix\n\nSome prose after the log.",
+      "commit 8d829cc\n\n    no fields\n\n" + body, "commit 8d829cc\nAuthor: Lin\n\n" + body, "commit not-a-sha\nAuthor: Lin\n\n    fix\n\n" + body,
+      "commit 8d829cc\nAuthor: Lin\nDate: today\n    fix\n\n" + body,
+      "From 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b Mon Sep 17 00:00:00 2001\nFrom: Lin <lin@example.com>\n\nIt was two.\n---\n" + body,
+      "From 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b Mon Sep 17 00:00:00 2001\nFrom: Lin\nSubject: x\nnot a header\n\n---\n" + body,
+      "From 8d829cc1f2e3a4b5c6d7e8f90a1b2c3d4e5f6a7b Mon Sep 17 00:00:00 2001\nFrom: Lin\nSubject: [PATCH] x\n\nJust a message, no patch.",
+      show + "\n\ncommit 1a2b3c4\nAuthor: Lin\n\n    second\n\n" + body,
+    ]) expect(parseTemplates(source).candidates.has("diff")).toBe(false);
+  });
+  test("the commit header is drawn above the files: the subject like a title, the sha, fields and message small", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const content = parseTemplates(show).candidates.get("diff")!;
+    for (const variant of ["classic", "editorial"] as const) {
+      const layout = layoutTemplate({ version: 1, template: "diff", variant, motion: "none", aspect: "1:1", sourceText: show, content }, measure);
+      const S = DIFF_STYLES[variant], line = (text: string) => layout.lines.find((l) => l.text.startsWith(text))!;
+      expect([line("fix(a)").bold, line("fix(a)").size, line("fix(a)").color]).toEqual([true, Math.min(S.title.size, 40), S.title.color]);
+      expect(line("commit 8d829cc").size).toBe(S.meta.size);
+      expect(line("Author:").y).toBeLessThan(line("fix(a)").y);
+      expect(line("Now it is three.").y).toBeLessThan(line("src/a.ts").y);
+      expect(layout.lines.some((l) => /^ *(?:diff --git|index )/.test(l.text))).toBe(false);
+    }
   });
   test("both styles: tinted rows with the sign in a gutter, and a +N −M summary of generated counts with shape signs", () => {
     const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };

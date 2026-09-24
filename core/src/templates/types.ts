@@ -80,8 +80,12 @@ export type TemplateContent =
   /** A unified diff: per file the path (from its `+++`/`---` or `diff --git`
    * header, whose lines are syntax and not drawn, like the `a/` `b/` prefixes),
    * mode/rename/binary lines kept verbatim as `meta`, then hunks: the `@@`
-   * header and every line as written, its first character the +/-/space. */
-  | { readonly kind: "diff"; readonly files: readonly DiffFile[] }
+   * header and every line as written, its first character the +/-/space.
+   * `commit` is a `git show` / `git format-patch` header above the diff, its
+   * lines as written: the `commit <sha>` or `From <sha> …` line, fields
+   * (`Author:`, `Date:`, `From:`…), the subject and the message (git's
+   * four-space indent and a folded Subject's line break are syntax). */
+  | { readonly kind: "diff"; readonly commit?: readonly DiffCommitLine[]; readonly files: readonly DiffFile[] }
   /** An error with its stack trace: the heading (a `lead` such as
    * `Exception in thread "main"`, the error `type`, the `message`; the colon
    * between type and message is syntax), then the trace lines verbatim in
@@ -125,6 +129,7 @@ export type TerminalLine =
 
 export interface DiffLine { readonly type: "add" | "del" | "context" | "note"; readonly text: string }
 export interface DiffHunk { readonly header: string; readonly lines: readonly DiffLine[] }
+export interface DiffCommitLine { readonly text: string; readonly role: "commit" | "field" | "subject" | "message" }
 export interface DiffFile { readonly path?: string; readonly oldPath?: string; readonly meta: readonly string[]; readonly hunks: readonly DiffHunk[] }
 
 export interface ErrorTraceLine { readonly text: string; readonly role: "frame" | "code" | "note"; readonly own: boolean }

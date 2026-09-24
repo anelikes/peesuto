@@ -87,8 +87,8 @@ export function contentStrings(content: TemplateContent): string[] {
     case "changelog": return [...(content.title ? [content.title] : []), ...content.releases.flatMap((r) => [r.version, ...(r.date ? [r.date] : []),
       ...r.sections.flatMap((s) => [...(s.title ? [s.title] : []), ...s.items.map((i) => stripBold(i))])])].map(plain);
     case "terminal": return content.lines.map((line) => normalizeText(line.kind === "prompt" ? line.prompt + line.command : line.text, "code"));
-    case "diff": return content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
-      ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((text) => normalizeText(text, "code"));
+    case "diff": return [...(content.commit ?? []).map((l) => l.text), ...content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
+      ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])])].map((text) => normalizeText(text, "code"));
     case "error": return [...[content.lead, content.type, content.message].filter((t): t is string => Boolean(t)), ...content.trace.map((l) => l.text)].map((text) => normalizeText(text, "code"));
     case "timeline": return [...(content.title ? [content.title] : []), ...content.events.flatMap((e) => [e.time, e.text])].map(plain);
     case "stats": return [...(content.title ? [content.title] : []), ...content.metrics.flatMap((m) => [m.label, m.value, ...(m.delta ? [m.delta] : [])])].map(plain);

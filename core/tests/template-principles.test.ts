@@ -40,7 +40,12 @@ const EXTRA: readonly TemplateContent[] = [
     { kind: "output", text: "npm WARN config production Use `--omit=dev` instead.", tone: "warning" }, { kind: "output", text: "" },
     { kind: "output", text: "  构建完成，用时 3.2 秒" }, { kind: "prompt", prompt: "$ ", command: "" }, { kind: "exit", text: "exit status 0", ok: true },
   ] },
-  { kind: "diff", files: [
+  { kind: "diff", commit: [
+    { text: "commit 3f2a1c9e8b7d6a5f4e3d2c1b0a99887766554433 (HEAD -> main, origin/main)", role: "commit" },
+    { text: "Author: 林小雨 <lin@example.com>", role: "field" }, { text: "Date:   Wed Sep 24 10:12:03 2026 +0800", role: "field" },
+    { text: "Rename the notes page and add the logo, with a subject long enough to wrap across the card", role: "subject" },
+    { text: "The old name was confusing.", role: "message" },
+  ], files: [
     { path: "docs/新名字.md", oldPath: "docs/old-name.md", meta: ["similarity index 90%", "rename from docs/old-name.md", "rename to docs/新名字.md"], hunks: [
       { header: "@@ -3 +3 @@", lines: [{ type: "del", text: "-旧的一行" }, { type: "add", text: "+A replaced line that is long enough to wrap across the whole width of the card, twice over at least." }, { type: "note", text: "\\ No newline at end of file" }] }] },
     { path: "assets/logo.png", meta: ["new file mode 100644", "Binary files /dev/null and b/assets/logo.png differ"], hunks: [] },
@@ -88,8 +93,8 @@ function sourceStrings(content: TemplateContent): string[] {
     case "changelog": return [...(content.title ? [content.title] : []), ...content.releases.flatMap((r) => [r.version, ...(r.date ? [r.date] : []),
       ...r.sections.flatMap((s) => [...(s.title ? [s.title] : []), ...s.items])])].map((s) => clean(s));
     case "terminal": return content.lines.map((l) => clean(l.kind === "prompt" ? l.prompt + l.command : l.text, true));
-    case "diff": return content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
-      ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((s) => clean(s, true));
+    case "diff": return [...(content.commit ?? []).map((l) => l.text), ...content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
+      ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])])].map((s) => clean(s, true));
     case "error": return [...[content.lead, content.type, content.message].filter((t): t is string => Boolean(t)), ...content.trace.map((l) => l.text)].map((s) => clean(s, true));
     case "timeline": return [...(content.title ? [content.title] : []), ...content.events.flatMap((e) => [e.time, e.text])].map((s) => clean(s));
     case "stats": return [...(content.title ? [content.title] : []), ...content.metrics.flatMap((m) => [m.label, m.value, ...(m.delta ? [m.delta] : [])])].map((s) => clean(s));

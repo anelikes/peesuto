@@ -350,7 +350,24 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   a trimmed hunk still reads as one. A fence marked `diff` or `patch` (or
   unmarked) is read the same way. It ranks before code; the code card's own
   diff colouring remains the alternative and the fallback for anything this
-  does not recognize (a `git show` header above the diff, say).
+  does not recognize.
+- A commit header may sit above the diff. `git show` (and `git log -p` for
+  one commit): `commit <sha>` (refs after it allowed), at least one field
+  (`Author:`, `Date:`, `Merge:`, `--format=fuller`'s `AuthorDate:`,
+  `Commit:`, `CommitDate:`), a blank line, the message indented four spaces,
+  an optional `--stat`. `git format-patch`: `From <sha> Mon Sep 17 00:00:00
+  2001`, mail headers with `From:` and `Subject:`, a blank line, the message,
+  `---`, the diffstat, and after the diff the `-- ` signature with git's
+  version. A header that starts like one but breaks (no fields, no message,
+  a line that is not a header, no diff after it, a second commit) makes the
+  whole text not a diff.
+- The header is drawn as written above the files: the `commit`/`From` line
+  small in the hunk colour, fields small, the subject (the first message
+  line, or the `Subject:` line) bold (at most 1.25 × the small size), the rest of the
+  message small. Syntax, not drawn: git's four-space indent, a folded
+  Subject's line break (joined with a space), MIME and other transport
+  headers (`MIME-Version`, `Content-Type`, `Message-Id`…), the `---`, the
+  diffstat (the summary counts the lines) and the signature.
 - Drawn verbatim: each file's path is its title (from `+++`, or `---` for a
   deleted file, or `diff --git`); the `diff --git`, `index`, `---` and `+++`
   lines and the `a/` `b/` prefixes are syntax and not drawn. A renamed file
