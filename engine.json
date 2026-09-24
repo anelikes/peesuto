@@ -1,6 +1,6 @@
 {
   "repo": "https://github.com/anelikes/pocket-motion.git",
-  "ref": "v0.2.1",
-  "sha": "ad6b8a600cbbd576dd46112075605dfdaf23d063",
-  "note": "v0.2.0 replayed the private feat/transparent-clear stack (patches 0013 to 0015) onto the public v0.1.0, byte-identical in code to ca3c07632017 which the fixture digests were recorded against; v0.2.1 adds the fileURLToPath fix so a checkout under a path with spaces builds. Fixtures re-verified against it."
+  "ref": "v0.4.0",
+  "sha": "5f4b84c8b61685253252be448ace0c67cc97162c",
+  "note": "v0.4.0 adds named font faces, text stroke, drop/text shadow and glow, multi-stop, angled and radial gradients with gradient text, node blur, blend modes and images of any size up to 2048 px; compositions that use none of these render byte-identically to v0.2.1 (fixture digests re-verified). Earlier: v0.2.0 replayed the private feat/transparent-clear stack onto the public v0.1.0; v0.2.1 derives paths with fileURLToPath."
 }

@@ -1,5 +1,5 @@
 {
-  "_note": "sha256 of frame PNGs rendered from core/fixtures/<name>.json at the engine pinned in engine.json; keys are frame indices. plain re-recorded 2026-09-22: emphasis now indexes Jev's word list (segmentWords), fixture points at \u58f0\u660e.",
+  "_note": "sha256 of frame PNGs rendered from core/fixtures/<name>.json at the engine pinned in engine.json; keys are frame indices. plain re-recorded 2026-09-22: emphasis now indexes Jev's word list (segmentWords), fixture points at \u58f0\u660e. Re-verified unchanged 2026-09-24 at engine v0.4.0 (5f4b84c8b616) with every artifact rebuilt under its patch set 0001-0020.",
   "frames": {
     "code": {
       "0": "234524438df843d45f2d6b1a80a8fb8050f2908ed48d5dd257d1c0ed46928002"

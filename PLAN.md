@@ -459,6 +459,8 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
    v0.2.0 = 补丁 0013 到 0015，v0.2.1 = fileURLToPath 修复；engine.json 钉 v0.2.1，
    CI 无需任何凭证。qianiaoo/pocketjs-motion 只作归档，之后的引擎迭代都在公开
    仓库。`~/.pocket-paste/engine` 的绕行还在，等 v0.2.1 随包发布后再拆。
+   2026-09-24 改钉 v0.4.0（命名字体面、文字描边、模糊/投影/辉光、多段与角度渐变及渐变文字、混合模式、
+   1–2048 px 任意尺寸图片）；五个夹具重建后摘要逐字节不变。
 2. （已完成 2026-09-23）Developer ID Application 证书已签发并装入钥匙串（用户是团队 Account Holder），
    notarytool 凭证存为 profile `pocket-paste`；`scripts/release-native.ts` 签名、公证、钉入并验证 DMG。
    CI 内签名所需 secrets 尚未设置（本地发布已可用）。
