@@ -324,7 +324,8 @@ struct OutputPreview {
             if !coreConfiguredOnce { try await configureCore() }
             _ = try await core.precompose(text: text, frames: settings.precomposeFrames,
                                           templatePreferences: settings.templatePreferences,
-                                          disabledTemplates: settings.disabledTemplates)
+                                          disabledTemplates: settings.disabledTemplates,
+                                          templateFont: settings.templateFont)
         } catch {
             let kind = (error as? CoreError)?.kind ?? (error is CancellationError ? "cancelled" : "error")
             let line = "precompose: request failed (\(kind))"
@@ -466,7 +467,7 @@ struct OutputPreview {
                 let requestedFrame = frame ?? defaultFrame(actionID: actionID)
                 let input = CoreActionInput(text: text, aspect: requestedFrame,
                     template: options, templatePreferences: settings?.templatePreferences,
-                    disabledTemplates: settings?.disabledTemplates)
+                    disabledTemplates: settings?.disabledTemplates, templateFont: settings?.templateFont)
                 taskStatus = title + "…"
                 let kind = actions.first(where: { $0.id == actionID })?.output
                 let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)

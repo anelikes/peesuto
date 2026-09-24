@@ -154,6 +154,11 @@ final class StorageTests: XCTestCase {
     func testTemplateSettingsRoundTripAndReset() throws {
         let settings = try SettingsStore(directory: directory)
         XCTAssertEqual(settings.disabledTemplates, [])
+        XCTAssertEqual(settings.templateFont, "maple")
+        try settings.setTemplateFont("noto")
+        XCTAssertEqual(try SettingsStore(directory: directory).templateFont, "noto")
+        try settings.setTemplateFont("comic-sans")
+        XCTAssertEqual(settings.templateFont, "maple")
         try settings.setTemplateEnabled("table", false)
         try settings.setTemplateEnabled("code", false)
         try settings.setTemplateEnabled("table", false)

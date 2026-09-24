@@ -109,15 +109,18 @@ public struct CoreActionInput: Codable, Sendable {
     public let templatePreferences: [String: String]?
     /// Templates turned off for automatic choice (Settings › Templates).
     public let disabledTemplates: [String]?
+    /// The card typeface, "maple" or "noto".
+    public let templateFont: String?
 
     public init(text: String, item: CoreClipItem? = nil, context: CoreContext? = nil,
                 aspect: String? = nil, fresh: Bool? = nil, template: CoreTemplateOptions? = nil,
-                templatePreferences: [String: String]? = nil, disabledTemplates: [String]? = nil) {
+                templatePreferences: [String: String]? = nil, disabledTemplates: [String]? = nil, templateFont: String? = nil) {
         self.text = text; self.item = item; self.context = context
         self.aspect = aspect; self.fresh = fresh
         self.template = template
         self.templatePreferences = templatePreferences
         self.disabledTemplates = disabledTemplates
+        self.templateFont = templateFont
     }
 }
 

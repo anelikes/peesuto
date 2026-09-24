@@ -117,10 +117,13 @@ describe("highlight.js colouring", () => {
 });
 
 describe("code font", () => {
-  test("code uses Peesuto Code unless a glyph is missing; other templates keep Noto Sans SC", () => {
-    expect(chooseTemplateFont("code", [])).toBe("peesuto-code");
-    expect(chooseTemplateFont("code", ["한"])).toBe("noto-sans-sc");
-    for (const id of TEMPLATE_IDS) if (id !== "code") expect(chooseTemplateFont(id, [])).toBe("noto-sans-sc");
+  test("Maple Mono by default for every template, Noto Sans SC when chosen (never for code) or a glyph is missing", () => {
+    for (const id of TEMPLATE_IDS) {
+      // Code keeps Chinese at two columns; every other card uses Peesuto Text (Chinese at 1em).
+      expect(chooseTemplateFont(id, [])).toBe(id === "code" ? "peesuto-code" : "peesuto-text");
+      expect(chooseTemplateFont(id, ["한"])).toBe("noto-sans-sc");
+      expect(chooseTemplateFont(id, [], "noto")).toBe(id === "code" ? "peesuto-code" : "noto-sans-sc");
+    }
   });
 
   test("font paths: absolute for the measurer, work-tree relative without '..' for the composition", async () => {
@@ -133,6 +136,9 @@ describe("code font", () => {
     }
     expect(await Bun.file(code.measure.regular).exists()).toBe(true);
     expect(await Bun.file(code.measure.bold).exists()).toBe(true);
+    const text = fontFaces("peesuto-text", "/engine");
+    for (const path of [text.measure.regular, text.measure.bold]) expect(await Bun.file(path).exists()).toBe(true);
+    expect(text.composition.regular.startsWith("compositions/paste/")).toBe(true);
     expect(fontFaces("noto-sans-sc", "/engine").composition.regular).toBe("assets/fonts/NotoSansSC-Regular.otf");
   });
 });

@@ -162,7 +162,7 @@ function parseList(text: string): TemplateContent | undefined {
 /** Labels that mark a line as a field (contact details, accounts, servers, orders). */
 const INFO_LABELS = /^(?:姓名|名字|名称|name|full name|手机|手机号|手机号码|电话|座机|tel|phone|mobile|cell|邮箱|电子邮件|电子邮箱|e-?mail|mail|地址|address|网址|网站|主页|website|web|url|link|链接|微信|微信号|wechat|qq|telegram|whatsapp|公司|company|organization|org|职位|职务|title|role|部门|department|账号|帐号|账户|用户名|用户|user|username|login|account|id|密码|口令|password|passwd|pwd|pass|密钥|秘钥|key|api key|apikey|secret|secret key|token|access key|access token|host|hostname|主机|服务器|server|ip|端口|port|数据库|database|db|region|区域|环境|env|environment|endpoint|base url|订单号|订单|order|order id|快递单号|单号|tracking|金额|amount|price|日期|date|时间|time|备注|note|notes)$/i;
 const EMAIL_VALUE = /^[\w.+-]+@[\w-]+(?:\.[\w-]+)+$/;
-const URL_VALUE = /^(?:https?:\/\/|www\.)\S+$/i;
+const URL_VALUE = /^(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+$/i;
 const SECRET_LABEL = /密码|口令|密钥|秘钥|pass|pwd|secret|token|api[ _-]?key|access[ _-]?key|private[ _-]?key/i;
 const SECRET_VALUE = /^(?:sk-[\w-]{16,}|ghp_\w{20,}|github_pat_\w{20,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{30,}|eyJ[\w-]+\.[\w-]+\.[\w-]+)$/;
 
@@ -177,9 +177,10 @@ export function infoFieldType(label: string | undefined, value: string): InfoFie
 }
 
 /**
- * Labelled fields, one per line ("手机：138…", "API Key: sk-…"), optionally
- * led by a title line; bare emails, URLs, phone numbers and keys count as
- * fields too. Every other line would be dropped, so any other line means
+ * Labelled fields, one per line ("手机：138…", "API Key: sk-…", or dotenv's
+ * "OPENAI_API_KEY=sk-…"), optionally led by a title line (a "# comment"
+ * titles an env block, its marker dropped like a Markdown heading's); bare
+ * emails, URLs, phone numbers and keys count as fields too. Every other line would be dropped, so any other line means
  * this is not an info card. At least two fields, labels unique (a returning
  * label is a conversation), and some label or value must be recognizable.
  */
@@ -188,7 +189,17 @@ export function parseInfo(text: string): TemplateContent | undefined {
   if (lines.length < 2 || lines.length > 24) return;
   const fields: InfoField[] = [];
   let title: string | undefined;
+  let env = 0;
   for (const [index, line] of lines.entries()) {
+    const assignment = line.match(/^(?:export[\t ]+)?([A-Z][A-Z0-9_]{0,63})=(\S.*)$/);
+    if (assignment) {
+      const label = assignment[1]!, value = assignment[2]!;
+      fields.push({ label, value, type: infoFieldType(label.replace(/_/g, " "), value) });
+      env++;
+      continue;
+    }
+    const comment = index === 0 ? line.match(/^(?:#|\/\/)[\t ]+(\S.{0,39})$/) : null;
+    if (comment) { title = comment[1]!.trim(); continue; }
     const m = line.match(/^([^:：\n]{1,24}?)[\t ]*[:：][\t ]*(\S.*)$/);
     if (m && !/^(?:https?|ftp|mailto)$/i.test(m[1]!.trim()) && !m[2]!.startsWith("//")) {
       const label = m[1]!.trim(), value = m[2]!.trim();
@@ -204,7 +215,8 @@ export function parseInfo(text: string): TemplateContent | undefined {
   const labels = fields.flatMap((field) => field.label ? [field.label.toLowerCase()] : []);
   if (new Set(labels).size !== labels.length) return;
   if (fields.some((field) => [...field.value].length > 200)) return;
-  const known = fields.some((field) => field.type !== "plain" || (field.label && INFO_LABELS.test(field.label.replace(/\s+/g, " "))));
+  // Two dotenv assignments are shape enough; otherwise a label or value must be recognizable.
+  const known = env >= 2 || fields.some((field) => field.type !== "plain" || (field.label && INFO_LABELS.test(field.label.replace(/\s+/g, " "))));
   if (!known) return;
   return { kind: "info", ...(title ? { title } : {}), fields };
 }

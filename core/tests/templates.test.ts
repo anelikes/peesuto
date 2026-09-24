@@ -433,3 +433,13 @@ describe("info cards", () => {
     expect(phoneGroups("+1 415 555 0100")).toEqual(["+1 415 555 0100"]);
   });
 });
+
+describe("card font", () => {
+  test("the chosen font travels in the plan; unknown values fall back to the default; it keys precompose", async () => {
+    expect((await decideTemplate("Short and sweet.", { ...base, font: "noto" })).plan.font).toBe("noto");
+    expect((await decideTemplate("Short and sweet.", { ...base, font: "comic-sans" })).plan.font).toBeUndefined();
+    const spec = { id: "paste-card", name: "x", needs: "render", output: "image" } as unknown as Parameters<typeof renderKeyParts>[0];
+    expect(renderKeyParts(spec, { text: "x", templateFont: "noto" })?.font).toBe("noto");
+    expect(renderKeyParts(spec, { text: "x" })?.font).toBe("");
+  });
+});

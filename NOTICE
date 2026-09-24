@@ -16,6 +16,8 @@ own license:
   Project Authors, with Chinese glyphs from Resource Han Rounded (derived from
   Adobe's Source Han Sans), SIL Open Font License 1.1
   (core/src/render/fonts/OFL.txt).
+- Peesuto Text, the same subset with full-width glyphs narrowed to 1em
+  (scripts/fonts/peesuto-text.py), SIL Open Font License 1.1.
 - Noto Sans SC, Copyright Google LLC and Adobe, SIL Open Font License 1.1.
 - highlight.js 11.12.0 (https://highlightjs.org/), Copyright 2006 Ivan
   Sagalaev and contributors, BSD 3-Clause License.

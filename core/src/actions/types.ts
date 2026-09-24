@@ -44,6 +44,8 @@ export interface ActionInput {
   readonly template?: TemplateOverride;
   /** Per-template styles explicitly chosen by the user, never model guesses. */
   readonly templatePreferences?: Readonly<Record<string, string>>;
+  /** The card typeface, "maple" or "noto" (Settings › Templates). */
+  readonly templateFont?: string;
   /** Templates turned off for automatic choice (Settings › Templates). */
   readonly disabledTemplates?: readonly string[];
 }

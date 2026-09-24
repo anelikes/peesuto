@@ -66,6 +66,11 @@ export const INFO_FIELD_TYPES = ["phone", "email", "url", "secret", "plain"] as 
 export type InfoFieldType = (typeof INFO_FIELD_TYPES)[number];
 export interface InfoField { readonly label?: string; readonly value: string; readonly type: InfoFieldType }
 
+/** The card typeface: Maple Mono (Peesuto Code, the default) or Noto Sans SC. Code cards are always Maple Mono. */
+export const TEMPLATE_FONTS = ["maple", "noto"] as const;
+export type TemplateFontChoice = (typeof TEMPLATE_FONTS)[number];
+export const DEFAULT_TEMPLATE_FONT: TemplateFontChoice = "maple";
+
 export interface TemplatePlan {
   readonly version: 1;
   readonly template: TemplateId;
@@ -77,6 +82,8 @@ export interface TemplatePlan {
   /** A word or phrase of the source to accent (text template only). It must
    * occur in the content verbatim; anything else is ignored at layout. */
   readonly emphasis?: string;
+  /** The card typeface; absent means DEFAULT_TEMPLATE_FONT. */
+  readonly font?: TemplateFontChoice;
 }
 
 export interface TemplateOverride {

@@ -7,6 +7,8 @@ section here becomes one.
 
 ## Unreleased
 
+- Cards are set in Maple Mono by default (Settings › Templates › Card font switches to Noto Sans SC; code is always Maple). Everything but code uses Peesuto Text, a cut of it with Chinese at 1em, so prose does not look letter-spaced.
+- Info cards also take dotenv blocks (`OPENAI_API_KEY=…`, a `# comment` as the title): names as labels, keys in the secret pill, connection strings styled as links.
 - Info card template: contacts, accounts, server details and other `label: value` text become a card of fields instead of a plain page: phone numbers spaced 3-4-4, email domains and URL schemes muted, links coloured, passwords and keys in a red pill behind a lock (shown in full). Two styles, light Field list and dark Credentials.
 - Code cards: the terminal backdrop is a hue arc (indigo, violet, magenta, coral, amber) sampled in OKLCH and drawn as segments, so it stays saturated end to end instead of greying in the middle like a two-colour RGB blend; the rose overlay is gone.
 - Settings › Templates: every template with a preview of each style. Switch a template off to keep it out of automatic choice (it stays available by hand), click a style to make it the default. Changes apply at once.

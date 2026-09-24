@@ -8,6 +8,7 @@ struct TemplatesSettingsView: View {
     @ObservedObject var model: AppState
     @State private var disabled: Set<String> = []
     @State private var styles: [String: String] = [:]
+    @State private var font = "maple"
     @State private var problem: String?
     @State private var unavailable = false
 
@@ -16,6 +17,19 @@ struct TemplatesSettingsView: View {
             Text(model.tr("Peesuto picks a template from what you copied. Turn one off to keep it out of automatic choice; you can still pick it by hand after a card is made. Click a style to make it the default, click it again to let Peesuto decide.",
                           "Peesuto 会根据复制的内容自动选择模板。关闭某个模板后它不会再被自动选中，但生成后仍可手动切换。点击风格设为默认，再次点击则交给 Peesuto 决定。"))
                 .font(.system(size: 12)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.tr("Card font", "卡片字体")).font(.system(size: 13, weight: .semibold))
+                    Text(model.tr("Code cards always use Maple Mono.", "代码图始终使用 Maple Mono。")).font(.system(size: 11)).foregroundColor(.secondary)
+                }
+                Spacer()
+                Picker("", selection: Binding(get: { font }, set: { value in apply { try $0.setTemplateFont(value) } })) {
+                    Text("Maple Mono").tag("maple")
+                    Text(model.tr("Noto Sans SC", "思源黑体")).tag("noto")
+                }.labelsHidden().pickerStyle(.segmented).fixedSize()
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
             if model.templates.isEmpty && unavailable {
                 Text(model.tr("Templates are unavailable until Peesuto's engine starts.", "Peesuto 引擎启动后才能显示模板。"))
                     .font(.system(size: 12)).foregroundColor(.secondary)
@@ -28,7 +42,7 @@ struct TemplatesSettingsView: View {
                 if let problem { Text(problem).font(.system(size: 11)).foregroundColor(.orange) }
                 Spacer()
                 Button(model.tr("Restore defaults", "恢复默认"), action: reset)
-                    .disabled(disabled.isEmpty && styles.isEmpty)
+                    .disabled(disabled.isEmpty && styles.isEmpty && font == "maple")
             }
         }
         .onAppear(perform: load)
@@ -127,6 +141,7 @@ struct TemplatesSettingsView: View {
         guard let settings = model.settings else { return }
         disabled = Set(settings.disabledTemplates)
         styles = settings.templatePreferences ?? [:]
+        font = settings.templateFont
     }
 
     private func setEnabled(_ id: String, _ enabled: Bool) {

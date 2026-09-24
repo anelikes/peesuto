@@ -94,6 +94,18 @@ are `DIAGRAM_STYLES`; size tiers `DIAGRAM_TIERS`, both in
 `core/src/templates/compose.ts`. Arrowheads and diamonds are small SVGs the
 engine bakes; everything else is boxes and text.
 
+### Card font
+
+Cards are set in Maple Mono by default, with a choice of Noto Sans SC in
+Settings › Templates (`template_font`, sent as `templateFont` with every
+render and precompose request, part of the precompose key, carried in the
+plan as `font`). Code is always Maple Mono. Maple comes in two cuts under
+`core/src/render/fonts/`: Peesuto Code, Chinese at two Latin columns so code
+aligns, and Peesuto Text, Chinese at 1em for everything else (the two-column
+width reads as letter-spacing in prose; `scripts/fonts/peesuto-text.py`).
+A card needing a glyph neither cut has (traditional Chinese beyond GB 2312,
+Korean) is set entirely in Noto Sans SC instead; one font pair per composition.
+
 ### Code: monospace type and syntax colour
 
 - Font: the whole code card (both styles, the language label included) is set
@@ -134,9 +146,11 @@ engine bakes; everything else is boxes and text.
 
 ### Info card: contacts, accounts and keys
 
-- Recognized when every line is a field (`label: value` or `label：value`, or a
-  bare email, URL, phone number or key), except an optional short first line,
-  which becomes the title. At least two fields, labels unique (a returning label
+- Recognized when every line is a field (`label: value`, `label：value`, a
+  dotenv `UPPER_CASE=value`, or a bare email, URL, phone number or key), except
+  an optional short first line, which becomes the title (a `# comment` titles
+  an env block, its marker dropped as a Markdown heading's is). Two dotenv
+  assignments are recognizable on their own. At least two fields, labels unique (a returning label
   is a conversation), and at least one known label (phone, email, address,
   password, API key, host, order number…) or recognizable value. Any other
   line means document, so nothing is ever dropped. It ranks after comparison,

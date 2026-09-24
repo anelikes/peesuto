@@ -8,7 +8,7 @@ import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
-import { FRAMES, TEMPLATE_MAX_GRAPHEMES, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
+import { DEFAULT_TEMPLATE_FONT, FRAMES, TEMPLATE_MAX_GRAPHEMES, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -626,7 +626,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         } else {
           const chars = graphemes(field.value);
           const at = field.type === "email" ? chars.indexOf("@") : -1;
-          const scheme = field.type === "url" ? graphemes(field.value.match(/^(?:https?:\/\/)?(?:www\.)?/i)![0]).length : 0;
+          const scheme = field.type === "url" ? graphemes(field.value.match(/^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:www\.)?/i)![0]).length : 0;
           const colors = field.type === "email" ? chars.map((_, i) => (i >= at ? s.muted : undefined))
             : field.type === "url" ? chars.map((_, i) => (i < scheme ? s.muted : s.link)) : undefined;
           end = vy + block(field.value, valueX, vy, valueW, s.value.size, false, s.value.color, { leading: s.leading, groupID: g, ...(colors ? { colors } : {}) });
@@ -1195,26 +1195,37 @@ export function scrolls(motion: TemplateMotion, layoutHeight: number, viewHeight
 }
 
 /** The one font pair a template composition is set in. */
-export type TemplateFont = "noto-sans-sc" | "peesuto-code";
+/** peesuto-code: Maple Mono with Chinese at two columns, for code; peesuto-text: the same
+ * with Chinese at 1em, for every other card (scripts/fonts/peesuto-text.py); noto-sans-sc. */
+export type TemplateFont = "noto-sans-sc" | "peesuto-code" | "peesuto-text";
 /** Peesuto Code (Maple Mono NL CN v7.9 subset, SIL OFL 1.1; see render/fonts/README.md) ships with core. */
 export const CODE_FONT_DIR = fileURLToPath(new URL("../render/fonts/", import.meta.url));
 export const CODE_FONT = { regular: "PeesutoCode-Regular.ttf", bold: "PeesutoCode-Bold.ttf" } as const;
+export const TEXT_FONT = { regular: "PeesutoText-Regular.ttf", bold: "PeesutoText-Bold.ttf" } as const;
+const BUNDLED_FONTS: Readonly<Record<Exclude<TemplateFont, "noto-sans-sc">, { readonly regular: string; readonly bold: string }>> = { "peesuto-code": CODE_FONT, "peesuto-text": TEXT_FONT };
 /** Where a staged code font sits in the composition, relative to the work tree root. */
 const CODE_FONT_STAGE = "compositions/paste/fonts";
 
-/** Code cards use Peesuto Code unless it lacks a (non-emoji) glyph of the
- * content: then the whole card falls back to Noto Sans SC, without an error.
- * Every other template keeps Noto Sans SC. */
-export function chooseTemplateFont(template: TemplateId, missingInCodeFont: readonly string[]): TemplateFont {
-  return template === "code" && missingInCodeFont.length === 0 ? "peesuto-code" : "noto-sans-sc";
+/** Cards are set in Peesuto Code (Maple Mono) when the user chose it (the
+ * default) and always for code, unless it lacks a (non-emoji) glyph of the
+ * content: then the whole card falls back to Noto Sans SC, without an error. */
+export function wantsMapleFont(template: TemplateId, choice: TemplateFontChoice = DEFAULT_TEMPLATE_FONT): boolean {
+  return template === "code" || choice === "maple";
+}
+export function chooseTemplateFont(template: TemplateId, missingInCodeFont: readonly string[], choice: TemplateFontChoice = DEFAULT_TEMPLATE_FONT): TemplateFont {
+  if (!wantsMapleFont(template, choice) || missingInCodeFont.length) return "noto-sans-sc";
+  return template === "code" ? "peesuto-code" : "peesuto-text";
 }
 
 /** Face files for the measurer (absolute) and the composition (work-tree relative, no ".."). */
 export function fontFaces(font: TemplateFont, engine: string): { measure: { regular: string; bold: string }; composition: { regular: string; bold: string } } {
-  if (font === "peesuto-code") return {
-    measure: { regular: join(CODE_FONT_DIR, CODE_FONT.regular), bold: join(CODE_FONT_DIR, CODE_FONT.bold) },
-    composition: { regular: `${CODE_FONT_STAGE}/${CODE_FONT.regular}`, bold: `${CODE_FONT_STAGE}/${CODE_FONT.bold}` },
-  };
+  if (font !== "noto-sans-sc") {
+    const files = BUNDLED_FONTS[font];
+    return {
+      measure: { regular: join(CODE_FONT_DIR, files.regular), bold: join(CODE_FONT_DIR, files.bold) },
+      composition: { regular: `${CODE_FONT_STAGE}/${files.regular}`, bold: `${CODE_FONT_STAGE}/${files.bold}` },
+    };
+  }
   return {
     measure: { regular: `${engine}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${engine}/assets/fonts/NotoSansSC-Bold.otf` },
     composition: { regular: "assets/fonts/NotoSansSC-Regular.otf", bold: "assets/fonts/NotoSansSC-Bold.otf" },
@@ -1225,9 +1236,9 @@ export function fontFaces(font: TemplateFont, engine: string): { measure: { regu
  * takes font paths inside the work tree, and never gets written into. A hard
  * link when the volume allows it, else a copy; an up-to-date file is kept. */
 async function stageFont(font: TemplateFont, dir: string): Promise<void> {
-  if (font !== "peesuto-code") return;
+  if (font === "noto-sans-sc") return;
   await mkdir(join(dir, "fonts"), { recursive: true });
-  for (const name of Object.values(CODE_FONT)) {
+  for (const name of Object.values(BUNDLED_FONTS[font])) {
     const from = join(CODE_FONT_DIR, name), to = join(dir, "fonts", name);
     const source = await stat(from);
     const current = await stat(to).catch(() => undefined);
@@ -1264,11 +1275,11 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     sizes: SIZES.flatMap((px) => [{ px, bold: false }, { px, bold: true }]), texts, density: 1,
     cache: { charset, dir: `${work}/dist/.measure` },
   });
-  let font: TemplateFont = plan.template === "code" ? "peesuto-code" : "noto-sans-sc";
+  let font: TemplateFont = chooseTemplateFont(plan.template, [], plan.font);
   let m = await open(font);
-  if (font === "peesuto-code") {
-    // A glyph the code font lacks (emoji aside) sets the whole card in Noto Sans SC instead.
-    const chosen = chooseTemplateFont(plan.template, texts.flatMap((text) => m.unmapped(text, 40, false)));
+  if (font !== "noto-sans-sc") {
+    // A glyph Maple Mono lacks (emoji aside) sets the whole card in Noto Sans SC instead.
+    const chosen = chooseTemplateFont(plan.template, texts.flatMap((text) => m.unmapped(text, 40, false)), plan.font);
     if (chosen !== font) { await m.close(); font = chosen; m = await open(font); }
   }
   try {

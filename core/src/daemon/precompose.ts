@@ -77,6 +77,7 @@ export interface KeyParts {
   readonly animate: string;
   readonly preferences: Readonly<Record<string, string>>;
   readonly disabled: readonly string[];
+  readonly font: string;
   readonly privacy: string;
   readonly precompose: PrecomposeConfig;
   /** The decider precompose used: "rules", or the configured one when useModel. */
@@ -89,10 +90,10 @@ export function precomposeKey(p: KeyParts): string {
 }
 
 /** The key parts of a render request, from the action spec and its input. */
-export function renderKeyParts(spec: ActionSpec, input: ActionInput): Pick<KeyParts, "text" | "output" | "frame" | "animate" | "preferences" | "disabled"> | null {
+export function renderKeyParts(spec: ActionSpec, input: ActionInput): Pick<KeyParts, "text" | "output" | "frame" | "animate" | "preferences" | "disabled" | "font"> | null {
   if (spec.needs !== "render" || !(PRECOMPOSE_OUTPUTS as readonly string[]).includes(spec.output)) return null;
   const output = spec.output as PrecomposeOutput;
-  return { text: input.text, output, frame: normalizedFrame(output, input.aspect ?? spec.render?.aspect), animate: spec.render?.animate ?? "auto", preferences: { ...(input.templatePreferences ?? {}) }, disabled: templateIdList(input.disabledTemplates) };
+  return { text: input.text, output, frame: normalizedFrame(output, input.aspect ?? spec.render?.aspect), animate: spec.render?.animate ?? "auto", preferences: { ...(input.templatePreferences ?? {}) }, disabled: templateIdList(input.disabledTemplates), font: typeof input.templateFont === "string" ? input.templateFont : "" };
 }
 
 /** A version of the code that renders: the bundle's VERSION, else a hash of core/src, else the daemon version. */

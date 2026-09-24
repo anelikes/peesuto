@@ -174,6 +174,12 @@ extension SettingsStore {
     public var templatePreferences: [String: String]? {
         values["template_styles"] as? [String: String]
     }
+    /// The card typeface: "maple" (Maple Mono, the default) or "noto" (Noto Sans SC). Code is always Maple Mono.
+    public var templateFont: String {
+        let value = values["template_font"] as? String
+        return value == "noto" ? "noto" : "maple"
+    }
+    public func setTemplateFont(_ font: String) throws { try set("template_font", value: font == "noto" ? "noto" : "maple") }
     /// Templates the user turned off for automatic choice, sorted; empty when none.
     public var disabledTemplates: [String] {
         Set(values["templates_disabled"] as? [String] ?? []).sorted()
@@ -190,6 +196,7 @@ extension SettingsStore {
     }
     /// Every template on, no remembered styles.
     public func resetTemplates() throws {
+        try set("template_font", value: "maple")
         try set("templates_disabled", value: [String]())
         try set("template_styles", value: [String: String]())
     }
