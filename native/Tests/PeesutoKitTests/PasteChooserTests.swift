@@ -3,8 +3,8 @@ import XCTest
 
 final class PasteChooserTests: XCTestCase {
     func testAcceleratorsMapToChoices() {
-        XCTAssertEqual(PasteChooser.key(keyCode: 36, characters: "\r"), .choose(.image))
-        XCTAssertEqual(PasteChooser.key(keyCode: 76, characters: "\u{3}"), .choose(.image), "keypad Enter")
+        XCTAssertEqual(PasteChooser.key(keyCode: 36, characters: "\r"), .activate)
+        XCTAssertEqual(PasteChooser.key(keyCode: 76, characters: "\u{3}"), .activate, "keypad Enter")
         XCTAssertEqual(PasteChooser.key(keyCode: 5, characters: "g"), .choose(.gif))
         XCTAssertEqual(PasteChooser.key(keyCode: 46, characters: "m"), .choose(.video))
         XCTAssertEqual(PasteChooser.key(keyCode: 12, characters: "Q"), .choose(.qr), "shift does not matter")
@@ -25,6 +25,51 @@ final class PasteChooserTests: XCTestCase {
         XCTAssertEqual(PasteChooser.key(keyCode: 5, characters: "п"), .choose(.gif))
         XCTAssertEqual(PasteChooser.key(keyCode: 35, characters: nil), .choose(.pin))
         XCTAssertEqual(PasteChooser.key(keyCode: 37, characters: "д"), .choose(.lyric))
+    }
+
+    func testNavigationKeysMoveTheHighlight() {
+        // Arrows by key code, whatever the input method types for them.
+        XCTAssertEqual(PasteChooser.key(keyCode: 126, characters: "\u{F700}"), .move(.previous))
+        XCTAssertEqual(PasteChooser.key(keyCode: 125, characters: "\u{F701}"), .move(.next))
+        XCTAssertEqual(PasteChooser.key(keyCode: 125, characters: nil), .move(.next))
+        XCTAssertEqual(PasteChooser.key(keyCode: 48, characters: "\t"), .move(.next))
+        XCTAssertEqual(PasteChooser.key(keyCode: 48, characters: "\t", shift: true), .move(.previous))
+        XCTAssertEqual(PasteChooser.key(keyCode: 115, characters: nil), .move(.first))
+        XCTAssertEqual(PasteChooser.key(keyCode: 119, characters: nil), .move(.last))
+    }
+
+    func testHighlightStartsOnTheFirstEnabledRow() {
+        XCTAssertEqual(PasteChooser.initialHighlight(clipboard: .text), .image, "Return still means the image")
+        XCTAssertEqual(PasteChooser.initialHighlight(clipboard: .image), .pin, "only pin and history apply to an image")
+        XCTAssertEqual(PasteChooser.initialHighlight(clipboard: .none), .history)
+    }
+
+    func testHighlightMovesOverEnabledRowsAndStopsAtTheEnds() {
+        func step(_ move: ChooserMove, _ from: PasteChoice?, _ clipboard: ChooserClipboard = .text) -> PasteChoice? {
+            PasteChooser.highlight(after: move, from: from, clipboard: clipboard)
+        }
+        // Down walks the rows in order.
+        var walked: [PasteChoice] = [.image]
+        while let next = step(.next, walked.last), next != walked.last { walked.append(next) }
+        XCTAssertEqual(walked, PasteChooser.order)
+        // Clamped, no wrap.
+        XCTAssertEqual(step(.next, .history), .history)
+        XCTAssertEqual(step(.previous, .image), .image)
+        XCTAssertEqual(step(.previous, .gif), .image)
+        XCTAssertEqual(step(.first, .qr), .image)
+        XCTAssertEqual(step(.last, .gif), .history)
+        // Disabled rows are skipped: an image on the clipboard leaves pin and history.
+        XCTAssertEqual(step(.next, .pin, .image), .history)
+        XCTAssertEqual(step(.next, .history, .image), .history)
+        XCTAssertEqual(step(.previous, .history, .image), .pin)
+        XCTAssertEqual(step(.previous, .pin, .image), .pin)
+        // A highlight on a row that is not enabled (or none) restarts from the enabled rows.
+        XCTAssertEqual(step(.next, .image, .image), .pin)
+        XCTAssertEqual(step(.next, nil, .image), .pin)
+        XCTAssertEqual(step(.last, nil, .image), .history)
+        // Only history.
+        XCTAssertEqual(step(.previous, .history, .none), .history)
+        XCTAssertEqual(step(.next, .history, .none), .history)
     }
 
     func testChoicesRunTheMediaShortcuts() {

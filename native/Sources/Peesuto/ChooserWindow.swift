@@ -24,10 +24,13 @@ final class ChooserPanel: NSPanel {
     let excerpt: String?
     @Published var thumbnail: NSImage?
     @Published var rendering = false
-    @Published var hovered: PasteChoice?
+    /// The row Return runs: moved by the arrow keys and the pointer, and the
+    /// first enabled row (the image, given text) when the chooser opens.
+    @Published var highlighted: PasteChoice?
 
     init(clipboard: ChooserClipboard, excerpt: String?, thumbnail: NSImage?) {
         self.clipboard = clipboard; self.excerpt = excerpt; self.thumbnail = thumbnail
+        highlighted = PasteChooser.initialHighlight(clipboard: clipboard)
     }
 }
 
@@ -124,10 +127,20 @@ final class ChooserPanel: NSPanel {
     }
 
     private func handle(_ event: NSEvent) -> Bool {
-        guard !event.isARepeat else { return true }
-        switch PasteChooser.key(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers) {
+        let key = PasteChooser.key(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers,
+                                   shift: event.modifierFlags.contains(.shift))
+        // Holding an arrow keeps moving; a held letter or Return acts once.
+        if event.isARepeat {
+            guard case .move? = key else { return true }
+        }
+        switch key {
         case .cancel?: close()
         case .choose(let choice)?: choose(choice)
+        case .activate?:
+            if let choice = state?.highlighted { choose(choice) } else { NSSound.beep() }
+        case .move(let move)?:
+            guard let state else { break }
+            state.highlighted = PasteChooser.highlight(after: move, from: state.highlighted, clipboard: state.clipboard)
         case nil: break
         }
         return true
@@ -215,8 +228,8 @@ struct ChooserView: View {
 
     private func row(_ choice: PasteChoice) -> some View {
         let enabled = PasteChooser.isEnabled(choice, clipboard: state.clipboard)
-        // Return picks the image, so it reads as the default until the pointer is on another row.
-        let highlighted = enabled && (state.hovered.map { $0 == choice } ?? (choice == .image))
+        // The row Return runs; the arrow keys and the pointer move it.
+        let highlighted = enabled && state.highlighted == choice
         return Button { choose(choice) } label: {
             HStack(spacing: 10) {
                 Image(systemName: symbol(choice)).font(.system(size: 13))
@@ -233,9 +246,11 @@ struct ChooserView: View {
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
         .onHover { inside in
-            if inside { state.hovered = choice } else if state.hovered == choice { state.hovered = nil }
+            // Like a menu, the highlight stays on the last row the pointer was over.
+            if inside && enabled { state.highlighted = choice }
         }
         .accessibilityLabel(title(choice))
+        .accessibilityAddTraits(highlighted ? .isSelected : [])
         .accessibilityHint(choice.keyLabel)
     }
 

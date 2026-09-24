@@ -48,8 +48,25 @@ public enum ChooserClipboard: Equatable, Sendable {
 
 /// A key press in the chooser.
 public enum ChooserKey: Equatable, Sendable {
+    /// A letter accelerator: runs its row at once, wherever the highlight is.
     case choose(PasteChoice)
+    /// Return or keypad Enter: runs the highlighted row.
+    case activate
+    /// Moves the highlight.
+    case move(ChooserMove)
     case cancel
+}
+
+/// A highlight movement in the chooser.
+public enum ChooserMove: Equatable, Sendable {
+    /// ↑ or ⇧Tab.
+    case previous
+    /// ↓ or Tab.
+    case next
+    /// Home or Page Up.
+    case first
+    /// End or Page Down.
+    case last
 }
 
 /// The chooser's rules, kept apart from AppKit so they can be tested.
@@ -61,11 +78,18 @@ public enum PasteChooser {
     /// layout types (ignoring modifiers, so a still-held ⌥ from ⌥V does not
     /// matter), and by the physical ANSI key when that is not a Latin letter
     /// (an input method or a non-Latin layout). Return and keypad Enter pick
-    /// the image, Esc cancels. Anything else is ignored.
-    public static func key(keyCode: UInt16, characters: String?) -> ChooserKey? {
+    /// the highlighted row, the arrows (by key code, so any input method
+    /// works), Tab, Home and End move the highlight, Esc cancels. Anything
+    /// else is ignored.
+    public static func key(keyCode: UInt16, characters: String?, shift: Bool = false) -> ChooserKey? {
         switch keyCode {
-        case 53: return .cancel             // Escape
-        case 36, 76: return .choose(.image) // Return, keypad Enter
+        case 53: return .cancel                          // Escape
+        case 36, 76: return .activate                    // Return, keypad Enter
+        case 126: return .move(.previous)                // ↑
+        case 125: return .move(.next)                    // ↓
+        case 48: return .move(shift ? .previous : .next) // Tab, ⇧Tab
+        case 115, 116: return .move(.first)              // Home, Page Up
+        case 119, 121: return .move(.last)               // End, Page Down
         default: break
         }
         if let character = characters?.lowercased(), character.count == 1,
@@ -94,6 +118,29 @@ public enum PasteChooser {
         case .history: return true
         case .pin: return clipboard != .none
         default: return clipboard == .text
+        }
+    }
+
+    /// The row highlighted when the chooser opens: the first enabled one, so
+    /// Return means the image whenever there is text.
+    public static func initialHighlight(clipboard: ChooserClipboard) -> PasteChoice? {
+        order.first { isEnabled($0, clipboard: clipboard) }
+    }
+
+    /// The highlight after `move`, skipping disabled rows and stopping at the
+    /// ends (like a list, no wrapping). With nothing highlighted it starts
+    /// from the first enabled row.
+    public static func highlight(after move: ChooserMove, from current: PasteChoice?, clipboard: ChooserClipboard) -> PasteChoice? {
+        let enabled = order.filter { isEnabled($0, clipboard: clipboard) }
+        guard let first = enabled.first, let last = enabled.last else { return nil }
+        guard let current, let index = enabled.firstIndex(of: current) else {
+            return move == .last ? last : first
+        }
+        switch move {
+        case .first: return first
+        case .last: return last
+        case .previous: return enabled[max(index - 1, 0)]
+        case .next: return enabled[min(index + 1, enabled.count - 1)]
         }
     }
 }

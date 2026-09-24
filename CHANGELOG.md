@@ -11,6 +11,7 @@ section here becomes one.
 - **Lyric motion (文字 PV)** — the lyrics template becomes Lyric motion and works on any text, not only lyrics: press **L** in Paste as… (⌥V) for kinetic type of whatever you copied. Prose is cut into screens at its sentences and clauses (never mid-word), held long enough to read; lyrics, poems and LRC keep their own lines. You get an MP4, or a GIF when ffmpeg is not installed (the result says so). It is never chosen automatically any more, so copied lyrics and poems now come out as text or document cards unless you ask; switch any result to Lyric motion from its template menu, or give it its own shortcut in Settings › Shortcuts. Code, tables and very long text get a clear message instead of a video.
 
 ### Improved
+- **Arrow keys in Paste as…** — ↑ and ↓ (and Tab, Home, End) move the highlight in the ⌥V chooser, skipping rows that do not apply, and Return runs the highlighted row. It starts on Image, so Return alone still pastes an image; the letter keys still run their row at once, and the pointer moves the highlight too.
 - **Lyrics with paint** — in lyric posters and videos, emphasised words now shine: gold gradient ink with a soft glow in the Stage style, a heavier vermilion in Paper; letters come into focus as they appear, and Stage's big disc is a soft light.
 - **Finer code and terminal backdrops** — the Indigo night colour field behind code and terminal cards is now drawn at the card's full resolution with its full grain, instead of a small texture stretched to fit; the faint diagonal weave in its gradients is gone.
 
