@@ -33,7 +33,7 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { decideTemplate } from "../core/src/templates/decide.ts";
 import { parseTemplates } from "../core/src/templates/parse.ts";
-import { TEMPLATE_REGISTRY } from "../core/src/templates/registry.ts";
+import { MANUAL_TEMPLATES, TEMPLATE_REGISTRY } from "../core/src/templates/registry.ts";
 import { renderTemplate } from "../core/src/templates/render.ts";
 import type { TemplateId, VariantId } from "../core/src/templates/types.ts";
 import { SAMPLES, type Lang } from "./site-templates.ts";
@@ -65,7 +65,8 @@ for (const t of templates) {
   if (!sample) { console.warn(`warning: no sample for "${t.id}" in scripts/site-templates.ts; it is left out of the gallery`); continue; }
   for (const lang of LANGS) {
     const parsed = parseTemplates(sample[lang]);
-    const ok = t.id === "qr" ? parsed.candidates.has("qr") : parsed.preferred === t.id;
+    // Manual templates (QR, lyric motion) are never preferred; they only need to be available.
+    const ok = MANUAL_TEMPLATES.includes(t.id) ? parsed.candidates.has(t.id) && parsed.preferred !== t.id : parsed.preferred === t.id;
     if (!ok) problems.push(`${t.id} (${lang}): the rules pick ${parsed.preferred} (candidates: ${[...parsed.candidates.keys()].join(", ")})`);
   }
 }

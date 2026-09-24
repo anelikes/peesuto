@@ -2,1617 +2,1617 @@
  "files": {
   "en/changelog-classic-wide.webp": {
    "input": "27fe9e2c50537754",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 726,
    "bytes": 18430
   },
   "en/changelog-classic.webp": {
    "input": "e83419ce76547d25",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14630
   },
   "en/changelog-editorial.webp": {
    "input": "0a1b79a70218ca5a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 13094
   },
   "en/changelog.mp4": {
    "input": "1de3dab9d27ff630",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 30973
   },
   "en/chat-classic-wide.webp": {
    "input": "690867653e2e961c",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 724,
    "bytes": 19488
   },
   "en/chat-classic.webp": {
    "input": "5ee0ca1619789b95",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15588
   },
   "en/chat-editorial.webp": {
    "input": "95249978fa9d1f42",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14568
   },
   "en/chat.mp4": {
    "input": "aa132fffe4457903",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 33709
   },
   "en/code-classic-wide.webp": {
    "input": "041286a5b711d7bf",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 543,
    "bytes": 20684
   },
   "en/code-classic.webp": {
    "input": "47cfa5d97f7e0031",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14490
   },
   "en/code-editorial.webp": {
    "input": "6373f330d7bc1467",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10290
   },
   "en/code.mp4": {
    "input": "c98afccf20969dc5",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 31140
   },
   "en/comparison-classic-wide.webp": {
    "input": "5af9919174d26dec",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 16236
   },
   "en/comparison-classic.webp": {
    "input": "32c9c9aab2d86c6a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 9974
   },
   "en/comparison-editorial.webp": {
    "input": "ab63195fae0e5b2d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11748
   },
   "en/comparison.mp4": {
    "input": "874c969c969d5b95",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22218
   },
   "en/diagram-classic-wide.webp": {
    "input": "8c427398500ce8ee",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 6638
   },
   "en/diagram-classic.webp": {
    "input": "ec2df27609fc8329",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 4644
   },
   "en/diagram-editorial.webp": {
    "input": "03bf026144c8f551",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7368
   },
   "en/diagram.mp4": {
    "input": "60064653403905c4",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15451
   },
   "en/diff-classic-wide.webp": {
    "input": "ce4f8437dbb4d6c7",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 17380
   },
   "en/diff-classic.webp": {
    "input": "fa955a7f2a7c0a85",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10706
   },
   "en/diff-editorial.webp": {
    "input": "cc1eeacf2d9730b6",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11024
   },
   "en/diff.mp4": {
    "input": "cf13a109c71a207f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 27454
   },
   "en/document-classic-wide.webp": {
    "input": "9ef120c49ad94eda",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 794,
    "bytes": 31888
   },
   "en/document-classic.webp": {
    "input": "ccef190814c93912",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22148
   },
   "en/document-editorial.webp": {
    "input": "255574003a01c324",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22662
   },
   "en/document.mp4": {
    "input": "b784e13a20a5f861",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 40092
   },
   "en/error-classic-wide.webp": {
    "input": "6542a6c1102d7bc1",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 697,
    "bytes": 35112
   },
   "en/error-classic.webp": {
    "input": "f68ea7f117ed0523",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 25238
   },
   "en/error-editorial.webp": {
    "input": "6cc2ee505544c385",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 27544
   },
   "en/error.mp4": {
    "input": "48d99b72bcabab08",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 47868
   },
   "en/info-classic-wide.webp": {
    "input": "96e1881694c1b374",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 791,
    "bytes": 24302
   },
   "en/info-classic.webp": {
    "input": "0d08668198899546",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14608
   },
   "en/info-editorial.webp": {
    "input": "0e1c0ee3b3996ddc",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14316
   },
   "en/info.mp4": {
    "input": "315eb5a397cfba28",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 31623
   },
   "en/list-classic-wide.webp": {
    "input": "d7d38f53da7444be",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 13470
   },
   "en/list-classic.webp": {
    "input": "2e634058441f384c",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 8972
   },
   "en/list-editorial.webp": {
    "input": "96c58c06f448ff73",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 8972
   },
   "en/list.mp4": {
    "input": "1547435e14e10ace",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 19142
   },
   "en/lyrics-classic-wide.webp": {
-   "input": "3b8d4b317579d0a6",
-   "renderer": "c6529a670cdfac3a",
+   "input": "f9df12d05ab717e9",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
-   "bytes": 43358
+   "bytes": 40538
   },
   "en/lyrics-classic.webp": {
-   "input": "a05445b134794d28",
-   "renderer": "c6529a670cdfac3a",
+   "input": "4b7ee720e3c5bffa",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
-   "bytes": 32208
+   "bytes": 36582
   },
   "en/lyrics-editorial.webp": {
-   "input": "962d160264921e59",
-   "renderer": "c6529a670cdfac3a",
+   "input": "bcae6b282f3e4438",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
-   "bytes": 20032
+   "bytes": 13174
   },
   "en/lyrics.mp4": {
-   "input": "643fb1903bbf7da8",
-   "renderer": "c6529a670cdfac3a",
+   "input": "6962119d15e856ae",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
-   "bytes": 299995
+   "bytes": 412700
   },
   "en/qr-classic-wide.webp": {
    "input": "99a871aac66edb95",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 7454
   },
   "en/qr-classic.webp": {
    "input": "e00abb150e988bca",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 6988
   },
   "en/qr-editorial.webp": {
    "input": "2cb487b70defee98",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10538
   },
   "en/qr.mp4": {
    "input": "e9dc5a8f3e73372c",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 28565
   },
   "en/quote-classic-wide.webp": {
    "input": "d633e07cfe213668",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 14728
   },
   "en/quote-classic.webp": {
    "input": "cbc896cd29f31dda",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10872
   },
   "en/quote-editorial.webp": {
    "input": "970bdc01d33f456d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 17232
   },
   "en/quote.mp4": {
    "input": "acb1716e39aae0d0",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 19354
   },
   "en/stat-classic-wide.webp": {
    "input": "cdb03436213ae522",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 13878
   },
   "en/stat-classic.webp": {
    "input": "505694cce13260d4",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11572
   },
   "en/stat-editorial.webp": {
    "input": "fff6b364871a1c62",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 9684
   },
   "en/stat.mp4": {
    "input": "f7226b9d6ee8a865",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 20944
   },
   "en/stats-classic-wide.webp": {
    "input": "7a906342515664c4",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 762,
    "bytes": 18418
   },
   "en/stats-classic.webp": {
    "input": "3baf57cc23973510",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 12788
   },
   "en/stats-editorial.webp": {
    "input": "95483cf945a4e727",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 16024
   },
   "en/stats.mp4": {
    "input": "4b947537a4d332c2",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 30769
   },
   "en/table-classic-wide.webp": {
    "input": "1a09aafbfc6f8ee3",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 11374
   },
   "en/table-classic.webp": {
    "input": "b2404bc52f8688bd",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 9558
   },
   "en/table-editorial.webp": {
    "input": "c0cf8ee88a9b0fbc",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7260
   },
   "en/table.mp4": {
    "input": "f44f35afb0e94825",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22269
   },
   "en/terminal-classic-wide.webp": {
    "input": "5c6847800020ca64",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 582,
    "bytes": 14288
   },
   "en/terminal-classic.webp": {
    "input": "2bef15edaaf1f110",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11744
   },
   "en/terminal-editorial.webp": {
    "input": "75a57ea00813751d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7704
   },
   "en/terminal.mp4": {
    "input": "17856d0ae86996e8",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 26681
   },
   "en/text-classic-wide.webp": {
    "input": "e4c477616d66f82c",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 13116
   },
   "en/text-classic.webp": {
    "input": "f94676abb02aa8a8",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 9382
   },
   "en/text-editorial.webp": {
    "input": "a9aa369541141ff9",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 12008
   },
   "en/text-poster.webp": {
    "input": "dd55bea2c48b0a51",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 20738
   },
   "en/text.mp4": {
    "input": "999fdb4315162f68",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 19706
   },
   "en/timeline-classic-wide.webp": {
    "input": "af8eadb0f4ec71a0",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 678,
    "bytes": 18488
   },
   "en/timeline-classic.webp": {
    "input": "5cb0e2420f3f6375",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14954
   },
   "en/timeline-editorial.webp": {
    "input": "d671021a98ac897f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 12906
   },
   "en/timeline.mp4": {
    "input": "e1c4d05f19a29d80",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 29389
   },
   "ja/changelog-classic-wide.webp": {
    "input": "fdd884ead57efd10",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 726,
    "bytes": 14754
   },
   "ja/changelog-classic.webp": {
    "input": "41f52a540e9d69fa",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11592
   },
   "ja/changelog-editorial.webp": {
    "input": "36155c8aa0a4492f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10240
   },
   "ja/changelog.mp4": {
    "input": "751063849d436d73",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 25878
   },
   "ja/chat-classic-wide.webp": {
    "input": "ec687c3179988e65",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 670,
    "bytes": 20658
   },
   "ja/chat-classic.webp": {
    "input": "022aadb11da2047f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14142
   },
   "ja/chat-editorial.webp": {
    "input": "64d0924697e12c71",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15202
   },
   "ja/chat.mp4": {
    "input": "2784163cc7342f5f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 28522
   },
   "ja/code-classic-wide.webp": {
    "input": "78c5a6b1d11981f6",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 585,
    "bytes": 26166
   },
   "ja/code-classic.webp": {
    "input": "949da03b86b67779",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 17328
   },
   "ja/code-editorial.webp": {
    "input": "5535aa6e46525bee",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 12826
   },
   "ja/code.mp4": {
    "input": "5009acc869df2454",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 32697
   },
   "ja/comparison-classic-wide.webp": {
    "input": "49142712e6432db5",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 14314
   },
   "ja/comparison-classic.webp": {
    "input": "8e92d9c8ed0278ca",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 12716
   },
   "ja/comparison-editorial.webp": {
    "input": "5ba0cecc925a34fa",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 13232
   },
   "ja/comparison.mp4": {
    "input": "2b8017b995673f01",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 27375
   },
   "ja/diagram-classic-wide.webp": {
    "input": "be3731caaae2051e",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 6016
   },
   "ja/diagram-classic.webp": {
    "input": "7ca66b78856a5714",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 4234
   },
   "ja/diagram-editorial.webp": {
    "input": "41cbb32b04b0aa4f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 5376
   },
   "ja/diagram.mp4": {
    "input": "cfd8fde22a877d06",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14420
   },
   "ja/diff-classic-wide.webp": {
    "input": "16ebd5e03cf65a4d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 795,
    "bytes": 37284
   },
   "ja/diff-classic.webp": {
    "input": "f20c2faf2063dd62",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22312
   },
   "ja/diff-editorial.webp": {
    "input": "528a678254e6c699",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 21540
   },
   "ja/diff.mp4": {
    "input": "c81e11a289a7fb67",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 53786
   },
   "ja/document-classic-wide.webp": {
    "input": "34e082d070084ad5",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 740,
    "bytes": 29106
   },
   "ja/document-classic.webp": {
    "input": "561cd02fca707f6e",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 20992
   },
   "ja/document-editorial.webp": {
    "input": "73193f69b8a2ca4a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22260
   },
   "ja/document.mp4": {
    "input": "84211c879e6af124",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 42850
   },
   "ja/error-classic-wide.webp": {
    "input": "3c43320b38deb512",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 966,
    "bytes": 46904
   },
   "ja/error-classic.webp": {
    "input": "9e0336a0cf348b4f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 668,
    "bytes": 30238
   },
   "ja/error-editorial.webp": {
    "input": "f20c2af54c810b66",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 642,
    "bytes": 31648
   },
   "ja/error.mp4": {
    "input": "13304a49cd84f372",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 68219
   },
   "ja/info-classic-wide.webp": {
    "input": "95b10738043a9e41",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 784,
    "bytes": 24150
   },
   "ja/info-classic.webp": {
    "input": "27dfb34bca78adbd",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14602
   },
   "ja/info-editorial.webp": {
    "input": "4d72198dccb974bf",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14984
   },
   "ja/info.mp4": {
    "input": "fdcbfaec239de61d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 28616
   },
   "ja/list-classic-wide.webp": {
    "input": "64601dabfb35e4ac",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 11138
   },
   "ja/list-classic.webp": {
    "input": "850253a9e5b4df90",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7858
   },
   "ja/list-editorial.webp": {
    "input": "b98aaae08721ab46",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7864
   },
   "ja/list.mp4": {
    "input": "2d5db44c53029893",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 17178
   },
   "ja/lyrics-classic-wide.webp": {
    "input": "2e9594d6aff66a78",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 36184
   },
   "ja/lyrics-classic.webp": {
    "input": "7b8ce24b51323a83",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 43294
   },
   "ja/lyrics-editorial.webp": {
    "input": "c47bc93c4cc0a393",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 20616
   },
   "ja/lyrics.mp4": {
    "input": "b2e78dacec605f1d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 243692
   },
   "ja/qr-classic-wide.webp": {
    "input": "d77b61c525ff8557",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 7786
   },
   "ja/qr-classic.webp": {
    "input": "30ffd695c3d020a3",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7096
   },
   "ja/qr-editorial.webp": {
    "input": "0dd56d123bdde558",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10766
   },
   "ja/qr.mp4": {
    "input": "ac5a46049439529c",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 29880
   },
   "ja/quote-classic-wide.webp": {
    "input": "09af97fa410b2bc8",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 8490
   },
   "ja/quote-classic.webp": {
    "input": "6b002f4dfc7fd6ed",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 5650
   },
   "ja/quote-editorial.webp": {
    "input": "1299937abf52c9c8",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 9102
   },
   "ja/quote.mp4": {
    "input": "a2aae2114fd9e32a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10631
   },
   "ja/stat-classic-wide.webp": {
    "input": "e31b71ff4c5cfb44",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 13122
   },
   "ja/stat-classic.webp": {
    "input": "527f9fe62b3d6119",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11282
   },
   "ja/stat-editorial.webp": {
    "input": "6d2792371c0681dd",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 9432
   },
   "ja/stat.mp4": {
    "input": "518e7fc66bc4ad19",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 20944
   },
   "ja/stats-classic-wide.webp": {
    "input": "abf411c9d0ae4dcc",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 762,
    "bytes": 18638
   },
   "ja/stats-classic.webp": {
    "input": "256d03225d523a01",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 13188
   },
   "ja/stats-editorial.webp": {
    "input": "bba8ce9147310128",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15968
   },
   "ja/stats.mp4": {
    "input": "122f5044aafbfada",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 31321
   },
   "ja/table-classic-wide.webp": {
    "input": "dd158cd11fa42f0b",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 12458
   },
   "ja/table-classic.webp": {
    "input": "7c2bd8b8af7eeb4d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10340
   },
   "ja/table-editorial.webp": {
    "input": "5a4545429b88b4de",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7794
   },
   "ja/table.mp4": {
    "input": "75d3c7fefe589416",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22741
   },
   "ja/terminal-classic-wide.webp": {
    "input": "e314ed2a41d99055",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 582,
    "bytes": 18234
   },
   "ja/terminal-classic.webp": {
    "input": "97ab5b926af01329",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14860
   },
   "ja/terminal-editorial.webp": {
    "input": "39981c81810c3441",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10592
   },
   "ja/terminal.mp4": {
    "input": "26527c91c7701b30",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 32984
   },
   "ja/text-classic-wide.webp": {
    "input": "bd25e3ee540c63b5",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 15688
   },
   "ja/text-classic.webp": {
    "input": "d603da4aade9fc49",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11094
   },
   "ja/text-editorial.webp": {
    "input": "9b0fc3a230b796e1",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14578
   },
   "ja/text-poster.webp": {
    "input": "462f60ef4011de3a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 25116
   },
   "ja/text.mp4": {
    "input": "2597a2ecadf2fb74",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22885
   },
   "ja/timeline-classic-wide.webp": {
    "input": "a38882f5da17aea3",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 678,
    "bytes": 18728
   },
   "ja/timeline-classic.webp": {
    "input": "6c7c44b67e5fcb6f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15296
   },
   "ja/timeline-editorial.webp": {
    "input": "3f25b44ddca9ee0e",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 13446
   },
   "ja/timeline.mp4": {
    "input": "dca30ae1649bde10",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 30539
   },
   "zh/changelog-classic-wide.webp": {
    "input": "f1a6ab3e4dc2b128",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 726,
    "bytes": 15054
   },
   "zh/changelog-classic.webp": {
    "input": "420c54636ea2a43c",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11726
   },
   "zh/changelog-editorial.webp": {
    "input": "2141bc64720455eb",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10564
   },
   "zh/changelog.mp4": {
    "input": "e96bc9728ebacf2d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 24177
   },
   "zh/chat-classic-wide.webp": {
    "input": "2dae157e289b4d15",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 617,
    "bytes": 18334
   },
   "zh/chat-classic.webp": {
    "input": "42cf43119f2175ac",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14684
   },
   "zh/chat-editorial.webp": {
    "input": "b365a9f44f563bdc",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 13950
   },
   "zh/chat.mp4": {
    "input": "a1bc48b7983e6d25",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 31621
   },
   "zh/code-classic-wide.webp": {
    "input": "058069c4d9bdb340",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 22162
   },
   "zh/code-classic.webp": {
    "input": "fdfae6d9cbf9027e",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 17846
   },
   "zh/code-editorial.webp": {
    "input": "17d83a706365f66d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15072
   },
   "zh/code.mp4": {
    "input": "9298bfb7a35613e5",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 36847
   },
   "zh/comparison-classic-wide.webp": {
    "input": "5f618ebd415f7b12",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 14730
   },
   "zh/comparison-classic.webp": {
    "input": "2443657e82f9fdcd",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11278
   },
   "zh/comparison-editorial.webp": {
    "input": "f8e1828f64cf3aa1",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11700
   },
   "zh/comparison.mp4": {
    "input": "406fb939cf8c707f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 24325
   },
   "zh/diagram-classic-wide.webp": {
    "input": "b6e16ce0b702165f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 6886
   },
   "zh/diagram-classic.webp": {
    "input": "379b12b7a7ffc0fd",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 5508
   },
   "zh/diagram-editorial.webp": {
    "input": "eaada7d08262f58b",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 5672
   },
   "zh/diagram.mp4": {
    "input": "82ae122c11b352ac",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15985
   },
   "zh/diff-classic-wide.webp": {
    "input": "7acb9affd93499d8",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 850,
    "bytes": 57036
   },
   "zh/diff-classic.webp": {
    "input": "fc4d46f52ddbc37b",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 33966
   },
   "zh/diff-editorial.webp": {
    "input": "d74b7ba7bd4f3481",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 34874
   },
   "zh/diff.mp4": {
    "input": "18dd1e4ae8025fdf",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 66308
   },
   "zh/document-classic-wide.webp": {
    "input": "580d8154c8fec81d",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 685,
    "bytes": 24786
   },
   "zh/document-classic.webp": {
    "input": "63bab309116e9376",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22060
   },
   "zh/document-editorial.webp": {
    "input": "14daf3feaef156a5",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 19884
   },
   "zh/document.mp4": {
    "input": "095af0222f7899c7",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 43371
   },
   "zh/error-classic-wide.webp": {
    "input": "fafe7c6bd95919b8",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 914,
    "bytes": 60930
   },
   "zh/error-classic.webp": {
    "input": "6f6a3d96b9282bf2",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 37644
   },
   "zh/error-editorial.webp": {
    "input": "6f0165ee497bca21",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 38698
   },
   "zh/error.mp4": {
    "input": "84102af84dfbf3ad",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 75592
   },
   "zh/info-classic-wide.webp": {
    "input": "dd9c1faf36d66e96",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 734,
    "bytes": 24036
   },
   "zh/info-classic.webp": {
    "input": "350b92db6b6163a2",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14612
   },
   "zh/info-editorial.webp": {
    "input": "e30eadb2048a6dbe",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 13998
   },
   "zh/info.mp4": {
    "input": "5b6ede061db33c96",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 28942
   },
   "zh/list-classic-wide.webp": {
    "input": "21e90bf926cb7c89",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 15310
   },
   "zh/list-classic.webp": {
    "input": "80006834fe78ca18",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10358
   },
   "zh/list-editorial.webp": {
    "input": "815dc704ef9ec40c",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10974
   },
   "zh/list.mp4": {
    "input": "8e744fc65344c988",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 22616
   },
   "zh/lyrics-classic-wide.webp": {
-   "input": "9b89d9fa07876c3f",
-   "renderer": "c6529a670cdfac3a",
+   "input": "428ba04cd4787ccd",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
-   "bytes": 21250
+   "bytes": 44768
   },
   "zh/lyrics-classic.webp": {
-   "input": "07c880f3e3f4536d",
-   "renderer": "c6529a670cdfac3a",
+   "input": "61cddedea1f9eff8",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
-   "bytes": 31466
+   "bytes": 36950
   },
   "zh/lyrics-editorial.webp": {
-   "input": "cfc5da2a83b24b9a",
-   "renderer": "c6529a670cdfac3a",
+   "input": "71bbe902897e3db1",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
-   "bytes": 13566
+   "bytes": 24286
   },
   "zh/lyrics.mp4": {
-   "input": "f81b0ca64e42973a",
-   "renderer": "c6529a670cdfac3a",
+   "input": "d39172db007a21e9",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
-   "bytes": 239723
+   "bytes": 465800
   },
   "zh/qr-classic-wide.webp": {
    "input": "f70771076da0f47a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 7840
   },
   "zh/qr-classic.webp": {
    "input": "e3d1611cfdc7e59a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7358
   },
   "zh/qr-editorial.webp": {
    "input": "caabd082b9faca18",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10970
   },
   "zh/qr.mp4": {
    "input": "94a69c5e7b810430",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 29085
   },
   "zh/quote-classic-wide.webp": {
    "input": "c70f6161c3f1dfe8",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 11998
   },
   "zh/quote-classic.webp": {
    "input": "be455006fba9d5ce",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 8898
   },
   "zh/quote-editorial.webp": {
    "input": "ac6b96eae5e2837f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15184
   },
   "zh/quote.mp4": {
    "input": "4c69be633e220d93",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 17064
   },
   "zh/stat-classic-wide.webp": {
    "input": "c2de405b938c2299",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 11386
   },
   "zh/stat-classic.webp": {
    "input": "eb66b2aadaef23f6",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 10244
   },
   "zh/stat-editorial.webp": {
    "input": "3bc002985565036a",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 8806
   },
   "zh/stat.mp4": {
    "input": "5d3b6efeb2b4156b",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 18832
   },
   "zh/stats-classic-wide.webp": {
    "input": "95f10d206cb183f1",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 740,
    "bytes": 20170
   },
   "zh/stats-classic.webp": {
    "input": "1b44780b0855da23",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 13828
   },
   "zh/stats-editorial.webp": {
    "input": "fefc7367f7bea579",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 16342
   },
   "zh/stats.mp4": {
    "input": "f03c42ef9b2dfe46",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 32161
   },
   "zh/table-classic-wide.webp": {
    "input": "6ef3ae687179ca11",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 11840
   },
   "zh/table-classic.webp": {
    "input": "b1b9c8d6ad95bbbc",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 9876
   },
   "zh/table-editorial.webp": {
    "input": "5d1af1064abffbc1",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 7210
   },
   "zh/table.mp4": {
    "input": "0f5e0cd2f956ce75",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 21060
   },
   "zh/terminal-classic-wide.webp": {
    "input": "38f952af98b80536",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 582,
    "bytes": 19204
   },
   "zh/terminal-classic.webp": {
    "input": "e2ea220dc16f57e1",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15724
   },
   "zh/terminal-editorial.webp": {
    "input": "424c73f33597f0be",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 11272
   },
   "zh/terminal.mp4": {
    "input": "0dc4a0bc70d03fa3",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 34031
   },
   "zh/text-classic-wide.webp": {
    "input": "abad66b798eef59f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 540,
    "bytes": 19402
   },
   "zh/text-classic.webp": {
    "input": "1f14abde8994d24f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 15170
   },
   "zh/text-editorial.webp": {
    "input": "b9913385c0a2e0e2",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 20374
   },
   "zh/text-poster.webp": {
    "input": "0b1bdf6d077cc761",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 31226
   },
   "zh/text.mp4": {
    "input": "4319baade87d9945",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 32378
   },
   "zh/timeline-classic-wide.webp": {
    "input": "e92a29daaf3f9c7f",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 960,
    "height": 678,
    "bytes": 20602
   },
   "zh/timeline-classic.webp": {
    "input": "cbcb5cc0cae91b6b",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 16588
   },
   "zh/timeline-editorial.webp": {
    "input": "89fdd2686252ab90",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 14284
   },
   "zh/timeline.mp4": {
    "input": "f6eae0c11439dc89",
-   "renderer": "c6529a670cdfac3a",
+   "renderer": "5641bdbcdf9a78a0",
    "width": 640,
    "height": 640,
    "bytes": 31323

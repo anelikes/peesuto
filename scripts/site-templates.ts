@@ -9,8 +9,9 @@
  * the "Other" group.
  *
  * Every sample must be picked by the local rules as its own template
- * (`bun scripts/site-gallery.ts --check` verifies it without rendering). QR is
- * the exception: it is never chosen automatically, only by pressing Q.
+ * (`bun scripts/site-gallery.ts --check` verifies it without rendering). QR and
+ * Lyric motion are the exception: never chosen automatically, only by pressing
+ * Q or L.
  */
 export type Lang = "en" | "zh" | "ja";
 export type Localized = Readonly<Record<Lang, string>>;
@@ -20,7 +21,7 @@ export interface GroupInfo { readonly id: string; readonly name: Localized; read
 /** The overview's sections, in order. Unknown ids fall into "other". */
 export const GROUPS: readonly GroupInfo[] = [
   { id: "writing", name: { en: "Writing", zh: "写作", ja: "文章" },
-    blurb: { en: "Sentences, notes, quotes, lists and lyrics.", zh: "句子、笔记、引语、清单和歌词。", ja: "文、メモ、引用、リスト、歌詞。" },
+    blurb: { en: "Sentences, notes, quotes, lists and kinetic type.", zh: "句子、笔记、引语、清单和文字 PV。", ja: "文、メモ、引用、リスト、文字PV。" },
     ids: ["text", "document", "quote", "list", "comparison", "lyrics"] },
   { id: "developers", name: { en: "Developers", zh: "开发", ja: "開発" },
     blurb: { en: "Code, shells, diffs, stack traces and releases.", zh: "代码、终端、差异、报错和版本发布。", ja: "コード、ターミナル、差分、エラー、リリース。" },
@@ -54,7 +55,7 @@ export const JA_NAMES: Readonly<Record<string, string>> = {
   error: "エラー", "error-classic": "クラッシュレポート", "error-editorial": "コンソール",
   timeline: "スケジュール", "timeline-classic": "アジェンダ", "timeline-editorial": "マイルストーン",
   stats: "指標", "stats-classic": "ダッシュボード", "stats-editorial": "スコアボード",
-  lyrics: "歌詞", "lyrics-classic": "ステージ", "lyrics-editorial": "紙面",
+  lyrics: "文字PV", "lyrics-classic": "ステージ", "lyrics-editorial": "紙面",
   qr: "QR コード", "qr-classic": "シンプル", "qr-editorial": "カード",
 };
 
@@ -150,8 +151,8 @@ export const SAMPLES: Readonly<Record<string, Localized>> = {
     ja: "今週の数字\nDAU：12,480（+8%）\n売上：¥482万（−3%）\n継続率：41%\nNPS：61",
   },
   lyrics: {
-    en: "Streetlights hum/a quiet tune\nI walk you home the long way round\nYour *laughter* in my coat\n\nSo stay a little longer\nStay a little longer!",
-    zh: "春晓\n孟浩然\n春眠不觉晓，处处闻啼鸟。\n夜来风雨声，花落知多少。",
+    en: "The best tools disappear. They show up when you need them, and get out of the way when you don't. That is the whole idea.",
+    zh: "今天在地铁上看到一个小孩，把整张车窗当成画板，用手指画了一只猫。到站的时候，他对着那只猫挥手说再见。",
     ja: "改札を抜けて/走りだす\n*まぶしい*朝の光\n君の名前を呼んだ!\n\nまだ眠い町の灯り",
   },
   qr: {
@@ -180,7 +181,7 @@ export const BLURBS: Readonly<Record<string, Localized>> = {
   error: { en: "The error message first, your own frames marked.", zh: "报错信息放在最前，你自己的代码帧会被标出。", ja: "エラーメッセージを先頭に。自分のコードのフレームに印を。" },
   timeline: { en: "Times and dates, each with its event.", zh: "时间或日期，各自带着要做的事。", ja: "時刻や日付と、その予定。" },
   stats: { en: "Several numbers in a grid, with their changes.", zh: "几项数字排成网格，涨跌一目了然。", ja: "いくつもの数字をグリッドに。増減も一目で。" },
-  lyrics: { en: "Song lyrics and poems as a poster or a kinetic-type video.", zh: "歌词和诗，排成海报或动态歌词视频。", ja: "歌詞や詩を、ポスターやリリックビデオに。" },
+  lyrics: { en: "Any text as kinetic type, by pressing L.", zh: "任意文字做成文字 PV，按 L 即可。", ja: "どんなテキストも文字PVに。L を押すだけ。" },
   qr: { en: "Any text as a QR code, by pressing Q.", zh: "任何文字都能变成二维码，按 Q 即可。", ja: "どんなテキストも QR コードに。Q を押すだけ。" },
 };
 
@@ -272,9 +273,9 @@ export const HOW: Readonly<Record<string, Localized>> = {
     ja: "任意のタイトルに続いて、値がすべて数字の「ラベル：値」の行が 2〜12 行。+8% や（−3%）のような増減を添えられます。増加は緑、減少は赤で表示します。",
   },
   lyrics: {
-    en: "Song lyrics: short lines with few full stops and some sign of a song (stanzas, a repeated line, a lyric voice such as I, you or love), LRC files with timestamps, and classical Chinese poems in equal lines. JIZURA's markup works: / cuts a line, *word* is emphasis, a final ! flashes, lyric|note adds a note.",
-    zh: "歌词：短行、几乎没有句号，并且有歌的迹象（分段、重复的句子、“我”“你”“爱”这样的抒情口吻）；带时间轴的 LRC 文件；每句字数相同的古诗。支持 JIZURA 的记法：/ 切分画面，*词* 强调，行末 ! 闪一下，歌词|注释 加小注。",
-    ja: "歌詞：句点の少ない短い行で、歌らしさ（連、くり返しの行、「君」「僕」「夢」のような語り口）があるもの。タイムスタンプ付きの LRC ファイル、句の長さがそろった漢詩も。JIZURA の記法が使えます：/ でカットを分け、*語* で強調、行末の ! でフラッシュ、歌詞|注釈 で小さな注釈。",
+    en: "Chosen by you: press L in Paste as… (⌥V). Any text works. Prose is cut into screens at its sentence ends and clause marks, short phrases kept together and long ones broken between words; song lyrics, LRC files and poems keep their own lines. JIZURA's markup works: / cuts a line, *word* is emphasis, a final ! flashes, lyric|note adds a note. Code and tables are better as an image, and it says so.",
+    zh: "由你来选：在“粘贴为…”（⌥V）里按 L。任何文字都行：普通文字按句末和分句的标点切成一幕幕，短语不拆开，长句在词与词之间断开；歌词、LRC 文件和诗保留原来的分行。支持 JIZURA 的记法：/ 切分画面，*词* 强调，行末 ! 闪一下，歌词|注释 加小注。代码和表格更适合做成图片，它会直接告诉你。",
+    ja: "選ぶのはあなた：「ペースト形式…」（⌥V）で L を押します。どんなテキストでも使えます。文章は文末や句の区切りで場面に分け、短い語句はまとめ、長い文は語の切れ目で分けます。歌詞、LRC ファイル、詩は元の行のまま。JIZURA の記法が使えます：/ でカットを分け、*語* で強調、行末の ! でフラッシュ、歌詞|注釈 で小さな注釈。コードや表は画像のほうが向いているので、そう伝えます。",
   },
   qr: {
     en: "Never chosen on its own: any text can be a QR code, so press Q in the ⌥V chooser. The code holds your text exactly as copied, and it is never sent to a model.",

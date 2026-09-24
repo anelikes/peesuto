@@ -89,6 +89,7 @@ const localized = (table: Readonly<Record<string, Localized>>, id: string, lang:
 const ICONS = `<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
 <symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="6" r="1.2" fill="currentColor"/><path d="M2 12l3.8-3.6 2.7 2.4 2.2-1.9L14 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
 <symbol id="i-gif" viewBox="0 0 16 16"><path d="M9 2.5 13.5 8 9 13.5 4.5 8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 3.5 1.8 8l3.7 4.5M3.6 3.5 0 8l3.6 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.4 1.4"/></symbol>
+<symbol id="i-lyric" viewBox="0 0 16 16"><path d="M1.5 13 5 3.5 8.5 13M2.7 10h4.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M10.5 13V8.2M10.5 9.6c.7-1.2 1.9-1.8 3.6-1.7" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
 <symbol id="i-video" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 3v10M11.5 3v10M1.5 6h3M1.5 10h3M11.5 6h3M11.5 10h3" stroke="currentColor" stroke-width="1"/></symbol>
 <symbol id="i-qr" viewBox="0 0 16 16"><path d="M2 2h4.5v4.5H2zM9.5 2H14v4.5H9.5zM2 9.5h4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 13h1.5" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
 <symbol id="i-pin" viewBox="0 0 16 16"><path d="M5.5 1.8h5M6.5 2v4.2L4.3 9h7.4L9.5 6.2V2M8 9v5.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
@@ -200,6 +201,7 @@ function chooser(lang: Lang, cardName: string, alt = ""): string {
 ${row("image", T(lang, "Image", "图片", "画像"), "↩", "on")}
 ${row("gif", "GIF", "G")}
 ${row("video", T(lang, "Video", "视频", "動画"), "M")}
+${row("lyric", T(lang, "Lyric motion", "文字 PV", "文字PV"), "L")}
 ${row("qr", T(lang, "QR code", "二维码", "QR コード"), "Q")}
 ${row("pin", T(lang, "Pin to screen", "贴到屏幕", "画面にピン留め"), "P", "sep")}
 ${row("history", T(lang, "Clipboard history", "剪贴板历史", "クリップボード履歴"), "H")}
@@ -350,6 +352,7 @@ function shortcuts(lang: Lang): string {
 ${out("↩", T(lang, "Image", "图片", "画像"), T(lang, "a PNG, pasted into the app you are typing in", "PNG，直接粘贴进你正在输入的应用", "PNG を、いま入力中のアプリにそのままペースト"))}
 ${out("G", "GIF", T(lang, "the same card, revealed line by line", "同一张卡片，逐行出现", "同じカードを、一行ずつ表示"))}
 ${out("M", T(lang, "Video", "视频", "動画"), T(lang, "MP4, made with the ffmpeg on your Mac", "MP4，用你 Mac 上的 ffmpeg 生成", "MP4。Mac に入っている ffmpeg で作ります"))}
+${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang, "any text as kinetic type, cut into screens at its sentences and clauses", "任意文字做成动态文字视频，按句子和分句切成一幕幕", "どんなテキストも、文や句の切れ目で場面に分けた動く文字に"))}
 ${out("Q", T(lang, "QR code", "二维码", "QR コード"), T(lang, "exactly the text you copied; never sent to a model", "编码的就是你复制的原文，不会发给任何模型", "コピーしたテキストをそのまま。モデルには送りません"))}
 ${out("P", T(lang, "Pin to screen", "贴到屏幕", "画面にピン留め"), T(lang, "floats above every window; drag, pinch to zoom, double-click to close", "浮在所有窗口之上；可拖动、捏合缩放，双击关闭", "すべてのウィンドウの上に浮かびます。ドラッグで移動、ピンチで拡大、ダブルクリックで閉じます"))}
 </dl>
@@ -357,7 +360,7 @@ ${out("P", T(lang, "Pin to screen", "贴到屏幕", "画面にピン留め"), T(
 <li><span class="caps"><kbd>⇧</kbd><kbd>⌥</kbd><kbd>V</kbd></span><div><h3>${T(lang, "Clipboard history", "剪贴板历史", "クリップボード履歴")}</h3></div>
 <p>${T(lang, "Everything you copied, encrypted on your Mac and searchable.", "复制过的所有内容，加密保存在本机，可以搜索。", "コピーしたものすべてを Mac の中で暗号化して保存。検索もできます。")}</p></li>
 </ul>
-<p class="keys-note">${T(lang, "Image, GIF, video, QR code and pin can each get a direct shortcut in Settings › Shortcuts. They are unbound by default.", "图片、GIF、视频、二维码和贴到屏幕也可以在“设置 › 快捷键”里各自绑定快捷键，默认不绑定。", "画像、GIF、動画、QR コード、ピン留めには「設定 › ショートカット」で個別のキーも割り当てられます。初期状態では未設定です。")}</p>
+<p class="keys-note">${T(lang, "Image, GIF, video, lyric motion, QR code and pin can each get a direct shortcut in Settings › Shortcuts. They are unbound by default.", "图片、GIF、视频、文字 PV、二维码和贴到屏幕也可以在“设置 › 快捷键”里各自绑定快捷键，默认不绑定。", "画像、GIF、動画、文字PV、QR コード、ピン留めには「設定 › ショートカット」で個別のキーも割り当てられます。初期状態では未設定です。")}</p>
 </div>
 <div class="keys-art"><div class="field">${chooser(lang, "text-poster")}</div></div>
 </div>
@@ -684,9 +687,11 @@ function templatePage(lang: Lang, id: string): string {
   const first = t.variants[0]!.id;
   const sample = SAMPLES[id]![lang];
   const group = groupOf(id);
-  const isQr = id === "qr";
-  const pasteHint = isQr
-    ? T(lang, "Have Peesuto? Copy the sample, press ⌥V, then Q.", "装了 Peesuto？复制示例，按 ⌥V，再按 Q。", "Peesuto をお使いなら：サンプルをコピーして ⌥V、続けて Q。")
+  const isQr = id === "qr", isLyric = id === "lyrics";
+  // Manual templates are reached by their own key in the chooser.
+  const manualKey = isQr ? "Q" : isLyric ? "L" : "";
+  const pasteHint = manualKey
+    ? T(lang, `Have Peesuto? Copy the sample (or any text), press ⌥V, then ${manualKey}.`, `装了 Peesuto？复制示例（或任意文字），按 ⌥V，再按 ${manualKey}。`, `Peesuto をお使いなら：サンプル（どんなテキストでも）をコピーして ⌥V、続けて ${manualKey}。`)
     : T(lang, "Have Peesuto? Copy the sample, then press ⌥V in any text field to get this card.", "装了 Peesuto？复制示例，在任意输入框里按 ⌥V，就能得到这张卡片。", "Peesuto をお使いなら：サンプルをコピーして、どこかの入力欄で ⌥V を押すと、このカードになります。");
   const styles = t.variants.map((v) => {
     const [, style] = templateName(lang, id, v.id);
@@ -714,7 +719,7 @@ function templatePage(lang: Lang, id: string): string {
 <p class="hint">${pasteHint}<span class="copy-status" role="status" aria-live="polite"></span></p>
 </div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="tp-to"><span class="eyebrow">${isQr ? T(lang, "Pasted with ⌥V Q", "按 ⌥V Q 粘贴", "⌥V Q でペースト") : T(lang, "Pasted with ⌥V ↩", "按 ⌥V ↩ 粘贴", "⌥V ↩ でペースト")}</span>
+<div class="tp-to"><span class="eyebrow">${manualKey ? T(lang, `Pasted with ⌥V ${manualKey}`, `按 ⌥V ${manualKey} 粘贴`, `⌥V ${manualKey} でペースト`) : T(lang, "Pasted with ⌥V ↩", "按 ⌥V ↩ 粘贴", "⌥V ↩ でペースト")}</span>
 ${cardImg(lang, `${id}-${first}`, T(lang, `${name} card made from the sample text, in the ${firstStyle} style.`, `由示例文字生成的${name}卡片，${firstStyle}样式。`, `サンプルテキストから作った${name}カード、${firstStyle}スタイル。`), 420, ' fetchpriority="high"')}</div>
 </section>
 
@@ -740,7 +745,10 @@ ${styles}
 <section class="tp-sec tp-motion" aria-labelledby="motion-title">
 <div>
 <h2 id="motion-title">${T(lang, "In motion", "动起来", "動きをつける")}</h2>
-<p>${T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order. The video needs ffmpeg on your Mac.",
+<p>${isLyric ? T(lang, "Press L in the chooser: each sentence or clause gets its own screen, letters entering, colours changing. You get an MP4 when ffmpeg is on your Mac, a GIF otherwise.",
+    "在选择面板里按 L：每个句子或分句占一幕，文字逐个进场，颜色随之变换。Mac 上装了 ffmpeg 就得到 MP4，否则是 GIF。",
+    "パネルで L を押すと、文や句ごとにひとつの場面になり、文字が入ってきて色が変わります。Mac に ffmpeg があれば MP4、なければ GIF になります。")
+  : T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order. The video needs ffmpeg on your Mac.",
     "在选择面板里按 G 生成 GIF，按 M 生成 MP4：同一张卡片，按阅读顺序逐步出现。视频需要你的 Mac 上装有 ffmpeg。",
     "パネルで G を押すと GIF、M を押すと MP4 に。同じカードが、読む順に現れます。動画には Mac に ffmpeg が必要です。")}</p>
 </div>

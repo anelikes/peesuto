@@ -46,7 +46,7 @@ words after `docs/templates.md`), and one sample per template and language.
 The list of templates always comes from `core/src/templates/registry.ts`.
 
 `bun scripts/site-gallery.ts` first checks that the local rules pick each
-sample as its own template (QR: that it is available; `--check` stops there),
+sample as its own template (QR and Lyric motion, which are manual: that it is available and never preferred; `--check` stops there),
 then renders, per language: every style at 1:1 (`<id>-<style>.webp`, 640 px),
 the first style at 16:9 (`<id>-<style>-wide.webp`, 960 px) and the first style
 animated (`<id>.mp4`, 640 px, H.264, no audio). It copies `.work/native-engine`
