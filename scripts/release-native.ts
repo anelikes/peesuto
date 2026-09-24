@@ -7,8 +7,9 @@
  * --notary-profile  `xcrun notarytool store-credentials` profile; required unless --no-notarize.
  * --skip-build      sign the existing native/dist/Peesuto.app instead of rebuilding it.
  * --engine          prepared pinned engine checkout for the build (default .work/native-engine).
- * --no-notarize     offline dry run: no secure timestamp, no notarization; Gatekeeper checks are
- *                   reported but do not fail (expected with a development certificate).
+ * --no-notarize     offline dry run: no secure timestamp, no notarization, no appcast; Gatekeeper
+ *                   checks are reported but do not fail (expected with a development certificate).
+ * A notarized run also signs the DMG for Sparkle and updates site/appcast.xml (scripts/appcast.ts).
  * Never pass secrets on the command line; notarytool reads them from the keychain profile.
  */
 import { existsSync } from "node:fs";
@@ -94,6 +95,14 @@ console.log(`Signing ${nested.length} Mach-O file(s) inside Contents/Resources.`
 for (const path of nested) await sign(path);
 await sign(join(macos, "paste"), ["--identifier", "com.peesuto.desktop.paste", "--entitlements", bunEntitlements]);
 await sign(join(macos, "PeesutoCoreHost"), ["--identifier", "com.peesuto.desktop.corehost"]);
+// Sparkle, inside-out as its "Sandboxing and code signing" guide lists: the helpers, then the
+// framework. build-native.ts removed the XPC services (the app is not sandboxed).
+const sparkle = join(app, "Contents/Frameworks/Sparkle.framework");
+if (!existsSync(sparkle)) fail("Sparkle.framework is missing from Contents/Frameworks; rebuild the app.");
+if (existsSync(join(sparkle, "Versions/B/XPCServices"))) fail("Sparkle's XPC services are still embedded; rebuild the app.");
+await sign(join(sparkle, "Versions/B/Autoupdate"));
+await sign(join(sparkle, "Versions/B/Updater.app"));
+await sign(sparkle);
 // The bundle signature covers the main executable (Contents/MacOS/Peesuto). It needs no
 // entitlements: Accessibility and pasteboard access are TCC permissions, not entitlements.
 await sign(app);
@@ -175,6 +184,16 @@ if (notarize) {
   await run(["spctl", "-a", "-vv", "-t", "open", "--context", "context:primary-signature", dmg]);
 }
 
+// 5b. Sparkle: sign the notarized DMG with the EdDSA key (login Keychain) and add it to
+// site/appcast.xml. Nothing is uploaded; see docs/RELEASING.md for publishing.
+const build = (await run(["plutil", "-extract", "CFBundleVersion", "raw", join(app, "Contents/Info.plist")], { quiet: true })).out.trim();
+let appcast = "skipped (--no-notarize: an unnotarized DMG is never offered as an update)";
+if (notarize) {
+  const p = Bun.spawn([process.execPath, "scripts/appcast.ts", "--dmg", dmg, "--build", build, "--version", version], { cwd: REPO_ROOT, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+  if (await p.exited !== 0) fail("appcast update failed (the notarized DMG is fine; rerun scripts/appcast.ts).");
+  appcast = `site/appcast.xml (build ${build}); upload ${dmgName} to the v${version} GitHub Release, then deploy site/`;
+}
+
 // 6. Checksum and summary.
 const hasher = new Bun.CryptoHasher("sha256");
 hasher.update(await Bun.file(dmg).arrayBuffer());
@@ -191,4 +210,5 @@ Release summary
   version    ${version} (${arch})
   identity   ${identityName}${developerId ? "" : " (not Developer ID: local use only)"}
   notarized  ${notarize ? `yes (app ${submissions[0]}, dmg ${submissions[1]}; both stapled)` : "no (--no-notarize)"}
-  gatekeeper app ${gatekeeperApp.code === 0 ? "accepted" : "rejected"}`);
+  gatekeeper app ${gatekeeperApp.code === 0 ? "accepted" : "rejected"}
+  appcast    ${appcast}`);

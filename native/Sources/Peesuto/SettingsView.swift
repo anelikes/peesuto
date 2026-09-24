@@ -34,6 +34,7 @@ struct SettingsView: View {
     @State private var loginStatus = SMAppService.Status.notRegistered
     @State private var diagnostics: [String] = []
     @StateObject private var privacyState = PrivacySettingsModel()
+    @ObservedObject private var updater = AppUpdater.shared
 
     var body: some View {
         HStack(spacing: 0) {
@@ -145,6 +146,18 @@ struct SettingsView: View {
                         Text(model.tr("Allow Peesuto in System Settings → Login Items.", "请在「系统设置 → 登录项」中允许 Peesuto。")).font(.system(size: 11)).foregroundColor(.secondary)
                         Button(model.tr("Open Login Items", "打开登录项")) { SMAppService.openSystemSettingsLoginItems() }.controlSize(.small)
                     }
+                }
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(model.tr("Automatically check for updates", "自动检查更新"), isOn: Binding(get: { updater.automaticallyChecks }, set: { updater.automaticallyChecks = $0 }))
+                    .disabled(!updater.isEnabled)
+                HStack {
+                    Text(model.tr("Current version ", "当前版本 ") + Self.version).font(.system(size: 11)).foregroundColor(.secondary)
+                    Spacer()
+                    Button(model.tr("Check for Updates…", "检查更新…")) { updater.checkForUpdates() }.controlSize(.small).disabled(!updater.canCheck)
+                }
+                if !updater.isEnabled {
+                    Text(model.tr("Updates are off in the preview build.", "预览版不检查更新。")).font(.system(size: 11)).foregroundColor(.secondary)
                 }
             }
             Divider()

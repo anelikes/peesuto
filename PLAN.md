@@ -444,7 +444,7 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
 | Core 与渲染内存 | Bun、WASM、字体与全帧 GIF 缓存 | 按需启动、任务完成后空闲退出、限制帧缓存；测量整个进程树 |
 | 长渲染阻塞请求 | 当前 daemon 串行处理 | 隔离渲染工作；同一引擎构建串行，取消不能只隐藏 UI |
 | 旧数据或授权失效 | 数据、Keychain 或 TCC 身份变化 | 保持标识与格式，副本验收；读取失败进入锁定态，不清库 |
-| 原生更新链路缺失 | 首个原生版本发布后无法自动推送修复 | 旧桌面从未发布，无需桥接；N5 在首发前选定并验证原生更新方案（建议 Sparkle） |
+| 原生更新链路缺失 | 首个原生版本发布后无法自动推送修复 | 已接入 Sparkle 2（2026-09-24）；0.1.x 无更新器，装 0.1.x 的人需手动下载一次带更新器的版本 |
 | hook 拖慢或丢内容 | 慢 hook 卡住入库或粘贴 | 入库 200 ms 预算超时即存；粘贴改写只在确认后；失败不阻断 |
 
 ## 7. 用户待办
@@ -461,9 +461,11 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
 2. （已完成 2026-09-23）Developer ID Application 证书已签发并装入钥匙串（用户是团队 Account Holder），
    notarytool 凭证存为 profile `pocket-paste`；`scripts/release-native.ts` 签名、公证、钉入并验证 DMG。
    CI 内签名所需 secrets 尚未设置（本地发布已可用）。
-3. 更新方案决策：原生版需选定更新机制（建议 Sparkle，EdDSA 签名的 appcast）。
-   同时决定是否删除已不再使用的 `TAURI_SIGNING_PRIVATE_KEY` 仓库 secret 与本机
-   `~/.tauri` 密钥：从未发布过任何版本，没有安装依赖它，删除无兼容影响。
+3. （已定 2026-09-24）更新机制用 Sparkle 2（EdDSA 签名的 appcast，feed 为
+   https://peesuto.com/appcast.xml，见 docs/RELEASING.md），取代了 Tauri updater。
+   用户待办：备份 Sparkle 私钥（`generate_keys -x`，丢失则已装版本再也无法接受更新）；
+   决定是否删除已无用的 `TAURI_SIGNING_PRIVATE_KEY` 仓库 secret 与本机 `~/.tauri`
+   密钥（从未发布过 Tauri 版本，删除无兼容影响）。
 4. DMG 与 Homebrew cask 是 N5 工作，由 agent 在签名可用后完成；用户只需审阅发布。
 5. M8（暂缓，2026-09-24）：托管服务不上线，部署、计费平台与条款都等需求出现再做。
    域名 peesuto.com 仍需用于官网与邮箱。对外产品名 Peesuto，内部名与路径仍是 pocket-paste。

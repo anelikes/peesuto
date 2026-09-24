@@ -139,9 +139,9 @@ open native/dist/Peesuto.app
 
 `native/dist/Peesuto.app` contains the Swift application, Bun Core and Pocket
 Motion resources. `--preview` builds `native/dist/Peesuto Preview.app` with
-isolated sample history and no clipboard monitoring. The build currently uses
-local ad-hoc signing; Developer ID, notarization and automatic updates are not
-implemented. See [native/README.md](native/README.md) for build/smoke commands
+isolated sample history and no clipboard monitoring. The build uses local
+ad-hoc signing; `scripts/release-native.ts` adds Developer ID signing,
+notarization and the Sparkle update feed. See [native/README.md](native/README.md) for build/smoke commands
 and [release status](docs/RELEASING.md) for distribution limits.
 
 Accessibility permission is needed for automatic paste and focused-field

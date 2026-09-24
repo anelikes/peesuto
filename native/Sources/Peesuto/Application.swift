@@ -37,6 +37,7 @@ final class ClipboardPanel: NSPanel {
             return
         }
         model = AppState(preview: preview)
+        _ = AppUpdater.shared // Starts Sparkle's scheduled checks (never in a preview build).
         model.hidePanel = { [weak self] in self?.panel.orderOut(nil) }
         model.settingsChanged = { [weak self] in self?.rebuildMenus() }
         model.showTaskStatus = { [weak self] in self?.showTaskStatus() }
@@ -177,6 +178,7 @@ final class ClipboardPanel: NSPanel {
         media.submenu = mediaMenu
         menu.addItem(media)
         menu.addItem(withTitle: model.tr("Settings…", "设置…"), action: #selector(showSettings), keyEquivalent: ",")
+        menu.addItem(withTitle: model.tr("Check for Updates…", "检查更新…"), action: #selector(checkForUpdates), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: model.paused ? model.tr("Resume history", "继续记录") : model.tr("Pause history", "暂停记录"), action: #selector(togglePause), keyEquivalent: "")
         menu.addItem(.separator())
@@ -187,6 +189,7 @@ final class ClipboardPanel: NSPanel {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: model.tr("Settings…", "设置…"), action: #selector(showSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(withTitle: model.tr("Check for Updates…", "检查更新…"), action: #selector(checkForUpdates), keyEquivalent: "").target = self
         appMenu.addItem(withTitle: model.tr("Quit Peesuto", "退出 Peesuto"), action: #selector(quit), keyEquivalent: "q").target = self
         appItem.submenu = appMenu; main.addItem(appItem)
         let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")

@@ -3,9 +3,10 @@
 The only desktop build is SwiftUI + AppKit in `native/`, with bundled Bun Core
 and Pocket Motion. The previous desktop source and its release workflow have
 been removed. Developer ID signing, notarization and DMG packaging run locally
-with `scripts/release-native.ts` (below). **Release automation in CI and
-automatic updates are not implemented.** Pushing a version tag does not create
-a release or an update artifact.
+with `scripts/release-native.ts` (below), which also signs the update and writes
+the Sparkle appcast ([Automatic updates](#automatic-updates-sparkle)). **Release
+automation in CI is not implemented and nothing is published automatically.**
+Pushing a version tag does not create a release or an update artifact.
 
 ## Build a local validation bundle
 
@@ -49,7 +50,9 @@ bun run install-dev --skip-build   # re-sign and reinstall the last build
 keychain but does not notarize (a locally built app is not quarantined). The
 stable team signature keeps Accessibility and the Keychain grant across
 installs. The About section shows the version and the build number (the
-commit count) to tell installs apart. There is no in-app update yet.
+commit count) to tell installs apart. These builds carry the Sparkle updater and
+check https://peesuto.com/appcast.xml daily; until the feed exists the
+background check fails silently.
 
 ## CI and manual build artifacts
 
@@ -130,7 +133,10 @@ What it does:
    currently the engine's `compiler-rs.darwin-arm64.node`), then
    `Contents/MacOS/paste` (bundled Bun, identifier `com.peesuto.desktop.paste`,
    entitlements `native/Resources/Bun.entitlements.plist`), then
-   `PeesutoCoreHost` (`com.peesuto.desktop.corehost`), then the bundle, which
+   `PeesutoCoreHost` (`com.peesuto.desktop.corehost`), then Sparkle as its
+   "Sandboxing and code signing" guide lists (`Versions/B/Autoupdate`,
+   `Versions/B/Updater.app`, then `Contents/Frameworks/Sparkle.framework`),
+   then the bundle, which
    signs the main executable. The app itself has no entitlements:
    Accessibility and pasteboard access are TCC permissions, not entitlements.
 3. Verifies with `codesign --verify --strict --deep --verbose=2`, prints Bun's
@@ -143,8 +149,10 @@ What it does:
    the submission id and, on failure, `notarytool log <id>`; then
    `xcrun stapler staple`, `xcrun stapler validate` and
    `spctl -a -vv -t open --context context:primary-signature <dmg>`.
-6. Writes `<dmg>.sha256` and prints a summary (paths, sizes, identity,
-   notarized).
+6. Signs the notarized DMG for Sparkle and adds it to `site/appcast.xml`
+   (`scripts/appcast.ts`; skipped with `--no-notarize`).
+7. Writes `<dmg>.sha256` and prints a summary (paths, sizes, identity,
+   notarized, appcast).
 
 The bundled Bun needs `com.apple.security.cs.allow-jit` under the hardened
 runtime: without it the Core still works, but JavaScriptCore falls back to its
@@ -180,21 +188,96 @@ Do not distribute that DMG.
 
 ### Distribution notes
 
-- The first release ships **without automatic updates**. Choosing an update
-  mechanism (Sparkle is the candidate) is a later decision; users update by
-  downloading a new DMG.
+- 0.1.0 and 0.1.1 have no updater: anyone who installed them downloads the
+  first Sparkle-enabled DMG once by hand; from then on updates arrive in the app.
 - While `anelikes/peesuto` is private, GitHub Release assets are **not publicly
   downloadable**: only collaborators signed in to GitHub can fetch them. Host the
   DMG elsewhere (for example peesuto.com) or make the repository public before
   pointing users or a Homebrew cask at it.
 
+## Automatic updates (Sparkle)
+
+The app embeds [Sparkle 2](https://sparkle-project.org) (SwiftPM dependency of
+the `Peesuto` target, pinned in `native/Package.resolved`).
+`scripts/build-native.ts` copies `Sparkle.framework` into
+`Contents/Frameworks` (the executable has the `@executable_path/../Frameworks`
+rpath) and removes the framework's XPC services, which only sandboxed apps
+need; Peesuto is not sandboxed. The generated `Info.plist` sets:
+
+| Key | Value |
+|---|---|
+| `SUFeedURL` | `https://peesuto.com/appcast.xml` |
+| `SUPublicEDKey` | the EdDSA public key in `scripts/build-native.ts` |
+| `SUEnableAutomaticChecks` | `true` |
+| `SUScheduledCheckInterval` | `86400` (daily) |
+
+Preview builds (`--preview`, `com.peesuto.desktop.preview`) get none of these
+keys and never start the updater (`UpdaterConfiguration` in PeesutoKit, tested
+in `UpdaterConfigurationTests`). In the app: "Check for Updates…" in the menu
+bar menu and the app menu, and Settings › General › "Automatically check for
+updates" with the current version.
+
+### The EdDSA signing key
+
+Updates are accepted only when signed by the private key matching
+`SUPublicEDKey`. The key pair was created once with Sparkle's `generate_keys`
+(`native/.build/artifacts/sparkle/Sparkle/bin/`, present after
+`swift package resolve --package-path native`), which keeps the **private key
+in the maintainer's login Keychain** (generic password, service
+`https://sparkle-project.org`, account `ed25519`). Running `generate_keys` again prints the existing
+public key; `generate_keys -p` prints only the public key.
+
+**Back it up now (maintainer only).** Losing the private key means every
+installed copy can never accept another update: users would have to download a
+new DMG by hand, and the app would need a new public key. Export it to a secure
+place of your choice (for example as a password manager attachment) and delete
+any temporary file:
+
+```sh
+native/.build/artifacts/sparkle/Sparkle/bin/generate_keys -x <file>
+```
+
+On another Mac, `generate_keys -f <file>` imports it. Agents never export,
+print or copy the private key.
+
+### Publishing an update
+
+1. Bump the version in root `package.json`, rename `## Unreleased` in
+   `CHANGELOG.md` to `## <version> — <date>` (its body becomes the release
+   notes in the feed), and commit.
+2. Build, sign, notarize and staple the DMG, then sign the update and write the
+   feed:
+
+   ```sh
+   bun scripts/release-native.ts --identity "Developer ID Application: <name> (<team id>)" \
+     --notary-profile pocket-paste --engine "$PWD/.work/native-engine"
+   ```
+
+   After the DMG is notarized it runs `scripts/appcast.ts`, which calls
+   Sparkle's `sign_update` on the DMG (EdDSA signature and length; macOS may ask
+   to allow Keychain access) and adds an `<item>` to `site/appcast.xml`:
+   `sparkle:version` = `CFBundleVersion` (the build number Sparkle compares),
+   `sparkle:shortVersionString`, `pubDate`, `minimumSystemVersion` 13.0, the
+   release notes, and an enclosure at
+   `https://github.com/anelikes/peesuto/releases/download/v<version>/Peesuto-<version>-arm64.dmg`.
+   Items stay newest first; rerunning for the same build replaces its item. To
+   redo only this step: `bun scripts/appcast.ts --dmg native/dist/Peesuto-<version>-arm64.dmg --build <build> [--dry-run]`.
+3. Commit `site/appcast.xml`.
+4. Create the GitHub Release `v<version>` and upload the DMG (and `.sha256`)
+   **exactly as signed**; any change to the file invalidates the signature. The
+   repository must be public (or the enclosure hosted elsewhere) for the
+   download to work.
+5. Deploy `site/` (the future peesuto.com root, Cloudflare Pages) so
+   `https://peesuto.com/appcast.xml` serves the new feed. Publish the DMG
+   before the feed, never the other way round.
+
 ## Before enabling public distribution
 
 - Run a real notarized release build above with the Developer ID certificate.
 - Test installing the notarized DMG on a fresh user profile on macOS 13.
-- Choose and verify a native update mechanism (Sparkle is the suggested
-  candidate). No release was ever published, so there are no earlier installs
-  to bridge and no old update metadata to stay compatible with.
+- Verify the Sparkle path end to end once: install version N, publish N+1 to
+  a test feed, and let the app update itself. No release was ever published, so
+  there is no older update metadata to stay compatible with.
 - Preserve `com.peesuto.desktop`, encrypted history and Keychain references;
   never run two app versions against the same production store concurrently.
 - Complete the outstanding native privacy, focus/IME/multi-monitor and feature

@@ -10,6 +10,11 @@ import { engineRoot, REPO_ROOT } from "../core/src/engine.ts";
 const args = process.argv.slice(2);
 const flag = (name: string) => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
 const preview = args.includes("--preview");
+/** Sparkle update feed and the EdDSA public key that verifies every update (public by design).
+ * The private key lives only in the maintainer's login Keychain (docs/RELEASING.md).
+ * Preview builds get neither, so they never check for updates. */
+const SPARKLE_FEED_URL = "https://peesuto.com/appcast.xml";
+const SPARKLE_PUBLIC_ED_KEY = "3mrnJuKG6QU3x2WO2ZtM2mGrIMxHeHmycaHvwpqBwao=";
 const native = join(REPO_ROOT, "native");
 const stage = join(native, ".bundle");
 const target = `${process.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
@@ -40,6 +45,15 @@ for (const binary of ["Peesuto", "PeesutoCoreHost"]) {
   await cp(join(native, ".build/release", binary), join(macos, binary));
   await chmod(join(macos, binary), 0o755);
 }
+// Sparkle (automatic updates). ditto keeps the framework's Versions/Current symlinks.
+// The app is not sandboxed, so Sparkle's XPC services are not used: they are removed
+// as Sparkle's "Removing XPC Services" documentation describes, and the framework is re-signed.
+const frameworks = join(app, "Contents/Frameworks");
+const sparkle = join(frameworks, "Sparkle.framework");
+await mkdir(frameworks, { recursive: true });
+await run(["ditto", join(native, ".build/release/Sparkle.framework"), sparkle]);
+await rm(join(sparkle, "Versions/B/XPCServices"), { recursive: true, force: true });
+await rm(join(sparkle, "XPCServices"), { force: true });
 await cp(join(stage, "binaries", `paste-${target}`), join(macos, "paste"));
 await chmod(join(macos, "paste"), 0o755);
 await cp(join(stage, "resources"), join(resources, "resources"), { recursive: true });
@@ -68,11 +82,16 @@ await Bun.write(join(app, "Contents/Info.plist"), `<?xml version="1.0" encoding=
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
 <key>PeesutoPreview</key><${preview ? "true" : "false"}/>
-</dict></plist>
+${preview ? "" : `<key>SUFeedURL</key><string>${SPARKLE_FEED_URL}</string>
+<key>SUPublicEDKey</key><string>${SPARKLE_PUBLIC_ED_KEY}</string>
+<key>SUEnableAutomaticChecks</key><true/>
+<key>SUScheduledCheckInterval</key><integer>86400</integer>
+`}</dict></plist>
 `);
 // Local development signature only. Developer ID/notarization remains N5 work.
 await run(["codesign", "--force", "--sign", "-", "--entitlements", join(native, "Resources/Bun.entitlements.plist"), join(macos, "paste")]);
 await run(["codesign", "--force", "--sign", "-", join(macos, "PeesutoCoreHost")]);
+await run(["codesign", "--force", "--sign", "-", sparkle]);
 await run(["codesign", "--force", "--sign", "-", app]);
 await run(["codesign", "--verify", "--deep", "--strict", app]);
 console.log(`Built native app: ${app}`);
