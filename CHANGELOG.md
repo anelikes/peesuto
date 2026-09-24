@@ -9,7 +9,7 @@ section here becomes one.
 
 - Settings › Templates: every template with a preview of each style. Switch a template off to keep it out of automatic choice (it stays available by hand), click a style to make it the default. Changes apply at once.
 - Latin text no longer splits inside a word: a comma could move a break back into "crop", an early space was out of reach of the look-back, and larger type was kept even when it split a word (seen in the comparison template).
-- The clipboard panel has no window buttons; it hides when focus leaves.
+- The clipboard panel has no title bar or window buttons and runs to its top edge, on Liquid Glass (macOS 26; a behind-window blur before that), with hairline separators.
 - The clipboard panel hides as soon as it loses focus, like Spotlight; the pin button next to Settings keeps it open (remembered across launches). Confirmation and save dialogs opened from the panel do not hide it.
 - Bring your own key for Jev at TypeSafe, Vercel AI Gateway or OpenRouter, in onboarding (pick a service, paste a key) and in Settings › AI. OpenRouter's and Vercel's key also drives text generation with any model they serve. Model content is redacted by the privacy rules before it leaves, as for every network provider. The hosted option is hidden until the service exists.
 - License: Apache 2.0 (was MIT), with a NOTICE listing bundled third-party components. Contributions are signed off under the DCO; the Peesuto name and logo are trademarks the license does not grant (CONTRIBUTING.md).

@@ -54,7 +54,13 @@ final class ClipboardPanel: NSPanel {
         // It hides when focus leaves, so the window buttons would only be clutter.
         for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { panel.standardWindowButton(kind)?.isHidden = true }
         panel.delegate = self
-        panel.contentView = NSHostingView(rootView: PanelView(model: model, openSettings: { [weak self] in self?.showSettings() }))
+        let hosting = NSHostingView(rootView: PanelView(model: model, openSettings: { [weak self] in self?.showSettings() }))
+        // No title bar inset: the content runs to the top edge.
+        if #available(macOS 13.3, *) { hosting.safeAreaRegions = [] }
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.titlebarSeparatorStyle = .none
+        panel.contentView = PanelBackground.wrap(hosting)
         panel.center()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "square.on.square", accessibilityDescription: "Peesuto")
@@ -66,8 +72,9 @@ final class ClipboardPanel: NSPanel {
                 model.notice = model.tr("Some shortcuts are unavailable. Check Settings → Shortcuts.", "部分快捷键不可用，请检查「设置 → 快捷键」。")
             }
         }
-        // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id], --pin-sample.
+        // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id], --pin-sample, --pin-panel.
         let arguments = CommandLine.arguments
+        if preview, arguments.contains("--pin-panel") { model.panelPinned = true }
         func argument(_ name: String) -> Int? {
             guard preview, let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
             return Int(arguments[index + 1])
@@ -260,4 +267,36 @@ final class ClipboardPanel: NSPanel {
         return .terminateLater
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+/// The panel's backdrop: Liquid Glass on macOS 26, a behind-window blur
+/// before that (and when built with an older SDK).
+enum PanelBackground {
+    static let cornerRadius: CGFloat = 20
+
+    static func wrap(_ content: NSView) -> NSView {
+        #if compiler(>=6.2)
+        if #available(macOS 26, *) {
+            let glass = NSGlassEffectView()
+            glass.style = .regular
+            glass.cornerRadius = cornerRadius
+            glass.contentView = content
+            return glass
+        }
+        #endif
+        let blur = NSVisualEffectView()
+        blur.material = .popover
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        blur.wantsLayer = true
+        blur.layer?.cornerRadius = cornerRadius
+        blur.layer?.masksToBounds = true
+        content.translatesAutoresizingMaskIntoConstraints = false
+        blur.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: blur.leadingAnchor), content.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
+            content.topAnchor.constraint(equalTo: blur.topAnchor), content.bottomAnchor.constraint(equalTo: blur.bottomAnchor),
+        ])
+        return blur
+    }
 }

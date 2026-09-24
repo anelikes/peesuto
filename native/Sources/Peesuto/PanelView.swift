@@ -11,7 +11,7 @@ struct PanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass").foregroundColor(.secondary)
+                Image(systemName: "magnifyingglass").font(.system(size: 15, weight: .medium)).foregroundColor(.secondary)
                 TextField(model.tr("Search your clipboard", "搜索剪贴板"), text: $model.query)
                     .textFieldStyle(.plain).font(.system(size: 17)).focused($searchFocused)
                     .onSubmit { model.pasteSelection() }
@@ -31,17 +31,20 @@ struct PanelView: View {
                 Button(action: openSettings) { Image(systemName: "gearshape").font(.system(size: 16)) }
                     .buttonStyle(.plain).foregroundColor(.secondary)
                     .help(model.tr("Settings", "设置")).accessibilityLabel(model.tr("Settings", "设置"))
-            }.padding(.horizontal, 24).frame(height: 68)
-            Divider()
+            }.padding(.horizontal, 22).frame(height: 56)
+                // The header doubles as the handle for moving the window.
+                .contentShape(Rectangle())
+            Hairline()
             HStack(spacing: 0) {
                 history.frame(width: 282)
-                Divider()
+                Hairline(vertical: true)
                 detail.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            Divider()
+            Hairline()
             footer
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        // The backdrop is the window's glass (PanelBackground); nothing opaque on top of it.
+        .ignoresSafeArea()
         .frame(minWidth: 760, minHeight: 500)
         .onAppear { searchFocused = true }
         .onExitCommand {
@@ -81,7 +84,7 @@ struct PanelView: View {
                     }.onChange(of: model.selectedID) { id in if let id { proxy.scrollTo(id) } }
                 }
             }
-        }.background(Color(NSColor.controlBackgroundColor).opacity(0.55))
+        }.background(Color.primary.opacity(0.025))
     }
 
     private func historyRow(_ item: ClipRecord) -> some View {
@@ -95,7 +98,7 @@ struct PanelView: View {
                 Image(systemName: item.kind == "image" ? "photo" : "text.alignleft")
                     .font(.system(size: 13)).foregroundColor(model.selectedID == item.id ? .accentColor : .secondary)
                     .frame(width: 26, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 7).fill(Color(NSColor.windowBackgroundColor)))
+                    .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(model.selectedID == item.id ? 0.1 : 0.06)))
                 VStack(alignment: .leading, spacing: 5) {
                     Text(item.preview).font(.system(size: 13, weight: .medium)).lineLimit(2).multilineTextAlignment(.leading)
                     HStack(spacing: 5) {
@@ -108,7 +111,7 @@ struct PanelView: View {
                 if item.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundColor(.secondary) }
             }
             .padding(11).frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 9).fill(model.selectedID == item.id ? Color.accentColor.opacity(0.1) : .clear))
+            .background(RoundedRectangle(cornerRadius: 10).fill(model.selectedID == item.id ? Color.accentColor.opacity(0.16) : .clear))
             .contentShape(Rectangle())
         }.buttonStyle(.plain).disabled(model.busy)
         .accessibilityLabel(item.preview)
@@ -345,5 +348,14 @@ struct PrecomposedTag: View {
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Capsule().stroke(Color.secondary.opacity(0.35)))
             .help(model.tr("Rendered in the background right after you copied it.", "复制后已在后台提前生成。"))
+    }
+}
+
+/// A one-pixel separator that reads on glass (Divider is drawn for opaque backgrounds).
+private struct Hairline: View {
+    var vertical = false
+    var body: some View {
+        Rectangle().fill(Color.primary.opacity(0.09))
+            .frame(width: vertical ? 1 : nil, height: vertical ? nil : 1)
     }
 }
