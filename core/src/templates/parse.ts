@@ -47,7 +47,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     // Chat apps copy a time with every message: a conversation is never a schedule.
     const timeline = chat || lrc ? undefined : parseTimeline(text);
     const stats = parseStats(text);
-    for (const content of [table, comparison, quote, list, chat, stat, info, changelog, timeline, stats, lyrics]) {
+    for (const content of [table, comparison, quote, list, chat, stat, info, changelog, timeline, stats]) {
       if (content) candidates.set(content.kind, content);
     }
     // The legacy classifier also understands commands, JSON and stack traces.
@@ -66,6 +66,9 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   if (error) candidates.set("error", error);
   const prose = parseText(text, candidates);
   if (prose) candidates.set("text", prose);
+  // Lyric motion takes any text (lyrics keep their lines, prose is cut at its
+  // punctuation); code, tables and diagrams are marked unfit. Never preferred.
+  candidates.set("lyrics", lyricMotion(text, candidates));
   // Anything can be a QR code: the exact source (surrounding whitespace aside),
   // not the cleaned text. It is never preferred.
   candidates.set("qr", { kind: "qr", data: sourceText.replace(/^\s+|\s+$/g, "") });
@@ -73,7 +76,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "stats", "info", "lyrics", "timeline", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "stats", "info", "timeline", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -741,7 +744,7 @@ export function parseLyricLine(raw: string): LyricLine | undefined {
   const bar = body.match(/^([^|]*\S)[\t ]*\|[\t ]*(\S[^|]*)$/);
   if (bar) { body = bar[1]!.trim(); note = bar[2]!.trim(); }
   // `/` cuts the line where it stands between letters (never between digits, in `//` or a URL).
-  const pieces = body.split(/(?<![\d/:])[\t ]*\/[\t ]*(?![\d/])/).map((piece) => piece.trim()).filter(Boolean);
+  const pieces = slashPieces(body);
   const out: string[] = [], breaks: number[] = [], emphasis: [number, number][] = [];
   let length = 0;
   const count = (text: string) => [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].length;
@@ -893,15 +896,227 @@ function parseLrc(lines: readonly string[]): TemplateContent | undefined {
   let current: LyricLine[] = [];
   for (const [index, entry] of entries.entries()) {
     if (!entry.text) { if (current.length) { stanzas.push({ lines: current }); current = []; } continue; }
-    const parsed = parseLyricLine(entry.text);
-    if (!parsed) continue;
-    if (lineUnits(parsed.text) > LYRIC_LINE_UNITS * 2) return;
     const next = entries[index + 1];
-    current.push({ ...parsed, at: entry.at, ...(next ? { until: next.at } : {}) });
+    // A long line is cut at its punctuation; the pieces share its time by length.
+    const pieces = lineUnits(entry.text) > LYRIC_LINE_UNITS ? splitCuts(entry.text) : [entry.text];
+    const parsed = pieces.map(parseLyricLine).filter((line): line is LyricLine => Boolean(line));
+    if (!parsed.length) continue;
+    const span = next ? next.at - entry.at : undefined;
+    const total = parsed.reduce((n, line) => n + visibleLength(line.text), 0) || 1;
+    let at = entry.at;
+    for (const [k, line] of parsed.entries()) {
+      const until = k + 1 < parsed.length && span !== undefined ? at + Math.round(span * visibleLength(line.text) / total) : next?.at;
+      current.push({ ...line, at, ...(until !== undefined ? { until } : {}) });
+      if (until !== undefined) at = until;
+    }
   }
   if (current.length) stanzas.push({ lines: current });
   if (stanzas.reduce((n, stanza) => n + stanza.lines.length, 0) < 2) return;
   return { kind: "lyrics", ...(title ? { title } : {}), ...(credit ? { credit } : {}), stanzas };
+}
+
+/* ───────────── Lyric motion: any text as cuts ───────────── */
+
+/** Structures kinetic type cannot carry: their layout is their meaning. */
+const LYRIC_UNFIT: readonly TemplateId[] = ["code", "terminal", "diff", "error", "diagram", "table"];
+
+/**
+ * The lyric-motion candidate for any text. Lyrics, LRC and poems keep their
+ * own lines (parseLyrics); other text is prose, cut at its punctuation
+ * (splitCuts); code, tables and diagrams are marked unfit, and composing them
+ * is an explicit error.
+ */
+export function lyricMotion(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent {
+  const lyrics = LYRIC_UNFIT.some((id) => candidates.has(id)) ? undefined : parseLyrics(text);
+  if (lyrics) return lyrics;
+  // Recognised structures, and what the legacy classifier calls code (CSS, minified scripts, logs).
+  // Links alone are addresses, not words.
+  const links = text.split("\n").filter((line) => line.trim()).every((line) => /^\s*(?:[a-z][\w+.-]*:\/\/|www\.)\S+\s*$/i.test(line));
+  if (LYRIC_UNFIT.some((id) => candidates.has(id)) || classify(text) === "code" || links) return { kind: "lyrics", unfit: "structure", stanzas: [] };
+  return proseLyrics(text) ?? { kind: "lyrics", unfit: "structure", stanzas: [] };
+}
+
+/** Prose as lyric cuts: paragraphs are stanzas, a first `# ` line the title, `[Chorus]` lines labels, every other line cut by splitCuts. */
+function proseLyrics(text: string): TemplateContent | undefined {
+  const stanzas: { label?: string; lines: LyricLine[] }[] = [];
+  let current: { label?: string; lines: LyricLine[] } | undefined;
+  let title: string | undefined;
+  const raw = text.split("\n").map((line) => line.trim());
+  for (const [index, line] of raw.entries()) {
+    if (!line) { current = undefined; continue; }
+    if (index === raw.findIndex(Boolean) && /^#[\t ]+\S/.test(line)) { title = line.replace(/^#[\t ]+/, ""); continue; }
+    if (SECTION_LABEL.test(line) && !current?.lines.length && !current?.label) {
+      current ??= (stanzas.push({ lines: [] }), stanzas.at(-1)!);
+      current.label = line; continue;
+    }
+    // `lyric|note`: the note goes with the line's last cut.
+    const bar = line.match(/^([^|]*\S)[\t ]*\|[\t ]*(\S[^|]*)$/);
+    const body = bar ? bar[1]!.trim() : line;
+    const cuts = splitCuts(body).map(parseLyricLine).filter((cut): cut is LyricLine => Boolean(cut));
+    if (!cuts.length) continue;
+    if (bar) cuts[cuts.length - 1] = { ...cuts.at(-1)!, note: bar[2]!.trim() };
+    current ??= (stanzas.push({ lines: [] }), stanzas.at(-1)!);
+    current.lines.push(...cuts);
+  }
+  const filled = stanzas.filter((stanza) => stanza.lines.length);
+  if (!filled.length) return;
+  return { kind: "lyrics", ...(title ? { title } : {}), prose: true, stanzas: filled.map((stanza) => ({ ...(stanza.label ? { label: stanza.label } : {}), lines: stanza.lines })) };
+}
+
+/** Units (a CJK character one, anything else a half) one cut may hold; longer clauses are broken between words. */
+export const CUT_MAX_UNITS = 16;
+/** Clauses of one sentence share a cut while it stays within this many units. */
+export const CUT_JOIN_UNITS = 10;
+/** A clause this short (an "Oh," or a "嗯，") always joins the next one of its sentence, within CUT_MAX_UNITS. */
+const CUT_TINY_UNITS = 3;
+const visibleLength = (text: string) => [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].filter((g) => g.segment.trim()).length;
+/** Latin abbreviations whose full stop ends no sentence. */
+const ABBREVIATION = /(?:^|[\s(])(?:mr|mrs|ms|dr|prof|sr|jr|st|vs|etc|e\.g|i\.e|cf|no|fig|approx|inc|ltd|co)\.$/i;
+/** Closing marks that stay with the clause before them. */
+const CLOSERS = /^[”’"'」』）)\]】》〉〕…·—‥~～!！?？.。]$/u;
+
+/**
+ * One line of prose as cuts (raw text, markup kept). Boundaries: sentence
+ * ends (。！？!?. …) always; clause marks (，、；：,;: and a dash) join
+ * neighbours up to CUT_JOIN_UNITS; a Latin mark counts only before a space (so
+ * 3.14, 1,000 and URLs stay whole), an abbreviation's full stop never.
+ * Explicit `/` cut marks are kept as boundaries. A clause over CUT_MAX_UNITS
+ * is broken between words (ICU; Japanese after a particle, Chinese before a
+ * conjunction or after 的/了, English before a conjunction or preposition),
+ * never inside a word or an `*emphasis*` run.
+ */
+export function splitCuts(line: string): string[] {
+  const text = line.trim();
+  if (!text) return [];
+  // Explicit cut marks first (the same rule as parseLyricLine).
+  const marked = slashPieces(text);
+  if (marked.length > 1) return marked.flatMap(splitCuts);
+  const protectedAt = protectedRanges(text);
+  const inside = (i: number) => protectedAt.some(([a, b]) => i > a && i < b);
+  // Clauses: [text, ends a sentence].
+  const clauses: { text: string; end: boolean; series?: boolean }[] = [];
+  const chars = [...text];
+  let start = 0, offset = 0;
+  const offsets: number[] = [];
+  for (const c of chars) { offsets.push(offset); offset += c.length; }
+  offsets.push(offset);
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i]!, next = chars[i + 1];
+    let kind: "sentence" | "clause" | "series" | undefined;
+    if (/[。！？!?…‥]/u.test(c)) kind = "sentence";
+    else if (/[，；：]/u.test(c)) kind = "clause";
+    else if (c === "、") kind = "series";
+    else if (c === "." && (next === undefined || /\s/.test(next)) && !ABBREVIATION.test(text.slice(0, offsets[i + 1])) && !/\.\.$/.test(text.slice(0, offsets[i + 1]))) kind = "sentence";
+    else if (c === "." && next === undefined) kind = "sentence";
+    else if (/[,;:]/.test(c) && next !== undefined && /\s/.test(next)) kind = "clause";
+    else if (/[—–]/.test(c) && (next === undefined || /\s|[—–]/.test(next)) && i > 0 && /\s|[—–]/.test(chars[i - 1]!)) kind = "clause";
+    if (!kind || next === undefined || inside(offsets[i]!)) continue;
+    // Closing quotes, brackets and repeated marks stay with the clause.
+    let j = i + 1;
+    while (j < chars.length && CLOSERS.test(chars[j]!)) j++;
+    if (j >= chars.length) break;
+    if (inside(offsets[j]!)) continue;
+    const piece = text.slice(offsets[start], offsets[j]).trim();
+    if (piece) clauses.push({ text: piece, end: kind === "sentence", series: kind === "series" });
+    start = j; i = j - 1;
+  }
+  const rest = text.slice(offsets[start]).trim();
+  if (rest) clauses.push({ text: rest, end: true });
+  // Join clauses of one sentence while the cut stays short.
+  const joined: string[] = [];
+  let cut = "", cutEnds = true, series = false;
+  const glue = (a: string, b: string) => (a && /[\p{Script=Latin}\d,;:.!?'’"”)\]]$/u.test(a) && /^[\p{Script=Latin}\d'‘"“(\[*]/u.test(b) ? `${a} ${b}` : a + b);
+  for (const clause of clauses) {
+    const merged = glue(cut, clause.text);
+    // Items of a series (、) stay together up to the full cut.
+    const room = series || units(cut) <= CUT_TINY_UNITS ? CUT_MAX_UNITS : CUT_JOIN_UNITS;
+    if (cut && !cutEnds && units(merged) <= room) { cut = merged; cutEnds = clause.end; series = Boolean(clause.series); continue; }
+    if (cut) joined.push(cut);
+    cut = clause.text; cutEnds = clause.end; series = Boolean(clause.series);
+  }
+  if (cut) joined.push(cut);
+  return joined.flatMap((piece) => (units(piece) > CUT_MAX_UNITS ? breakClause(piece) : [piece]));
+}
+
+/** A cut's units as drawn (emphasis marks are syntax). */
+const units = (text: string) => lineUnits(text.replace(/\*([^*\s](?:[^*]*[^*\s])?)\*/g, "$1"));
+
+/** A line split at its `/` cut marks: between letters, never between digits, in `//`, or inside a URL or an address. */
+export function slashPieces(text: string): string[] {
+  const protectedAt = protectedRanges(text).filter(([a, b]) => !/^\*/.test(text.slice(a, b)));
+  const pieces: string[] = [];
+  let from = 0;
+  for (const m of text.matchAll(/(?<![\d/:])[\t ]*\/[\t ]*(?![\d/])/g)) {
+    const at = m.index!;
+    if (protectedAt.some(([a, b]) => at >= a && at < b)) continue;
+    pieces.push(text.slice(from, at)); from = at + m[0].length;
+  }
+  pieces.push(text.slice(from));
+  return pieces.map((piece) => piece.trim()).filter(Boolean);
+}
+
+/** Character offsets (UTF-16) of `*emphasis*` runs and URLs: no cut falls inside them. */
+function protectedRanges(text: string): [number, number][] {
+  const out: [number, number][] = [];
+  for (const m of text.matchAll(/\*([^*\s](?:[^*]*[^*\s])?)\*|https?:\/\/\S+|www\.\S+|\S+@\S+\.\w+/g)) out.push([m.index!, m.index! + m[0].length]);
+  return out;
+}
+
+const JA_PARTICLE_END = /(?:は|が|を|に|で|と|も|へ|や|の|から|まで|より|って|ても|ては|ので|けど|けれど|ながら|ば|て|し)$/u;
+const ZH_BREAK_BEFORE = /^(?:和|与|跟|但|但是|而|而且|或|或者|因为|所以|如果|就|才|都|也|还|却|并|并且|然后|可是|虽然|只要|只是|于是|即使|直到|让|把|被|在|从|向|对)$/u;
+const ZH_BREAK_AFTER = /(?:了|着|过)$/u;
+/** English words a cut should not end on: articles, possessives, prepositions and subject pronouns lead into what follows. */
+const EN_NO_END = /^(?:the|a|an|my|your|his|her|our|their|its|this|these|those|to|of|in|on|at|for|with|from|by|i|we|they|he|she|and|or|but|very|so|not|no)$/i;
+const EN_BREAK_BEFORE = /^(?:and|but|or|nor|so|yet|because|that|which|who|whom|whose|when|where|while|with|without|to|for|of|in|on|at|from|into|onto|than|as|if|unless|until|after|before|since|through|about|like|over|under)$/i;
+
+/** A clause over CUT_MAX_UNITS broken between words into near-even pieces, preferring natural points. */
+function breakClause(clause: string): string[] {
+  const locale = /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(clause) ? "ja" : /\p{Script=Han}/u.test(clause) ? "zh" : "en";
+  const protectedAt = protectedRanges(clause);
+  const words = [...new Intl.Segmenter(locale, { granularity: "word" }).segment(clause)].map((part) => ({ text: part.segment, index: part.index }));
+  // Break candidates: offsets between segments, never in a protected run, before closing punctuation or after an opening bracket, and between Latin words only at a space.
+  const breaks: { at: number; good: boolean; bad: boolean }[] = [];
+  for (let k = 1; k < words.length; k++) {
+    const at = words[k]!.index, before = words[k - 1]!.text, after = words[k]!.text;
+    if (protectedAt.some(([a, b]) => at > a && at < b)) continue;
+    if (/^[\s]*$/.test(before) && k < 2) continue;
+    if (/^[，。、；：？！）」』”’》〉】〕…—·,.;:?!)\]}%％‰~～]/u.test(after.trimStart()) || /[（「『“‘《〈【〔(\[{]$/u.test(before)) continue;
+    const latinJoin = /[\p{Script=Latin}\d'’]$/u.test(before) && /^[\p{Script=Latin}\d'‘]/u.test(after);
+    if (latinJoin) continue;
+    if (locale === "en" && !/\s$/.test(before) && !/^\s/.test(after)) continue;
+    if (/^\s+$/.test(after)) continue;
+    const word = after.trim();
+    // The word before the break (ICU gives spaces their own segment).
+    let back = k - 1;
+    while (back > 0 && !words[back]!.text.trim()) back--;
+    const previous = words[back]!.text.trim();
+    const good = locale === "ja" ? JA_PARTICLE_END.test(previous) && !/^[\p{Script=Hiragana}ー]/u.test(word)
+      : locale === "zh" ? ZH_BREAK_BEFORE.test(word) || (ZH_BREAK_AFTER.test(previous) && /\p{Script=Han}/u.test(word))
+      : EN_BREAK_BEFORE.test(word) || /[,;:]$/.test(previous);
+    const bad = locale === "en" && EN_NO_END.test(previous) || locale === "zh" && /[的地得]$/u.test(previous);
+    breaks.push({ at, good: good && !bad, bad });
+  }
+  const pieces: string[] = [];
+  let from = 0;
+  while (units(clause.slice(from)) > CUT_MAX_UNITS) {
+    const left = units(clause.slice(from));
+    const target = left / Math.ceil(left / CUT_MAX_UNITS);
+    let best: { at: number; cost: number } | undefined;
+    for (const b of breaks) {
+      if (b.at <= from) continue;
+      const n = units(clause.slice(from, b.at).trim());
+      if (n > CUT_MAX_UNITS && best) break;
+      if (n < Math.min(4, target * 0.5)) continue;
+      const cost = Math.abs(n - target) - (b.good ? target * 0.35 : 0) + (b.bad ? target * 0.5 : 0) + (n > CUT_MAX_UNITS ? 100 + n : 0);
+      if (!best || cost < best.cost) best = { at: b.at, cost };
+    }
+    if (!best) break;
+    pieces.push(clause.slice(from, best.at).trim());
+    from = best.at;
+  }
+  const rest = clause.slice(from).trim();
+  if (rest) pieces.push(rest);
+  return pieces.filter(Boolean);
 }
 
 function parseChat(text: string): TemplateContent | undefined {

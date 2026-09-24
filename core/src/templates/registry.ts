@@ -61,7 +61,8 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
   { id: "stats", name: "Metrics", nameZh: "多项指标", variants: [
     { id: "classic", name: "Dashboard", nameZh: "仪表板" }, { id: "editorial", name: "Scoreboard", nameZh: "记分板" },
   ], motions: MOTIONS },
-  { id: "lyrics", name: "Lyrics", nameZh: "歌词", variants: [
+  // "Lyric motion" (文字 PV): kinetic type for any text; the id stays "lyrics" (saved styles and disabled lists use it).
+  { id: "lyrics", name: "Lyric motion", nameZh: "文字 PV", variants: [
     { id: "classic", name: "Stage", nameZh: "舞台" }, { id: "editorial", name: "Paper", nameZh: "纸面" },
   ], motions: MOTIONS },
   { id: "qr", name: "QR code", nameZh: "二维码", variants: [
@@ -70,7 +71,7 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
 ];
 
 /** Templates the model and the local rules never pick; only an explicit override does. */
-export const MANUAL_TEMPLATES: readonly TemplateId[] = ["qr"];
+export const MANUAL_TEMPLATES: readonly TemplateId[] = ["lyrics", "qr"];
 
 export function templateRegistration(id: TemplateId): TemplateRegistration {
   return TEMPLATE_REGISTRY.find((entry) => entry.id === id)!;

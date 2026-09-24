@@ -40,7 +40,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Error | Crash report | Console | |
 | Schedule (`timeline`) | Agenda | Milestones | |
 | Metrics (`stats`) | Dashboard | Scoreboard | |
-| Lyrics | Stage | Paper | |
+| Lyric motion (`lyrics`; 文字 PV) | Stage | Paper | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -483,16 +483,54 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   white tiles on a warm page. Scoreboard: night, hairlines between the
   cells, values in yellow. Styles are `STATS_STYLES` in `compose.ts`.
 
-### Lyrics: song lyrics and poems as kinetic type
+### Lyric motion (文字 PV): any text as kinetic type, by choice only
 
 Inspired by [JIZURA](https://github.com/852wa/JIZURA) (MIT), a browser
 lyric-video maker by 852wa: its vocabulary (a cut = layout + entrance + hold +
 exit + decor) and its lyric markup are what this template speaks. No JIZURA
 code or assets are used. Peesuto makes the quick version; the result panel's
-**Open in JIZURA** hands the lyrics over for a full video (below).
+**Open in JIZURA** hands the text over for a full video (below).
 
-- **Recognized** three ways; everything else stays text, a list, a chat or a
-  schedule:
+Lyric motion is a **manual** template, like QR: rules and the model never
+choose it (`MANUAL_TEMPLATES`; the model is never offered it), and every text
+has it as an available candidate, so a result's template menu can always
+switch to it. The `paste-lyric` action (L in the ⌥V chooser, an unbound
+shortcut in Settings, Paste Directly in the menu bar) always uses it: an MP4
+when ffmpeg is installed, else a GIF, and the result says so
+(`meta.fallback = { from: "video", to: "gif", reason: "ffmpeg" }`). It is
+never precomposed (fixed-template actions have no precompose key). The id
+stays `lyrics`, so saved styles and disabled lists keep working; the
+user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
+
+- **Content** (`lyricMotion` in `parse.ts`): lyrics, LRC and poems keep their
+  own lines (read as below); code, terminal sessions, diffs, errors, tables,
+  diagrams, what the legacy classifier calls code (CSS, minified scripts,
+  logs) and text that is only links are marked `unfit`, and composing them
+  is an explicit `lyric-unfit` error ("use an image instead"); everything else
+  is **prose**:
+  - paragraphs are stanzas, a first `# ` line the title, `[Chorus]` lines
+    labels, and each line is cut by `splitCuts`;
+  - a cut ends at a sentence end (。！？!?… and a Latin `.` before a space,
+    never an abbreviation's, 3.14's or a URL's); clause marks (，；：,;: and a
+    spaced dash) end a clause, and clauses of one sentence share a cut while
+    it stays within `CUT_JOIN_UNITS` (10 units: a CJK character is one unit,
+    anything else a half); a clause of three units or less ("Oh," "嗯，") and
+    the items of a 、 series join up to `CUT_MAX_UNITS` (16);
+  - a clause longer than `CUT_MAX_UNITS` is broken between words (ICU) into
+    near-even pieces, preferring natural points: Japanese after a particle
+    (は が を に で と…), Chinese before a conjunction or adverb (但 而 因为 就
+    才…) or after 了/着/过 and never after 的, English before a conjunction or
+    preposition and never after an article, a possessive or a preposition;
+    never inside a word, an `*emphasis*` run, a URL or an address;
+  - JIZURA markup keeps working: `/` marks cuts of its own, `*word*`,
+    a trailing `!`, `line|note` (the note goes with the line's last cut);
+  - prose is read, not sung: a prose cut is never shown shorter than
+    0.14 s per CJK and 0.06 s per other character (`proseCjkMs`,
+    `proseLatinMs`).
+  Inside a cut, rows never end on a word that leads into the next (the, a,
+  to, my…; a lone Chinese character before a word, 新|版本), and a measure
+  word stays with its numeral (每一位).
+- **Lyric-shaped text** is read three ways:
   - **LRC**: every non-blank line is a timestamped line (`[mm:ss.xx]`, several
     stamps repeat the line) or a header tag, at least two with text.
     Timestamps and enhanced word timings (`<mm:ss.xx>`) are syntax; `[ti:]`
@@ -514,10 +552,13 @@ code or assets are used. Peesuto makes the quick version; the result panel's
     between blank lines or a repeated line, with a lyric voice (I, you, love,
     night, 我, 你, 夢, 君…) in some line (two blocks of meeting notes have
     none); or six lines or more, 60% of them in that voice. A first `# ` line is the
-    title; `[Chorus]` / `【副歌】` lines label their stanza. It ranks after info
-    and before schedule, quote, list and chat; short prose keeps the text
-    template as its alternative. Short lines with no such evidence (a to-do
-    list without markers, even "Call my mom / Buy milk for you") stay text.
+    title; `[Chorus]` / `【副歌】` lines label their stanza. Short lines with no
+    such evidence (a to-do list without markers, even "Call my mom / Buy milk
+    for you") are prose.
+  Automatically, lyrics are text, poems text or a quote, LRC a document (an
+  LRC block still never parses as a chat or a schedule). An LRC line longer
+  than `LYRIC_LINE_UNITS` is cut by `splitCuts`, its pieces sharing its time
+  by length.
 - **Markup** (JIZURA's): `/` cuts a line into separate screens (a slash
   between digits, in `//` or a URL is text; two Latin words either side of a
   bare `/` keep a space); `*word*` emphasises; `lyric|note` adds a small note;
@@ -557,15 +598,18 @@ code or assets are used. Peesuto makes the quick version; the result panel's
   Choices (colours, arrangements, entrances, decor, wipe directions) are
   seeded by the source text: the same lyrics give the same video.
 - **Timing** (`LYRICS_TIMING`): about 0.35 s per CJK character and 0.18 s per
-  other character, at least 1.1 s and at most 3.6 s per cut; LRC timestamps
-  when present (a line lasts until the next stamp, a `/` piece its share).
-  The whole is capped by the longest animation other templates make (a
-  scroll: 0.9 + 12 + 1.5 = 14.4 s) and, for GIF, by the frame-memory budget
-  at the narrowest 360 px width (about 9.6 s at 9:16); a longer excerpt is
-  played faster in proportion. When the cuts cannot fit even at the minimum,
-  two lines of a stanza share a screen; if that is still too long the render
-  stops with an explicit overflow error (use PNG for a poster of all of it,
-  or copy fewer lines). No text is ever dropped. The last cut holds.
+  other character, at least 1.1 s and at most 3.6 s per cut (prose: never
+  below its reading floor); LRC timestamps when present (a line lasts until
+  the next stamp, a `/` piece its share). An MP4 runs to 30 s (`maxMs`: a
+  tweet or a short paragraph at a readable pace; it renders in a few
+  seconds); a GIF keeps to the longest animation other templates make
+  (`gifMaxMs`, a scroll: 0.9 + 12 + 1.5 = 14.4 s) and to the frame-memory
+  budget at the narrowest 360 px width (about 9.6 s at 9:16). A longer
+  excerpt is played faster in proportion, down to each cut's floor. When the
+  cuts cannot fit, two cuts of a stanza share a screen; if that is still too
+  long the render stops with an explicit `lyric-too-long` error (copy a
+  shorter passage, or use PNG for a poster of all of it). No text is ever
+  dropped. The last cut holds.
 - **Checks**: a video's cuts share the canvas but never the screen, so the
   quality checks run per cut against that cut's own ground, and the source
   ledger over the whole layout (`lyricsViolations` in `lyrics.ts`).
@@ -600,13 +644,12 @@ code or assets are used. Peesuto makes the quick version; the result panel's
   Contrast checks read the paint (`inkColors` in checks.ts): gradient ink
   counts both stops, hollow text its outline (and fails below the large
   size), an outline of at least 4% of the size counts as a halo.
-- **Open in JIZURA** (native result panel, lyrics results only):
+- **Open in JIZURA** (native result panel, lyric-motion results only):
   JIZURA's web app takes no lyrics in its URL (it starts from what it saved
   in the browser; checked in its `src/12_ui.js`), so the button copies the
-  lyrics exactly as written (markup included: JIZURA reads the same syntax)
+  text exactly as written (markup included: JIZURA reads the same syntax)
   and opens the app, the Japanese edition for a Japanese interface and the
-  English one otherwise, with the note "Lyrics copied — paste them in
-  JIZURA". `JizuraHandoff` in `native/Sources/PeesutoKit`.
+  English one otherwise, with the note "Text copied — paste it in JIZURA". `JizuraHandoff` in `native/Sources/PeesutoKit`.
 
 ### QR code: any text, by shortcut only
 
@@ -718,7 +761,8 @@ switched off is stored as `templates_disabled` and sent as
 `disabledTemplates` with every `run-action` and `precompose` request. Rules and
 the model then choose among the templates left on, while choosing by hand still
 reaches all of them; `document` is the fallback and cannot be switched off, and
-`qr` is never chosen automatically anyway. The list is part of the precompose
+`lyrics` and `qr` are never chosen automatically anyway (Settings shows "Only
+when chosen" for them). The list is part of the precompose
 cache key.
 
 The older DSL `render` request remains for deterministic fixtures and CLI

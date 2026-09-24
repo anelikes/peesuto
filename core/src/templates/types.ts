@@ -102,12 +102,18 @@ export type TemplateContent =
    * signed change (`+8%`, `↓2`); parentheses around the change and the colon
    * are syntax. The change's sign only picks its colour. */
   | { readonly kind: "stats"; readonly title?: string; readonly metrics: readonly StatsMetric[] }
-  /** Song lyrics or a poem: an optional title and credit (an LRC `[ti:]` and
-   * `[ar:]` tag, a Markdown `# ` title, or a poem's title and author lines),
-   * then stanzas of lines. Lyric markup is syntax and not drawn: `/` cut marks,
-   * `*` around an emphasised word, `|` before a note, LRC timestamps. `poem`
-   * marks classical verse (equal phrases of four to seven Han characters). */
-  | { readonly kind: "lyrics"; readonly title?: string; readonly credit?: string; readonly poem?: boolean; readonly stanzas: readonly LyricStanza[] }
+  /** Lyric motion ("lyrics"): kinetic type for any text. Never chosen
+   * automatically; only the paste-lyric action or an explicit override.
+   * Song lyrics or a poem keep their lines: an optional title and credit (an
+   * LRC `[ti:]` and `[ar:]` tag, a Markdown `# ` title, or a poem's title and
+   * author lines), then stanzas of lines. Other text is `prose`: paragraphs
+   * are stanzas and each line is split into cuts at sentence and clause
+   * punctuation (parse.ts splitCuts). Lyric markup is syntax and not drawn:
+   * `/` cut marks, `*` around an emphasised word, `|` before a note, LRC
+   * timestamps. `poem` marks classical verse (equal phrases of four to seven
+   * Han characters). `unfit` marks text kinetic type cannot carry (code,
+   * tables, diagrams): composing it is an explicit error. */
+  | { readonly kind: "lyrics"; readonly title?: string; readonly credit?: string; readonly poem?: boolean; readonly prose?: boolean; readonly unfit?: "structure"; readonly stanzas: readonly LyricStanza[] }
   /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };

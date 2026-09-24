@@ -36,6 +36,7 @@ export function parseActionSpec(raw: unknown, origin = "action"): ActionSpec {
     if (ren.aspect !== undefined && !aspects.includes(ren.aspect as string)) bad(`render.aspect must be one of ${aspects.join("|")}`);
     if (ren.animate !== undefined && !["auto", "always", "never"].includes(ren.animate as string)) bad("render.animate must be auto, always or never");
     if (ren.template !== undefined && !(TEMPLATE_IDS as readonly string[]).includes(ren.template as string)) bad(`render.template must be one of ${TEMPLATE_IDS.join("|")}`);
+    if (ren.fallback !== undefined && (ren.fallback !== "gif" || r.output !== "video")) bad("render.fallback must be gif, on a video action");
   }
   if (r.trigger !== undefined) {
     if (typeof r.trigger !== "object" || r.trigger === null) bad("trigger must be an object");

@@ -120,15 +120,19 @@ export const LYRICS_MOTION = {
   editorial: { enterMs: 680, staggerMs: 80, maxStaggerMs: 900, typeMs: 70, exitMs: 320, transitionMs: 460, punchMs: 640, driftEm: 0.1, riseEm: 0.3, slideEm: 0.4, scaleFrom: 1.3, rotateFrom: -5, exitEm: 0, transition: "fade" as "wipe" | "fade" },
 } as const;
 
-/** How long a cut stays: reading time per character, clamped per cut; the
- * whole video is capped by the longest animation other templates make (a
- * scroll: TEMPLATE_SCROLL start + max + end, 14.4 s), and for GIF also by the
- * frame-memory budget (render.ts TEMPLATE_GIF_FRAME_BUDGET at the narrowest
- * 360 px width). Too many cuts first share screens (two lines per cut); if
- * that is still too long the render stops with an explicit error. */
+/** How long a cut stays: reading time per character, clamped per cut. A
+ * lyric-motion MP4 is a short video in its own right and may run to `maxMs`
+ * (30 s: a tweet or a short paragraph at a readable pace); a GIF is capped by
+ * the longest animation other templates make (`gifMaxMs`, a scroll:
+ * TEMPLATE_SCROLL start + max + end, 14.4 s) and by the frame-memory budget
+ * (render.ts TEMPLATE_GIF_FRAME_BUDGET at the narrowest 360 px width). Too
+ * many cuts first share screens (two cuts per screen); if that is still too
+ * long the render stops with an explicit error (lyric-too-long). */
 export const LYRICS_TIMING = {
   cjkMs: 350, latinMs: 180, minCutMs: 1100, maxCutMs: 3600, titleMs: 1800, introMs: 200, finalHoldMs: 1200,
-  maxMs: 14_400, fps: 30, gifFrameBudget: 128 * 1024 * 1024, gifMinWidth: 360,
+  /** Prose is read, not sung: a prose cut is never squeezed below this much per character (about 7 CJK or 16 Latin characters a second). */
+  proseCjkMs: 140, proseLatinMs: 60,
+  maxMs: 30_000, gifMaxMs: 14_400, fps: 30, gifFrameBudget: 128 * 1024 * 1024, gifMinWidth: 360,
 } as const;
 
 /* ───────────── Randomness ───────────── */
@@ -157,7 +161,7 @@ const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme
 const graphemes = (text: string): string[] => [...graphemeSegmenter.segment(text)].map((part) => part.segment);
 const NO_LINE_START = /^[，。、；：？！）」』”’》〉】〕…—·,.;:?!)\]}%％‰~～]$/u;
 const NO_LINE_END = /^[（「『“‘《〈【〔(\[{]$/u;
-const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}　-〿＀-￯]/u;
+const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}　-〿＀-￯ー・]/u;
 const KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
 const HIRAGANA = /^[\p{Script=Hiragana}ー]$/u;
 /** Chinese particles that stay with the word before them. */
@@ -219,6 +223,32 @@ class Typesetter {
       if (last && (!joined.trim() || NO_LINE_START.test(group[0]!.text) || NO_LINE_END.test(last.at(-1)!.text) || PARTICLE.test(joined))) { last.push(...group); continue; }
       groups.push([...group]);
     }
+    // Words that lead into the next never end a row: an article, a possessive
+    // or a short preposition (the|release).
+    const kana = glyphs.some((g) => KANA.test(g.text));
+    const textOf = (group: readonly Glyph[]) => group.map((g) => g.text).join("");
+    const han = (group: readonly Glyph[] | undefined) => Boolean(group) && /^\p{Script=Han}+$/u.test(textOf(group!));
+    for (let k = groups.length - 2; k >= 0; k--) {
+      if (/^(?:the|a|an|to|of|my|your|our|their|his|her|its|in|on|at|by)\s+$/i.test(textOf(groups[k]!)) && /^[\p{Script=Latin}\d'‘"“(]/u.test(groups[k + 1]![0]!.text)) groups.splice(k, 2, [...groups[k]!, ...groups[k + 1]!]);
+    }
+    if (!kana) {
+      // Chinese: a place word stays with its noun (地铁|上), a measure word with
+      // its number and a short noun after it (每一|位, 一只|猫, 那只|猫), a lone
+      // character with a short word after it (新|版本, 在|周五).
+      for (let k = groups.length - 1; k > 0; k--) {
+        const word = textOf(groups[k]!);
+        const place = /^[上里中内外]$/u.test(word) && han(groups[k - 1]);
+        const measure = /^[个位只条张次件本句首场份点些种样双对版]/u.test(word) && /[一二三四五六七八九十百千万两几每这那哪半]$/u.test(textOf(groups[k - 1]!));
+        if (place || (measure && word.length === 1)) groups.splice(k - 1, 2, [...groups[k - 1]!, ...groups[k]!]);
+      }
+      for (let k = 0; k + 1 < groups.length; k++) {
+        const word = textOf(groups[k]!), next = groups[k + 1]!;
+        const counted = /^[一二三四五六七八九十两几每这那哪半]?[一二三四五六七八九十两几每这那哪半][个位只条张次件本句首场份点些种样双对版]$/u.test(word);
+        const lone = groups[k]!.length === 1 && han(groups[k]) && !PARTICLE.test(word);
+        const nextHan = next.filter((g) => /\p{Script=Han}/u.test(g.text)).length;
+        if ((counted || lone) && /^\p{Script=Han}/u.test(next[0]!.text) && nextHan >= 1 && nextHan <= 2) groups.splice(k, 2, [...groups[k]!, ...next]);
+      }
+    }
     return groups.map((group) => {
       let cut = group.length;
       while (cut > 0 && !group[cut - 1]!.text.trim()) cut--;
@@ -226,7 +256,39 @@ class Typesetter {
       return { glyphs: group, width, trail: width - this.width(group.slice(0, cut)) };
     });
   }
-  /** Greedy rows no wider than `max`; a CJK word too wide splits into its characters, a Latin one means it does not fit (undefined). */
+  /** A CJK phrase too wide for a row, as its words (ICU): Japanese only before
+   * a kanji or katakana run, a word of three kana or more (みなさん,
+   * ありがとう) or a polite ending (ございます); closing marks stay attached. */
+  words(token: Token): Token[] {
+    const glyphs = token.glyphs, offsets: number[] = [];
+    let joined = "";
+    for (const g of glyphs) { offsets.push(joined.length); joined += g.text; }
+    const byOffset = new Map(offsets.map((offset, index) => [offset, index]));
+    const japanese = glyphs.some((g) => KANA.test(g.text));
+    const cuts: number[] = [];
+    // Japanese: a katakana word ends where its kana ending begins (リリース|しました).
+    if (japanese) for (let i = 1; i < glyphs.length; i++) {
+      if (/^[\p{Script=Katakana}ー]$/u.test(glyphs[i - 1]!.text) && /^\p{Script=Hiragana}$/u.test(glyphs[i]!.text) && glyphs.length - i >= 3) cuts.push(i);
+    }
+    for (const part of new Intl.Segmenter(japanese ? "ja" : "zh", { granularity: "word" }).segment(joined)) {
+      const index = byOffset.get(part.index);
+      if (!index || NO_LINE_START.test(glyphs[index]!.text) || NO_LINE_END.test(glyphs[index - 1]!.text)) continue;
+      if (japanese && HIRAGANA.test(glyphs[index]!.text) && [...part.segment].length < 3 && !/^(?:ござい|くださ|いただ)/u.test(joined.slice(part.index))) continue;
+      cuts.push(index);
+    }
+    const bounds = [0, ...[...new Set(cuts)].sort((x, y) => x - y), glyphs.length];
+    const out: Token[] = [];
+    for (let k = 0; k + 1 < bounds.length; k++) {
+      const group = glyphs.slice(bounds[k], bounds[k + 1]);
+      if (!group.length) continue;
+      const width = this.width(group);
+      let cut = group.length;
+      while (cut > 0 && !group[cut - 1]!.text.trim()) cut--;
+      out.push({ glyphs: group, width, trail: width - this.width(group.slice(0, cut)) });
+    }
+    return out;
+  }
+  /** Greedy rows no wider than `max`; a CJK word too wide splits into its words, then characters; a Latin one means it does not fit (undefined). */
   wrap(tokens: readonly Token[], max: number, split = true): Row[] | undefined {
     const rows: Token[][] = [[]];
     let width = 0;
@@ -234,9 +296,16 @@ class Typesetter {
     while (queue.length) {
       const token = queue.shift()!;
       if (token.width - token.trail > max + 0.01) {
-        if (!split || !token.glyphs.every((g) => WIDE.test(g.text) || NO_LINE_START.test(g.text) || !g.text.trim())) return;
+        // A CJK run splits into characters; so does a long address or identifier (a URL, an e-mail, a token), never a word.
+        const text = token.glyphs.map((g) => g.text).join("").trim();
+        const identifier = [...text].length > 12 && /[/._@:?=&#%~+\\-]|\d/.test(text);
+        if (!split || !(identifier || token.glyphs.every((g) => WIDE.test(g.text) || NO_LINE_START.test(g.text) || !g.text.trim()))) return;
         if (token.glyphs.length === 1) return;
-        queue.unshift(...token.glyphs.map((g) => { const w = this.width([g]); return { glyphs: [g], width: w, trail: g.text.trim() ? 0 : w }; }));
+        // Words first (a phrase breaks between its words), characters when that is not enough.
+        const words = identifier ? [] : this.words(token);
+        // A Japanese word is never split (a smaller size instead); a Chinese word, an address or an identifier may break between characters.
+        if (words.length <= 1 && !identifier && token.glyphs.some((g) => KANA.test(g.text))) return;
+        queue.unshift(...(words.length > 1 ? words : token.glyphs.map((g) => { const w = this.width([g]); return { glyphs: [g], width: w, trail: g.text.trim() ? 0 : w }; })));
         continue;
       }
       const row = rows.at(-1)!;
@@ -656,15 +725,19 @@ interface CutSpec {
   segments: { text: string; emphasis: (readonly [number, number])[] }[];
   notes: string[]; label?: string; credit?: string;
   bang: boolean; readMs: number; timedMs?: number; stanza: number;
+  /** The shortest this cut may be shown (prose: its reading floor). */
+  floorMs: number;
 }
 
 /** Reading time: per CJK character and per other visible character. */
 const readingMs = (text: string) => graphemes(text).reduce((ms, g) => ms + (!g.trim() ? 0 : WIDE.test(g) ? LYRICS_TIMING.cjkMs : LYRICS_TIMING.latinMs), 0);
+/** The floor of a prose cut: the fastest it can still be read. */
+const proseFloorMs = (text: string) => Math.max(LYRICS_TIMING.minCutMs, graphemes(text).reduce((ms, g) => ms + (!g.trim() ? 0 : WIDE.test(g) ? LYRICS_TIMING.proseCjkMs : LYRICS_TIMING.proseLatinMs), 0));
 
 function cutSpecs(content: LyricsContent): CutSpec[] {
   const cuts: CutSpec[] = [];
   if (content.title || content.credit) cuts.push({ kind: "title", segments: content.title ? [{ text: content.title, emphasis: [] }] : [], notes: [], ...(content.credit ? { credit: content.credit } : {}),
-    bang: false, readMs: LYRICS_TIMING.titleMs, stanza: -1 });
+    bang: false, readMs: LYRICS_TIMING.titleMs, stanza: -1, floorMs: LYRICS_TIMING.titleMs });
   for (const [s, stanza] of content.stanzas.entries()) {
     for (const [l, line] of stanza.lines.entries()) {
       const glyphs = graphemes(normalizeText(line.text, "plain"));
@@ -685,7 +758,8 @@ function cutSpecs(content: LyricsContent): CutSpec[] {
         const phrases = content.poem ? text.match(/[^，。？！、；：,.?!;:]+[，。？！、；：,.?!;:]*/gu) ?? [text] : [text];
         cuts.push({ kind: "line", segments: phrases.length > 1 ? phrases.map((p) => ({ text: p, emphasis: [] })) : [{ text, emphasis }], notes: k + 2 === bounds.length && line.note ? [line.note] : [],
           ...(k === 0 && l === 0 && stanza.label ? { label: stanza.label } : {}),
-          bang: /[!！]$/.test(text), readMs: readingMs(text), ...(share !== undefined ? { timedMs: share } : {}), stanza: s });
+          bang: /[!！]$/.test(text), readMs: readingMs(text), ...(share !== undefined ? { timedMs: share } : {}), stanza: s,
+          floorMs: content.prose ? proseFloorMs(text) : LYRICS_TIMING.minCutMs });
       }
     }
   }
@@ -693,12 +767,12 @@ function cutSpecs(content: LyricsContent): CutSpec[] {
 }
 
 /** Two consecutive line cuts of one stanza on one screen. */
-function pairCuts(cuts: readonly CutSpec[]): CutSpec[] {
+function pairCuts(cuts: readonly CutSpec[], prose = false): CutSpec[] {
   const out: CutSpec[] = [];
   for (let i = 0; i < cuts.length; i++) {
     const a = cuts[i]!, b = cuts[i + 1];
     if (a.kind === "line" && b?.kind === "line" && b.stanza === a.stanza && !b.label) {
-      out.push({ ...a, segments: [...a.segments, ...b.segments], notes: [...a.notes, ...b.notes], bang: b.bang, readMs: a.readMs + b.readMs,
+      out.push({ ...a, segments: [...a.segments, ...b.segments], notes: [...a.notes, ...b.notes], bang: b.bang, readMs: a.readMs + b.readMs, floorMs: prose ? a.floorMs + b.floorMs : LYRICS_TIMING.minCutMs,
         ...(a.timedMs !== undefined && b.timedMs !== undefined ? { timedMs: a.timedMs + b.timedMs } : {}) });
       i++;
     } else out.push(a);
@@ -711,20 +785,19 @@ export function lyricsMaxMs(width: number, height: number, format: TemplateForma
   if (format !== "gif") return LYRICS_TIMING.maxMs;
   const T = LYRICS_TIMING, w = T.gifMinWidth, h = Math.round(height * w / width);
   const sampled = Math.floor(T.gifFrameBudget / (4 * w * h));
-  return Math.min(T.maxMs, Math.floor(((sampled * 2 - 2) / T.fps) * 1000));
+  return Math.min(T.gifMaxMs, Math.floor(((sampled * 2 - 2) / T.fps) * 1000));
 }
 
-/** Per-cut durations fitted into `available` ms: shrink proportionally, never below the minimum. */
-function fitDurations(wanted: readonly number[], fixed: readonly boolean[], available: number): number[] | undefined {
-  const T = LYRICS_TIMING;
+/** Per-cut durations fitted into `available` ms: shrink proportionally, never below each cut's floor. */
+function fitDurations(wanted: readonly number[], floors: readonly number[], available: number): number[] | undefined {
   let durations = [...wanted];
   for (let pass = 0; pass < 6; pass++) {
     const total = durations.reduce((a, b) => a + b, 0);
     if (total <= available) return durations.map(Math.floor);
-    const flexible = durations.reduce((n, d, i) => n + (fixed[i] || d <= T.minCutMs ? 0 : d - T.minCutMs), 0);
+    const flexible = durations.reduce((n, d, i) => n + Math.max(0, d - floors[i]!), 0);
     const over = total - available;
     if (flexible <= 0) return;
-    durations = durations.map((d, i) => (fixed[i] || d <= T.minCutMs ? d : Math.max(T.minCutMs, d - (d - T.minCutMs) * Math.min(1, over / flexible))));
+    durations = durations.map((d, i) => (d <= floors[i]! ? d : Math.max(floors[i]!, d - (d - floors[i]!) * Math.min(1, over / flexible))));
   }
   return durations.reduce((a, b) => a + b, 0) <= available + 1 ? durations.map(Math.floor) : undefined;
 }
@@ -737,19 +810,20 @@ function video(ctx: LyricsContext): LyricsResult {
   const cap = lyricsMaxMs(W, H, ctx.format);
   // Durations: LRC timing when given, else reading time; clamped per cut, then fitted.
   const plan = (specs: CutSpec[]) => {
-    const wanted = specs.map((c) => c.kind === "title" ? T.titleMs : Math.min(T.maxCutMs, Math.max(T.minCutMs, c.timedMs ?? c.readMs)));
+    const floors = specs.map((c) => (c.kind === "title" ? T.titleMs : c.floorMs));
+    const wanted = specs.map((c, i) => c.kind === "title" ? T.titleMs : Math.max(floors[i]!, Math.min(T.maxCutMs, Math.max(T.minCutMs, c.timedMs ?? c.readMs))));
     const last = wanted.length - 1;
     const tail = Math.max(0, T.finalHoldMs + 600 - wanted[last]!);
     const available = cap - T.introMs - last * timing.transitionMs - tail;
-    const durations = fitDurations(wanted, specs.map((c) => c.kind === "title"), available);
+    const durations = fitDurations(wanted, floors, available);
     return durations && { durations, tail };
   };
   let specs = cutSpecs(content);
   let fitted = plan(specs);
-  if (!fitted) { specs = pairCuts(specs); fitted = plan(specs); }
+  if (!fitted) { specs = pairCuts(specs, Boolean(content.prose)); fitted = plan(specs); }
   if (!fitted) {
     const screens = specs.length, most = Math.floor((cap - T.introMs - T.finalHoldMs) / (T.minCutMs + timing.transitionMs));
-    throw new ComposeError("overflow", `These lyrics need ${screens} screens even two lines at a time; a ${(cap / 1000).toFixed(1)} s lyric ${ctx.format === "gif" ? "GIF" : "video"} holds about ${most}. Use PNG for a poster of all of it, or copy fewer lines. No content was dropped.`);
+    throw new ComposeError("lyric-too-long", `This text needs ${screens} screens even two cuts at a time; a ${(cap / 1000).toFixed(1)} s lyric-motion ${ctx.format === "gif" ? "GIF" : "video"} holds about ${most}${content.prose ? " at a readable pace" : ""}. Copy a shorter passage, or use PNG for a poster of all of it. No content was dropped.`);
   }
   const { durations, tail } = fitted;
   const margin = M.margin;

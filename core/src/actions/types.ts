@@ -26,7 +26,9 @@ export interface ActionSpec {
   /** `aspect`: auto, 1:1, 4:5, 16:9, 9:16 (or legacy chat/doc/social); absent = the output's default. */
   readonly render?: { readonly aspect?: string; readonly animate?: "auto" | "always" | "never";
     /** Always this template (e.g. "qr"); no model is asked. */
-    readonly template?: TemplateId };
+    readonly template?: TemplateId;
+    /** A video action: render a GIF instead when ffmpeg is missing (the result says so in `meta.fallback`). */
+    readonly fallback?: "gif" };
   /** Set on shipped actions; user files cannot claim it. */
   readonly builtin?: boolean;
   /** The pack an action came from, when it did. */

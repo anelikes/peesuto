@@ -395,7 +395,7 @@ public enum JapaneseStrings {
         "Agenda": "アジェンダ",
         "Milestones": "マイルストーン",
         "Metrics": "指標",
-        "Lyrics": "歌詞",
+        "Lyric motion": "文字PV",
         "Stage": "ステージ",
         "Dashboard": "ダッシュボード",
         "Scoreboard": "スコアボード",

@@ -1366,6 +1366,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       break;
     }
     case "lyrics": {
+      if (content.unfit) throw new ComposeError("lyric-unfit", "Lyric motion sets words as moving type; code, tables and diagrams lose their layout that way. Use an image instead. No content was dropped.");
       const r = layoutLyrics({ plan, content, measure, faces: view.faces ?? [], width: W, height: view.height, fit: view.fit, format: view.format, sizes: SIZES,
         minBody: minFontSize(W), minSecondary: minFontSize(W, "secondary"), footerRoom, style: styleOf(LYRICS_STYLES), variant: plan.variant === "editorial" ? "editorial" : "classic" });
       layout.background = r.background; margin = r.margin; signatureColor = r.signatureColor; signatureAlign = r.signatureAlign;

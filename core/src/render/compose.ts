@@ -80,7 +80,8 @@ export interface ComposeResult {
  * `fidelity`: a template layout would draw text the source did not say, or
  * leave some of it out (templates/checks.ts); nothing is rendered.
  */
-export type ComposeErrorCode = "overflow" | "unsupported-script" | "empty" | "catalog" | "qr-too-long" | "fidelity";
+/** lyric-unfit: code, a table or a diagram as lyric motion; lyric-too-long: more cuts than one lyric-motion video holds. */
+export type ComposeErrorCode = "overflow" | "unsupported-script" | "empty" | "catalog" | "qr-too-long" | "fidelity" | "lyric-unfit" | "lyric-too-long";
 
 export class ComposeError extends Error {
   readonly code: ComposeErrorCode;

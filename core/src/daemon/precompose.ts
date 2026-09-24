@@ -93,7 +93,8 @@ export function precomposeKey(p: KeyParts): string {
 
 /** The key parts of a render request, from the action spec and its input. */
 export function renderKeyParts(spec: ActionSpec, input: ActionInput): Pick<KeyParts, "text" | "output" | "frame" | "animate" | "preferences" | "disabled" | "font" | "signature"> | null {
-  if (spec.needs !== "render" || !(PRECOMPOSE_OUTPUTS as readonly string[]).includes(spec.output)) return null;
+  // A fixed-template action (paste-qr, paste-lyric) is never precomposed, and must not claim a card that was.
+  if (spec.needs !== "render" || spec.render?.template || !(PRECOMPOSE_OUTPUTS as readonly string[]).includes(spec.output)) return null;
   const output = spec.output as PrecomposeOutput;
   return { text: input.text, output, frame: normalizedFrame(output, input.aspect ?? spec.render?.aspect), animate: spec.render?.animate ?? "auto", preferences: { ...(input.templatePreferences ?? {}) }, disabled: templateIdList(input.disabledTemplates), font: typeof input.templateFont === "string" ? input.templateFont : "", signature: templateSignature(input.templateSignature) ?? "" };
 }

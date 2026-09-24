@@ -25,6 +25,8 @@ describe("parseActionSpec", () => {
     ["render with text output", { id: "c", name: "C", input: "clipboard", needs: "render", output: "text" }],
     ["render bad aspect", { id: "c", name: "C", input: "clipboard", needs: "render", output: "image", render: { aspect: "wide" } }],
     ["maxTokens zero", { ...valid, maxTokens: 0 }],
+    ["fallback on an image action", { id: "c", name: "C", input: "clipboard", needs: "render", output: "image", render: { fallback: "gif" } }],
+    ["fallback other than gif", { id: "c", name: "C", input: "clipboard", needs: "render", output: "video", render: { fallback: "png" } }],
   ];
   for (const [name, raw] of bad) test(`rejects ${name}`, () => { expect(() => parseActionSpec(raw)).toThrow(ActionError); });
 });
@@ -72,6 +74,24 @@ describe("runAction", () => {
   test("render without an engine → ActionError(needs)", async () => {
     const card = BUILTIN_ACTIONS.find((a) => a.id === "paste-card")!;
     await expect(runAction(card, { text: "x" }, deps)).rejects.toMatchObject({ kind: "needs" });
+  });
+  test("paste-lyric: fixed to lyric motion, MP4 with ffmpeg, else an explicit GIF fallback; paste-video still needs ffmpeg", async () => {
+    const lyric = BUILTIN_ACTIONS.find((a) => a.id === "paste-lyric")!;
+    expect(lyric).toMatchObject({ output: "video", render: { template: "lyrics", animate: "always", fallback: "gif" } });
+    const formats: string[] = [];
+    const fake = (async (plan: { template: string }, o: { format: string }) => {
+      formats.push(`${plan.template}:${o.format}`);
+      return { path: `/tmp/fake.${o.format}`, format: o.format, frames: 90, lines: 1, size: 40, width: 1080, height: 1080, scroll: false, ms: { compose: 1, build: 1, frame: 1 } };
+    }) as never;
+    const noFFmpeg = { decider: null, generator: null, render: { engine: "/fake", work: "/tmp/w", ffmpeg: "/nonexistent/ffmpeg" }, renderTemplate: fake } as never;
+    const r = await runAction(lyric, { text: "We shipped the release today. Thanks, everyone." }, noFFmpeg);
+    expect(r).toMatchObject({ output: "gif", format: "gif", meta: { fallback: { from: "video", to: "gif", reason: "ffmpeg" }, template: { id: "lyrics" } } });
+    expect(formats).toEqual(["lyrics:gif"]);
+    await expect(runAction(BUILTIN_ACTIONS.find((a) => a.id === "paste-video")!, { text: "x" }, noFFmpeg)).rejects.toMatchObject({ kind: "needs" });
+    const withFFmpeg = { decider: null, generator: null, render: { engine: "/fake", work: "/tmp/w", ffmpeg: process.execPath }, renderTemplate: fake } as never;
+    const video = await runAction(lyric, { text: "少即是多。" }, withFFmpeg);
+    expect(video).toMatchObject({ output: "video", format: "mp4" });
+    expect((video as { meta?: Record<string, unknown> }).meta?.fallback).toBeUndefined();
   });
   test("fillTemplate substitutes input, context and app", () => {
     const out = fillTemplate("{{app}}|{{context}}|{{input}}", { text: "T", context: { level: 0, appBundleId: "com.x.y", appName: "Y" } });

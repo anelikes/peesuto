@@ -33,6 +33,12 @@ export const BUILTIN_ACTIONS: readonly ActionSpec[] = [
     input: "clipboard", needs: "render", output: "image", render: { animate: "never", template: "qr" },
   },
   {
+    id: "paste-lyric", name: "Paste as lyric motion", builtin: true,
+    description: "Kinetic type (文字 PV) from any text: lyrics keep their lines, prose is cut at its punctuation. MP4 when ffmpeg is installed, else a GIF. Never decided automatically.",
+    trigger: { menu: true },
+    input: "clipboard", needs: "render", output: "video", render: { animate: "always", template: "lyrics", fallback: "gif" },
+  },
+  {
     id: "paste-translate", name: "Paste translation", builtin: true,
     description: "Translate the text to English (edit the prompt for another language).",
     trigger: { menu: true },

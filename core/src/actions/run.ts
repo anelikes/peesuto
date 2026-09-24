@@ -82,11 +82,16 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   if (!deps.render) throw new ActionError("needs", `${spec.id} needs the render engine; it is not available`);
   if (spec.output !== "image" && spec.output !== "gif" && spec.output !== "video") throw new ActionError("spec", `${spec.id}: a render action outputs image, gif or video`);
   let ffmpeg: string | undefined;
+  // What this render makes: the action's output, or a GIF when a video action allows it and ffmpeg is missing.
+  let output: "image" | "gif" | "video" = spec.output;
+  let fallback: { from: "video"; to: "gif"; reason: string } | undefined;
   if (spec.output === "video") {
     try { ffmpeg = resolveFFmpeg({ executable: deps.render.ffmpeg }); }
     catch (error) {
-      if (error instanceof VideoUnavailableError) throw new ActionError("needs", error.message);
-      throw error;
+      if (!(error instanceof VideoUnavailableError)) throw error;
+      if (spec.render?.fallback !== "gif") throw new ActionError("needs", error.message);
+      output = "gif";
+      fallback = { from: "video", to: "gif", reason: "ffmpeg" };
     }
   }
   // Absent means the output's default: images fit their content, GIF/MP4 are 1:1.
@@ -95,7 +100,7 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   const text = deps.outputText ? deps.outputText(input.text) : input.text;
   let decision;
   try {
-    decision = await decideTemplate(text, { aspect, decider: deps.decider, output: spec.output,
+    decision = await decideTemplate(text, { aspect, decider: deps.decider, output,
       // A fixed-template action (paste-qr) keeps its template unless the user picks another.
       override: input.template ?? (spec.render?.template ? { id: spec.render.template } : undefined), preferences: input.templatePreferences, disabled: input.disabledTemplates, font: input.templateFont, signature: input.templateSignature, animate: spec.render?.animate });
   } catch (error) {
@@ -103,7 +108,7 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
     throw error;
   }
   const { plan, decisionSource, availableTemplates, decisionError } = decision;
-  const format = spec.output === "video" ? "mp4" : spec.output === "gif" ? "gif" : "png";
+  const format = output === "video" ? "mp4" : output === "gif" ? "gif" : "png";
   const render = deps.renderTemplate ?? renderTemplate;
   const r = await render(plan, { ...deps.render, catalog: deps.catalog, format, ffmpeg, signal: control.signal, lowPriority: control.lowPriority });
   // GIF/MP4 must animate unless the action is explicitly static ("never").
@@ -111,7 +116,8 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
     await rm(r.path, { force: true });
     throw new ActionError("run", `${spec.id}: the card came out static`);
   }
-  return { output: spec.output, path: r.path, format: r.format, ms: ms(), meta: {
+  return { output, path: r.path, format: r.format, ms: ms(), meta: {
+    ...(fallback ? { fallback } : {}),
     template: { id: plan.template, variant: plan.variant, motion: plan.motion, aspect: plan.aspect, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
     lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
   } };

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
-import { parseLyricLine, parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
+import { CUT_MAX_UNITS, parseLyricLine, parseLyrics, parseTemplates, splitCuts, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
 import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, STATS_STYLES, TEMPLATE_LIMITS, TEMPLATE_SCROLL, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { emphasisPaint, lyricsComposition, lyricsMaxMs, lyricsViolations, LYRICS_STYLES } from "../src/templates/lyrics.ts";
@@ -460,6 +460,8 @@ describe("card font", () => {
     expect((await decideTemplate("Short and sweet.", { ...base, font: "comic-sans" })).plan.font).toBeUndefined();
     const spec = { id: "paste-card", name: "x", needs: "render", output: "image" } as unknown as Parameters<typeof renderKeyParts>[0];
     expect(renderKeyParts(spec, { text: "x", templateFont: "noto" })?.font).toBe("noto");
+    // Fixed-template actions (paste-qr, paste-lyric) are never precomposed and never claim a precomposed card.
+    expect(renderKeyParts({ ...spec, id: "paste-qr", render: { animate: "never", template: "qr" } } as never, { text: "x" })).toBeNull();
     expect(renderKeyParts(spec, { text: "x" })?.font).toBe("");
   });
 });
@@ -844,8 +846,12 @@ describe("lyrics cards", () => {
   const plan = (text: string, variant: "classic" | "editorial" = "classic", motion: "none" | "reveal" | "typewriter" = "reveal", aspect: "1:1" | "9:16" | "16:9" = "1:1") =>
     ({ version: 1 as const, template: "lyrics" as const, variant, motion, aspect, sourceText: text, content: lyricsOf(text)! });
 
-  test("song lyrics in Chinese, Japanese and English, with stanzas, are lyrics", () => {
-    for (const text of [ZH, JA, EN]) expect(parseTemplates(text).preferred).toBe("lyrics");
+  test("song lyrics in Chinese, Japanese and English keep their lines; lyric motion is never chosen automatically", () => {
+    for (const text of [ZH, JA, EN]) {
+      expect(parseTemplates(text).preferred).not.toBe("lyrics");
+      expect(parseLyrics(text)).toBeDefined();
+      expect(lyricsOf(text)).not.toHaveProperty("prose");
+    }
     expect(lyricsOf(ZH)).toMatchObject({ kind: "lyrics", stanzas: [{ lines: [{ text: "旧站台的白铃兰" }, {}, {}, {}] }, { lines: [{}, { text: "我听见心跳慢慢靠近" }] }] });
     // Short prose stays an alternative.
     expect(parseTemplates(EN).candidates.has("text")).toBe(true);
@@ -864,7 +870,8 @@ describe("lyrics cards", () => {
   });
   test("LRC: timestamps give the timing and are syntax; [ti:] and [ar:] are the title and credit; never a chat or a schedule", () => {
     const parsed = parseTemplates(LRC);
-    expect(parsed.preferred).toBe("lyrics");
+    // Lyric motion is manual: an LRC file is a document unless the user asks.
+    expect(parsed.preferred).toBe("document");
     expect(parsed.candidates.has("chat")).toBe(false);
     expect(parsed.candidates.has("timeline")).toBe(false);
     expect(parsed.candidates.get("lyrics")).toEqual({ kind: "lyrics", title: "纸飞机", credit: "Peesuto", stanzas: [{ lines: [
@@ -873,18 +880,23 @@ describe("lyrics cards", () => {
     // Repeated stamps repeat the line in time order; an empty stamp ends a stanza; word timings are dropped.
     expect(lyricsOf("[00:01.00][00:05.00]La la\n[00:03.00]<00:03.10>Hey <00:03.50>you\n[00:07.00]\n[00:08.00]Bye now")).toMatchObject({ stanzas: [
       { lines: [{ text: "La la", at: 1000 }, { text: "Hey you", at: 3000 }, { text: "La la", at: 5000, until: 7000 }] }, { lines: [{ text: "Bye now", at: 8000 }] }] });
-    // A line that is not LRC in an LRC block: not lyrics at all.
-    expect(lyricsOf("[00:01.00]one\n[00:02.00]two\nthree")).toBeUndefined();
+    // A line that is not LRC in an LRC block: not lyrics at all (lyric motion reads it as prose).
+    expect(parseLyrics("[00:01.00]one\n[00:02.00]two\nthree")).toBeUndefined();
+    // A long LRC line is cut at its punctuation; the pieces share its time by length.
+    expect(lyricsOf("[00:01.00]We walked along the river until the lights came on, and nobody said a word\n[00:09.00]Bye now")).toMatchObject({ stanzas: [{ lines: [
+      { text: "We walked along the river", at: 1000 }, { at: expect.any(Number) }, { text: "and nobody said a word", until: 9000 }, { text: "Bye now", at: 9000 }] }] });
   });
   test("a classical poem is a poem card, with its title and author or an attribution", () => {
-    expect(parseTemplates("床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。").preferred).toBe("lyrics");
+    expect(parseTemplates("床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。").preferred).toBe("text");
+    expect(lyricsOf("床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。")).toMatchObject({ poem: true });
     expect(lyricsOf("静夜思\n李白\n床前明月光，疑是地上霜。\n举头望明月，低头思故乡。")).toEqual({ kind: "lyrics", title: "静夜思", credit: "李白", poem: true,
       stanzas: [{ lines: [{ text: "床前明月光，疑是地上霜。" }, { text: "举头望明月，低头思故乡。" }] }] });
     expect(lyricsOf("白日依山尽，黄河入海流。\n欲穷千里目，更上一层楼。\n—— 王之涣")).toMatchObject({ credit: "王之涣", poem: true });
-    // A quoted poem with an attribution is a poem, not a quote.
-    expect(parseTemplates("春眠不觉晓，处处闻啼鸟。\n夜来风雨声，花落知多少。\n—— 孟浩然").preferred).toBe("lyrics");
+    // A quoted poem with an attribution is a quote automatically, and a poem as lyric motion.
+    expect(parseTemplates("春眠不觉晓，处处闻啼鸟。\n夜来风雨声，花落知多少。\n—— 孟浩然").preferred).toBe("quote");
+    expect(lyricsOf("春眠不觉晓，处处闻啼鸟。\n夜来风雨声，花落知多少。\n—— 孟浩然")).toMatchObject({ credit: "孟浩然", poem: true });
   });
-  test("negatives: lists, chat, schedules, code, fields and short prose are not lyrics", () => {
+  test("negatives: lists, chat, schedules, code, fields and short prose are not lyric-shaped (lyric motion cuts them as prose, or marks them unfit)", () => {
     for (const text of [
       "Buy milk\nCall mom\nFix bike\nPay rent", "- one\n- two\n- three\n- four", "1. one\n2. two\n3. three",
       "Alice: hi\nBob: hello\nAlice: how are you\nBob: fine", "09:00 Doors open\n10:30 Keynote\n14:00 Workshops\n18:00 Party",
@@ -896,7 +908,77 @@ describe("lyrics cards", () => {
       "| a | b |\n|---|---|\n| 1 | 2 |",
       "Call my mom\nBuy milk for you\nPick up the kids\nWalk the dog", "Meeting notes\nAPI review\nDB migration\n\nAction items\nShip v2\nFix login",
       "会议纪要\n接口评审\n数据库迁移\n\n待办事项\n发布二版\n修复登录",
-    ]) expect(lyricsOf(text)).toBeUndefined();
+    ]) {
+      expect(parseLyrics(text)).toBeUndefined();
+      const content = lyricsOf(text)!;
+      expect(content.kind).toBe("lyrics");
+      if (/const a|\| a \||^https:/.test(text)) expect(content).toMatchObject({ unfit: "structure", stanzas: [] });
+      else expect(content).toMatchObject({ prose: true });
+    }
+  });
+  test("lyric motion is manual: every text is a candidate, rules and the model never pick it, an override does", async () => {
+    const PROSE = "We shipped the release today. Thanks to everyone who tested it.";
+    for (const text of [PROSE, ZH, LRC, "const a = 1;\nconsole.log(a);", "少即是多。"]) {
+      const parsed = parseTemplates(text);
+      expect(parsed.candidates.has("lyrics")).toBe(true);
+      expect(parsed.preferred).not.toBe("lyrics");
+      expect(Object.keys((buildTemplateRequest(parsed, true).questions.template as { criteria: Record<string, string> }).criteria)).not.toContain("lyrics");
+    }
+    const jev = decider({ template: choice("lyrics", 0.99), variant: choice("lyrics.classic", 0.99), motion: choice("reveal", 0.99) });
+    expect((await decideTemplate(ZH, { ...base, decider: jev })).plan.template).not.toBe("lyrics");
+    const chosen = await decideTemplate(PROSE, { ...base, override: { id: "lyrics" } });
+    expect(chosen.plan).toMatchObject({ template: "lyrics", content: { kind: "lyrics", prose: true } });
+    expect(chosen.availableTemplates).toContain("lyrics");
+  });
+  test("prose is cut at sentence ends and clause marks, short clauses kept together, long ones broken between words", () => {
+    expect(splitCuts("We shipped the release today. Thanks everyone who tested it, filed bugs, and stayed late on Friday — you made this one happen."))
+      .toEqual(["We shipped the release today.", "Thanks everyone who tested it,", "filed bugs,", "and stayed late on Friday —", "you made this one happen."]);
+    expect(splitCuts("我们今天发布了新版本，感谢每一位参与测试、提交问题、在周五加班到深夜的朋友。没有你们，就没有这一版。"))
+      .toEqual(["我们今天发布了新版本，", "感谢每一位参与测试、提交问题、", "在周五加班到深夜的朋友。", "没有你们，", "就没有这一版。"]);
+    expect(splitCuts("今日は新しいバージョンをリリースしました。テストに協力してくれたみなさん、本当にありがとうございます。"))
+      .toEqual(["今日は新しいバージョンを", "リリースしました。", "テストに協力してくれたみなさん、", "本当にありがとうございます。"]);
+    // A slogan stays one cut; short clauses of one sentence share a cut.
+    expect(splitCuts("Make room for a clearer thought.")).toEqual(["Make room for a clearer thought."]);
+    expect(splitCuts("少即是多。")).toEqual(["少即是多。"]);
+    expect(splitCuts("春天来了，花都开了，我们在河边走了很久。")).toEqual(["春天来了，花都开了，", "我们在河边走了很久。"]);
+    // Numbers, abbreviations, URLs and emphasis are never cut.
+    expect(splitCuts("It is 3.14, e.g. pi, and 1,000 is more.")).toEqual(["It is 3.14, e.g. pi,", "and 1,000 is more."]);
+    for (const piece of splitCuts("Read more at https://peesuto.com/templates/lyrics/, it is fun.")) expect(piece.includes("peesuto") ? piece.includes("https://peesuto.com/templates/lyrics/") : true).toBe(true);
+    expect(splitCuts("Oh, tell me *everything you remember about the summer* we spent by the sea and the long drive home.").some((p) => p.includes("*everything you remember about the summer*"))).toBe(true);
+    // `/` marks are cuts of their own.
+    expect(splitCuts("夜明けの色を/覚えてる")).toEqual(["夜明けの色を", "覚えてる"]);
+    // Never a word split, never text lost, pieces within the cap unless one word is longer.
+    const units = (t: string) => [...t].reduce((n, c) => n + (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(c) ? 1 : 0.5), 0);
+    for (const line of ["The quick brown fox jumps over the lazy dog because it was bored and the afternoon was long and warm and nobody came to play.",
+      "直到太阳落山的时候才想起来还没有吃晚饭而且大家都已经很累了所以我们决定明天再来这里看看", "言葉にできない気持ちを短い一行にたくしてあなたに届けたいと思っているけれど、まだ書けない。"]) {
+      const pieces = splitCuts(line);
+      expect(pieces.join("").replace(/\s/g, "")).toBe(line.replace(/\s/g, ""));
+      for (const piece of pieces) expect(units(piece) <= CUT_MAX_UNITS || !/\s/.test(piece.trim())).toBe(true);
+      if (!/\p{Script=Han}/u.test(line)) for (const piece of pieces) expect(line.includes(piece)).toBe(true);
+    }
+  });
+  test("prose as lyric motion: paragraphs are stanzas, markup still works, nothing dropped", () => {
+    const content = lyricsOf("# Launch day\nOh, *stay awake* with me tonight, and tell me everything.|a note\n\nSee you / tomorrow!")!;
+    expect(content).toMatchObject({ kind: "lyrics", title: "Launch day", prose: true, stanzas: [
+      { lines: [{ text: "Oh, stay awake with me tonight,", emphasis: [[4, 14]] }, { text: "and tell me everything.", note: "a note" }] },
+      { lines: [{ text: "See you" }, { text: "tomorrow!" }] }] });
+  });
+  test("lyric motion refuses code and tables and too much text with explicit errors; prose cuts hold long enough to read", () => {
+    const code = "const a = 1;\nconst b = 2;\nconsole.log(a + b);";
+    expect(() => layoutTemplate(plan(code, "classic", "reveal"), measure, { format: "mp4" })).toThrow(expect.objectContaining({ code: "lyric-unfit" }));
+    expect(() => layoutTemplate(plan(code, "classic", "none"), measure)).toThrow(expect.objectContaining({ code: "lyric-unfit" }));
+    const essay = Array.from({ length: 12 }, (_, i) => `这是第${i + 1}句比较完整的叙述，它会占用一个画面。`).join("");
+    expect(() => layoutTemplate(plan(essay), measure, { format: "mp4" })).toThrow(expect.objectContaining({ code: "lyric-too-long" }));
+    // The poster holds it.
+    expect(layoutTemplate(plan(essay, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("第12句");
+    const tweet = "我们今天发布了新版本，感谢每一位参与测试、提交问题、在周五加班到深夜的朋友。没有你们，就没有这一版。";
+    const layout = layoutTemplate(plan(tweet), measure, { format: "mp4" }), program = layout.lyrics!;
+    expect(program.cuts.length).toBeGreaterThan(3);
+    expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
+    for (const cut of program.cuts) {
+      const chars = cut.text.map((i) => layout.lines[i]!.text).join("").replace(/\s/g, "").length;
+      expect(cut.hold).toBeGreaterThanOrEqual(Math.max(LYRICS_TIMING.minCutMs, chars * LYRICS_TIMING.proseCjkMs) - 1);
+    }
   });
   test("the poster: every lyric drawn once, markup never drawn, emphasis in the accent; Paper sets CJK verse in columns", () => {
     for (const variant of ["classic", "editorial"] as const) {
@@ -946,17 +1028,22 @@ describe("lyrics cards", () => {
   });
   test("long lyrics share screens, a GIF is capped by its frame budget, and what cannot fit is an explicit error", () => {
     const long = Array.from({ length: 14 }, (_, i) => `我唱第${i + 1}句到天亮`).join("\n");
+    // An MP4 runs to 30 s: a cut per line. A GIF keeps to 14.4 s: two lines a screen.
     const program = layoutTemplate(plan(long), measure, { format: "mp4" }).lyrics!;
-    expect(program.cuts.length).toBe(7);
+    expect(program.cuts.length).toBe(14);
     expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
+    const gif = layoutTemplate(plan(long), measure, { format: "gif" }).lyrics!;
+    expect(gif.cuts.length).toBe(7);
+    expect(gif.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.gifMaxMs);
     expect(lyricsMaxMs(1080, 1920, "gif")).toBeLessThan(lyricsMaxMs(1080, 1080, "gif"));
     expect<number>(lyricsMaxMs(1080, 1080, "mp4")).toBe(LYRICS_TIMING.maxMs);
     const tall = layoutTemplate(plan(ZH, "classic", "reveal", "9:16"), measure, { format: "gif" }).lyrics!;
     expect(tall.durationMs).toBeLessThanOrEqual(lyricsMaxMs(1080, 1920, "gif"));
-    const huge = Array.from({ length: 40 }, (_, i) => `我唱第${i + 1}句到天亮`).join("\n");
+    const huge = Array.from({ length: 60 }, (_, i) => `我唱第${i + 1}句到天亮`).join("\n");
     expect(() => layoutTemplate(plan(huge), measure, { format: "mp4" })).toThrow(/No content was dropped/);
+    expect(() => layoutTemplate(plan(huge), measure, { format: "mp4" })).toThrow(expect.objectContaining({ code: "lyric-too-long" }));
     // The PNG poster holds all of it (the canvas grows).
-    expect(layoutTemplate(plan(huge, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("我唱第40句到天亮");
+    expect(layoutTemplate(plan(huge, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("我唱第60句到天亮");
   });
   test("engine paint: Stage gilds emphasis with a gradient and a glow, Paper inks it heavier; stops keep contrast; no glow on a light ground or in a GIF", () => {
     for (const pal of LYRICS_STYLES.classic.motion.palette) {
@@ -999,7 +1086,7 @@ describe("lyrics cards", () => {
     } finally { delete TEMPLATE_FACES.display; engine.faces = null; }
   });
   test("the caps match the limits they stand for", () => {
-    expect<number>(LYRICS_TIMING.maxMs).toBe(TEMPLATE_SCROLL.startMs + TEMPLATE_SCROLL.maxMs + TEMPLATE_SCROLL.endMs);
+    expect<number>(LYRICS_TIMING.gifMaxMs).toBe(TEMPLATE_SCROLL.startMs + TEMPLATE_SCROLL.maxMs + TEMPLATE_SCROLL.endMs);
     expect<number>(LYRICS_TIMING.gifFrameBudget).toBe(TEMPLATE_GIF_FRAME_BUDGET);
     expect<number>(LYRICS_TIMING.fps).toBe(TEMPLATE_LIMITS.fps);
   });
