@@ -244,8 +244,8 @@ export async function stageField(field: ColourField, canvas: Size, cacheDir: str
 }
 
 /**
- * Sample colour fields for the code template's terminal style (not the
- * default yet). Each keeps two or three neighbouring hues on a dark ground,
+ * Colour fields for the code template's terminal style: `indigo` is its
+ * backdrop in PNG and MP4 (GIF keeps the hue arc); the others are samples. Each keeps two or three neighbouring hues on a dark ground,
  * with one light source, so the dark code window stands out from what is
  * around it and the signature (white) keeps 4.5:1 at the foot.
  */

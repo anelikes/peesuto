@@ -108,7 +108,7 @@ and bars that only decorate are not drawn: the style tables keep their slots
 `null`, so a style can bring one back as a token change. One accent colour per
 style, with a role (an accented word, a heading level, a bullet). Greys are
 warm; ink is a warm or dark near-black, never pure black. Owner-approved
-exceptions: the code terminal's hue-arc backdrop and window dots, the info
+exceptions: the code terminal's backdrop (colour field, hue arc in GIFs) and window dots, the info
 card's pill and icons, and colour-field grounds (Poster, Big number, the
 comparison panels), which are the style rather than an accent on it.
 
@@ -216,7 +216,16 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   built-ins), property (attributes, properties, variables, parameters), literal
   (true/false/null, symbols), meta (tags, selectors, decorators, headings, diff
   deletions; diff additions use string), punct (operators, punctuation).
-- Backdrop (Terminal): a hue arc, not a two-colour blend. A straight RGB
+- Backdrop (Terminal) depends on the output format: PNG and MP4 draw the
+  Indigo night colour field (`CODE_FIELDS.indigo`, `CODE_STYLES.classic.backdrop`);
+  GIF draws the hue arc below (`CODE_STYLES.classic.gifBackdrop`), since a
+  256-colour GIF palette dithers the soft field visibly. A style's
+  `gifBackdrop` replaces its `backdrop` in GIF output (null: the same
+  backdrop). `layoutTemplate(plan, measure, { format })` takes the format;
+  `composeTemplate` passes the one being rendered, and without one a still
+  plan is laid out as PNG and an animated one as GIF (renderTemplate's
+  default).
+- Hue arc (Terminal GIF backdrop): not a two-colour blend. A straight RGB
   gradient between distant hues goes grey in the middle; walking the hue circle
   stays saturated. `core/src/templates/gradient.ts` samples the arc in OKLCH
   (even perceptual steps, chroma reduced to fit sRGB, hue and lightness kept)
@@ -224,7 +233,7 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   since the engine only has two-stop gradients. Current arc: indigo, violet,
   magenta, coral, amber (hue 272° to 62°, lightness 0.34 to 0.76). No overlay:
   any tint across different hues (black over orange turns brown) muddies it.
-- Colour-field backdrops (option, not a default yet): a backdrop layer
+- Colour-field backdrops: a backdrop layer
   `{ field }` draws a blurred colour field instead: a dark ground, a few large
   anisotropic Gaussian blobs of two or three neighbouring hues mixed in OKLab,
   an optional vignette and a fine seeded grain against banding.
@@ -237,9 +246,9 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   are cached in `<work>/dist/.backdrops/` by a hash of the field and canvas
   size, about 25 ms uncached. Text drawn straight on a field is
   contrast-checked against the field's colour under it. `CODE_FIELDS` holds
-  three samples for the terminal (Indigo night, Dusk, Aurora); the hue arc
-  stays the terminal's default until one is chosen. In GIFs the 256-colour
-  palette dithers a field visibly.
+  three fields for the terminal: Indigo night (the PNG/MP4 default), Dusk and
+  Aurora (samples). In GIFs the 256-colour palette dithers a field visibly,
+  hence the terminal's GIF fallback to the hue arc.
 
 ### Info card: contacts, accounts and keys
 

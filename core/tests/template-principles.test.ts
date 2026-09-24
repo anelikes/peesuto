@@ -194,7 +194,7 @@ describe("template principles", () => {
   });
   test("the signature footer: every card but QR, below everything, inside the canvas, and a fitting card keeps its frame", () => {
     const boxes = (layout: TemplateLayout) => [...layout.lines.filter((l) => !l.signature).map((l) => ({ y: l.y, bottom: l.y + l.height })),
-      ...layout.images.map((i) => ({ y: i.y, bottom: i.y + i.height }))];
+      ...layout.images.filter((i) => !i.field).map((i) => ({ y: i.y, bottom: i.y + i.height }))]; // a colour-field backdrop is ground
     eachLayout((layout, content, label) => {
       const footer = layout.lines.filter((l) => l.signature);
       if (!label.endsWith("/signed") || content.kind === "qr") { expect(footer).toEqual([]); return; }
@@ -212,7 +212,7 @@ describe("template principles", () => {
     // Short content in a fixed frame: the footer fits in the frame, no growth (so a GIF does not scroll).
     for (const content of TEMPLATE_SAMPLES) for (const variant of templateRegistration(content.kind).variants.map((v) => v.id)) {
       const plain = layoutTemplate(samplePlan(content, variant), metrics);
-      const contentBottom = Math.max(...plain.lines.map((l) => l.y + l.height), ...plain.images.map((i) => i.y + i.height),
+      const contentBottom = Math.max(...plain.lines.map((l) => l.y + l.height), ...plain.images.filter((i) => !i.field).map((i) => i.y + i.height),
         ...plain.shapes.filter((r) => r.height < plain.height / 2).map((r) => r.y + r.height));
       // Room for the footer (gap 40, one 32 px line at leading 1.2, inset 56) in the frame.
       const top = Math.min(...plain.lines.map((l) => l.y), ...plain.shapes.filter((r) => r.height < plain.height / 2).map((r) => r.y));

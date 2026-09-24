@@ -20,7 +20,7 @@ describe("hue arcs", () => {
   });
 
   test("the code backdrop never passes through grey, even between segment stops", () => {
-    const layer = CODE_STYLES.classic.backdrop[0]!;
+    const layer = CODE_STYLES.classic.gifBackdrop[0]!;
     const colors = sampleArc(layer.arc, layer.segments);
     expect(colors).toHaveLength(layer.segments + 1);
     for (const c of colors) expect(saturation(rgb(c))).toBeGreaterThan(0.45);
@@ -31,9 +31,9 @@ describe("hue arcs", () => {
 
   test("segments tile the full width on whole pixels, each stop shared with its neighbour", () => {
     const metrics: TemplateMeasure = { width: (t, s) => [...t].length * s * 0.6, lineHeight: (s) => s * 1.2 };
-    const layout = layoutTemplate(samplePlan({ kind: "code", code: "echo hi" }), metrics);
+    const layout = layoutTemplate(samplePlan({ kind: "code", code: "echo hi" }), metrics, { format: "gif" });
     const segments = layout.shapes.filter((s) => s.gradient && s.y === 0).sort((a, b) => a.x - b.x);
-    expect(segments.length).toBe(CODE_STYLES.classic.backdrop[0]!.segments);
+    expect(segments.length).toBe(CODE_STYLES.classic.gifBackdrop[0]!.segments);
     expect(segments[0]!.x).toBe(0);
     for (let i = 1; i < segments.length; i++) {
       expect(segments[i]!.x).toBe(segments[i - 1]!.x + segments[i - 1]!.width);

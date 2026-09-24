@@ -10,7 +10,7 @@ import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
 import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type ChangeType, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
-import { stageField, type ColourField } from "./backdrop.ts";
+import { CODE_FIELDS, stageField, type ColourField } from "./backdrop.ts";
 import { FATAL_CHECKS, checkLayout, type CheckViolation } from "./checks.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -29,11 +29,19 @@ export function minFontSize(canvasWidth: number, role: "body" | "secondary" = "b
 /** The only glyphs a layout draws that are not in the source: ordered-list
  * numbers (document and list). The measurer is warmed with them. */
 export const LAYOUT_GLYPHS = "0123456789";
+/** The file a layout is drawn for: some styles draw differently for GIF (a 256-colour palette). */
+export type TemplateFormat = "png" | "gif" | "mp4";
+export interface LayoutOptions {
+  /** Default: PNG for a still plan, GIF for an animated one (as renderTemplate picks). */
+  readonly format?: TemplateFormat;
+}
+/** The format a render of `plan` produces when none is given (renderTemplate's default). */
+export const defaultTemplateFormat = (plan: Pick<TemplatePlan, "motion">): TemplateFormat => (plan.motion === "none" ? "png" : "gif");
 /** A layout's canvas: `height` is the minimum canvas height (content may grow
  * it); `fit` is the height templates size their type against. Fixed frames use
  * the frame height for both; the automatic frame fits against a square and
  * starts the canvas at a per-template minimum so it hugs the content. */
-interface View { width: number; height: number; fit: number }
+interface View { width: number; height: number; fit: number; format: TemplateFormat }
 /* ───────────── Style tokens ─────────────
  * Every colour, size and spacing a template uses lives in these tables;
  * layoutAt() reads only them, so a redesign changes numbers here, not layout
@@ -127,17 +135,21 @@ export const QUOTE_STYLES = {
  * variables, parameters), literal (true/false/null, symbols), meta (tags,
  * selectors, decorators, headings, diff deletions), punct (operators). */
 /** A full-bleed backdrop layer: one two-stop gradient, a hue arc drawn as segments (gradient.ts), or a
- * blurred colour field drawn as one stretched image (backdrop.ts; CODE_FIELDS holds samples). */
+ * blurred colour field drawn as one stretched image (backdrop.ts, CODE_FIELDS). A style's
+ * `gifBackdrop`, when set, replaces `backdrop` in GIF output. */
 export type BackdropLayer = { readonly dir: "t" | "b" | "l" | "r"; readonly from: string; readonly to: string } | { readonly arc: HueArc; readonly segments: number }
   | { readonly field: ColourField };
 
 export const CODE_STYLES = {
   /** Terminal: night panel, three dots, the language (from the fence only) at top right. */
   classic: { background: "#312e81", signature: "#ffffff",
-    /** Full-bleed layers behind the window: one hue arc left to right (indigo, violet, magenta,
-     * coral, amber), saturated all the way, never grey in the middle. No overlay: any tint laid
-     * across different hues (even black over orange, which turns brown) muddies them again. */
-    backdrop: [{ arc: { from: { l: 0.34, c: 0.16, h: 272 }, to: { l: 0.76, c: 0.16, h: 62 }, turn: 150 }, segments: 8 }],
+    /** Full-bleed layers behind the window: the "Indigo night" colour field (PNG and MP4). */
+    backdrop: [{ field: CODE_FIELDS.indigo }],
+    /** GIF: a 256-colour palette dithers the soft field visibly, so GIF keeps one hue arc left to
+     * right (indigo, violet, magenta, coral, amber), saturated all the way, never grey in the middle.
+     * No overlay: any tint laid across different hues (even black over orange, which turns brown)
+     * muddies them again. */
+    gifBackdrop: [{ arc: { from: { l: 0.34, c: 0.16, h: 272 }, to: { l: 0.76, c: 0.16, h: 62 }, turn: 150 }, segments: 8 }],
     panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 80, shadow: "shadow-lg", dots: { size: 22, gap: 14, colors: ["#ff5f57", "#febc2e", "#28c840"] } },
     lineNumbers: { color: "#858c9b", gap: 32 },
     outer: 88, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.0,
@@ -145,7 +157,7 @@ export const CODE_STYLES = {
     syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#7d8494", number: "#f4c430", function: "#f5a45d", type: "#5fd0c5",
       property: "#eaa3c9", literal: "#f4c430", meta: "#ff7b72", punct: "#a7adb9" } },
   /** Notebook: light page, zebra rows, the language in green. */
-  editorial: { background: "#f3f1ea", signature: "#6b675e", backdrop: null, panel: null, outer: 88, gutter: null as RailSlot, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
+  editorial: { background: "#f3f1ea", signature: "#6b675e", backdrop: null, gifBackdrop: null, panel: null, outer: 88, gutter: null as RailSlot, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
     lineNumbers: { color: "#6b675e", gap: 28 },
     ink: "#1d1d20", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.1,
     lang: { size: 32, bold: true, color: "#237a49", gap: 28 },
@@ -526,7 +538,7 @@ const snapNear = (n: number): number => SIZES.reduce<number>((best, s) => (Math.
  * readability floor scales exactly with the width, so a style that meets it
  * at the reference width meets it scaled (36 → 48 → 64, 32 → 44 → 56). */
 export function scaledTo<T>(style: T, u: number, parent = ""): T {
-  if (u === 1 || style === null || typeof style !== "object" || parent === "backdrop") return style;
+  if (u === 1 || style === null || typeof style !== "object" || parent === "backdrop" || parent === "gifBackdrop") return style;
   const out: Record<string, unknown> | unknown[] = Array.isArray(style) ? [] : {};
   for (const [key, val] of Object.entries(style as Record<string, unknown>)) {
     let next: unknown;
@@ -588,13 +600,14 @@ function grownLayout(plan: TemplatePlan, measure: TemplateMeasure, view: View): 
 }
 
 /** Pure layout: fonts supply real advances in production, a metric fixture in unit tests. */
-export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): TemplateLayout {
+export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure, options: LayoutOptions = {}): TemplateLayout {
+  const format = options.format ?? defaultTemplateFormat(plan);
   if (plan.template !== plan.content.kind) throw new ComposeError("catalog", "Template and structured content do not match.");
   if (!templateHasVariant(plan.template, plan.variant)) throw new ComposeError("catalog", "Unknown template variant.");
   if (plan.aspect !== "auto") {
     const frame = FRAMES[plan.aspect];
     if (!frame) throw new ComposeError("catalog", "Unknown card frame.");
-    return grownLayout(plan, measure, { ...frame, fit: frame.height });
+    return grownLayout(plan, measure, { ...frame, fit: frame.height, format });
   }
   // Automatic: the first width, trying wider ones when it overflows (a
   // diagram too wide even below the floor); the canvas starts at the
@@ -603,7 +616,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   let last: unknown;
   for (const width of widths) {
     const minRatio = AUTO_FRAME.minRatio[plan.template] ?? AUTO_FRAME.defaultMinRatio;
-    try { return grownLayout(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width }); }
+    try { return grownLayout(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width, format }); }
     catch (error) {
       if (!(error instanceof ComposeError) || error.code !== "overflow") throw error;
       last = error;
@@ -1106,7 +1119,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
       const codeX = textX + gutterW(size), codeW = textW - gutterW(size);
       const backdrop: (TemplateRect | TemplateImage)[] = [];
-      for (const layer of (s.backdrop ?? []) as readonly BackdropLayer[]) {
+      for (const layer of ((view.format === "gif" ? s.gifBackdrop ?? s.backdrop : s.backdrop) ?? []) as readonly BackdropLayer[]) {
         if ("field" in layer) {
           const image: TemplateImage = { x: 0, y: 0, width: W, height: 0, src: "", field: layer.field };
           layout.images.push(image); pinned.add(image); backdrop.push(image);
@@ -1495,7 +1508,7 @@ interface EngineMeasurer {
   close(): Promise<void>;
 }
 
-export async function composeTemplate(plan: TemplatePlan, options: ComposeOptions): Promise<TemplateComposeResult> {
+export async function composeTemplate(plan: TemplatePlan, options: ComposeOptions & LayoutOptions): Promise<TemplateComposeResult> {
   // A QR code carries any script; only its optional caption needs glyphs.
   const qr = plan.content.kind === "qr" ? plan.content : undefined;
   const script = qr ? undefined : unsupportedScript(plan.sourceText);
@@ -1547,7 +1560,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       width: (text, size, bold) => splitEmoji(text).reduce((width, run) => width + ("emoji" in run ? size : m.measure(size, bold)(run.text)), 0),
       lineHeight: (size, bold) => m.lineHeight(size, bold),
     };
-    const layout = layoutTemplate(plan, metrics);
+    const layout = layoutTemplate(plan, metrics, { format: options.format ?? defaultTemplateFormat(plan) });
     guardLayout(layout, plan);
     // The signature is drawn from the first frame and takes no part in reveal or typing.
     const count = layout.lines.reduce((total, line) => total + (line.signature ? 0 : graphemes(line.text).length), 0);

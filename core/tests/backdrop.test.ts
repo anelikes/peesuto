@@ -143,10 +143,33 @@ describe("field backdrops in the terminal style", () => {
     try { return run(); } finally { style.backdrop = saved; }
   };
 
-  test("the hue arc stays the default", () => {
-    expect("arc" in CODE_STYLES.classic.backdrop[0]!).toBe(true);
-    const layout = layoutTemplate(samplePlan({ kind: "code", code: "echo hi" }), metrics);
-    expect(layout.images.filter((i) => i.field)).toEqual([]);
+  test("PNG and MP4 draw the Indigo night field; GIF keeps the hue arc", () => {
+    expect(CODE_STYLES.classic.backdrop).toEqual([{ field: CODE_FIELDS.indigo }]);
+    expect("arc" in CODE_STYLES.classic.gifBackdrop[0]!).toBe(true);
+    const plan = samplePlan({ kind: "code", code: "echo hi" });
+    const arcSegments = (l: ReturnType<typeof layoutTemplate>) => l.shapes.filter((s) => s.gradient && s.y === 0 && s.height === l.height);
+    for (const format of ["png", "mp4"] as const) {
+      const layout = layoutTemplate(plan, metrics, { format });
+      const fields = layout.images.filter((i) => i.field);
+      expect(fields).toHaveLength(1);
+      expect(fields[0]!.field).toBe(CODE_FIELDS.indigo);
+      expect(fields[0]).toMatchObject({ x: 0, y: 0, width: layout.width, height: layout.height });
+      expect(arcSegments(layout)).toEqual([]);
+    }
+    const gif = layoutTemplate({ ...plan, motion: "reveal" }, metrics, { format: "gif" });
+    expect(gif.images.filter((i) => i.field)).toEqual([]);
+    expect(arcSegments(gif)).toHaveLength(CODE_STYLES.classic.gifBackdrop[0]!.segments);
+    // Without a format: a still plan is a PNG, an animated one a GIF (renderTemplate's default).
+    expect(layoutTemplate(plan, metrics).images.filter((i) => i.field)).toHaveLength(1);
+    expect(layoutTemplate({ ...plan, motion: "reveal" }, metrics).images.filter((i) => i.field)).toEqual([]);
+  });
+
+  test("the notebook style has no backdrop in any format", () => {
+    for (const format of ["png", "gif", "mp4"] as const) {
+      const layout = layoutTemplate(samplePlan({ kind: "code", code: "echo hi" }, "editorial"), metrics, { format });
+      expect(layout.images.filter((i) => i.field)).toEqual([]);
+      expect(layout.shapes.filter((s) => s.gradient)).toEqual([]);
+    }
   });
 
   test("a field is one pinned, full-bleed image stretched to the canvas, instead of gradient rects", () => {
