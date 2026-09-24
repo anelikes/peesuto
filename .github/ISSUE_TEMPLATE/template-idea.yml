@@ -1,0 +1,23 @@
+name: Template idea
+description: Something you copy often that deserves its own card
+title: "template idea: "
+labels: [template, enhancement]
+body:
+  - type: textarea
+    id: example
+    attributes:
+      label: An example of what you copy
+      description: A realistic stand-in (no private data). A couple of variants helps us write a recogniser that doesn't misfire.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: card
+    attributes:
+      label: How the card should look
+      description: A sketch, a reference image, or a few words. Remember Peesuto never rewrites your words; it only lays them out.
+  - type: input
+    id: where
+    attributes:
+      label: Where would you paste it?
+      description: e.g. Slack, X, a slide, a README

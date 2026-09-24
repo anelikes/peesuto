@@ -1,0 +1,45 @@
+name: A card came out wrong
+description: The wrong template was picked, or a card is laid out badly
+title: "card: "
+labels: [template]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the fastest way to improve Peesuto's templates. Please **don't paste anything private**:
+        a stand-in with the same shape (same line structure, fake names and numbers) shows the problem just as well.
+  - type: textarea
+    id: copied
+    attributes:
+      label: What you copied
+      description: Paste the text (or a stand-in with the same shape). It is rendered verbatim, so whitespace and line breaks matter.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: got
+    attributes:
+      label: What Peesuto made
+      description: The template and style shown under the result (e.g. "Document · Reading page"), and the output (image, GIF, video).
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: Which template should it be, or what looks wrong (overflow, cut text, colours, spacing…)?
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot of the card
+      description: Drag the image in, if you can share it.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Peesuto › About, e.g. 0.2.0
+      placeholder: "0.2.0"
+    validations:
+      required: true

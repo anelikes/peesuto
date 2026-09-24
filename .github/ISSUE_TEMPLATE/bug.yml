@@ -13,7 +13,7 @@ body:
     attributes:
       label: Where
       options:
-        - Menu-bar app
+        - The app
         - CLI (`bun run paste` / `paste`)
         - Proxy worker (`proxy/`)
         - Engine setup (`bun run setup`)
@@ -25,7 +25,7 @@ body:
     attributes:
       label: Version
       description: The app version from the menu, or for a checkout the commit (`git rev-parse --short HEAD`) and the engine pin (`bun run setup --status`).
-      placeholder: "0.1.0, or c98a086 with engine ca3c0763"
+      placeholder: "0.2.0, or a commit like f0302d4"
     validations:
       required: true
   - type: input
