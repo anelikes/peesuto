@@ -12,6 +12,7 @@ with ⌥ in it used to fail in every font we have.
 Idempotent: only code points Peesuto Code does not map are added. JetBrains
 Mono v2.304: https://github.com/JetBrains/JetBrainsMono (ttf/ in the zip).
 """
+import os
 import sys
 from pathlib import Path
 
@@ -24,7 +25,7 @@ BLOCKS = [(0x2190, 0x21FF), (0x2300, 0x23FF), (0x25A0, 0x25FF), (0x2600, 0x26FF)
 
 
 def merge(target: Path, donor: Path) -> list[str]:
-    font, extra = TTFont(target), TTFont(donor)
+    font, extra = TTFont(target, recalcTimestamp=False), TTFont(donor)
     have, give = font.getBestCmap(), extra.getBestCmap()
     donor_glyphs = extra.getGlyphSet()
     glyf, hmtx = font["glyf"], font["hmtx"]
@@ -48,7 +49,10 @@ def merge(target: Path, donor: Path) -> list[str]:
                 if table.isUnicode() and (table.format == 12 or cp <= 0xFFFF):
                     table.cmap[cp] = name
             added.append(chr(cp))
-    font.save(target)
+    # Beside, then renamed: compositions hard-link these files.
+    partial = target.with_suffix(".partial")
+    font.save(partial)
+    os.replace(partial, target)
     return added
 
 

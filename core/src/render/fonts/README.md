@@ -3,38 +3,77 @@
 The monospace face of the code template: a subset of **Maple Mono NL CN v7.9**
 (unhinted; the no-ligature build, so `=>` and `!=` render as typed), renamed
 "Peesuto Code" as a Modified Version under the SIL Open Font License 1.1
-(`OFL.txt`, copied from the release).
+(`OFL.txt`, copied from the release). Only the family, full, unique and
+PostScript names change; the copyright record stays Maple's.
 
-- Upstream: https://github.com/subframe7536/maple-font (v7.9,
-  `MapleMonoNL-CN-unhinted.zip`, Regular and Bold). Copyright 2022 The Maple
-  Mono Project Authors. No Reserved Font Name is declared.
-- The CN build's Chinese glyphs come from Resource Han Rounded
+- Upstream: https://github.com/subframe7536/maple-font, release v7.9,
+  `MapleMonoNL-CN-unhinted.zip` (SHA-256
+  `80bf6db8920b2999d900e08f9e5031f7686baeb72dbdb80891f2c1ae9cec606f`),
+  Regular and Bold. Copyright 2022 The Maple Mono Project Authors. No Reserved
+  Font Name is declared.
+- The CN build's CJK glyphs come from Resource Han Rounded
   (https://github.com/CyanoHao/Resource-Han-Rounded, SIL OFL 1.1), itself
   derived from Adobe's Source Han Sans (Reserved Font Name "Source", not
-  used here). Chinese and Latin keep an exact 2:1 width.
-- Subset (fontTools): Basic Latin, Latin-1, Latin Extended-A/B, Greek,
-  Cyrillic, General Punctuation, currency, letterlike symbols, arrows,
-  mathematical operators, miscellaneous technical, enclosed alphanumerics,
-  box drawing, block elements, geometric shapes, miscellaneous symbols,
-  dingbats, CJK symbols and punctuation, kana, half/full-width forms and all
-  of GB 2312 (8,009 characters). Layout features kept.
+  used here). CJK and Latin keep an exact 2:1 width.
+- Subset (fontTools, `scripts/fonts/subset-maple.py`): Basic Latin, Latin-1,
+  Latin Extended-A/B, Greek, Cyrillic, General Punctuation, currency,
+  letterlike symbols, arrows, mathematical operators, miscellaneous technical,
+  enclosed alphanumerics, box drawing, block elements, geometric shapes,
+  miscellaneous symbols, dingbats, CJK symbols and punctuation, kana
+  (々 〆 ヶ ゝ ゞ ヽ ヾ included), half/full-width forms, all of GB 2312, all of
+  JIS X 0208 (level 1 and level 2 kanji: 6,355, of which 3,025 are not in
+  GB 2312) and 塡 剝 頰 from JIS X 0213 (jōyō since 2010; 𠮟 is not in Maple).
+  The rest of JIS X 0213 (some 8,000 kanji Maple has) would double the files
+  and is left out. Layout features kept (those left without lookups pruned),
+  glyph names dropped. 11,296 characters with the symbols below.
+- Maple has no half-width katakana (U+FF61–FF9F) and no full-width Latin
+  letters and digits (U+FF01–FF5E, apart from the punctuation it has). The
+  script draws them from Maple's own glyphs: full-width katakana at half width
+  (punctuation and the sound marks ﾞ ﾟ moved, not squeezed), ASCII centred in
+  a two-column cell. 143 glyphs.
+- Glyph forms: the kanji are Chinese (PRC) forms, not Japanese ones. Resource
+  Han Rounded CN follows Source Han Sans SC, and the font has no `locl` for
+  Japanese, so shared code points such as 直 骨 角 令 誤 化 are drawn the
+  mainland way (直 without the L-shaped base, 令 with the マ-like bottom, 誤
+  with a dot for the first stroke of 言). Kanji only Japan uses (気 込 働 峠 辻)
+  are drawn as Japanese readers expect. Japanese text is legible and reads as
+  one face with its kana, but a Japanese reader will notice the forms.
 - Symbols Maple lacks (⌘ ⌥ ⌃ ⎋ ⏎ ⌫ ⌦ and the rest of the technical, arrow,
   geometric, symbol and dingbat blocks it misses, 116 in all) are copied from
-  JetBrains Mono v2.304 (https://github.com/JetBrains/JetBrainsMono, Copyright
-  2020 The JetBrains Mono Project Authors, SIL OFL 1.1, no Reserved Font Name)
-  by `python3 scripts/fonts/merge-symbols.py <JetBrains Mono ttf dir>`; both
-  fonts use a 1000-unit em and 600-unit advance, so outlines copy unscaled.
-- A card whose text needs a glyph outside the subset falls back to Noto Sans SC.
+  JetBrains Mono v2.304 (https://github.com/JetBrains/JetBrainsMono,
+  `JetBrainsMono-2.304.zip`, SHA-256
+  `6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf`,
+  Copyright 2020 The JetBrains Mono Project Authors, SIL OFL 1.1, no Reserved
+  Font Name) by `scripts/fonts/merge-symbols.py`; both fonts use a 1000-unit
+  em and 600-unit advance, so outlines copy unscaled.
+- A card whose text needs a glyph outside the subset (traditional Chinese
+  beyond GB 2312 and JIS X 0208, such as 說 or 嗎) is set in Noto Sans
+  SC when that has every glyph.
 
 # Peesuto Text
 
 Every card but code, when the card font is Maple Mono (the default): Peesuto
-Code with its 7,099 full-width glyphs (Chinese, full-width punctuation and
+Code with its 10,207 full-width glyphs (CJK, full-width punctuation and
 forms) set at 1em instead of 1.2em, each outline moved left to stay centred.
-Maple Mono keeps Chinese exactly two Latin columns wide so code lines up; in
+Maple Mono keeps CJK exactly two Latin columns wide so code lines up; in
 running text that leaves 0.2em of air between every pair of characters. Latin
 is untouched. Generated by `python3 scripts/fonts/peesuto-text.py` (fontTools)
 from the Peesuto Code files here; the same OFL terms apply.
+
+# Rebuilding
+
+    sh scripts/fonts/build.sh
+
+downloads both zips into `.work/fonts/` (gitignored, never committed), checks
+their SHA-256 and runs the three steps, each of which can also run alone:
+
+    python3 scripts/fonts/subset-maple.py .work/fonts/MapleMonoNL-CN-unhinted.zip
+    python3 scripts/fonts/merge-symbols.py .work/fonts/jetbrains
+    python3 scripts/fonts/peesuto-text.py
+
+Needs curl, unzip and python3 with fontTools (built with 4.60). The same
+inputs give byte-identical files (`head.modified` stays Maple's). Each file
+is written beside and renamed into place, since compositions hard-link them.
 
 The OFL permits bundling the font with software, including commercial
 software; the font files may not be sold on their own, and this notice and

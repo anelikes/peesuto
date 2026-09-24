@@ -91,8 +91,8 @@ integration("fonts: code in Peesuto Code, other cards in Peesuto Text or the cho
   expect(fonts).toEqual({ regular: "compositions/paste/fonts/PeesutoCode-Regular.ttf", bold: "compositions/paste/fonts/PeesutoCode-Bold.ttf" });
   for (const path of Object.values(fonts)) expect(await Bun.file(join(options.work, path)).exists()).toBe(true);
   expect(await layoutFont()).toBe("peesuto-code");
-  // 體 is outside GB2312, so outside the Peesuto Code subset.
-  const traditional = "# 繁體註解\nprint(1)";
+  // 說 is outside GB2312 and JIS X 0208, so outside the Peesuto Code subset.
+  const traditional = "# 說明註解\nprint(1)";
   await renderTemplate({ ...samplePlan({ kind: "code", code: traditional, language: "python" }, "editorial"), sourceText: traditional }, { ...options, format: "png", out: join(output, "code-fallback.png") });
   expect((await sidecar()).fonts.regular).toBe("assets/fonts/NotoSansSC-Regular.otf");
   expect(await layoutFont()).toBe("noto-sans-sc");
@@ -112,9 +112,9 @@ integration("fonts: code in Peesuto Code, other cards in Peesuto Text or the cho
   const shortcut = "按 ⌘⌥1 生成图片";
   await renderTemplate({ ...samplePlan({ kind: "text", paragraphs: [shortcut] }), sourceText: shortcut, font: "noto" }, { ...options, format: "png", out: join(output, "shortcut-noto.png") });
   expect(await layoutFont()).toBe("peesuto-text");
-  // Neither face has both 體 and ⌥: an explicit error naming what is missing.
-  const both = "繁體 ⌥";
-  await expect(renderTemplate({ ...samplePlan({ kind: "text", paragraphs: [both] }), sourceText: both }, { ...options, format: "png", out: join(output, "both.png") })).rejects.toThrow(/U\+9AD4/);
+  // Neither face has both 說 and ⌥: an explicit error naming what is missing.
+  const both = "說明 ⌥";
+  await expect(renderTemplate({ ...samplePlan({ kind: "text", paragraphs: [both] }), sourceText: both }, { ...options, format: "png", out: join(output, "both.png") })).rejects.toThrow(/U\+8AAA/);
 }, 240_000);
 
 integration("a signature is drawn at the foot, and one the font cannot draw is dropped without failing the card", async () => {
@@ -123,8 +123,8 @@ integration("a signature is drawn at the foot, and one the font cannot draw is d
   const plan = { ...samplePlan({ kind: "text", paragraphs: [text] }), sourceText: text };
   await renderTemplate({ ...plan, signature: "@nya · peesuto.com 🐱" }, { ...options, format: "png", out: join(output, "signature.png") });
   expect(await signed()).toBe(1);
-  // Arabic is in neither face; 體 is not in Peesuto Text (the card's face here): no footer, no error.
-  for (const signature of ["مرحبا", "繁體簽名"]) {
+  // Arabic is in neither face; 說 is not in Peesuto Text (the card's face here): no footer, no error.
+  for (const signature of ["مرحبا", "說明簽名"]) {
     const rendered = await renderTemplate({ ...plan, signature }, { ...options, format: "png", out: join(output, "signature-dropped.png") });
     expect(rendered.truncated).toBe(false);
     expect(await signed()).toBe(0);

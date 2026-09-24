@@ -15,6 +15,7 @@ Reads core/src/render/fonts/PeesutoCode-{Regular,Bold}.ttf and writes
 PeesutoText-{Regular,Bold}.ttf next to them (a Modified Version under the
 SIL OFL 1.1, like Peesuto Code; see the README there).
 """
+import os
 from pathlib import Path
 
 from fontTools.pens.transformPen import TransformPen
@@ -27,7 +28,7 @@ SHIFT = (NARROW - WIDE) // 2
 
 
 def narrow(src: Path, dst: Path, style: str) -> int:
-    font = TTFont(src)
+    font = TTFont(src, recalcTimestamp=False)  # head.modified stays Maple's: reproducible bytes
     glyf, hmtx = font["glyf"], font["hmtx"]
     glyph_set = font.getGlyphSet()
     changed = 0
@@ -47,7 +48,10 @@ def narrow(src: Path, dst: Path, style: str) -> int:
         text = {1: family, 3: f"{ps};peesuto", 4: full, 6: ps, 16: family}.get(record.nameID)
         if text is not None:
             record.string = text
-    font.save(dst)
+    # Beside, then renamed: compositions hard-link these files.
+    partial = dst.with_suffix(".partial")
+    font.save(partial)
+    os.replace(partial, dst)
     return changed
 
 

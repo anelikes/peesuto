@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Japanese text stays in Maple Mono: Peesuto Code and Peesuto Text now carry all JIS X 0208 kanji (3,025 more than GB 2312, e.g. 気 込 働 峠 辻), half-width katakana and full-width letters and digits, so a Japanese card no longer falls back wholesale to Noto Sans SC. The kanji are Chinese (PRC) glyph forms, as in Noto Sans SC. The fonts are rebuilt reproducibly by `scripts/fonts/build.sh`; each grows from 5.4 to 8.2 MB.
 - Japanese interface: Settings › General › Language now offers 日本語, and "Follow system" picks it when Japanese is the first preferred language. Every window, menu, alert and message is translated, including template, style and privacy-rule names; anything untranslated falls back to English, never Chinese.
 - Code cards in the Terminal style sit on a soft, blurred "Indigo night" colour field (deep indigo and violet with a touch of magenta, light from the top left) in images and videos. GIFs keep the hue-arc backdrop, because a GIF's 256-colour palette would band and dither the soft field.
 - Where Peesuto says Accessibility is missing (the task window, the Paste as… chooser, the welcome guide and Settings › General) a quiet second line explains the common trap: if the switch is already on in System Settings, remove Peesuto with − and add it again (macOS ties the grant to the app's signature, so an update can leave the switch on but the grant void).

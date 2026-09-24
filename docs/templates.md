@@ -163,9 +163,13 @@ plan as `font`). Code is always Maple Mono. Maple comes in two cuts under
 `core/src/render/fonts/`: Peesuto Code, Chinese at two Latin columns so code
 aligns, and Peesuto Text, Chinese at 1em for everything else (the two-column
 width reads as letter-spacing in prose; `scripts/fonts/peesuto-text.py`).
-Both cuts carry keyboard and technical symbols from JetBrains Mono (⌘ ⌥ ⌃ ⎋ ⏎).
+Both cuts carry keyboard and technical symbols from JetBrains Mono (⌘ ⌥ ⌃ ⎋ ⏎),
+and CJK from GB 2312 and JIS X 0208 (level 1 and 2 kanji, kana, half-width
+katakana, full-width letters and digits), so Chinese and Japanese text stay in
+Maple. Its kanji are Chinese (PRC) glyph forms: 直 令 誤 look mainland to a
+Japanese reader (Noto Sans SC draws them the same way); see the fonts README.
 A card is set in the chosen face when it has every glyph (emoji aside), else in
-the other one when that has them all (Noto lacks ⌥, Maple lacks 體); when
+the other one when that has them all (Noto lacks ⌥, Maple lacks 說); when
 neither does, an explicit `unsupported-script` error names what is missing. One
 font pair per composition.
 
@@ -192,12 +196,13 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
 - Font: the whole code card (both styles, the language label included) is set
   in Peesuto Code, a Maple Mono NL CN v7.9 subset shipped in
   `core/src/render/fonts/` (Latin, Greek, Cyrillic, symbols, box drawing, kana,
-  full-width forms and all of GB2312; see the README there). CJK is exactly two
+  full-width forms, all of GB2312 and all of JIS X 0208; see the README there;
+  rebuilt by `scripts/fonts/build.sh`). CJK is exactly two
   columns wide, so indentation and alignment hold in mixed code. The composition
   gets its own copy (hard link or copy) under `compositions/paste/fonts/`, since
   engine font paths must stay inside the work tree. If any non-emoji character of
-  the card is missing from Peesuto Code (traditional Chinese outside GB2312,
-  say), the whole card falls back to Noto Sans SC; there is no error and no mixed
+  the card is missing from Peesuto Code (traditional Chinese outside GB2312 and
+  JIS X 0208, say), the whole card falls back to Noto Sans SC; there is no error and no mixed
   font. Every other template keeps Noto Sans SC, and code blocks inside a
   document stay proportional: one font pair per composition.
 - Highlighter: highlight.js (pinned, pure JS) with 24 registered languages:
@@ -438,7 +443,7 @@ Native bundle and interface acceptance is recorded in
 - Peesuto Code is a renamed subset of [Maple Mono](https://github.com/subframe7536/maple-font)
   (Maple Mono NL CN v7.9), © 2022 The Maple Mono Project Authors, whose Chinese glyphs come
   from [Resource Han Rounded](https://github.com/CyanoHao/Resource-Han-Rounded) (derived from
-  Adobe's Source Han Sans), all under the SIL Open Font License 1.1:
+  Adobe's Source Han Sans), and symbols from JetBrains Mono v2.304, all under the SIL Open Font License 1.1:
   `core/src/render/fonts/OFL.txt`. The OFL allows bundling in commercial software; the font
   files may not be sold on their own.
 - [highlight.js](https://highlightjs.org/) 11.12.0, © 2006 Ivan Sagalaev and contributors,
