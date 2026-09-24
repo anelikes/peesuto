@@ -9,15 +9,18 @@ import PeesutoKit
 struct OnboardingView: View {
     @ObservedObject var model: AppState
     let openSettings: () -> Void
+    /// Finish the guide and open Settings at the AI decider (the optional last-page branch).
+    let connectAI: () -> Void
     let finish: () -> Void
     @State private var step: Int
 
     static let stepCount = 3
     static let size = CGSize(width: 680, height: 500)
 
-    init(model: AppState, initialStep: Int = 0, openSettings: @escaping () -> Void, finish: @escaping () -> Void) {
+    init(model: AppState, initialStep: Int = 0, openSettings: @escaping () -> Void, connectAI: @escaping () -> Void = {}, finish: @escaping () -> Void) {
         self.model = model
         self.openSettings = openSettings
+        self.connectAI = connectAI
         self.finish = finish
         _step = State(initialValue: min(max(initialStep, 0), Self.stepCount - 1))
     }
@@ -41,7 +44,7 @@ struct OnboardingView: View {
         switch index {
         case 0: WelcomeStep(model: model)
         case 1: PermissionStep(model: model)
-        default: ReadyStep(model: model, openSettings: openSettings)
+        default: ReadyStep(model: model, openSettings: openSettings, connectAI: connectAI)
         }
     }
 
@@ -272,6 +275,7 @@ private struct PermissionStep: View {
 private struct ReadyStep: View {
     @ObservedObject var model: AppState
     let openSettings: () -> Void
+    let connectAI: () -> Void
 
     var body: some View {
         let shortcuts = model.shortcuts
@@ -284,6 +288,19 @@ private struct ReadyStep: View {
                     row(model.tr("Paste as image", "粘贴为图片"), shortcuts["paste-card"])
                     Divider().padding(.horizontal, 12)
                     row(model.tr("Open clipboard history", "打开剪贴板历史"), shortcuts["panel"])
+                }
+                // Optional, and the last thing on the last page: it ends the guide and opens the setting itself.
+                InsetGroup {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(model.tr("Smarter suggestions (optional)", "更聪明的推荐（可选）")).font(.system(size: 13))
+                            Text(model.tr("Connect your own AI key. Everything works without it.", "接入你自己的 AI key。不接也能完整使用。"))
+                                .font(.system(size: 11)).foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Button(model.tr("Set Up…", "去设置…"), action: connectAI)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 10)
                 }
                 Button(model.tr("All shortcuts and preferences are in Settings", "全部快捷键与偏好都在「设置」里"), action: openSettings)
                     .buttonStyle(.link).font(.system(size: 12))

@@ -344,7 +344,8 @@ struct SettingsView: View {
                     ForEach(JevService.allCases) { Text("Jev · \($0.label)").tag($0.rawValue) }
                     if hostedServiceAvailable || decider == "hosted" { Text(model.tr("Hosted", "托管服务")).tag("hosted") }
                 }.labelsHidden()
-            }
+            }.id("decider")
+            Text(deciderHelp).font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             if ["laya", "proxy", "hosted"].contains(decider) {
                 TextField(model.tr("Endpoint URL", "服务地址"), text: $deciderURL).textFieldStyle(.roundedBorder)
             }
@@ -353,6 +354,17 @@ struct SettingsView: View {
                 SecureField(model.tr("New token (leave blank to keep existing)", "新令牌（留空保留现有令牌）"), text: $deciderKey).textFieldStyle(.roundedBorder)
             }
             if let service = JevService(rawValue: decider) { serviceKey(service, text: $deciderKey) }
+        }
+    }
+    /// What the selected decider means, in plain words.
+    private var deciderHelp: String {
+        switch decider {
+        case "rules": return model.tr("Default. Picks templates from the text's structure, offline. Right for most people.", "默认。按内容结构挑模板，完全离线，适合大多数人。")
+        case "none": return model.tr("No decisions: every card uses the basic layout.", "不做判断：所有卡片都用基础版式。")
+        case "laya": return model.tr("Experimental. A small model you run yourself on this Mac (see docs/laya.md).", "实验性。在本机自行部署的小模型（见 docs/laya.md）。")
+        case "proxy": return model.tr("Your own endpoint that speaks Jev's protocol.", "兼容 Jev 协议的自有端点。")
+        case "hosted": return model.tr("The Peesuto hosted service.", "Peesuto 托管服务。")
+        default: return model.tr("Jev with your own key: smarter suggestions in the history panel and template choices. Text is sent to the service after secrets are redacted.", "用你自己的 key 接入 Jev：剪贴板历史里的推荐和模板选择更聪明。发送前会先隐去敏感信息。")
         }
     }
     /// A Jev service's key: one Keychain item shared by its decider and its text models.

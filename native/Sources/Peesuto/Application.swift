@@ -128,6 +128,13 @@ final class ClipboardPanel: NSPanel {
                 self?.model.requestedSettingsSection = 3
                 self?.showSettings()
             },
+            connectAI: { [weak self, weak window] in
+                // Closing marks the guide as seen (windowWillClose); then straight to the decider setting.
+                window?.close()
+                self?.model.requestedSettingsSection = 1
+                self?.model.requestedSettingsAnchor = "decider"
+                self?.showSettings()
+            },
             finish: { [weak window] in window?.close() }))
         // The SwiftUI root has a fixed size; do not let it resize the window to add the title bar.
         hosting.sizingOptions = []
