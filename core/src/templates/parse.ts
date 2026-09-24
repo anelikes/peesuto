@@ -25,7 +25,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   // allows one (```console, ```sh…); the fenced source stays available as code.
   const inner = code?.kind === "code" ? code : undefined;
   const terminal = inner ? (!inner.language || SESSION_FENCES.test(inner.language) ? parseTerminal(inner.code) : undefined) : parseTerminal(text);
-  const error = inner ? (!inner.language || /^(?:text|txt|plaintext|console|log|python|pytb|traceback|js|javascript|ts|typescript|java|go|rust|csharp|cs|kotlin)$/i.test(inner.language) ? parseError(inner.code) : undefined) : parseError(text);
+  const error = inner ? (!inner.language || /^(?:text|txt|plaintext|console|log|python|pytb|traceback|js|javascript|ts|typescript|java|go|rust|csharp|cs|kotlin|ruby|rb|php)$/i.test(inner.language) ? parseError(inner.code) : undefined) : parseError(text);
   const diff = inner ? (!inner.language || /^(?:diff|patch|udiff|git)$/i.test(inner.language) ? parseDiff(inner.code) : undefined) : parseDiff(text);
   // A Mermaid flowchart, fenced as ```mermaid or bare, is a diagram; the
   // fenced source stays available as code.
@@ -526,17 +526,27 @@ function parseDiffLines(lines: readonly string[]): { kind: "diff"; files: DiffFi
  * `requests.exceptions.ConnectionError`, Node's `Error [ERR_X]`… */
 const ERROR_TYPE = String.raw`(?:[A-Za-z_$][\w$]*\.)*(?:[A-Z][\w$]*(?:Error|Exception|Exit|Interrupt|Failure|Fault|Panic)|Error|Exception)(?: \[[\w.-]+\])?`;
 const ERROR_HEADING = new RegExp(String.raw`^(?:(Uncaught(?: \(in promise\))?|Unhandled exception\.|Exception in thread "[^"\n]*"|Caused by:)[\t ]+)?(${ERROR_TYPE})(?::[\t ]*(\S.*))?$`);
+/** A PHP class, namespaced with backslashes: `Exception`, `App\\Exceptions\\PaymentFailed`. */
+const PHP_CLASS = String.raw`\\?(?:[A-Za-z_]\w*\\)*[A-Za-z_]\w*`;
+/** Ruby: `file.rb:12:in 'method': message (ErrorClass)` (backquote before Ruby 3.4). The location is the top frame. */
+const RUBY_HEADING = /^(\S.*?:\d+:in [`'][^'\n]*'): (.*?) ?\(((?:[A-Z]\w*::)*[A-Z]\w*)\)$/;
+/** PHP: `PHP Fatal error:  Uncaught Exception: message in /path/file.php:42` (the `PHP ` prefix only in the log/stderr form). */
+const PHP_HEADING = new RegExp(String.raw`^((?:PHP )?Fatal error:[\t ]+Uncaught)[\t ]+(${PHP_CLASS})(?::[\t ]*(.*?))?[\t ]+in[\t ]+(\S+:\d+)$`);
 /** Frames and the lines around them, trimmed. */
-const TRACE_FRAME = /^(?:at[\t ]+\S.*|File "[^"\n]+", line \d+.*|#\d+[\t ]+\S.*|\d+:[\t ]+\S.*|[\w$.\/*()[\]<>-]+\(.*\)(?:[\t ]+.*)?|created by \S.*)$/;
-const TRACE_NOTE = /^(?:\.\.\.[\t ]+\d+[\t ]+more|\.\.\.[\t ]*\d+ (?:lines|frames).*|Caused by:.*|Suppressed:.*|Traceback \(most recent call last\):|During handling of the above exception, another exception occurred:|The above exception was the direct cause of the following exception:|goroutine \d+ \[[^\]]+\]:|stack backtrace:|Stack trace:|note: .*|exit status \d+|\[CIRCULAR\]|\{main\}|thrown in .*)$/;
+const TRACE_FRAME = /^(?:(?:\d+:[\t ]+)?from[\t ]+\S+:\d+(?::in[\t ]+.*)?|at[\t ]+\S.*|File "[^"\n]+", line \d+.*|#\d+[\t ]+\S.*|\d+:[\t ]+\S.*|[\w$.\/*()[\]<>-]+\(.*\)(?:[\t ]+.*)?|created by \S.*)$/;
+const TRACE_NOTE = new RegExp(String.raw`^(?:\.\.\.[\t ]+\d+[\t ]+more|\.\.\.[\t ]*\d+ (?:lines|frames).*|Caused by:.*|Suppressed:.*|Traceback \(most recent call last\):|During handling of the above exception, another exception occurred:|The above exception was the direct cause of the following exception:|goroutine \d+ \[[^\]]+\]:|stack backtrace:|Stack trace:|note: .*|exit status \d+|\[CIRCULAR\]|\{main\}|thrown in .*|\.\.\. \d+ levels\.\.\.|Next ${PHP_CLASS}(?::.*)? in \S+:\d+)$`);
 /** Where a frame points into dependencies, the standard library or the runtime (dimmed). */
-const LIBRARY_FRAME = /node_modules|site-packages|dist-packages|\/usr\/(?:local\/)?lib\/|\/lib\/python\d|<frozen |node:|\binternal\/|<anonymous>|\/rustc\/|\.cargo\/registry|\/usr\/local\/go\/|\/go\/src\/|GOROOT|Python\.framework|\/opt\/homebrew\/|webpack\/bootstrap|^at (?:java|javax|jdk|sun|kotlin|kotlinx|scala|org\.junit|org\.springframework|org\.apache|com\.sun|android|dalvik)\.|^at System\.|^at Microsoft\.|^\d+:[\t ]+(?:std|core|alloc|rust_begin_unwind|__rust|_start|__libc)|^runtime\.|^(?:main\.)?goexit|^created by runtime/;
+const LIBRARY_FRAME = /node_modules|\/gems\/|\/lib\/ruby\/|<internal:|\/vendor\/|^#\d+[\t ]+(?:\{main\}|\[internal function\])|site-packages|dist-packages|\/usr\/(?:local\/)?lib\/|\/lib\/python\d|<frozen |node:|\binternal\/|<anonymous>|\/rustc\/|\.cargo\/registry|\/usr\/local\/go\/|\/go\/src\/|GOROOT|Python\.framework|\/opt\/homebrew\/|webpack\/bootstrap|^at (?:java|javax|jdk|sun|kotlin|kotlinx|scala|org\.junit|org\.springframework|org\.apache|com\.sun|android|dalvik)\.|^at System\.|^at Microsoft\.|^\d+:[\t ]+(?:std|core|alloc|rust_begin_unwind|__rust|_start|__libc)|^runtime\.|^(?:main\.)?goexit|^created by runtime/;
 
 /**
  * An error and its stack trace. JavaScript, Java, C#, Go and Rust put the
  * error first (`TypeError: …`, `Exception in thread "main" …`, `panic: …`,
  * `thread 'main' panicked at …` with the message under it); Python puts it
- * last, under `Traceback (most recent call last):`. At least one frame, and
+ * last, under `Traceback (most recent call last):`. Ruby starts with the
+ * top frame (`app.rb:12:in 'm': message (ErrorClass)`, then `from …` frames;
+ * Ruby 2.5–2.7 on a terminal reverses them under `Traceback`); PHP with
+ * `PHP Fatal error:  Uncaught Exception: message in /path:42`, then
+ * `Stack trace:` and `#0 …` frames. At least one frame, and
  * every line a frame, a Python source line under its frame, or a known note
  * (`... 3 more`, `Caused by:`, `goroutine 1 [running]:`…).
  */
@@ -545,11 +555,36 @@ export function parseError(text: string): TemplateContent | undefined {
   if (lines.length < 2 || lines.length > 300) return;
   let lead: string | undefined, type: string | undefined, message: string | undefined, body: string[];
   const first = lines[0]!.trim();
+  const trace: ErrorTraceLine[] = [];
+  let frames = 0, innermost: string | undefined;
   if (/^Traceback \(most recent call last\):$/.test(first)) {
-    // Python: the last line is the exception.
-    const last = lines.at(-1)!.trim(), m = last.match(/^([A-Za-z_][\w.]*)(?::[\t ]*(\S.*))?$/);
-    if (!m || lines.at(-1)!.match(/^\s/)) return;
-    type = m[1]!; message = m[2]; body = lines.slice(0, -1);
+    const last = lines.at(-1)!.trim(), ruby = last.match(RUBY_HEADING);
+    if (ruby && !lines.at(-1)!.match(/^\s/)) {
+      // Ruby 2.5–2.7 on a terminal: the frames reversed ("2: from …"), the error last; its location is the innermost frame.
+      type = ruby[3]!; message = ruby[2] || undefined; body = lines.slice(0, -1); innermost = ruby[1]!;
+    } else {
+      // Python: the last line is the exception.
+      const m = last.match(/^([A-Za-z_][\w.]*)(?::[\t ]*(\S.*))?$/);
+      if (!m || lines.at(-1)!.match(/^\s/)) return;
+      type = m[1]!; message = m[2]; body = lines.slice(0, -1);
+    }
+  } else if (RUBY_HEADING.test(first)) {
+    // Ruby: the location first (a frame), then the message and (ErrorClass); error_highlight's snippet and
+    // "Did you mean?" lines may sit between it and the "from" frames.
+    const m = first.match(RUBY_HEADING)!;
+    type = m[3]!; message = m[2] || undefined;
+    const own = !LIBRARY_FRAME.test(m[1]!);
+    trace.push({ text: m[1]!, role: "frame", own }); frames++;
+    let i = 1;
+    for (; i < lines.length && !TRACE_FRAME.test(lines[i]!.trim()); i++) if (lines[i]!.trim()) trace.push({ text: lines[i]!, role: "code", own });
+    if (i === lines.length) return;
+    body = lines.slice(i);
+  } else if (PHP_HEADING.test(first)) {
+    // PHP: "Uncaught" after the error level is the lead; " in /path:line" names the top frame.
+    const m = first.match(PHP_HEADING)!;
+    lead = m[1]!.replace(/[\t ]+/g, " "); type = m[2]!; message = m[3]?.trim() || undefined;
+    trace.push({ text: m[4]!, role: "frame", own: !LIBRARY_FRAME.test(m[4]!) }); frames++;
+    body = lines.slice(1);
   } else if (first.startsWith("panic: ") || first.startsWith("fatal error: ")) {
     const at = first.indexOf(": ");
     type = first.slice(0, at); message = first.slice(at + 2).trim() || undefined; body = lines.slice(1);
@@ -562,8 +597,7 @@ export function parseError(text: string): TemplateContent | undefined {
     if (!m || m[1] === "Caused by:") return;
     lead = m[1]; type = m[2]; message = m[3]?.trim(); body = lines.slice(1);
   }
-  const trace: ErrorTraceLine[] = [];
-  let frames = 0, own: boolean | undefined, frameIndent = -1, codeIndent = -1;
+  let own: boolean | undefined, frameIndent = -1, codeIndent = -1;
   for (const raw of body) {
     const line = raw.trim(), indent = raw.length - raw.trimStart().length;
     if (!line) continue;
@@ -582,6 +616,8 @@ export function parseError(text: string): TemplateContent | undefined {
     }
     return;
   }
+  if (innermost && !frames) return;
+  if (innermost) { trace.push({ text: innermost, role: "frame", own: !LIBRARY_FRAME.test(innermost) }); frames++; }
   // A Rust panic names its location in the heading; a backtrace is optional.
   if (!frames && !(lead && /panicked at/.test(lead) && message)) return;
   return { kind: "error", ...(lead ? { lead } : {}), ...(type ? { type } : {}), ...(message ? { message } : {}), trace };

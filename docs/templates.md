@@ -395,7 +395,17 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   `fatal error: …` (Go); `thread 'main' panicked at file:line:col:` with the
   message on the next line (Rust; its backtrace is optional). Python puts
   the error last: `Traceback (most recent call last):` first, the
-  `KeyError: 'a'` line last. Trace lines: frames (`at fn (file:line:col)`,
+  `KeyError: 'a'` line last. Ruby starts with the top frame:
+  `app.rb:12:in 'Integer#/': divided by 0 (ZeroDivisionError)` (backquotes
+  before 3.4, namespaced classes such as `ActiveRecord::RecordNotFound`),
+  error_highlight's snippet and carets may follow, then `from …` frames;
+  Ruby 2.5–2.7 on a terminal prints them reversed under `Traceback` with the
+  heading last (at least one `from` frame then). PHP:
+  `PHP Fatal error:  Uncaught Exception: message in /path/file.php:42` (or
+  `Fatal error: Uncaught …` without `PHP `), then `Stack trace:`, `#0 …`
+  frames, `{main}`, `thrown in … on line n`, and `Next Class: … in …` for a
+  chained exception. A PHP fatal error without a trace (memory exhausted,
+  a parse error) and warnings are not error cards. Trace lines: frames (`at fn (file:line:col)`,
   `File "x.py", line n, in f`, `0: fn`, `#0 …`, Go's `main.main()`), lines
   indented under a frame (Python's source line and carets, Go's `file:line`),
   and notes (`... 3 more`, `Caused by: …`, `goroutine 1 [running]:`,
@@ -405,11 +415,16 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   which stays the alternative.
 - Drawn verbatim: the lead small, the type in the error colour, the message
   large (the largest size that keeps it to four lines and the card in its
-  frame); the colon between type and message is syntax. Trace lines keep
+  frame); the colon between type and message is syntax. Ruby's location
+  and PHP's `in /path:line` become the first frame (the parentheses around
+  Ruby's class and PHP's `in` are syntax); PHP's `Fatal error: Uncaught` is
+  the lead. Trace lines keep
   their text (their leading indentation trimmed; relative indentation under
   a frame kept, so carets still point). Frames in dependencies, the standard
   library or the runtime (`node_modules`, `site-packages`, `node:`,
-  `/usr/lib/`, `java.`, `System.`, `/rustc/`, Go's `runtime.`… in
+  `/usr/lib/`, `java.`, `System.`, `/rustc/`, Go's `runtime.`, Ruby's
+  `gems/`, `lib/ruby/` and `<internal:…>`, PHP's `vendor/`,
+  `[internal function]` and `{main}`… in
   `LIBRARY_FRAME`) are dimmed; your own frames are bold with a mark. Lines
   break at identifier punctuation (`.` `/` `:` `(`…) as well as spaces, so
   a long qualified name wraps between its parts, never inside one; wrapped

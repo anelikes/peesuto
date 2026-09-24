@@ -56,6 +56,11 @@ const EXTRA: readonly TemplateContent[] = [
     { text: "x = {}['a']", role: "code", own: true }, { text: "    ~~^^^^^", role: "code", own: true },
     { text: 'File "/usr/lib/python3.12/json/__init__.py", line 293, in load_with_a_very_long_function_name_that_wraps', role: "frame", own: false },
   ] },
+  { kind: "error", lead: "PHP Fatal error: Uncaught", type: "App\\Billing\\CardDeclined", message: "Card declined", trace: [
+    { text: "/srv/app/src/Billing.php:88", role: "frame", own: true }, { text: "Stack trace:", role: "note", own: false },
+    { text: "#0 /srv/app/vendor/laravel/framework/src/Illuminate/Routing/Controller.php(54): App\\Billing->charge()", role: "frame", own: false },
+    { text: "#1 {main}", role: "frame", own: false }, { text: "thrown in /srv/app/src/Billing.php on line 88", role: "note", own: false },
+  ] },
   { kind: "error", lead: "thread 'main' panicked at src/main.rs:4:5", message: "index out of bounds: the len is 3 but the index is 5 ".repeat(4).trim(), trace: [] },
   { kind: "timeline", events: [
     { time: "Wednesday, September 24, 2026 9:30am – 11:00am", text: "A long first event whose text wraps over more than one line of the card, beside or under its date" },

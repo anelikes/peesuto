@@ -692,6 +692,51 @@ describe("error cards", () => {
     const cs = parseTemplates("Unhandled exception. System.InvalidOperationException: Sequence contains no elements\n   at System.Linq.ThrowHelper.ThrowNoElementsException()\n   at Program.Main() in /app/Program.cs:line 5").candidates.get("error");
     expect(cs?.kind === "error" && cs.trace.map((l) => l.own)).toEqual([false, true]);
   });
+  test("Ruby and PHP: the location in the heading is the top frame; gems/ and vendor/ frames are dimmed", () => {
+    const ruby = parseTemplates("app.rb:12:in 'Integer#/': divided by 0 (ZeroDivisionError)\n\tfrom app.rb:12:in 'Object#divide'\n\tfrom /usr/local/bundle/gems/rack-3.0.8/lib/rack/builder.rb:12:in 'block in Rack::Builder#call'\n\tfrom app.rb:20:in '<main>'");
+    expect(ruby.preferred).toBe("error");
+    expect(ruby.candidates.get("error")).toEqual({ kind: "error", type: "ZeroDivisionError", message: "divided by 0", trace: [
+      { text: "app.rb:12:in 'Integer#/'", role: "frame", own: true }, { text: "from app.rb:12:in 'Object#divide'", role: "frame", own: true },
+      { text: "from /usr/local/bundle/gems/rack-3.0.8/lib/rack/builder.rb:12:in 'block in Rack::Builder#call'", role: "frame", own: false },
+      { text: "from app.rb:20:in '<main>'", role: "frame", own: true },
+    ] });
+    // Before 3.4: backquotes, namespaced classes; error_highlight's snippet under the heading; internal frames.
+    const old = parseTemplates("app/models/user.rb:3:in `full_name': undefined method `upcase' for nil:NilClass (NoMethodError)\n\tfrom /Users/lin/.rbenv/versions/3.3.0/lib/ruby/3.3.0/json/common.rb:9:in `parse'\n\tfrom app.rb:5:in `<main>'").candidates.get("error");
+    expect(old?.kind === "error" && [old.type, old.message, old.trace.map((l) => l.own)]).toEqual(["NoMethodError", "undefined method `upcase' for nil:NilClass", [true, false, true]]);
+    const highlight = parseTemplates("test.rb:2:in '<main>': undefined method 'foo' for nil (NoMethodError)\n\nnil.foo\n   ^^^^\n\tfrom <internal:kernel>:187:in 'loop'\n\tfrom test.rb:1:in '<main>'").candidates.get("error");
+    expect(highlight?.kind === "error" && highlight.trace.map((l) => `${l.role}:${l.own}:${l.text}`)).toEqual([
+      "frame:true:test.rb:2:in '<main>'", "code:true:nil.foo", "code:true:   ^^^^", "frame:false:from <internal:kernel>:187:in 'loop'", "frame:true:from test.rb:1:in '<main>'"]);
+    const scoped = parseTemplates("app/jobs/sync.rb:8:in 'perform': Couldn't find User with 'id'=7 (ActiveRecord::RecordNotFound)\n\tfrom app.rb:3:in '<main>'").candidates.get("error");
+    expect(scoped?.kind === "error" && scoped.type).toBe("ActiveRecord::RecordNotFound");
+    const reversed = parseTemplates("Traceback (most recent call last):\n\t2: from app.rb:20:in `<main>'\n\t1: from app.rb:12:in `divide'\napp.rb:12:in `/': divided by 0 (ZeroDivisionError)").candidates.get("error");
+    expect(reversed?.kind === "error" && [reversed.type, reversed.message, reversed.trace.map((l) => l.text)]).toEqual(["ZeroDivisionError", "divided by 0",
+      ["Traceback (most recent call last):", "2: from app.rb:20:in `<main>'", "1: from app.rb:12:in `divide'", "app.rb:12:in `/'"]]);
+
+    const php = parseTemplates("PHP Fatal error:  Uncaught Exception: Payment failed in /var/www/app/src/Checkout.php:42\nStack trace:\n#0 /var/www/app/src/Controller.php(17): App\\Checkout->pay()\n#1 /var/www/app/vendor/laravel/framework/src/Illuminate/Routing/Route.php(205): App\\Controller->store()\n#2 [internal function]: App\\Kernel->handle()\n#3 {main}\n  thrown in /var/www/app/src/Checkout.php on line 42");
+    expect(php.preferred).toBe("error");
+    expect(php.candidates.get("error")).toEqual({ kind: "error", lead: "PHP Fatal error: Uncaught", type: "Exception", message: "Payment failed", trace: [
+      { text: "/var/www/app/src/Checkout.php:42", role: "frame", own: true }, { text: "Stack trace:", role: "note", own: false },
+      { text: "#0 /var/www/app/src/Controller.php(17): App\\Checkout->pay()", role: "frame", own: true },
+      { text: "#1 /var/www/app/vendor/laravel/framework/src/Illuminate/Routing/Route.php(205): App\\Controller->store()", role: "frame", own: false },
+      { text: "#2 [internal function]: App\\Kernel->handle()", role: "frame", own: false }, { text: "#3 {main}", role: "frame", own: false },
+      { text: "thrown in /var/www/app/src/Checkout.php on line 42", role: "note", own: false },
+    ] });
+    // The CLI form without "PHP ", a message that itself says "in", a namespaced class, a chained exception.
+    const cli = parseTemplates("Fatal error: Uncaught App\\Billing\\CardDeclined: Card declined in store 12 in /srv/app/src/Billing.php:88\nStack trace:\n#0 /srv/app/public/index.php(9): App\\Billing->charge()\n#1 {main}\n  thrown in /srv/app/src/Billing.php on line 88").candidates.get("error");
+    expect(cli?.kind === "error" && [cli.lead, cli.type, cli.message, cli.trace[0]!.text]).toEqual(["Fatal error: Uncaught", "App\\Billing\\CardDeclined", "Card declined in store 12", "/srv/app/src/Billing.php:88"]);
+    const next = parseTemplates("PHP Fatal error:  Uncaught Exception: inner in /a.php:3\nStack trace:\n#0 {main}\n\nNext RuntimeException: outer in /a.php:5\nStack trace:\n#0 {main}\n  thrown in /a.php on line 5").candidates.get("error");
+    expect(next?.kind === "error" && next.trace.map((l) => l.role)).toEqual(["frame", "note", "frame", "note", "note", "frame", "note"]);
+  });
+  test("not a Ruby or PHP error card: a heading alone or over prose, warnings, fatal errors without a trace", () => {
+    for (const source of [
+      "app.rb:12:in 'divide': divided by 0 (ZeroDivisionError)", "app.rb:12:in 'divide': divided by 0 (ZeroDivisionError)\nThen I fixed it by checking b.",
+      "app.rb:12: warning: possibly useless use of == in void context\napp.rb:13: warning: unused variable", "app.rb:12:in 'divide': divided by 0\n\tfrom app.rb:20:in '<main>'",
+      "PHP Fatal error:  Uncaught Exception: boom in /a.php:3", "PHP Fatal error:  Uncaught Exception: boom in /a.php:3\nand then some prose",
+      "Warning: Undefined variable $x in /a.php on line 3\nWarning: Undefined variable $y in /a.php on line 4",
+      "PHP Fatal error:  Allowed memory size of 134217728 bytes exhausted in /a.php on line 12\nPHP Stack trace:",
+      "Traceback (most recent call last):\napp.rb:12:in `/': divided by 0 (ZeroDivisionError)",
+    ]) expect(parseTemplates(source).candidates.has("error")).toBe(false);
+  });
   test("not an error card: an error line alone or with prose, logs, a lone Python heading, code that names an error", () => {
     for (const source of [
       "TypeError: x is undefined", "ValueError: bad\nSome prose explaining.", "Error: something\nnot a frame here", "Traceback (most recent call last):\nKeyError: 'a'",
