@@ -7,6 +7,16 @@ export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
 export type VariantId = (typeof VARIANT_IDS)[number];
 /** Visible graphemes one card may hold (TEMPLATE_LIMITS.maxGraphemes). */
 export const TEMPLATE_MAX_GRAPHEMES = 2400;
+/** The phone readability floor. Cards are mostly looked at on a phone, where
+ * any card is shown about `phoneWidth` px wide whatever its canvas, so a font
+ * size's effective size is size × phoneWidth / canvas width. Body text never
+ * goes below `body` effective px (Apple's footnote size, 13 pt; ljg-card's
+ * 40 px on 1080 is 14.4) and labels, times, captions and line numbers never
+ * below `secondary` (11 pt, the smallest size in Apple's type scale). On a
+ * 1080 canvas that is 36 px body and 32 px secondary, on 1440 48 and 44, on
+ * 1920 64 and 56. `referenceWidth` is the width the style tables are drawn
+ * for; wider canvases scale them by width / referenceWidth. */
+export const READABILITY = { phoneWidth: 390, referenceWidth: 1080, body: 13, secondary: 11 } as const;
 /** Beyond this the text template hands over to document. */
 export const TEXT_MAX_GRAPHEMES = 280;
 export const MOTIONS = ["none", "reveal", "typewriter"] as const;

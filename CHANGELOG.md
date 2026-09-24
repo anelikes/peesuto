@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Cards stay readable on a phone: no text below 13 px (labels, times and line numbers 11 px) when a card is shown 390 px wide, which is 36/32 px on a 1080 canvas and scales with wider ones (a 16:9 card is a scaled 1080 card). Long content grows the card or scrolls instead of shrinking type, code wraps, a sideways diagram too wide for the floor turns top-down, and table columns keep whole words. The automatic frame starts at 1080 for everything.
 - Onboarding redesigned as three quiet steps on the panel’s glass: what Peesuto does (one real card appearing after a line of text and ⌥⌘1; static with Reduce Motion), the Accessibility permission with its live state, and the two shortcuts to remember. System accent and standard controls only; the teal glows, tinted icon tiles and the Preferences step are gone (those preferences keep their defaults and live in Settings). The window is 680×500.
 - Keyboard symbols render: ⌘ ⌥ ⌃ ⎋ ⏎ and 111 other symbols from JetBrains Mono are merged into both Maple cuts, and a card whose chosen font lacks a glyph uses the other font when that one has them all (a JSON keymap with ⌥ used to fail).
 - Info cards take unlabelled contact lines: a name, then a phone number, email, website or address each get an icon where a label would be.

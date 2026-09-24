@@ -87,12 +87,38 @@ ranking and drawn back up), points for edges that skip ranks so they bend
 around the nodes between, barycenter ordering, parent-aligned positions, and
 orthogonal routing with one channel per edge between ranks. Incoming and outgoing ports spread evenly over 20–80% of a node side (at least 1.6 arrowheads apart; the node widens if needed), and the last run into a node is at least an arrowhead plus 12 px. Edge labels try beside the first run (away from sibling edges), then above, then below a horizontal run, rejecting any spot that touches a node, another label or a line; if none fits, that rank gap grows. Size tiers from
 56 px down are tried until the diagram fits the card; height alone never pushes
-text below 32 px, the card grows instead (and an animation scrolls). A diagram
-too wide even at 24 px is an overflow error. Reveal and typewriter bring the
+text below the readability floor, the card grows instead (and an animation
+scrolls). A sideways diagram too wide at the floor is drawn top-down when that
+is readable; only a diagram too wide either way goes below the floor (the
+last-resort tiers down to 24 px, not scaled with the canvas, so a wider auto
+frame can still hold it), and one too wide even at 24 px is an overflow error. Reveal and typewriter bring the
 diagram in rank by rank, the edges into a rank just before its nodes. Styles
 are `DIAGRAM_STYLES`; size tiers `DIAGRAM_TIERS`, both in
 `core/src/templates/compose.ts`. Arrowheads and diamonds are small SVGs the
 engine bakes; everything else is boxes and text.
+
+### Readability floor (all templates)
+
+Cards are mostly looked at on a phone, where a card of any width is shown
+about 390 px wide. A font size's effective size is `size × 390 / canvas
+width`, and no drawn text goes below 13 effective px (Apple's footnote size;
+ljg-card's 40 px on 1080 is 14.4), labels, times, captions, language tags and
+line numbers below 11 (the smallest step of Apple's type scale). That is:
+
+| Canvas width | Body | Secondary |
+|---|---|---|
+| 1080 | 36 px | 32 px |
+| 1440 | 48 px | 44 px |
+| 1920 (16:9) | 64 px | 56 px |
+
+The style tables are drawn for 1080 and meet the floor there; a wider canvas
+scales the whole style (lengths, margins and sizes, snapped to the nearest
+baked size) by width / 1080, which keeps both floors. Content that does not
+fit at the floor grows the canvas (PNG) or scrolls (GIF/MP4) instead of
+shrinking type; code wraps. The only exception is a diagram too wide to draw
+at the floor in either direction (see Diagram). The numbers are `READABILITY`
+in `core/src/templates/types.ts`; `core/tests/template-principles.test.ts`
+checks every template, style and frame.
 
 ### Card font
 
@@ -227,7 +253,7 @@ truncate text to make it fit.
 
 | Frame | Size | Used by |
 |---|---|---|
-| auto | width 1080 (1440 for tables of 4+ columns, code lines over 56 characters and sideways diagrams; wider again on overflow), height hugging the content | images, by default |
+| auto | width 1080 (1440, then 1920, only on overflow: the floor scales with the width, so a wider card holds no more readable text per line), height hugging the content | images, by default |
 | 1:1 | 1080×1080 | GIF and video by default; images on request |
 | 4:5 | 1080×1350 | on request |
 | 16:9 | 1920×1080 | on request |

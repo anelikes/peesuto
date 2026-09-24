@@ -4,12 +4,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   CHAT_STYLES, COMPARISON_STYLES, DOCUMENT_STYLES, LAYOUT_GLYPHS, LIST_STYLES, SIZES, TABLE_STYLES, TEMPLATE_GROW,
-  grown, layoutTemplate, scrolls, syntaxColors, CODE_STYLES, QR_STYLES, type TemplateLayout, type TemplateMeasure,
+  grown, layoutTemplate, scaledTo, scrolls, syntaxColors, CODE_STYLES, QR_STYLES, effectiveSize, minFontSize, type TemplateLayout, type TemplateMeasure,
 } from "../src/templates/compose.ts";
 import { normalizeText } from "../src/render/compose.ts";
 import { documentBlocks } from "../src/templates/parse.ts";
 import { templateRegistration } from "../src/templates/registry.ts";
-import type { TemplateAspect, TemplateContent } from "../src/templates/types.ts";
+import { READABILITY, type TemplateAspect, type TemplateContent } from "../src/templates/types.ts";
 import { TEMPLATE_SAMPLES, samplePlan } from "./fixtures/templates.ts";
 
 const metrics: TemplateMeasure = {
@@ -116,7 +116,24 @@ describe("template principles", () => {
     };
     const tables = [DOCUMENT_STYLES, LIST_STYLES, CHAT_STYLES, TABLE_STYLES, COMPARISON_STYLES, CODE_STYLES];
     for (const k of [1, ...Object.values(TEMPLATE_GROW).flat(), 2, 3.7, 0.3]) for (const table of tables) for (const style of Object.values(table)) {
-      for (const size of fontSizes(grown(style, k!))) expect(sizes.has(size)).toBe(true);
+      for (const u of [1, 1440 / 1080, 1920 / 1080]) for (const size of fontSizes(grown(scaledTo(style, u), k!))) expect(sizes.has(size)).toBe(true);
+    }
+  });
+  test("phone readability floor: no text below 13 px (labels 11 px) when the card is shown 390 px wide", () => {
+    expect([1080, 1440, 1920].map((w) => [minFontSize(w, "body"), minFontSize(w, "secondary")])).toEqual([[36, 32], [48, 44], [64, 56]]);
+    eachLayout((layout, _content, label) => {
+      for (const line of layout.lines) {
+        const floor = line.secondary ? READABILITY.secondary : READABILITY.body;
+        if (effectiveSize(line.size, layout.width) < floor - 1e-9) throw new Error(`${label}: "${line.text}" at ${line.size}px on ${layout.width} is ${effectiveSize(line.size, layout.width).toFixed(1)} px on a phone (floor ${floor})`);
+      }
+    });
+    // Long content keeps the floor and grows the card instead of shrinking type.
+    const longCode = { kind: "code" as const, code: Array.from({ length: 16 }, (_, i) => `const value${i} = compute(${i}, "a fairly long argument that wraps");`).join("\n") };
+    for (const aspect of ["1:1", "16:9", "auto"] as const) {
+      const layout = layoutTemplate({ ...samplePlan(longCode), aspect }, metrics);
+      expect(layout.height).toBeGreaterThan(1080);
+      for (const line of layout.lines) expect(effectiveSize(line.size, layout.width)).toBeGreaterThanOrEqual(READABILITY.secondary);
+      expect(Math.min(...layout.lines.filter((l) => !l.secondary).map((l) => l.size))).toBe(minFontSize(layout.width));
     }
   });
   test("short content fills a fixed frame: type grows a step and the block is centred", () => {

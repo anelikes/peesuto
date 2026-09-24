@@ -189,9 +189,9 @@ describe("frames", () => {
     const last = long.lines.at(-1)!;
     expect(long.height - (last.y + last.height)).toBeLessThan(260); // no empty square below
   });
-  test("auto starts wide content wider and widens on overflow", () => {
+  test("auto starts at 1080 (a wider canvas holds no more readable text) and widens on overflow", () => {
     const table = layoutTemplate({ ...samplePlan({ kind: "table", headers: ["a", "b", "c", "d", "e"], rows: [["1", "2", "3", "4", "5"]] }), aspect: "auto" }, metrics);
-    expect(table.width).toBe(1440);
+    expect(table.width).toBe(1080);
     const fan = { kind: "diagram" as const, direction: "TD" as const, nodes: [{ id: "r", label: "root", shape: "rect" as const }, ...Array.from({ length: 8 }, (_, i) => ({ id: `n${i}`, label: `节点名称${i}`, shape: "rect" as const }))],
       edges: Array.from({ length: 8 }, (_, i) => ({ from: "r", to: `n${i}`, line: "solid" as const, arrow: true })) };
     expect(() => layoutTemplate({ ...samplePlan(fan), aspect: "1:1" }, metrics)).toThrow();

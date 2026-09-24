@@ -8,7 +8,7 @@ import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
-import { DEFAULT_TEMPLATE_FONT, FRAMES, TEMPLATE_MAX_GRAPHEMES, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
+import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -18,6 +18,12 @@ export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRA
 export const TEMPLATE_SCROLL = { pxPerS: 120, startMs: 900, minMs: 1500, maxMs: 12000, endMs: 1500 } as const;
 /** The measurer's baked font sizes; every drawn line uses one of them. */
 export const SIZES = [24, 28, 32, 36, 40, 44, 48, 52, 56, 64, 72, 80, 96, 112, 128, 144, 160] as const;
+/** A font size as seen on a phone (READABILITY): size × phoneWidth / canvas width. */
+export const effectiveSize = (size: number, canvasWidth: number): number => size * READABILITY.phoneWidth / canvasWidth;
+/** The smallest baked size that meets the readability floor for `role` on a canvas this wide. */
+export function minFontSize(canvasWidth: number, role: "body" | "secondary" = "body"): number {
+  return SIZES.find((size) => effectiveSize(size, canvasWidth) >= READABILITY[role] - 1e-9) ?? SIZES[SIZES.length - 1]!;
+}
 /** The only glyphs a layout draws that are not in the source: ordered-list
  * numbers (document and list). The measurer is warmed with them. */
 export const LAYOUT_GLYPHS = "0123456789";
@@ -42,17 +48,13 @@ interface View { width: number; height: number; fit: number }
 
 /** The automatic image frame, as tokens. */
 export const AUTO_FRAME = {
+  /** Every card starts at the first width. Wider ones are only retried on
+   * overflow: the readability floor scales with the width, so a wider canvas
+   * holds no more text per line (READABILITY), only a bigger image. */
   widths: [1080, 1440, 1920],
   /** Minimum height / width, so a short text is not a thin strip. */
   minRatio: { text: 0.75, stat: 0.75, quote: 0.75, qr: 1, comparison: 0.6 } as Partial<Record<TemplateId, number>>,
   defaultMinRatio: 0.5,
-  /** Content that starts wider: tables with this many columns, code lines this long. */
-  wideTableColumns: 4,
-  /** Code: pick the narrowest width whose panel holds the longest line at the
-   * floor size without wrapping. Columns are counted in half-width cells (CJK
-   * and full-width count 2); `codeCell` is a cell's advance in em (Peesuto Code
-   * Latin is 0.6 em) and `codeChrome` the horizontal space outside the text. */
-  codeCell: 0.6, codeFloor: 28, codeChrome: 272,
 } as const;
 
 /** Type steps tried largest-first for content that would otherwise leave a
@@ -80,12 +82,12 @@ export const DOCUMENT_STYLES = {
   classic: { background: "#fbfaf6", margin: 104, measure: 9999, masthead: { width: 56, height: 10, gap: 56, color: "#2d4fd0" }, rail: null,
     h1: { size: 64, color: "#18181b", leading: 1.1 }, h2: { size: 48, color: "#2d4fd0", leading: 1.1 }, h3: { size: 40, color: "#18181b", leading: 1.1 },
     body: { size: 40, bold: false, color: "#26262b", leading: 1.14 }, lede: null, gap: 32, headingGap: 48, afterHeading: 0,
-    list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#18191d", ink: "#e9e7e0", size: 32, leading: 1.02, radius: 16, pad: 32 } },
+    list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#18191d", ink: "#e9e7e0", size: 36, leading: 1.02, radius: 16, pad: 32 } },
   /** Editorial column: cobalt rail down the left, narrow measure, bold lede. */
   editorial: { background: "#efebe2", margin: 96, measure: 800, masthead: null, rail: { width: 12, gap: 56, color: "#2d4fd0" },
     h1: { size: 80, color: "#18181b", leading: 1.04 }, h2: { size: 40, color: "#2d4fd0", leading: 1.1 }, h3: { size: 36, color: "#2d4fd0", leading: 1.1 },
     body: { size: 40, bold: false, color: "#2a2a2f", leading: 1.14 }, lede: { size: 52, bold: true, color: "#18181b", leading: 1.1 }, gap: 36, headingGap: 56, afterHeading: 4,
-    list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#1b2a6b", ink: "#eef1ff", size: 32, leading: 1.02, radius: 0, pad: 32 } },
+    list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#1b2a6b", ink: "#eef1ff", size: 36, leading: 1.02, radius: 0, pad: 32 } },
 } as const;
 
 export const QUOTE_STYLES = {
@@ -117,15 +119,15 @@ export const CODE_STYLES = {
     backdrop: [{ arc: { from: { l: 0.34, c: 0.16, h: 272 }, to: { l: 0.76, c: 0.16, h: 62 }, turn: 150 }, segments: 8 }],
     panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 80, shadow: "shadow-lg", dots: { size: 22, gap: 14, colors: ["#ff5f57", "#febc2e", "#28c840"] } },
     lineNumbers: { color: "#5b6272", gap: 32 },
-    outer: 88, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.0,
-    lang: { size: 24, bold: false, color: "#6e7482", gap: 0 },
+    outer: 88, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.0,
+    lang: { size: 32, bold: false, color: "#6e7482", gap: 0 },
     syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#7d8494", number: "#f4c430", function: "#f5a45d", type: "#5fd0c5",
       property: "#eaa3c9", literal: "#f4c430", meta: "#ff7b72", punct: "#a7adb9" } },
   /** Notebook: light page, green gutter bar, zebra rows. */
   editorial: { background: "#f3f1ea", backdrop: null, panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
     lineNumbers: { color: "#a8a397", gap: 28 },
-    ink: "#1d1d20", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.1,
-    lang: { size: 28, bold: true, color: "#2f9e5f", gap: 28 },
+    ink: "#1d1d20", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.1,
+    lang: { size: 32, bold: true, color: "#2f9e5f", gap: 28 },
     syntax: { keyword: "#2447c9", string: "#1d7a45", comment: "#77736a", number: "#b0501a", function: "#7a3fb0", type: "#0e7282",
       property: "#a3365f", literal: "#b0501a", meta: "#c0392b", punct: "#6a675f" } },
 } as const;
@@ -152,18 +154,18 @@ export const CHAT_STYLES = {
   /** Bubbles hug their text (at most maxRatio of the width); name and time sit above the bubble. */
   classic: { background: "#e8ecf1", margin: 72, layout: "bubbles", size: 40, leading: 1.12, maxRatio: 0.78, radius: 32, padX: 32, padY: 22, gap: 36,
     left: { fill: "#ffffff", ink: "#18181b" }, right: { fill: "#0f7a70", ink: "#ffffff" },
-    name: { size: 28, bold: true, color: "#56606e", gap: 10 }, time: { size: 24, color: "#8a919c" } },
+    name: { size: 32, bold: true, color: "#56606e", gap: 10 }, time: { size: 32, color: "#8a919c" } },
   /** Transcript: speaker column coloured per speaker, hairlines between turns. */
   editorial: { background: "#f6f2ea", margin: 88, layout: "transcript", size: 40, leading: 1.14, ink: "#18181b", nameCol: 300, gap: 36, rule: "#dcd6ca",
-    speakers: ["#0f7a70", "#d23f25", "#2d4fd0", "#9a5a12"], name: { size: 32, bold: true }, time: { size: 24, color: "#8c887f" } },
+    speakers: ["#0f7a70", "#d23f25", "#2d4fd0", "#9a5a12"], name: { size: 32, bold: true }, time: { size: 32, color: "#8c887f" } },
 } as const;
 
 export const TABLE_STYLES = {
   /** Data grid: white card, forest header, content-proportional columns, the largest size with ≤ maxLines lines per cell. */
-  classic: { background: "#eef0ec", margin: 72, layout: "grid", sizes: [56, 52, 48, 44, 40, 36, 32, 28], maxLines: 2, leading: 1.1, padX: 28, padY: 24,
+  classic: { background: "#eef0ec", margin: 72, layout: "grid", sizes: [56, 52, 48, 44, 40, 36], maxLines: 2, leading: 1.1, padX: 28, padY: 24,
     card: { fill: "#ffffff", radius: 20 }, head: { fill: "#1f5f47", ink: "#ffffff" }, zebra: "#f2f5f1", ink: "#18181b", divider: "#e1e6df" },
   /** Ledger: one record per row — the first cell as title, the other cells as label/value fields, up to perRow side by side. */
-  editorial: { background: "#f2efe6", margin: 88, layout: "ledger", titleSize: 48, labelSize: 28, valueSize: 40, leading: 1.12, perRow: 3,
+  editorial: { background: "#f2efe6", margin: 88, layout: "ledger", titleSize: 48, labelSize: 32, valueSize: 40, leading: 1.12, perRow: 3,
     marker: { size: 16, color: "#1f5f47" }, ink: "#18181b", label: "#7d786d", rule: "#d6cfbf", gap: 40, fieldGap: 16 },
 } as const;
 
@@ -187,11 +189,15 @@ export const DIAGRAM_STYLES = {
     decisionFill: "#20449f", decisionBorder: "#ffd166", accentFill: "#ffffff", accentText: "#14307f",
     line: "#bcd0ff", lineWidth: 3, labelFill: "#14307f", labelText: "#ffd166", pad: 1.35, square: true },
 } as const;
-/** Diagram size tiers tried in order until the diagram fits the card's width. */
+/** Diagram size tiers (at the reference width) tried in order until the
+ * diagram fits the card. Tiers below the readability floor are a last resort
+ * for a diagram too wide to fit at the floor (a wider canvas does not help:
+ * the floor grows with it); they never serve height, which grows the card. */
 export const DIAGRAM_TIERS = [
   { size: 56, labelSize: 36, nodeWidth: 440, padX: 40, padY: 26, minWidth: 160, rankGap: 96, nodeGap: 72, arrow: 30 },
   { size: 48, labelSize: 32, nodeWidth: 400, padX: 34, padY: 22, minWidth: 140, rankGap: 88, nodeGap: 64, arrow: 28 },
-  { size: 40, labelSize: 28, nodeWidth: 360, padX: 30, padY: 20, minWidth: 120, rankGap: 80, nodeGap: 56, arrow: 26 },
+  { size: 40, labelSize: 32, nodeWidth: 360, padX: 30, padY: 20, minWidth: 120, rankGap: 80, nodeGap: 56, arrow: 26 },
+  { size: 36, labelSize: 32, nodeWidth: 340, padX: 28, padY: 19, minWidth: 110, rankGap: 76, nodeGap: 52, arrow: 24 },
   { size: 32, labelSize: 24, nodeWidth: 320, padX: 26, padY: 18, minWidth: 100, rankGap: 72, nodeGap: 48, arrow: 22 },
   { size: 28, labelSize: 24, nodeWidth: 260, padX: 22, padY: 16, minWidth: 84, rankGap: 64, nodeGap: 36, arrow: 20 },
   { size: 24, labelSize: 24, nodeWidth: 200, padX: 16, padY: 12, minWidth: 64, rankGap: 56, nodeGap: 24, arrow: 18 },
@@ -206,12 +212,12 @@ export const DIAGRAM_TIERS = [
 export const INFO_STYLES = {
   /** Field list: warm page, white card, ink values, blue links, red secrets. */
   classic: { background: "#efece4", margin: 72, card: { fill: "#ffffff", radius: 28, pad: 56, shadow: "shadow-md" },
-    title: { size: 52, color: "#18181b", gap: 36 }, rule: "#ece8df", label: { size: 28, color: "#8a857a" }, labelMax: 0.34, labelGap: 40,
+    title: { size: 52, color: "#18181b", gap: 36 }, rule: "#ece8df", label: { size: 32, color: "#8a857a" }, labelMax: 0.34, labelGap: 40,
     value: { size: 40, color: "#18181b" }, leading: 1.2, rowGap: 26, muted: "#9b968b", link: "#2f5bd3", phoneGap: 14, icon: { size: 36, gap: 24, color: "#8a857a" },
     secret: { fill: "#fdeceb", ink: "#c62828", icon: "#d63b3b", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
   /** Credentials: night page, graphite card, each label above its value, pale values, coral secrets. */
   editorial: { background: "#0e1014", margin: 72, card: { fill: "#1b1e24", radius: 28, pad: 56, shadow: "shadow-lg" },
-    title: { size: 52, color: "#f2f0ea", gap: 36 }, rule: "#2a2e36", label: { size: 28, color: "#7d8494" }, labelMax: 0, labelGap: 40,
+    title: { size: 52, color: "#f2f0ea", gap: 36 }, rule: "#2a2e36", label: { size: 32, color: "#7d8494" }, labelMax: 0, labelGap: 40,
     value: { size: 40, color: "#e8e6df" }, leading: 1.2, rowGap: 26, muted: "#7d8494", link: "#7cb7ff", phoneGap: 14, icon: { size: 36, gap: 24, color: "#7d8494" },
     secret: { fill: "#3a1d22", ink: "#ff8a80", icon: "#ff7b72", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
 } as const;
@@ -253,7 +259,7 @@ export function phoneGroups(value: string): string[] {
 
 export const QR_STYLES = {
   /** Plain: white page, black modules. */
-  classic: { background: "#ffffff", light: "#ffffff", dark: "#111111", card: false, cardRadius: 0, cardPad: 0, caption: "#55595e", captionSize: 28 },
+  classic: { background: "#ffffff", light: "#ffffff", dark: "#111111", card: false, cardRadius: 0, cardPad: 0, caption: "#55595e", captionSize: 32 },
   /** Card: cobalt ground, a white card holding the code, white caption. */
   editorial: { background: "#2d4fd0", light: "#ffffff", dark: "#111320", card: true, cardRadius: 32, cardPad: 48, caption: "#ffffff", captionSize: 32 },
 } as const;
@@ -289,6 +295,8 @@ export interface TemplateLine {
   boldAt: boolean[];
   /** Per-grapheme color where it differs from `color` (an accented word). */
   colorAt?: (string | undefined)[];
+  /** Labels, times, captions and line numbers: held to READABILITY.secondary instead of body. */
+  secondary?: boolean;
 }
 export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number;
   /** A two-stop linear gradient instead of the flat colour (the engine draws 4 directions; colours may carry alpha). */
@@ -461,6 +469,28 @@ export function grown<T>(style: T, k: number, parent = ""): T {
   }
   return out as T;
 }
+/** Numbers a width scale leaves alone: ratios and counts. */
+const RATIO_KEY = /^(?:leading|\w+Leading|maxRatio|titleCol|labelMax|perRow|maxLines|segments)$/;
+/** The baked size nearest n (ties go up, so a floor that scaled exactly stays met). */
+const snapNear = (n: number): number => SIZES.reduce<number>((best, s) => (Math.abs(s - n) <= Math.abs(best - n) ? s : best), SIZES[0]);
+/** A style drawn for READABILITY.referenceWidth, scaled `u` times for a wider
+ * canvas: every length (margins included) scales, font sizes snap to the
+ * nearest baked size, ratios stay, and a colour backdrop is left as it is. The
+ * readability floor scales exactly with the width, so a style that meets it
+ * at the reference width meets it scaled (36 → 48 → 64, 32 → 44 → 56). */
+export function scaledTo<T>(style: T, u: number, parent = ""): T {
+  if (u === 1 || style === null || typeof style !== "object" || parent === "backdrop") return style;
+  const out: Record<string, unknown> | unknown[] = Array.isArray(style) ? [] : {};
+  for (const [key, val] of Object.entries(style as Record<string, unknown>)) {
+    let next: unknown;
+    if (val && typeof val === "object") next = scaledTo(val, u, key);
+    else if (typeof val !== "number" || RATIO_KEY.test(key)) next = val;
+    else if ((/size$/i.test(key) && !SHAPE_KEYS.has(parent)) || /sizes$/i.test(parent)) next = snapNear(val * u);
+    else next = Math.round(val * u);
+    (out as Record<string, unknown>)[key] = next;
+  }
+  return out as T;
+}
 const pickStyle = <S extends Record<string, unknown>>(table: S, variant: string): S[keyof S] => (table[variant as keyof S] ?? table.classic) as S[keyof S];
 
 /** Syntax colour per grapheme of one code line. Colour only: the text is untouched. */
@@ -519,9 +549,10 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
     if (!frame) throw new ComposeError("catalog", "Unknown card frame.");
     return grownLayout(plan, measure, { ...frame, fit: frame.height });
   }
-  // Automatic: the narrowest width tier the content allows, trying wider ones
-  // when it overflows; the canvas starts at the template's minimum height.
-  const widths = AUTO_FRAME.widths.filter((w) => w >= autoWidth(plan));
+  // Automatic: the first width, trying wider ones when it overflows (a
+  // diagram too wide even below the floor); the canvas starts at the
+  // template's minimum height.
+  const widths = AUTO_FRAME.widths;
   let last: unknown;
   for (const width of widths) {
     const minRatio = AUTO_FRAME.minRatio[plan.template] ?? AUTO_FRAME.defaultMinRatio;
@@ -534,29 +565,16 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   throw last;
 }
 
-/** Where the automatic frame starts: wide tables, long code lines and
- * sideways diagrams begin at the second width tier. */
-function autoWidth(plan: TemplatePlan): number {
-  const content = plan.content;
-  if (content.kind === "code") {
-    const cells = (line: string) => graphemes(line.replace(/\t/g, "    ")).reduce((n, g) => n + (/[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]|\p{Extended_Pictographic}/u.test(g) ? 2 : 1), 0);
-    const longest = Math.max(0, ...content.code.split("\n").map(cells));
-    const numberCells = String(Math.max(1, content.code.split("\n").length)).length + 2; // line numbers and their gap
-    const needed = (longest + numberCells) * AUTO_FRAME.codeCell * AUTO_FRAME.codeFloor + AUTO_FRAME.codeChrome;
-    return AUTO_FRAME.widths.find((w) => w >= needed) ?? AUTO_FRAME.widths.at(-1)!;
-  }
-  const wide = (content.kind === "table" && content.headers.length >= AUTO_FRAME.wideTableColumns)
-    || (content.kind === "diagram" && (content.direction === "LR" || content.direction === "RL"));
-  return AUTO_FRAME.widths[wide ? 1 : 0]!;
-}
-
-interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[] }
+interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[]; secondary?: boolean }
 
 /** One layout at type step `k` (TEMPLATE_GROW). */
 function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 1): TemplateLayout {
   const W = view.width;
+  /** Styles are drawn for READABILITY.referenceWidth; a wider canvas scales them (scaledTo). */
+  const u = W / READABILITY.referenceWidth;
+  const styleOf = <S extends Record<string, unknown>>(table: S) => scaledTo(pickStyle(table, plan.variant), u);
   /** Per style; qr and diagram keep the default. */
-  let margin = 88;
+  let margin = Math.round(88 * u);
   const innerW = () => W - margin * 2;
   const layout: TemplateLayout = { width: W, height: view.height, background: "#f4f1ea", lines: [], shapes: [], images: [], assets: {} };
   let bottom = margin, group = 0;
@@ -581,7 +599,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const advance = styledWidth(line, size, measure);
       const dx = align === "center" ? (width - advance) / 2 : align === "right" ? width - advance : 0;
       layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + dx, y: y + index * height, width: advance, size, height, bold, color, group: groupID,
-        boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
+        boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}), ...(o.secondary ? { secondary: true } : {}) });
     }
     bottom = Math.max(bottom, y + lines.length * height);
     return lines.length * height;
@@ -589,6 +607,10 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   const block = (text: string, x: number, y: number, width: number, size: number, bold: boolean, color: string, o: BlockOptions = {}) => place(glyphsOf(text, bold, o), x, y, width, size, bold, color, o);
   const count = (text: string, width: number, size: number, bold: boolean) => wrapStyled(glyphsOf(text, bold), width, size, measure).length;
   const lh = (size: number, leading: number, bold = false) => Math.ceil(measure.lineHeight(size, bold) * leading);
+  /** The widest unit a line may not split: a space-separated token, or an ICU word inside CJK text. */
+  const unitWidth = (text: string, size: number, bold: boolean) => Math.max(0, ...text.split(/\s+/u).filter(Boolean)
+    .flatMap((token) => (CJK.test(token) ? [...new Intl.Segmenter(undefined, { granularity: "word" }).segment(token)].map((part) => part.segment) : [token]))
+    .map((unit) => measure.width(unit, size, bold)));
   // Text is drawn top-aligned in its line box, the baseline at ~1.16 × size
   // (Noto Sans SC's ascender); these are offsets from a line's top.
   /** Where a marker beside the first line of `size` text is optically centred
@@ -611,7 +633,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   const content = plan.content;
   switch (content.kind) {
     case "info": {
-      const s = grown(pickStyle(INFO_STYLES, plan.variant), k);
+      const s = grown(styleOf(INFO_STYLES), k);
       layout.background = s.background; margin = s.margin;
       const C = s.card, cardX = margin, cardW = innerW(), innerX = cardX + C.pad, inner = cardW - 2 * C.pad;
       let y = margin; const top = y;
@@ -637,7 +659,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         if (field.label) {
           // Beside the value: the label's baseline on the value's first baseline. Above it: its own line.
           const ly = side ? y + base(s.value.size) - base(s.label.size) : y;
-          const h = block(field.label, innerX, ly, side ? widest : inner, s.label.size, false, s.label.color, { leading: 1.2, groupID: g });
+          const h = block(field.label, innerX, ly, side ? widest : inner, s.label.size, false, s.label.color, { leading: 1.2, groupID: g, secondary: true });
           if (!side) vy = y + h + 6;
         }
         let end = vy;
@@ -674,7 +696,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "qr": {
       const inner = innerW();
-      const style = pickStyle(QR_STYLES, plan.variant);
+      const style = styleOf(QR_STYLES);
       layout.background = style.background;
       const matrix = encodeQr(content.data);
       const cells = matrix.size + QR_QUIET * 2;
@@ -704,14 +726,14 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       for (const line of captionLines) {
         const advance = styledWidth(line, style.captionSize, measure);
         layout.lines.push({ text: line.map((g) => g.text).join(""), x: (W - advance) / 2, y, width: advance, size: style.captionSize, height: lineH,
-          bold: false, color: style.caption, group: bands, boldAt: line.map(() => false) });
+          bold: false, color: style.caption, group: bands, boldAt: line.map(() => false), secondary: true });
         y += lineH;
       }
       bottom = top + total;
       break;
     }
     case "text": {
-      const style = pickStyle(TEXT_STYLES, plan.variant);
+      const style = styleOf(TEXT_STYLES);
       layout.background = style.background; margin = style.margin;
       const source = content.paragraphs.join("\n\n");
       const accentAt = accentMask(source, plan.emphasis);
@@ -754,42 +776,62 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "diagram": {
       const style = pickStyle(DIAGRAM_STYLES, plan.variant);
+      // Scaled tiers, then the reference ones below them: only an unscaled last
+      // resort lets a wider canvas hold a diagram too wide for this one.
+      const scaledTiers = DIAGRAM_TIERS.map((tier) => scaledTo(tier, u));
+      const tiers = [...scaledTiers, ...DIAGRAM_TIERS.filter((tier) => tier.size < scaledTiers.at(-1)!.size)];
+      const bodyMin = minFontSize(W, "body"), labelMin = minFontSize(W, "secondary");
+      const readable = (tier: (typeof tiers)[number]) => tier.size >= bodyMin && tier.labelSize >= labelMin;
+      const lastReadable = tiers.filter(readable).at(-1);
       layout.background = style.background;
-      const horizontal = content.direction === "LR" || content.direction === "RL";
       const avail = W - margin * 2;
-      type Pick = { geometry: ReturnType<typeof layoutDiagram>; tier: (typeof DIAGRAM_TIERS)[number]; boxes: Map<string, { width: number; height: number; lines: StyledGlyph[][] }> };
-      let chosen: Pick | undefined, widest: Pick | undefined;
-      for (const tier of DIAGRAM_TIERS) {
-        const boxes = new Map<string, { width: number; height: number; lines: StyledGlyph[][] }>();
-        const boxFor = (node: DiagramNode) => {
-          const cap = node.shape === "diamond" ? tier.nodeWidth * 0.6 : tier.nodeWidth;
-          const lines = wrapStyled(styledGlyphs(normalizeText(node.label, "plain"), false, false), cap, tier.size, measure);
-          const tw = Math.max(...lines.map((line) => styledWidth(line, tier.size, measure)));
-          const th = lines.length * Math.ceil(measure.lineHeight(tier.size, false) * 1.25);
-          const padX = tier.padX * style.pad, padY = tier.padY * style.pad;
-          let w = tw + padX * 2, h = th + padY * 2;
-          if (node.shape === "pill") w += h * 0.5;
-          if (node.shape === "diamond") { w = tw * 2 + padX * 2; h = th * 2 + padY * 2; }
-          w = Math.max(w, tier.minWidth);
-          boxes.set(node.id, { width: w, height: h, lines });
-          return { width: w, height: h };
-        };
-        const labelBox = (label: string) => {
-          const lines = wrapStyled(styledGlyphs(normalizeText(label, "plain"), false, false), tier.nodeWidth * 0.8, tier.labelSize, measure);
-          return { width: Math.max(...lines.map((line) => styledWidth(line, tier.labelSize, measure))) + 20,
-            height: lines.length * Math.ceil(measure.lineHeight(tier.labelSize, false) * 1.2) + 10 };
-        };
-        // Sideways, the rank gap only has to hold an arrow.
-        const geometry = layoutDiagram(content, boxFor, { rankGap: Math.round(tier.rankGap * (horizontal ? 0.7 : 1)), nodeGap: tier.nodeGap, labelGap: 12, dummyWidth: 8, arrow: tier.arrow }, labelBox);
-        // The largest tier that fits the whole card. Height alone never pushes
-        // text below 32 px: from there the card grows (animations scroll).
-        const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.fit - margin * 2;
-        chosen = { geometry, tier, boxes };
-        if (fitsCard || (fitsWidth && tier.size <= 32)) break;
-        if (fitsWidth && !widest) widest = chosen;
+      type Pick = { geometry: ReturnType<typeof layoutDiagram>; tier: (typeof tiers)[number]; boxes: Map<string, { width: number; height: number; lines: StyledGlyph[][] }> };
+      const choose = (diagram: typeof content): Pick => {
+        const horizontal = diagram.direction === "LR" || diagram.direction === "RL";
+        let chosen: Pick | undefined, widest: Pick | undefined;
+        for (const tier of tiers) {
+          const boxes = new Map<string, { width: number; height: number; lines: StyledGlyph[][] }>();
+          const boxFor = (node: DiagramNode) => {
+            const cap = node.shape === "diamond" ? tier.nodeWidth * 0.6 : tier.nodeWidth;
+            const lines = wrapStyled(styledGlyphs(normalizeText(node.label, "plain"), false, false), cap, tier.size, measure);
+            const tw = Math.max(...lines.map((line) => styledWidth(line, tier.size, measure)));
+            const th = lines.length * Math.ceil(measure.lineHeight(tier.size, false) * 1.25);
+            const padX = tier.padX * style.pad, padY = tier.padY * style.pad;
+            let w = tw + padX * 2, h = th + padY * 2;
+            if (node.shape === "pill") w += h * 0.5;
+            if (node.shape === "diamond") { w = tw * 2 + padX * 2; h = th * 2 + padY * 2; }
+            w = Math.max(w, tier.minWidth);
+            boxes.set(node.id, { width: w, height: h, lines });
+            return { width: w, height: h };
+          };
+          const labelBox = (label: string) => {
+            const lines = wrapStyled(styledGlyphs(normalizeText(label, "plain"), false, false), tier.nodeWidth * 0.8, tier.labelSize, measure);
+            return { width: Math.max(...lines.map((line) => styledWidth(line, tier.labelSize, measure))) + 20,
+              height: lines.length * Math.ceil(measure.lineHeight(tier.labelSize, false) * 1.2) + 10 };
+          };
+          // Sideways, the rank gap only has to hold an arrow.
+          const geometry = layoutDiagram(diagram, boxFor, { rankGap: Math.round(tier.rankGap * (horizontal ? 0.7 : 1)), nodeGap: tier.nodeGap, labelGap: 12, dummyWidth: 8, arrow: tier.arrow }, labelBox);
+          // The largest tier that fits the whole card. Height alone never pushes
+          // text below the readability floor: from there the card grows
+          // (animations scroll). Only width may go below it, as a last resort.
+          const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.fit - margin * 2;
+          chosen = { geometry, tier, boxes };
+          if (fitsCard || (fitsWidth && (tier === lastReadable || !readable(tier)))) break;
+          if (fitsWidth && !widest) widest = chosen;
+        }
+        if (chosen!.geometry.width > avail && widest) chosen = widest;
+        return chosen!;
+      };
+      // A sideways diagram that only fits below the floor is drawn top-down
+      // instead when that is readable (same nodes, edges and labels).
+      let diagram = content, chosen = choose(content);
+      if ((content.direction === "LR" || content.direction === "RL") && !readable(chosen.tier)) {
+        const flipped = { ...content, direction: content.direction === "LR" ? "TD" as const : "BT" as const };
+        const alternative = choose(flipped);
+        if (readable(alternative.tier) && alternative.geometry.width <= avail) { diagram = flipped; chosen = alternative; }
       }
-      if (chosen!.geometry.width > avail && widest) chosen = widest;
-      const { geometry, tier, boxes } = chosen!;
+      const horizontal = diagram.direction === "LR" || diagram.direction === "RL";
+      const { geometry, tier, boxes } = chosen;
       if (geometry.width > avail) throw new ComposeError("overflow", `This diagram is ${Math.round(geometry.width)}px wide at its smallest size; the card has ${avail}px. ${horizontal ? "Try a top-down (graph TD) layout or" : "Use"} fewer nodes side by side. No content was dropped.`);
       const ox = margin + (avail - geometry.width) / 2;
       const oy = Math.max(margin, Math.round((view.height - geometry.height) / 2));
@@ -836,7 +878,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           lines.forEach((line, i) => {
             const advance = styledWidth(line, tier.labelSize, measure);
             layout.lines.push({ text: line.map((g) => g.text).join(""), x: bx + 10 + (lw - advance) / 2, y: by + 5 + i * lineH, width: advance, size: tier.labelSize, height: lineH,
-              bold: false, color: style.labelText, group, boldAt: line.map(() => false) });
+              bold: false, color: style.labelText, group, boldAt: line.map(() => false), secondary: true });
           });
         }
       }
@@ -877,7 +919,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       break;
     }
     case "document": {
-      const s = grown(pickStyle(DOCUMENT_STYLES, plan.variant), k);
+      const s = grown(styleOf(DOCUMENT_STYLES), k);
       layout.background = s.background; margin = s.margin;
       let x = margin, width = innerW(), y = margin;
       if (s.rail) { x = margin + s.rail.width + s.rail.gap; width = Math.min(W - margin - x, s.measure); }
@@ -914,7 +956,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       break;
     }
     case "quote": {
-      const s = pickStyle(QUOTE_STYLES, plan.variant);
+      const s = styleOf(QUOTE_STYLES);
       layout.background = s.background; margin = s.margin;
       const x0 = margin + (s.rule ? s.rule.width + s.rule.gap : 0), width = W - margin - x0;
       const authorH = content.author ? s.author.gap + lh(s.author.size, 1.2, s.author.bold) : 0;
@@ -929,14 +971,14 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         const a = s.author; y += a.gap;
         // The dash before the author is a shape, not a "—" glyph.
         rect(x0, y + mid(a.size) - a.ruleHeight / 2, a.ruleWidth, a.ruleHeight, a.color);
-        y += block(content.author, x0 + a.ruleWidth + 20, y, width - a.ruleWidth - 20, a.size, a.bold, a.color, { leading: 1.2 });
+        y += block(content.author, x0 + a.ruleWidth + 20, y, width - a.ruleWidth - 20, a.size, a.bold, a.color, { leading: 1.2, secondary: true });
       }
       if (s.rule) rect(margin, top, s.rule.width, y - top, s.rule.color);
       bottom = settle(top, y);
       break;
     }
     case "code": {
-      const s = pickStyle(CODE_STYLES, plan.variant);
+      const s = styleOf(CODE_STYLES);
       layout.background = s.background; margin = s.outer;
       const source = normalizeText(content.code, "code").split("\n");
       const P = s.panel, G = s.gutter, LN = s.lineNumbers;
@@ -975,14 +1017,14 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         panel.shadow = P.shadow;
         const dotY = y + (P.header - P.dots.size) / 2 + P.pad / 4;
         P.dots.colors.forEach((color, i) => rect(margin + P.pad + i * (P.dots.size + P.dots.gap), dotY, P.dots.size, P.dots.size, color, P.dots.size / 2));
-        if (content.language) block(content.language, textX, dotY + P.dots.size / 2 - lh(s.lang.size, 1) / 2, textW, s.lang.size, s.lang.bold, s.lang.color, { align: "right", leading: 1 });
+        if (content.language) block(content.language, textX, dotY + P.dots.size / 2 - lh(s.lang.size, 1) / 2, textW, s.lang.size, s.lang.bold, s.lang.color, { align: "right", leading: 1, secondary: true });
         y += P.pad / 2 + P.header;
-      } else if (content.language) y += block(content.language, textX, y, textW, s.lang.size, s.lang.bold, s.lang.color, { leading: 1.2 }) + s.lang.gap;
+      } else if (content.language) y += block(content.language, textX, y, textW, s.lang.size, s.lang.bold, s.lang.color, { leading: 1.2, secondary: true }) + s.lang.gap;
       const codeTop = y;
       const colors = codeColors(source.join("\n"), content.language, s.syntax);
       for (const [index, line] of source.entries()) {
         const start = y;
-        if (LN) block(String(index + 1), textX, y, gutterW(size) - LN.gap, size, false, LN.color, { align: "right", leading: s.leading, code: true, markdown: false });
+        if (LN) block(String(index + 1), textX, y, gutterW(size) - LN.gap, size, false, LN.color, { align: "right", leading: s.leading, code: true, markdown: false, secondary: true });
         const h = place(glyphsOf(line, false, { code: true, markdown: false, colors: colors[index] }), codeX, y, codeW, size, false, s.ink, { leading: s.leading });
         if (s.zebra && index % 2 === 1) rect(textX - s.zebra.pad, start, textW + 2 * s.zebra.pad, h, s.zebra.color, s.zebra.radius);
         y += h;
@@ -994,7 +1036,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       break;
     }
     case "stat": {
-      const s = pickStyle(STAT_STYLES, plan.variant);
+      const s = styleOf(STAT_STYLES);
       layout.background = s.background; margin = s.margin;
       const sizes: readonly number[] = s.valueSizes;
       const size = sizes.find((sz) => measure.width(content.value, sz, true) <= innerW()) ?? sizes[sizes.length - 1]!;
@@ -1014,7 +1056,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       break;
     }
     case "list": {
-      const s = grown(pickStyle(LIST_STYLES, plan.variant), k);
+      const s = grown(styleOf(LIST_STYLES), k);
       layout.background = s.background; margin = s.margin;
       let y = margin; const top = y;
       for (const [index, item] of content.items.entries()) {
@@ -1041,7 +1083,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       break;
     }
     case "chat": {
-      const s = grown(pickStyle(CHAT_STYLES, plan.variant), k);
+      const s = grown(styleOf(CHAT_STYLES), k);
       layout.background = s.background; margin = s.margin;
       const speakers = [...new Set(content.turns.map((turn) => turn.speaker))];
       let y = margin; const top = y;
@@ -1056,10 +1098,10 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           const inline = !!turn.time && count(turn.speaker, maxW, s.name.size, true) === 1 && nameW + 16 + timeW <= maxW;
           const edge = right ? W - margin - 8 : margin + 8;
           const nx = right ? edge - (inline ? nameW + 16 + timeW : maxW) : edge;
-          let nameH = block(turn.speaker, nx, y, inline ? Math.ceil(nameW) + 1 : maxW, s.name.size, true, s.name.color, { leading: 1.2, align: right && !inline ? "right" : "left" });
+          let nameH = block(turn.speaker, nx, y, inline ? Math.ceil(nameW) + 1 : maxW, s.name.size, true, s.name.color, { leading: 1.2, align: right && !inline ? "right" : "left", secondary: true });
           if (turn.time) {
-            if (inline) block(turn.time, nx + nameW + 16, y + base(s.name.size) - base(s.time.size), Math.ceil(timeW) + 1, s.time.size, false, s.time.color, { leading: 1.2 });
-            else nameH += block(turn.time, right ? edge - maxW : edge, y + nameH, maxW, s.time.size, false, s.time.color, { leading: 1.2, align: right ? "right" : "left" });
+            if (inline) block(turn.time, nx + nameW + 16, y + base(s.name.size) - base(s.time.size), Math.ceil(timeW) + 1, s.time.size, false, s.time.color, { leading: 1.2, secondary: true });
+            else nameH += block(turn.time, right ? edge - maxW : edge, y + nameH, maxW, s.time.size, false, s.time.color, { leading: 1.2, align: right ? "right" : "left", secondary: true });
           }
           y += nameH + s.name.gap;
           const glyphs = glyphsOf(turn.text, false);
@@ -1073,8 +1115,8 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           const color = s.speakers[who % s.speakers.length]!;
           // The name's first line centres on the text's first line; the time goes under it.
           const nameTop = y + base(s.size) - base(s.name.size);
-          let nameH = nameTop - y + block(turn.speaker, margin, nameTop, s.nameCol - 32, s.name.size, true, color, { leading: 1.2 });
-          if (turn.time) nameH += 6 + block(turn.time, margin, y + nameH + 6, s.nameCol - 32, s.time.size, false, s.time.color, { leading: 1.2 });
+          let nameH = nameTop - y + block(turn.speaker, margin, nameTop, s.nameCol - 32, s.name.size, true, color, { leading: 1.2, secondary: true });
+          if (turn.time) nameH += 6 + block(turn.time, margin, y + nameH + 6, s.nameCol - 32, s.time.size, false, s.time.color, { leading: 1.2, secondary: true });
           y += Math.max(nameH, block(turn.text, margin + s.nameCol, y, innerW() - s.nameCol, s.size, false, s.ink, { leading: s.leading }));
         }
       }
@@ -1085,7 +1127,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       if (!content.headers.length || content.headers.length > 6 || content.rows.some((row) => row.length !== content.headers.length)) {
         throw new ComposeError("overflow", "A table needs 1–6 columns and the same number of cells in every row.");
       }
-      const s = grown(pickStyle(TABLE_STYLES, plan.variant), k);
+      const s = grown(styleOf(TABLE_STYLES), k);
       layout.background = s.background; margin = s.margin;
       const cols = content.headers.length, all = [content.headers, ...content.rows];
       let y = margin; const top = y;
@@ -1094,14 +1136,19 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         let pick: { size: number; widths: number[] } | undefined;
         for (const size of s.sizes as readonly number[]) {
           // Columns take their natural width; spare room is shared in proportion.
+          // Short of room, each column keeps at least its widest unbreakable
+          // unit and the rest is shared; a size where that fails splits words.
           const natural = content.headers.map((_, c) => Math.max(...all.map((row, r) => measure.width(row[c]!, size, r === 0))) + 2 * s.padX);
-          const sum = natural.reduce((a, b) => a + b, 0);
-          const raw = sum <= inner ? natural.map((n) => n + (inner - sum) * n / sum) : natural.map((n) => Math.max(inner / cols * 0.6, n * inner / sum));
+          const least = content.headers.map((_, c) => Math.max(...all.map((row, r) => unitWidth(row[c]!, size, r === 0))) + 2 * s.padX);
+          const sum = natural.reduce((a, b) => a + b, 0), leastSum = least.reduce((a, b) => a + b, 0);
+          const raw = sum <= inner ? natural.map((n) => n + (inner - sum) * n / sum)
+            : leastSum <= inner ? least.map((l, c) => l + (inner - leastSum) * (natural[c]! - l) / (sum - leastSum))
+            : natural.map((n) => Math.max(inner / cols * 0.6, n * inner / sum));
           const scale = inner / raw.reduce((a, b) => a + b, 0), widths = raw.map((w) => w * scale);
           const lines = all.map((row, r) => Math.max(...row.map((cell, c) => count(cell, widths[c]! - 2 * s.padX, size, r === 0))));
           const height = lines.reduce((a, n) => a + n * lh(size, s.leading) + 2 * s.padY, 0);
           pick = { size, widths };
-          if (Math.max(...lines) <= s.maxLines && height <= view.fit - 2 * margin) break;
+          if (leastSum <= inner && Math.max(...lines) <= s.maxLines && height <= view.fit - 2 * margin) break;
         }
         const { size, widths } = pick!;
         const card = rect(margin, y, inner, 0, s.card.fill, s.card.radius);
@@ -1130,7 +1177,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         const x0 = margin + s.marker.size + 24, fieldW = (W - margin - x0) / per;
         for (const [r, row] of content.rows.entries()) {
           if (r) { y += s.gap; rect(margin, y, innerW(), 2, s.rule); y += 2 + s.gap; }
-          y += block(content.headers[0]!, x0, y, W - margin - x0, s.labelSize, true, s.label, { leading: 1.2, markdown: false }) + 4;
+          y += block(content.headers[0]!, x0, y, W - margin - x0, s.labelSize, true, s.label, { leading: 1.2, markdown: false, secondary: true }) + 4;
           rect(margin, y + mid(s.titleSize) - s.marker.size / 2, s.marker.size, s.marker.size, s.marker.color);
           y += block(row[0]!, x0, y, W - margin - x0, s.titleSize, true, s.ink, { leading: s.leading, markdown: false }) + 20;
           let rowMax = 0;
@@ -1138,7 +1185,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
             const slot = (c - 1) % per;
             if (slot === 0 && c > 1) { y += rowMax + s.fieldGap; rowMax = 0; }
             const fx = x0 + slot * fieldW;
-            const a = block(content.headers[c]!, fx, y, fieldW - 24, s.labelSize, true, s.label, { leading: 1.2, markdown: false });
+            const a = block(content.headers[c]!, fx, y, fieldW - 24, s.labelSize, true, s.label, { leading: 1.2, markdown: false, secondary: true });
             const b = block(row[c]!, fx, y + a + 2, fieldW - 24, s.valueSize, false, s.ink, { leading: s.leading, markdown: false });
             rowMax = Math.max(rowMax, a + 2 + b);
           }
@@ -1150,7 +1197,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "comparison": {
       if (content.columns.length !== 2) throw new ComposeError("catalog", "Comparison templates require exactly two columns.");
-      const s = grown(pickStyle(COMPARISON_STYLES, plan.variant), k);
+      const s = grown(styleOf(COMPARISON_STYLES), k);
       layout.background = s.background; margin = s.margin;
       const items = (x: number, y: number, width: number, column: { items: readonly string[] }, p: { ink: string; bullet: string }) => {
         for (const [j, item] of column.items.entries()) {
