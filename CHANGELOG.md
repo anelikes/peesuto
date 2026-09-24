@@ -7,6 +7,7 @@ section here becomes one.
 
 ## Unreleased
 
+- Onboarding redesigned as three quiet steps on the panel’s glass: what Peesuto does (one real card appearing after a line of text and ⌥⌘1; static with Reduce Motion), the Accessibility permission with its live state, and the two shortcuts to remember. System accent and standard controls only; the teal glows, tinted icon tiles and the Preferences step are gone (those preferences keep their defaults and live in Settings). The window is 680×500.
 - Keyboard symbols render: ⌘ ⌥ ⌃ ⎋ ⏎ and 111 other symbols from JetBrains Mono are merged into both Maple cuts, and a card whose chosen font lacks a glyph uses the other font when that one has them all (a JSON keymap with ⌥ used to fail).
 - Info cards take unlabelled contact lines: a name, then a phone number, email, website or address each get an icon where a label would be.
 - Cards are set in Maple Mono by default (Settings › Templates › Card font switches to Noto Sans SC; code is always Maple). Everything but code uses Peesuto Text, a cut of it with Chinese at 1em, so prose does not look letter-spaced.

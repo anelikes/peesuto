@@ -108,26 +108,32 @@ final class ClipboardPanel: NSPanel {
 
     func showOnboarding(step: Int) {
         onboardingWindow?.close()
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 540),
+        let size = OnboardingView.size
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
         window.isMovableByWindowBackground = true
+        // The same glass as the panel.
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.isReleasedWhenClosed = false
         window.title = model.tr("Welcome to Peesuto", "欢迎使用 Peesuto")
         window.delegate = self
         let hosting = NSHostingView(rootView: OnboardingView(
             model: model, initialStep: step,
-            openAISettings: { [weak self] in
-                self?.model.requestedSettingsSection = 1
+            openSettings: { [weak self] in
+                self?.model.requestedSettingsSection = 3
                 self?.showSettings()
             },
             finish: { [weak window] in window?.close() }))
         // The SwiftUI root has a fixed size; do not let it resize the window to add the title bar.
         hosting.sizingOptions = []
-        window.contentView = hosting
-        // The content runs under the transparent title bar: 760×540 overall.
-        window.setFrame(NSRect(x: 0, y: 0, width: 760, height: 540), display: false)
+        if #available(macOS 13.3, *) { hosting.safeAreaRegions = [] }
+        window.contentView = PanelBackground.wrap(hosting)
+        // The content runs under the transparent title bar: the whole frame is `size`.
+        window.setFrame(NSRect(origin: .zero, size: size), display: false)
         window.center()
         onboardingWindow = window
         NSApp.activate(ignoringOtherApps: true)
