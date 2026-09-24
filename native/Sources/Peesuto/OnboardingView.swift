@@ -266,6 +266,12 @@ private struct PermissionStep: View {
                     }
                     .padding(.horizontal, 12).padding(.vertical, 10)
                 }
+                if !model.trusted {
+                    Text(model.accessibilityResetHint)
+                        .font(.system(size: 11)).foregroundColor(.secondary)
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 560)
+                }
                 Text(model.tr("Your history is encrypted and stays on this Mac.\nmacOS may ask once about Peesuto’s Keychain item; choose Always Allow.",
                               "剪贴板历史加密保存在本机。\nmacOS 可能会就 Peesuto 的钥匙串项询问一次，请选择「始终允许」。"))
                     .font(.system(size: 11)).foregroundColor(.secondary)

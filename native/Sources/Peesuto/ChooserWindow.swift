@@ -245,6 +245,7 @@ struct ChooserView: View {
         case .none: return model.tr("Copy some text first. Protected clipboard content is not used.", "请先复制文字。受保护的剪贴板内容不会使用。")
         case .text: return model.trusted ? nil
             : model.tr("Accessibility is off, so the result is copied; press ⌘V to paste it.", "未开启辅助功能，结果只会复制，请自己按 ⌘V 粘贴。")
+                + "\n" + model.accessibilityResetHint
         }
     }
 

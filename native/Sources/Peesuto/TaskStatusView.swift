@@ -14,6 +14,12 @@ struct TaskStatusView: View {
                     .font(.system(size: 12, weight: .medium)).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
+            if !model.busy, model.needsAccessibility, !model.trusted {
+                Text(model.accessibilityResetHint)
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 25)
+            }
             HStack {
                 Text("Peesuto").font(.system(size: 10)).foregroundColor(.secondary)
                 if !model.busy, model.output?.precomposed == true { PrecomposedTag(model: model) }

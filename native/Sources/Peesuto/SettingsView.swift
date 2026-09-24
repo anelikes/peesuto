@@ -174,6 +174,11 @@ struct SettingsView: View {
                         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                     }
                 }
+                if !model.trusted {
+                    Text(model.accessibilityResetHint)
+                        .font(.system(size: 11)).foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Divider()
             VStack(alignment: .leading, spacing: 8) {

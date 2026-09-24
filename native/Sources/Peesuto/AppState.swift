@@ -640,6 +640,13 @@ struct ChooserSnapshot {
         return true
     }
 
+    /// Shown under every "Accessibility is missing" message. macOS ties the grant to the code signature
+    /// that was approved, so after an update or re-sign the toggle can stay on while AXIsProcessTrusted() is false.
+    var accessibilityResetHint: String {
+        tr("Already on in System Settings? Remove Peesuto from the list with −, then add it again.",
+           "系统设置里已经打开却无效？在列表中用「−」移除 Peesuto，再重新添加。")
+    }
+
     /// Prompts for Accessibility and opens System Settings › Privacy & Security › Accessibility.
     func openAccessibilitySettings() {
         if !previewMode { _ = PasteController.requestAccessibility() }
