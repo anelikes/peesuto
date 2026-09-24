@@ -61,6 +61,8 @@ export interface CheckedLine {
   readonly text: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly size: number;
   readonly color: string; readonly colorAt?: readonly (string | undefined)[];
   readonly secondary?: boolean; readonly signature?: boolean; readonly generated?: boolean;
+  /** Drawn for looks (a ghost repeat, a ticker): must be traceable, never counts as drawn text, exempt from size, overflow, contrast and overlap. */
+  readonly decorative?: boolean;
   /** Outline and gradient ink (compose.ts TextPaint); glow is not read. */
   readonly paint?: {
     readonly stroke?: { readonly width: number; readonly color: string; readonly hollow?: boolean };
@@ -123,6 +125,8 @@ export function generatedNumberLimit(content: TemplateContent): number {
   if (content.kind === "code") return normalizeText(content.code, "code").split("\n").length;
   // A diff's "+N −M" summary: the counted added and removed lines.
   if (content.kind === "diff") return Math.max(...(["add", "del"] as const).map((type) => diffCount(content, type)));
+  // Lyric motion numbers its cuts: at most three chunks per `/` piece, plus a title card.
+  if (content.kind === "lyrics") return 1 + 3 * content.stanzas.reduce((n, s) => n + s.lines.reduce((m, l) => m + 1 + (l.breaks?.length ?? 0), 0), 0);
   return 0;
 }
 
@@ -147,6 +151,8 @@ export function fidelityViolations(layout: CheckedLayout, plan: Pick<TemplatePla
       return;
     }
     if (text && !sources.some((source) => source.includes(text))) out.push({ kind: "untraceable", line: index, message: `line ${index} (${graphemes(text).length} characters) is not in the source` });
+    // A decorative repeat is traceable text but never stands in for the text itself.
+    if (line.decorative) return;
     for (const glyph of graphemes(line.text)) if (glyph.trim()) drawn.set(glyph, (drawn.get(glyph) ?? 0) + 1);
   });
   if (plan.content.kind === "qr") return out;
@@ -196,7 +202,7 @@ export function checkLayout(layout: CheckedLayout, plan?: Pick<TemplatePlan, "co
   const out: CheckViolation[] = [];
   const reference = T.readability.referenceWidth;
   layout.lines.forEach((line, index) => {
-    if (!line.text.trim()) return;
+    if (!line.text.trim() || line.decorative) return;
     const effective = line.size * T.readability.phoneWidth / W, floor = line.secondary ? T.readability.secondary : T.readability.body;
     if (effective < floor - 1e-9) out.push({ kind: "size", line: index, message: `line ${index} is ${line.size}px on a ${W}px canvas, ${effective.toFixed(1)}px on a phone (floor ${floor})` });
     const tol = T.overflowTolerance;
@@ -216,7 +222,7 @@ export function checkLayout(layout: CheckedLayout, plan?: Pick<TemplatePlan, "co
     else if (stroke?.hollow && !large) out.push({ kind: "contrast", line: index, message: `line ${index} is hollow (outline only) below the large size` });
   });
   // Overlap: line boxes sorted by top; only neighbours that start above a box's bottom can meet it.
-  const order = layout.lines.map((line, index) => ({ line, index })).filter(({ line }) => line.text.trim()).sort((a, b) => a.line.y - b.line.y);
+  const order = layout.lines.map((line, index) => ({ line, index })).filter(({ line }) => line.text.trim() && !line.decorative).sort((a, b) => a.line.y - b.line.y);
   const tol = T.overlapTolerance;
   for (let i = 0; i < order.length; i++) {
     const a = order[i]!.line;

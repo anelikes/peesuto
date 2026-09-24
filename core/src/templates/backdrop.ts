@@ -173,14 +173,14 @@ export function crc32(bytes: Uint8Array, crc = 0): number {
   return ~crc >>> 0;
 }
 
-/** An 8-bit RGB PNG (colour type 2, no interlace). Rows use the Sub filter: grain compresses poorly either way, and Sub is the cheapest that helps. */
-export function encodePng(width: number, height: number, rgb: Uint8Array, level = 3): Uint8Array {
-  if (rgb.length !== width * height * 3) throw new Error("encodePng: rgb length does not match the size");
-  const stride = width * 3, raw = new Uint8Array((stride + 1) * height);
+/** An 8-bit RGB PNG (colour type 2), or RGBA with straight alpha when `channels` is 4 (colour type 6); no interlace. Rows use the Sub filter: grain compresses poorly either way, and Sub is the cheapest that helps. */
+export function encodePng(width: number, height: number, rgb: Uint8Array, level = 3, channels: 3 | 4 = 3): Uint8Array {
+  if (rgb.length !== width * height * channels) throw new Error("encodePng: pixel data length does not match the size");
+  const stride = width * channels, raw = new Uint8Array((stride + 1) * height);
   for (let j = 0; j < height; j++) {
     const row = j * stride, at = j * (stride + 1);
     raw[at] = 1; // Sub
-    for (let k = 0; k < stride; k++) raw[at + 1 + k] = (rgb[row + k]! - (k >= 3 ? rgb[row + k - 3]! : 0)) & 0xff;
+    for (let k = 0; k < stride; k++) raw[at + 1 + k] = (rgb[row + k]! - (k >= channels ? rgb[row + k - channels]! : 0)) & 0xff;
   }
   const chunk = (type: string, data: Uint8Array) => {
     const out = new Uint8Array(12 + data.length), view = new DataView(out.buffer);
@@ -192,7 +192,7 @@ export function encodePng(width: number, height: number, rgb: Uint8Array, level 
   };
   const ihdr = new Uint8Array(13), iv = new DataView(ihdr.buffer);
   iv.setUint32(0, width); iv.setUint32(4, height);
-  ihdr[8] = 8; ihdr[9] = 2; // 8-bit, truecolour
+  ihdr[8] = 8; ihdr[9] = channels === 4 ? 6 : 2; // 8-bit, truecolour (with alpha)
   const parts = [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr),
     chunk("IDAT", new Uint8Array(deflateSync(raw, { level }))), chunk("IEND", new Uint8Array(0))];
   const png = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));

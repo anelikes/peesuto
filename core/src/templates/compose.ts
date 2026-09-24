@@ -1,6 +1,6 @@
 /** Native engine compositions for structured templates. Legacy DSL composition stays unchanged. */
 import { existsSync } from "node:fs";
-import { copyFile, link, mkdir, rm, stat } from "node:fs/promises";
+import { copyFile, link, mkdir, rename, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ComposeError, normalizeText, unsupportedScript, type ComposeOptions, type ComposeResult } from "../render/compose.ts";
@@ -13,7 +13,10 @@ import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, typ
 import { sampleArc, type HueArc } from "./gradient.ts";
 import { CODE_FIELDS, stageField, type ColourField } from "./backdrop.ts";
 import { FATAL_CHECKS, checkLayout, diffCount, type CheckViolation } from "./checks.ts";
-import { LYRICS_STYLES, layoutLyrics, lyricsComposition, lyricsViolations, type LyricsProgram } from "./lyrics.ts";
+import { placePlate, type PlateRequest } from "./lyric-film.ts";
+import { stageTexture } from "./lyric-texture.ts";
+import { loadFace, renderPlate } from "./type-raster.ts";
+import { LYRICS_STYLES, layoutLyrics, lyricFaceNames, lyricsComposition, lyricsVariant, lyricsViolations, type LyricsProgram } from "./lyrics.ts";
 export { LYRICS_MOTION, LYRICS_STYLES, LYRICS_TIMING } from "./lyrics.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -39,6 +42,8 @@ export interface LayoutOptions {
   readonly format?: TemplateFormat;
   /** Named faces (TEMPLATE_FACES) the measurer was opened with and that draw every glyph of the card; a style's face slot is used only when listed here. */
   readonly faces?: readonly string[];
+  /** The card's font pair (lyric motion draws type plates from it); Peesuto Text when absent. */
+  readonly font?: TemplateFont;
 }
 /** The format a render of `plan` produces when none is given (renderTemplate's default). */
 export const defaultTemplateFormat = (plan: Pick<TemplatePlan, "motion">): TemplateFormat => (plan.motion === "none" ? "png" : "gif");
@@ -46,7 +51,7 @@ export const defaultTemplateFormat = (plan: Pick<TemplatePlan, "motion">): Templ
  * it); `fit` is the height templates size their type against. Fixed frames use
  * the frame height for both; the automatic frame fits against a square and
  * starts the canvas at a per-template minimum so it hugs the content. */
-interface View { width: number; height: number; fit: number; format: TemplateFormat; faces?: readonly string[] }
+interface View { width: number; height: number; fit: number; format: TemplateFormat; faces?: readonly string[]; font?: TemplateFont }
 /* ───────────── Style tokens ─────────────
  * Every colour, size and spacing a template uses lives in these tables;
  * layoutAt() reads only them, so a redesign changes numbers here, not layout
@@ -469,6 +474,14 @@ export interface TemplateLine {
   paint?: TextPaint;
   /** A named face (TEMPLATE_FACES) instead of the card's font pair: `font-[name]`. */
   face?: string;
+  /** Lyric motion: a ghost repeat, a ticker, a big numeral. Drawn for looks only: it must be source text (or a
+   * `generated` number) but never counts as the text drawn, and is exempt from the size, contrast and overlap checks. */
+  decorative?: boolean;
+  /** Lyric motion: set as a type plate (type-raster.ts), an image, for type the engine cannot draw: larger than its
+   * baked sizes, turned (`rotate` degrees about the box centre; `ground` the band it lies on), faded (`alpha`) or outlined. */
+  plate?: { rotate?: number; ground?: string; alpha?: number; stroke?: { width: number; color: string; hollow?: boolean } };
+  /** Extra space after every grapheme but the last, in em (lyric motion's spaced rows). */
+  tracking?: number;
 }
 /**
  * Paint on a text run. Every glyph is its own Text node, so a gradient spans
@@ -701,7 +714,7 @@ export function grown<T>(style: T, k: number, parent = ""): T {
   return out as T;
 }
 /** Numbers a width scale leaves alone: ratios and counts. */
-const RATIO_KEY = /^(?:leading|\w+Leading|maxRatio|titleCol|labelMax|maxCol|perRow|maxLines|segments)$/;
+const RATIO_KEY = /^(?:leading|\w+Leading|maxRatio|stackRatio|titleCol|labelMax|maxCol|perRow|maxLines|maxRows|segments)$/;
 /** The baked size nearest n (ties go up, so a floor that scaled exactly stays met). */
 const snapNear = (n: number): number => SIZES.reduce<number>((best, s) => (Math.abs(s - n) <= Math.abs(best - n) ? s : best), SIZES[0]);
 /** A style drawn for READABILITY.referenceWidth, scaled `u` times for a wider
@@ -780,7 +793,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure, opt
   if (plan.aspect !== "auto") {
     const frame = FRAMES[plan.aspect];
     if (!frame) throw new ComposeError("catalog", "Unknown card frame.");
-    return grownLayout(plan, measure, { ...frame, fit: frame.height, format, faces: options.faces ?? [] });
+    return grownLayout(plan, measure, { ...frame, fit: frame.height, format, faces: options.faces ?? [], ...(options.font ? { font: options.font } : {}) });
   }
   // Automatic: the first width, trying wider ones when it overflows (a
   // diagram too wide even below the floor); the canvas starts at the
@@ -789,7 +802,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure, opt
   let last: unknown;
   for (const width of widths) {
     const minRatio = AUTO_FRAME.minRatio[plan.template] ?? AUTO_FRAME.defaultMinRatio;
-    try { return grownLayout(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width, format, faces: options.faces ?? [] }); }
+    try { return grownLayout(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width, format, faces: options.faces ?? [], ...(options.font ? { font: options.font } : {}) }); }
     catch (error) {
       if (!(error instanceof ComposeError) || error.code !== "overflow") throw error;
       last = error;
@@ -1368,7 +1381,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     case "lyrics": {
       if (content.unfit) throw new ComposeError("lyric-unfit", "Lyric motion sets words as moving type; code, tables and diagrams lose their layout that way. Use an image instead. No content was dropped.");
       const r = layoutLyrics({ plan, content, measure, faces: view.faces ?? [], width: W, height: view.height, fit: view.fit, format: view.format, sizes: SIZES,
-        minBody: minFontSize(W), minSecondary: minFontSize(W, "secondary"), footerRoom, style: styleOf(LYRICS_STYLES), variant: plan.variant === "editorial" ? "editorial" : "classic" });
+        minBody: minFontSize(W), minSecondary: minFontSize(W, "secondary"), footerRoom, style: styleOf(LYRICS_STYLES), variant: lyricsVariant(plan.variant), ...(view.font ? { font: view.font } : {}) });
       layout.background = r.background; margin = r.margin; signatureColor = r.signatureColor; signatureAlign = r.signatureAlign;
       layout.lines.push(...r.lines); layout.shapes.push(...r.shapes);
       for (const shape of r.pinned) pinned.add(shape);
@@ -1974,12 +1987,28 @@ const BUNDLED_FONTS: Readonly<Record<Exclude<TemplateFont, "noto-sans-sc">, { re
  * measurer, the staging, the sidecar and the class tokens follow from here.
  * A face that lacks a glyph of the card is left out for that card.
  */
-export const TEMPLATE_FACES: Record<string, { readonly regular: string; readonly bold: string }> = {};
-/** The registered faces a plan's style asks for. */
-export function templateFaceNames(plan: Pick<TemplatePlan, "template" | "variant">): string[] {
+export const TEMPLATE_FACES: Record<string, { readonly regular: string; readonly bold: string }> = {
+  // Lyric motion's display faces (render/fonts/README.md "Display faces"): one weight each, so both slots name one file.
+  grin: { regular: "PeesutoGrin-Oblique.ttf", bold: "PeesutoGrin-Oblique.ttf" },
+  dela: { regular: "DelaGothicOne-Subset.ttf", bold: "DelaGothicOne-Subset.ttf" },
+  anton: { regular: "Anton-Subset.ttf", bold: "Anton-Subset.ttf" },
+  wenkai: { regular: "LXGWWenKai-Medium-Subset.ttf", bold: "LXGWWenKai-Medium-Subset.ttf" },
+  tokumin: { regular: "KaiseiTokumin-ExtraBold-Subset.ttf", bold: "KaiseiTokumin-ExtraBold-Subset.ttf" },
+  instrument: { regular: "InstrumentSerif-Italic-Subset.ttf", bold: "InstrumentSerif-Italic-Subset.ttf" },
+  kuaile: { regular: "ZCOOLKuaiLe-Subset.ttf", bold: "ZCOOLKuaiLe-Subset.ttf" },
+  maru: { regular: "ZenMaruGothic-Black-Subset.ttf", bold: "ZenMaruGothic-Black-Subset.ttf" },
+  dot: { regular: "DotGothic16-Subset.ttf", bold: "DotGothic16-Subset.ttf" },
+};
+/** The registered faces a plan's style asks for (lyric motion: the display face for the text's script). */
+export function templateFaceNames(plan: Pick<TemplatePlan, "template" | "variant" | "sourceText">): string[] {
   if (plan.template !== "lyrics") return [];
-  const slot = (LYRICS_STYLES[plan.variant === "editorial" ? "editorial" : "classic"].engine as { faces: { display: string; text: string } | null }).faces;
-  return [...new Set(slot ? [slot.display, slot.text] : [])].filter((name) => name in TEMPLATE_FACES);
+  return lyricFaceNames(plan.variant, plan.sourceText).filter((name) => name in TEMPLATE_FACES);
+}
+/** The text each named face draws on a card: a lyric's lines and title (notes, labels and the credit stay in the card's pair). */
+export function faceTexts(plan: Pick<TemplatePlan, "content">): string[] {
+  const content = plan.content;
+  if (content.kind !== "lyrics") return [];
+  return [...(content.title ? [content.title] : []), ...content.stanzas.flatMap((s) => s.lines.map((l) => l.text))].map((text) => stripEmoji(normalizeText(text, "plain")));
 }
 /** Where a staged code font sits in the composition, relative to the work tree root. */
 const CODE_FONT_STAGE = "compositions/paste/fonts";
@@ -2075,7 +2104,8 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   const open = (font: TemplateFont) => api.openMeasurer({
     face: fontFaces(font, options.engine).measure,
     ...(wanted.length ? { faces: faceFiles } : {}),
-    sizes: [undefined, ...wanted].flatMap((face) => SIZES.flatMap((px) => [{ px, bold: false, ...(face ? { face } : {}) }, { px, bold: true, ...(face ? { face } : {}) }])), texts: signatureText ? [...texts, signatureText] : texts, density: 1,
+    // Named faces have one weight: lines set in them are never bold, so only their regular slots are measured.
+    sizes: [undefined, ...wanted].flatMap((face) => SIZES.flatMap((px) => face ? [{ px, bold: false, face }] : [{ px, bold: false }, { px, bold: true }])), texts: signatureText ? [...texts, signatureText] : texts, density: 1,
     cache: { charset, dir: `${work}/dist/.measure` },
   });
   // The chosen face first; if it lacks a glyph of the card (emoji aside), the
@@ -2108,9 +2138,10 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       width: (text, size, bold, face) => splitEmoji(text).reduce((width, run) => width + ("emoji" in run ? size : m.measure(size, bold, face)(run.text)), 0),
       lineHeight: (size, bold, face) => m.lineHeight(size, bold, face),
     };
-    // A named face is used only when it draws every glyph of the card (emoji aside).
-    const faces = wanted.filter((face) => texts.every((text) => m.unmapped(text, 40, false, face).length === 0));
-    const layout = layoutTemplate(plan, metrics, { format: options.format ?? defaultTemplateFormat(plan), faces });
+    // A named face is used only when it draws every glyph of the text it sets (emoji aside); else those lines keep the card's pair.
+    const drawn = faceTexts(plan);
+    const faces = wanted.filter((face) => drawn.every((text) => m.unmapped(text, 40, false, face).length === 0));
+    const layout = layoutTemplate(plan, metrics, { format: options.format ?? defaultTemplateFormat(plan), faces, font });
     guardLayout(layout, plan);
     const used = [...new Set(layout.lines.flatMap((line) => (line.face ? [line.face] : [])))];
     await stageFaces(used, dir);
@@ -2154,7 +2185,16 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     }
     for (const [i, image] of layout.images.entries()) if (!image.field) nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]${shapeAnimation(`i${i}`, image.group)}" src="${image.src}" />`);
     for (const [name, svg] of Object.entries(layout.assets)) await Bun.write(`${dir}/${name}`, svg);
+    // Type plates (a lyric poster's large lines): images drawn by Peesuto (type-raster.ts), placed on the line's baseline.
+    const plates: PlateRequest[] = [];
     for (const line of layout.lines) {
+      if (line.plate) {
+        const placed = placePlate(line);
+        if (!plates.some((p) => p.file === placed.request.file)) plates.push(placed.request);
+        nodes.push(`<Image class="absolute left-[${Math.round(placed.left * 100) / 100}px] top-[${Math.round(placed.top * 100) / 100}px] w-[${placed.width}px] h-[${placed.height}px]" src="${placed.request.file}" />`);
+        glyphIndex += graphemes(line.text).length;
+        continue;
+      }
       const prefix: StyledGlyph[] = [];
       for (const [glyphPosition, glyph] of graphemes(line.text).entries()) {
         const bold = line.boldAt[glyphPosition] ?? line.bold;
@@ -2183,7 +2223,8 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       }
     }
     const emoji = await stageEmoji(emojiKeys, options.emojiCache, dir, options.emojiBundle);
-    await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries([...emoji, ...Object.keys(layout.assets), ...fields].map((file) => [file, { linear: true }]))) + "\n");
+    await stagePlates(plates, `${work}/dist/.plates`, dir);
+    await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries([...emoji, ...Object.keys(layout.assets), ...fields, ...plates.map((p) => p.file)].map((file) => [file, { linear: true }]))) + "\n");
     let body = nodes.join("\n");
     if (scroll) {
       const t = timing as ScrollTiming;
@@ -2191,7 +2232,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       animations.scroll = { value: `scroll ${t.scrollMs}ms ease-in-out ${t.startMs}ms both` };
       body = `<View class="absolute left-[0px] top-[0px] w-[${layout.width}px] h-[${layout.height}px] animate-scroll">\n${body}\n</View>`;
     }
-    await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}; text positions are fixed across frames.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length || layout.images.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${body}\n</View>));\n`);
+    await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}; text positions are fixed across frames.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length || layout.images.length || plates.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${body}\n</View>));\n`);
     await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(keyframes)},animation:${JSON.stringify(animations)}}});\n`);
     await stageFont(font, dir);
     await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: timing.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1,
@@ -2207,12 +2248,34 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   } finally { await m.close(); }
 }
 
+/** Draw the type plates a lyric video lists (cached by file name, which is derived from the plate's content). */
+async function stagePlates(plates: readonly PlateRequest[], cacheDir: string, dir: string): Promise<void> {
+  if (!plates.length) return;
+  await mkdir(cacheDir, { recursive: true });
+  for (const p of plates) {
+    const cached = join(cacheDir, p.file);
+    if (!existsSync(cached)) {
+      const partial = `${cached}.${process.pid}.partial`;
+      await Bun.write(partial, renderPlate(loadFace(p.font), p.text, p.size, p.style).png);
+      await rename(partial, cached);
+    }
+    await copyFile(cached, join(dir, p.file));
+  }
+}
+
 /** A lyric video's composition: its own node tree (cuts gated in time) and timing. */
 async function composeLyrics(plan: TemplatePlan, layout: TemplateLayout, program: LyricsProgram, metrics: TemplateMeasure, font: TemplateFont, dir: string, options: ComposeOptions, faces: readonly string[]): Promise<TemplateComposeResult> {
-  const out = lyricsComposition(layout, program, metrics, plan.variant === "editorial" ? "editorial" : "classic");
+  const out = lyricsComposition(layout, program, metrics, lyricsVariant(plan.variant));
   const emoji = await stageEmoji(out.emojiKeys, options.emojiCache, dir, options.emojiBundle);
-  await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries(emoji.map((file) => [file, { linear: true }]))) + "\n");
-  await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}: a lyric video of ${program.cuts.length} cuts.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${out.body}\n</View>));\n`);
+  // Type plates and textures: drawn once per content (cached under dist/), copied into the composition.
+  const work = resolve(options.work);
+  await stagePlates(out.plates, `${work}/dist/.plates`, dir);
+  for (const t of out.textures) await stageTexture(t.kind, t.width, t.height, t.alpha, t.file, `${work}/dist/.textures`, dir);
+  const images = [...emoji, ...out.plates.map((p) => p.file), ...out.textures.map((t) => t.file)];
+  // Textures lie pixel for pixel on the canvas: nearest sampling, about a third of the cost of bilinear.
+  const nearest = new Set(out.textures.map((t) => t.file));
+  await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries(images.map((file) => [file, { linear: !nearest.has(file) }]))) + "\n");
+  await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}: a lyric video of ${program.cuts.length} cuts.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${images.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${out.body}\n</View>));\n`);
   await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(out.keyframes)},animation:${JSON.stringify(out.animations)}}});\n`);
   await stageFont(font, dir);
   await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: out.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1, fonts: sidecarFonts(font, options.engine, faces) }, null, 2));
@@ -2221,7 +2284,8 @@ async function composeLyrics(plan: TemplatePlan, layout: TemplateLayout, program
     engine: { capabilities: { requires: ["text.glyphs.baked"] } },
     app: { entry: "compositions/paste/main.tsx", output: "motion-paste", framework: "solid", viewport: { fixed: { logical: [layout.width, program.frameHeight], presentation: "native" } } } }, null, 2));
   await Bun.write(`${dir}/template-layout.json`, JSON.stringify({ template: plan.template, variant: plan.variant, font, width: layout.width, height: program.frameHeight, frameHeight: program.frameHeight, scroll: false,
-    lines: layout.lines.map(({ text: _text, ...geometry }) => geometry), timing: { frames: out.frames, durationMs: program.durationMs, starts: program.cuts.map((c) => c.start) } }, null, 2));
+    lines: layout.lines.map(({ text: _text, ...geometry }) => geometry), timing: { frames: out.frames, durationMs: program.durationMs, starts: program.cuts.map((c) => c.start) },
+    cuts: program.cuts.map((c) => ({ start: c.start, hold: c.hold, layout: c.layout, entrance: c.entrance, motion: c.motion, transition: c.transition, chroma: c.chroma, ground: c.palette.bg })) }, null, 2));
   return { dir, lines: layout.lines.length, size: Math.max(...layout.lines.map((line) => line.size)), frames: out.frames,
     emoji: emoji.length, truncated: false, width: layout.width, height: program.frameHeight, template: plan.template, variant: plan.variant, motion: plan.motion, scroll: false };
 }

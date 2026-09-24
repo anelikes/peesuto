@@ -403,6 +403,8 @@ public enum JapaneseStrings {
         "Metrics": "指標",
         "Lyric motion": "文字PV",
         "Stage": "ステージ",
+        "Pop": "ポップ",
+        "Night": "ナイト",
         "Dashboard": "ダッシュボード",
         "Scoreboard": "スコアボード",
         "Plain": "プレーン",

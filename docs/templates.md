@@ -21,9 +21,9 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 
 ## Template set
 
-| Template | Classic | Editorial | Poster |
+| Template | Classic | Editorial | More styles |
 |---|---|---|---|
-| Text | Paper | Ink | Poster |
+| Text | Paper | Ink | Poster (`poster`) |
 | Document | Reading page | Editorial column | |
 | Quote | Book excerpt | Statement | |
 | Code | Terminal | Code notebook | |
@@ -40,7 +40,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Error | Crash report | Console | |
 | Schedule (`timeline`) | Agenda | Milestones | |
 | Metrics (`stats`) | Dashboard | Scoreboard | |
-| Lyric motion (`lyrics`; 文字 PV) | Stage | Paper | |
+| Lyric motion (`lyrics`; 文字 PV) | Stage | Paper | Pop (`pop`), Night (`night`) |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -563,87 +563,135 @@ user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
   between digits, in `//` or a URL is text; two Latin words either side of a
   bare `/` keep a space); `*word*` emphasises; `lyric|note` adds a small note;
   a trailing `!` stays text and adds a flash and a shake.
+- **Styles** (`LYRICS_STYLES`, `LYRICS_MOTION` in `lyrics.ts`): four, each a
+  set of colour schemes, a display face per script, a motion set, a decor set
+  and a texture. The ids stay `classic` and `editorial` for the first two.
+  | Style | Faces (zh / ja / Latin) | Schemes | Motion |
+  |---|---|---|---|
+  | Stage (`classic`) | Peesuto Grin (得意黑) / Dela Gothic One / Anton | night, red, cobalt, yellow, cream | smooth, snappy; hard cuts, slices, colour swaps; giant words, bands, split fields; light grain and vignette |
+  | Paper (`editorial`) | LXGW WenKai / Kaisei Tokumin / Instrument Serif italic | paper, indigo, fog, sumi | smooth and slow, crossfades, focus-in letters; vertical CJK, captions under hairlines, a vermilion seal; paper tooth |
+  | Pop (`pop`) | ZCOOL KuaiLe / Zen Maru Gothic Black / Zen Maru | pink, lemon, sky, grape, mint | koma-uchi at 12 fps, bouncy pops and drops; stickers, waves, size jumps, tickers |
+  | Night (`night`) | Peesuto Grin / DotGothic16 / DotGothic16 | black, deep blue, acid, magenta | koma-uchi at 12 fps, flicker, jitter; chromatic ghosts on every cut, glitch cuts, a camera HUD; scanlines, grain, vignette |
+  Every scheme keeps ink, accent and secondary text at 4.5:1 or more against
+  its ground and its tint, and plate ink against its plate (tested).
+- **Faces** (`core/src/render/fonts/README.md`, "Display faces"): the style's
+  face for the text's script (kana → ja, Han → zh, else Latin) sets the
+  lyric and the title; notes, labels, credits and the signature stay in the
+  card's pair. A face that cannot draw every character of the text it sets
+  is left out for that card (compose.ts `faceTexts`), which then falls back
+  as before (Peesuto Text, else Noto Sans SC).
 - **PNG, a lyric poster.** Stage: a slab of bold type on one colour of the
   palette (chosen by the lyrics, so the same lyrics give the same poster),
   every line at the largest size that fits the measure (a much longer line
   may break in two, sizes within `stackRatio` of each other), emphasis in the
   accent, a quiet disc in the emptiest corner when the poster keeps its
-  frame. Paper: a calm centred column in regular type, emphasis a size larger
-  in vermilion; CJK verse (no Latin, brackets or ー) is set vertically, right
-  to left, title and author first, a comma or full stop in the top-right
-  corner of its cell (the line's box is where the mark lands, `offset` says
-  how far it is drawn from it). A poem's lines are set phrase by phrase.
-- **GIF/MP4, a lyric video.** Each line, or each `/` piece, is a cut on its
-  own screen, a title card first when there is a title or credit. A cut:
-  - an **arrangement** (Stage: centre, low left, a stack of short rows
-    stepping across; Paper: centre, low left, vertical for CJK verse) at the
-    largest size that fits in at most four balanced rows, never leaving a
-    scrap (a lone word) on a row; Japanese breaks between phrases (where the
-    kana tail meets the next kanji), Chinese keeps one-character words and
-    particles (的, 了…) together;
-  - a per-glyph staggered **entrance**, varied per cut: rise, drop (Stage),
-    slide, scale (the line's glyphs gather in), rotate (the line swings down
-    into place), typewriter (with a caret that follows and then blinks);
-    the typewriter motion types every cut;
-  - a gentle **hold** (a slow drift), an **exit** (Stage lifts and fades,
-    Paper fades) and the next cut's ground coming in: Stage wipes from a side
-    in the next palette colour, Paper crossfades between paper tints;
-  - **decor** that moves, kept clear of the text: bars sliding in, a big
-    quiet disc growing in a corner, a frame drawing itself, a row of popping
-    dots (Stage); hairline rules drawing in above and below the text, a small
-    vermilion sun rising, a hairline frame (Paper);
-  - **emphasis** punches after the entrance (the word lifts and spreads,
-    turns from ink to the accent, an underline grows under it; vertical cuts
-    only colour it); a trailing `!` flashes the screen and shakes the line.
-  Choices (colours, arrangements, entrances, decor, wipe directions) are
-  seeded by the source text: the same lyrics give the same video.
+  frame. Paper: a calm centred column, emphasis in vermilion; CJK verse (no
+  Latin, brackets or ー) is set vertically, right to left, title and author
+  first, a comma or full stop in the top-right corner of its cell (the line's
+  box is where the mark lands, `offset` says how far it is drawn from it).
+  Pop and Night set the slab in their own faces and schemes. A poem's lines
+  are set phrase by phrase.
+- **GIF/MP4, a lyric video** (`lyric-video.ts` plans and lays out,
+  `lyric-film.ts` bakes the animation). Each line, or `/` piece, is a cut, a
+  title card first when there is a title or credit. A share of the lines of
+  six units or more (`chunk`: Stage 55%, Pop and Night 60%, Paper 12%) is
+  broken into two or three chunks of whole words, a cut each, never inside an
+  emphasised run: a line lands in two or three hits and keeps its colour
+  across them. A cut is:
+  - a **layout**, drawn by a seeded planner from 21 (`LYRIC_LAYOUTS`): centre;
+    low left under an accent rule; a stack stepping across; **steps** (rows of
+    one or two words whose sizes jump, big–small–big); **giant** (a short line
+    as one or two rows filling the frame's width); **focus** (one glyph of the
+    line as a giant ghost, solid in the tint or hollow, the line over it);
+    **diagonal** (the line on a tilted band across the frame); **split** (two
+    colour fields, the line broken across them); **mix** (CJK: the first
+    phrase in a tall column, the rest across the bottom left); vertical CJK
+    columns; **echo** (hollow ghost repeats above and below); **jump** (the key
+    word twice the size on one baseline); **labels** (each word on an ink
+    plate); **sweep** (thick bars sweeping under the rows, a marker behind the
+    emphasis); **numeral** (the cut's number as a giant graphic); **caption**
+    (smaller, in the lower corner under a hairline, the cut number at its end);
+    **cascade** (words stepping down); **frame** (a thick frame drawing itself
+    round the screen); **ticker** (bands of the line running above and below);
+    **wide** (one spaced-out row between rules); **wave** (glyphs whose sizes
+    and baselines rise and fall). Weights come from the style, the cut
+    (short lines favour giant and wave, emphasis and `!` giant, jump and split,
+    CJK portrait frames vertical and mix) and novelty (a layout used in the
+    last two cuts is almost never drawn, in the last six rarely). A layout
+    that cannot keep the rules below for a cut is not used for it; center
+    always can.
+  - an **entrance** suited to the layout: per glyph (rise, drop with a
+    bounce, slide, pop with overshoot, focus from a blur, flicker, typewriter
+    with a caret), per plate (zoom, pop), or of the whole block (a wipe: a
+    window moving over still type with an accent bar on its edge; slices:
+    three bands sliding in from alternate sides);
+  - a **hold** on the block (drift, float, breathe 1 → 1.035, a stepped
+    jitter) and, on a trailing `!`, a stepped shake and a flash;
+  - **emphasis**: engine type punches (lifts, turns from ink to its paint);
+    a plate glyph jumps in size (1 → 1.32 → 1);
+  - a **transition** from the cut before (hard cut, wipe, slices of the new
+    ground, a white or accent flash, a colour swap through the new ink,
+    glitch bands in the ghost colours, crossfade); within a line's chunks,
+    hard cuts and now and then a flash;
+  - **chromatic ghosts** (`ghosts.share` of the cuts): two copies of the
+    lyric in the scheme's ghost colours behind it, offset, screen-blended on
+    dark grounds and multiplied on light ones, spiking on the cut and on every
+    beat;
+  - **decor** on quiet layouts (bars, a soft orb, dots; rules and a sun in
+    Paper) kept clear of the text; Night adds a camera HUD (corner brackets,
+    the cut number over the count);
+  - **texture** over everything (`texture`): sparse film grain that changes
+    12 times a second, scanlines (Night), a paper tooth (Paper), a vignette
+    lighter on light grounds; none in a GIF.
+  **Koma-uchi**: Pop and Night (`koma: 12`) sample every motion at 12
+  drawings a second and hold each (pairs of keyframes one engine tick apart,
+  linear; the engine has no steps()), with delays on the same grid; Stage and
+  Paper are smooth. **Beat**: cut lengths snap up to whole beats of the
+  style's tempo (`bpm`: Stage 120, Paper 84, Pop 128, Night 132; LRC timing is
+  kept as written), and ghosts and decor pulse on the beat.
+  Everything is seeded by the source text: the same text gives the same video.
+- **Type plates** (`type-raster.ts`): Pocket Motion bakes glyphs into atlases
+  whose cell metrics are bytes (about 176 px at most) and never turns or
+  resizes a Text node, so lyric type above the engine's sizes (plate sizes
+  184–360 px at 1080), tilted, jumping or outlined is set by Peesuto itself:
+  the face's TrueType outlines filled by an exact-area scanline rasteriser
+  (an outline from a distance transform, gradient ink by row) into an RGBA
+  PNG, drawn as an Image. A plate line keeps its place in the layout (its box
+  is the em box on its baseline) and passes the same checks. Plates are drawn
+  once per content and cached under `dist/.plates`. A card whose text a face
+  cannot draw (or set in Noto) uses engine sizes only.
 - **Timing** (`LYRICS_TIMING`): about 0.35 s per CJK character and 0.18 s per
-  other character, at least 1.1 s and at most 3.6 s per cut (prose: never
-  below its reading floor); LRC timestamps when present (a line lasts until
-  the next stamp, a `/` piece its share). An MP4 runs to 30 s (`maxMs`: a
-  tweet or a short paragraph at a readable pace; it renders in a few
-  seconds); a GIF keeps to the longest animation other templates make
-  (`gifMaxMs`, a scroll: 0.9 + 12 + 1.5 = 14.4 s) and to the frame-memory
-  budget at the narrowest 360 px width (about 9.6 s at 9:16). A longer
-  excerpt is played faster in proportion, down to each cut's floor. When the
-  cuts cannot fit, two cuts of a stanza share a screen; if that is still too
-  long the render stops with an explicit `lyric-too-long` error (copy a
-  shorter passage, or use PNG for a poster of all of it). No text is ever
-  dropped. The last cut holds.
+  other character, at least 1.1 s (a chunk 0.65 s) and at most 3.6 s per cut
+  (prose: never below its reading floor); LRC timestamps when present (a
+  line lasts until the next stamp, a `/` piece or chunk its share). An MP4
+  runs to 30 s (`maxMs`); a GIF keeps to the longest animation other
+  templates make (`gifMaxMs`, 14.4 s) and to the frame-memory budget at the
+  narrowest 360 px width (about 9.6 s at 9:16). A longer excerpt is played
+  faster in proportion, down to each cut's floor. When the cuts cannot fit,
+  chunked lines become whole again, then two cuts of a stanza share a
+  screen; if that is still too long the render stops with an explicit
+  `lyric-too-long` error. No text is ever dropped. The last cut holds.
 - **Checks**: a video's cuts share the canvas but never the screen, so the
-  quality checks run per cut against that cut's own ground, and the source
-  ledger over the whole layout (`lyricsViolations` in `lyrics.ts`).
-- **Tokens**: `LYRICS_STYLES` (layout, palette, sizes; drawn for 1080 and
-  scaled) and `LYRICS_MOTION` (timing and distances in em; not scaled) in
-  `core/src/templates/lyrics.ts`.
-- **Engine paint** (Pocket Motion v0.4.0). `scale` and `rotate` move glyphs
-  without resizing or turning them, which is why "scale" and "rotate" move a
-  whole line's glyphs (the gather, the swing). Each style's `engine` table (in
-  em of the glyph size, never scaled with the canvas) switches on the paint:
-  - Stage: the emphasised word in gold-leaf gradient ink (the accent lightened
-    at the top and deepened, hue turned, at the foot; each stop pulled back
-    toward the accent until it keeps the contrast the checks ask for) with a
-    low glow of the accent, lit at the punch. The glow appears only where the
-    accent is lighter than the ground (on the yellow ground a red glow is a
-    smear) and never in a GIF (256 colours step a soft halo into a box).
-  - Paper: the emphasised word inked heavier in vermilion (an outline of its
-    own colour, 1.2% of the size, thickening the regular face). A hollow ring
-    (`hollow: true`) is supported and checked but tangles on dense CJK glyphs
-    at poster sizes, so it is off.
-  - Both: letters come into focus as they enter (a blur that falls to 0 over
-    the entrance, 7% / 5% of the size; not for typing). Stage's big orb is a
-    soft light, a radial gradient fading over 40% of its radius (not a blur
-    layer: the engine blurs only what lies inside the canvas, so a blurred
-    disc hanging off the edge shrinks into a smudge).
-  - `faces` (a display face for lyric lines, a text face for notes) stays
-    null until a face ships: the plumbing is in place (`TEMPLATE_FACES` in
-    compose.ts, measured per face, staged into the composition, declared in
-    the sidecar's `fonts.faces`, `font-[name]` on the lines), so a new face
-    is a registry entry plus the slot. A face lacking a glyph of the card is
-    left out for that card.
+  quality checks run per cut against that cut's own ground (a tilted plate
+  against its band, split halves against their field), and the source ledger
+  over the whole layout (`lyricsViolations` in `lyric-video.ts`). Ghost
+  repeats, tickers, the big numeral and the HUD are `decorative`: they must be
+  source text (or a cut number within range) but never count as the text
+  drawn, and are exempt from the size, contrast and overlap checks, so they
+  can never stand in for the lyric.
+- **Engine paint** (Pocket Motion v0.4.0), per style (`engine`, in em, never
+  scaled): Stage gilds the emphasised word (gradient ink whose stops keep the
+  contrast against the ground and its tint) with a low glow of the accent
+  (not on light grounds, never in a GIF); Paper inks it heavier (an outline
+  of its own colour); Night gives it a neon glow of the accent. Plates keep
+  gradient ink and the outline; the glow is engine type's only.
   Contrast checks read the paint (`inkColors` in checks.ts): gradient ink
   counts both stops, hollow text its outline (and fails below the large
   size), an outline of at least 4% of the size counts as a halo.
+- **Cost**: a 20 s 1:1 MP4 renders in about 17–23 s on an M-series Mac
+  (Paper fastest, Night slowest), 9:16 in 15–38 s. Full-canvas images are the
+  expensive part of the software rasteriser, so textures are sparse and
+  sampled nearest.
 - **Open in JIZURA** (native result panel, lyric-motion results only):
   JIZURA's web app takes no lyrics in its URL (it starts from what it saved
   in the browser; checked in its `src/12_ui.js`), so the button copies the

@@ -23,27 +23,41 @@
  * `entranceBlur`, `decorBlur`). `faces` stays null until the owner picks a
  * display face (compose.ts TEMPLATE_FACES); search for `TODO(engine`.
  */
-import { splitEmoji } from "../render/emoji.ts";
 import { ComposeError, normalizeText } from "../render/compose.ts";
-import { checkLayout, contrastRatio, luminance, fidelityViolations, CHECK_THRESHOLDS, type CheckViolation } from "./checks.ts";
+import { CHECK_THRESHOLDS, contrastRatio, luminance } from "./checks.ts";
 import { hexOklch, oklchHex } from "./gradient.ts";
 import type { LyricLine, TemplateContent, TemplatePlan } from "./types.ts";
-import { paintClasses, softFill, type TemplateFormat, type TemplateLayout, type TemplateLine, type TemplateMeasure, type TemplateRect, type TextPaint } from "./compose.ts";
+import type { TemplateFont, TemplateFormat, TemplateLine, TemplateMeasure, TemplateRect, TextPaint } from "./compose.ts";
+import { decorate, PLATE_SIZES, plateFaceOf, platesFrom, plateSetter, unionBox, video } from "./lyric-video.ts";
+import { missingGlyphs } from "./type-raster.ts";
 
 type LyricsContent = Extract<TemplateContent, { kind: "lyrics" }>;
 
-/** One cut's colours: ground, lyric ink, the accent (emphasis, decor), secondary text (notes, labels, credit, signature), a quiet tint for big decor. */
-export interface LyricPalette { readonly bg: string; readonly ink: string; readonly accent: string; readonly sub: string; readonly tint: string }
-export type LyricEntrance = "rise" | "drop" | "slide" | "scale" | "rotate" | "type";
-export type LyricArrangement = "center" | "left" | "stack" | "vertical";
-export type LyricDecor = "bars" | "orb" | "frame" | "dots" | "rules" | "sun" | "none";
+/**
+ * One colour scheme of a style. Every cut takes one; a style keeps two to five
+ * and moves between them from cut to cut (a colour cut), never showing the
+ * same ground twice running.
+ * - `bg` the ground; `ink` the lyric; `accent` emphasis and punchy decor;
+ *   `sub` notes, labels, credit, the signature; `tint` a quiet colour close
+ *   to the ground for big decor and ghost glyphs.
+ * - `plate` an ink plate or band drawn behind words, `plateInk` the words on it.
+ * - `ghostA`/`ghostB` the two chromatic ghost passes behind the lyric.
+ * `ink`, `accent` and `sub` keep 4.5:1 against `bg`, `plateInk` against
+ * `plate` (templates.test.ts checks every scheme).
+ */
+export interface LyricPalette {
+  readonly bg: string; readonly ink: string; readonly accent: string; readonly sub: string; readonly tint: string;
+  readonly plate: string; readonly plateInk: string; readonly ghostA: string; readonly ghostB: string;
+}
+/** The display face per script (compose.ts TEMPLATE_FACES names): a card with kana takes `ja`, with Han `zh`, else `latin`. */
+export interface LyricFaces { readonly zh: string; readonly ja: string; readonly latin: string }
 
 /** Pocket Motion paint, per style. In em of the glyph size (or ratios), never
  * scaled with the canvas (compose.ts scaledTo leaves `engine` alone); null
  * switches a feature off. Colours come from each cut's palette. */
 interface EngineSlots {
-  /** TODO(engine: faces): a display face for lyric lines and a text face for notes, by name in compose.ts TEMPLATE_FACES. Null until a face is chosen and shipped. */
-  readonly faces: { readonly display: string; readonly text: string } | null;
+  /** The display face lyric lines (and plates) are set in; notes, labels and the credit keep the card's pair. Null: the card's pair everywhere. */
+  readonly faces: LyricFaces | null;
   /** The emphasised word outlined in the accent: width in em; `hollow` draws the outline alone. */
   readonly stroke: { readonly widthEm: number; readonly position: "outside" | "center"; readonly hollow: boolean } | null;
   /** The emphasised word's ink as a vertical gradient around the accent: OKLCH lightness added at the top and at the foot, hue turned toward the foot. */
@@ -54,70 +68,192 @@ interface EngineSlots {
   readonly blur: { readonly entranceEm: number; readonly decor: number } | null;
 }
 
+/** Poster (PNG) settings shared by the styles; each style overrides what differs. */
+const POSTER = { gradient: true, orb: true, bold: true, align: "left" as "left" | "center", vertical: false, stacked: true, stackRatio: 1.9,
+  sizes: [160, 144, 128, 112, 96, 80, 72, 64, 56, 52, 48, 44, 40], leading: 1.02, stanzaLeading: 0.45, margin: 88,
+  title: { size: 44, gap: 16 }, credit: { size: 32, gap: 56 }, note: { size: 32, gap: 6 }, label: { size: 32, gap: 12 } };
+/** Video lengths (1080 reference, scaled with the canvas). */
+const MOTION = {
+  sizes: [160, 144, 128, 112, 96, 80, 72, 64, 56, 48, 44, 40], leading: 1.06, margin: 96, bold: true, maxRows: 4,
+  title: { size: 144, creditSize: 48, gap: 28 }, note: { size: 36, gap: 28 }, label: { size: 32 },
+  underline: { thickness: 10, gap: 4 }, cursor: { thickness: 10 }, frame: { inset: 36, thickness: 8 },
+  /** Captions and cut numbers of the editorial layouts. */
+  small: { size: 40, gap: 24 }, rule: { thickness: 4 },
+};
+
 /* Style tokens, drawn for the 1080 reference width and scaled with the
  * canvas (compose.ts scaledTo): lengths scale, `sizes` snap to the baked
- * sizes, `…Leading` ratios stay. Timing lives in LYRICS_MOTION (never scaled). */
+ * sizes, `…Leading` ratios stay. The motion vocabulary (layouts, entrances,
+ * holds, transitions, timing, koma, beat, textures) lives in LYRICS_MOTION
+ * and is never scaled. */
 export const LYRICS_STYLES = {
-  /** Stage: night ground, bold display type, a colour per cut, wipes and punchy decor. */
+  /** Stage: black, red, cobalt and yellow grounds cut hard against each other; heavy display type (得意黑 / Dela Gothic / Anton), giant words, bands and plates. */
   classic: {
-    background: "#16141f", signature: "#b3adc4",
-    /** The poster takes its colours from the motion palette (one entry, picked by the lyrics); `gradient` shades the ground toward the entry's tint. */
-    poster: { gradient: true, orb: true, bold: true, align: "left" as "left" | "center", vertical: false,
-      /** Stacked: every line takes its own size, the largest that fits the measure, so the block reads as one justified slab. */
-      stacked: true, stackRatio: 1.9,
-      sizes: [160, 144, 128, 112, 96, 80, 72, 64, 56, 52, 48, 44, 40], leading: 1.02, stanzaLeading: 0.45, margin: 88,
-      title: { size: 44, gap: 16 }, credit: { size: 32, gap: 56 }, note: { size: 32, gap: 6 }, label: { size: 32, gap: 12 } },
+    background: "#121016", signature: "#aaa3b8",
+    poster: { ...POSTER },
     motion: {
+      ...MOTION,
       palette: [
-        { bg: "#16141f", ink: "#f7f3ea", accent: "#ffd23f", sub: "#b3adc4", tint: "#262238" },
-        { bg: "#b8281a", ink: "#fff8ee", accent: "#ffe866", sub: "#ffffff", tint: "#9a1f13" },
-        { bg: "#2334b8", ink: "#f7f3ea", accent: "#ffd23f", sub: "#dfe2ff", tint: "#1b2a98" },
-        { bg: "#ffd23f", ink: "#16141f", accent: "#b01f14", sub: "#3a3328", tint: "#ffe070" },
-        { bg: "#085c4f", ink: "#f7f3ea", accent: "#ffe14d", sub: "#d6f0e9", tint: "#064a40" },
+        { bg: "#121016", ink: "#f6f1e7", accent: "#ffd23f", sub: "#aaa3b8", tint: "#231f2c", plate: "#ffd23f", plateInk: "#121016", ghostA: "#ff3b5c", ghostB: "#2ec5ff" },
+        { bg: "#c8102e", ink: "#fff6ea", accent: "#ffe9a8", sub: "#ffe3e0", tint: "#b00d27", plate: "#121016", plateInk: "#fff6ea", ghostA: "#ffd23f", ghostB: "#121016" },
+        { bg: "#1f3fd8", ink: "#ffffff", accent: "#ffd23f", sub: "#dfe4ff", tint: "#1a36bd", plate: "#ffffff", plateInk: "#1f3fd8", ghostA: "#ff3b5c", ghostB: "#00e0ff" },
+        { bg: "#ffd23f", ink: "#121016", accent: "#1f3fd8", sub: "#3d3526", tint: "#f2c52f", plate: "#121016", plateInk: "#ffd23f", ghostA: "#ff3b5c", ghostB: "#1f3fd8" },
+        { bg: "#f3ede2", ink: "#121016", accent: "#b80d29", sub: "#5c554b", tint: "#e6dece", plate: "#c8102e", plateInk: "#ffffff", ghostA: "#ff3b5c", ghostB: "#1f3fd8" },
       ] as readonly LyricPalette[],
-      sizes: [160, 144, 128, 112, 96, 80, 72, 64, 56, 48, 44, 40], leading: 1.06, margin: 96, bold: true, maxRows: 4,
       arrangements: ["center", "left", "stack"] as readonly LyricArrangement[],
-      entrances: ["rise", "drop", "slide", "scale", "rotate", "type"] as readonly LyricEntrance[],
-      decor: ["bars", "orb", "frame", "dots"] as readonly LyricDecor[],
-      title: { size: 144, creditSize: 48, gap: 28 }, note: { size: 36, gap: 28 }, label: { size: 32 },
-      underline: { thickness: 10, gap: 4 }, cursor: { thickness: 10 }, frame: { inset: 36, thickness: 8 },
+      decor: ["bars", "orb", "dots"] as readonly LyricDecor[],
     },
-    /** Emphasis: gold-leaf gradient ink with a low glow of the accent; letters come into focus; the big orb is a soft light. */
-    engine: { faces: null, stroke: null, gradientText: { lightTop: 0.09, lightFoot: -0.07, hueTurn: -14 }, glow: { radiusEm: 0.3, alpha: 0.4, gain: 1 },
+    /** Emphasis: gold-leaf gradient ink with a low glow of the accent. */
+    engine: { faces: { zh: "grin", ja: "dela", latin: "anton" }, stroke: null, gradientText: { lightTop: 0.09, lightFoot: -0.07, hueTurn: -14 }, glow: { radiusEm: 0.3, alpha: 0.4, gain: 1 },
       blur: { entranceEm: 0.07, decor: 0.4 } } as EngineSlots,
   },
-  /** Paper: warm paper tints, regular editorial type, crossfades, hairline decor; CJK verse set vertically. */
+  /** Paper: warm paper, indigo and sumi grounds; kai and mincho faces (霞鹜文楷 / Kaisei Tokumin / Instrument Serif); vertical CJK, captions, hairlines, crossfades, no stepping. */
   editorial: {
-    background: "#f4efe4", signature: "#6b645a",
-    poster: { gradient: false, orb: false, bold: false, align: "center" as "left" | "center", vertical: true, stacked: false, stackRatio: 1,
+    background: "#f2ece0", signature: "#6a6259",
+    poster: { ...POSTER, gradient: false, orb: false, bold: false, align: "center" as "left" | "center", vertical: true, stacked: false, stackRatio: 1,
       sizes: [96, 80, 72, 64, 56, 52, 48, 44, 40], leading: 1.5, stanzaLeading: 0.9, margin: 112,
       title: { size: 48, gap: 16 }, credit: { size: 32, gap: 64 }, note: { size: 32, gap: 4 }, label: { size: 32, gap: 16 } },
     motion: {
+      ...MOTION,
+      sizes: [144, 128, 112, 96, 80, 72, 64, 56, 48, 44, 40], leading: 1.3, margin: 112, bold: false,
+      title: { size: 128, creditSize: 48, gap: 36 }, note: { size: 36, gap: 32 },
+      underline: { thickness: 4, gap: 10 }, cursor: { thickness: 4 }, frame: { inset: 40, thickness: 3 }, rule: { thickness: 2 },
       palette: [
-        { bg: "#f4efe4", ink: "#1f1c18", accent: "#b8321e", sub: "#6b645a", tint: "#e9e2d2" },
-        { bg: "#e6ebee", ink: "#1b2226", accent: "#b0301d", sub: "#59636a", tint: "#d8dfe3" },
-        { bg: "#f2e3db", ink: "#231a17", accent: "#a52c1c", sub: "#6a5750", tint: "#e8d3c8" },
-        { bg: "#e3e8da", ink: "#1d2119", accent: "#a92f1d", sub: "#59624f", tint: "#d4dbc8" },
+        { bg: "#f2ece0", ink: "#1d1a16", accent: "#b3261e", sub: "#665e55", tint: "#e6dece", plate: "#1d1a16", plateInk: "#f2ece0", ghostA: "#d9a79c", ghostB: "#9aa7c2" },
+        { bg: "#1b2350", ink: "#f2ece0", accent: "#f2b8a0", sub: "#bfc3d9", tint: "#232c5e", plate: "#f2ece0", plateInk: "#1b2350", ghostA: "#b3261e", ghostB: "#5d6db8" },
+        { bg: "#e4e7e3", ink: "#1b2226", accent: "#a1261a", sub: "#566064", tint: "#d6dad5", plate: "#1b2226", plateInk: "#e4e7e3", ghostA: "#d9a79c", ghostB: "#8fa3b0" },
+        { bg: "#171513", ink: "#efe7d8", accent: "#e3a64a", sub: "#b1a897", tint: "#24211d", plate: "#efe7d8", plateInk: "#171513", ghostA: "#b3261e", ghostB: "#5a6a7a" },
       ] as readonly LyricPalette[],
-      sizes: [144, 128, 112, 96, 80, 72, 64, 56, 48, 44, 40], leading: 1.3, margin: 112, bold: false, maxRows: 4,
       arrangements: ["center", "left"] as readonly LyricArrangement[],
-      entrances: ["rise", "slide", "scale", "rotate", "type"] as readonly LyricEntrance[],
       decor: ["rules", "sun", "frame", "none"] as readonly LyricDecor[],
-      title: { size: 128, creditSize: 48, gap: 36 }, note: { size: 36, gap: 32 }, label: { size: 32 },
-      underline: { thickness: 4, gap: 10 }, cursor: { thickness: 4 }, frame: { inset: 40, thickness: 3 },
     },
-    /** Emphasis: the word inked heavier in vermilion (an outline of its own colour thickens the regular face, as a pen pressed harder); letters come into focus. Decor stays crisp.
-     * A hollow ring (`hollow: true`) was tried: thin rings tangle on dense CJK glyphs at poster sizes. */
-    engine: { faces: null, stroke: { widthEm: 0.012, position: "outside", hollow: false }, gradientText: null, glow: null,
+    /** Emphasis: the word inked heavier in vermilion (an outline of its own colour thickens it, as a pen pressed harder). */
+    engine: { faces: { zh: "wenkai", ja: "tokumin", latin: "instrument" }, stroke: { widthEm: 0.012, position: "outside", hollow: false }, gradientText: null, glow: null,
       blur: { entranceEm: 0.05, decor: 0 } } as EngineSlots,
   },
+  /** Pop: candy grounds (pink, lemon, sky, grape, mint); rounded heavy faces (站酷快乐体 / Zen Maru Gothic); stickers, halftone dots, bouncy stepped motion. */
+  pop: {
+    background: "#ff6fae", signature: "#3a0a2a",
+    poster: { ...POSTER, orb: false, align: "center" as "left" | "center" },
+    motion: {
+      ...MOTION,
+      underline: { thickness: 14, gap: 4 }, frame: { inset: 32, thickness: 12 },
+      palette: [
+        { bg: "#ff6fae", ink: "#1c0a26", accent: "#2d10a0", sub: "#3a0a2a", tint: "#ff86bb", plate: "#1c0a26", plateInk: "#ffe45c", ghostA: "#ffe45c", ghostB: "#3d5afe" },
+        { bg: "#ffe45c", ink: "#1c0a26", accent: "#b8003f", sub: "#4a3a10", tint: "#fff08f", plate: "#b8003f", plateInk: "#ffffff", ghostA: "#ff6fae", ghostB: "#3d5afe" },
+        { bg: "#6fd3ff", ink: "#10183a", accent: "#8a0046", sub: "#18325a", tint: "#8cdcff", plate: "#10183a", plateInk: "#ffe45c", ghostA: "#ff6fae", ghostB: "#ffe45c" },
+        { bg: "#4b1fa8", ink: "#fff4fb", accent: "#ffe45c", sub: "#e3d6ff", tint: "#5a2cbb", plate: "#ffe45c", plateInk: "#2b0f63", ghostA: "#ff6fae", ghostB: "#6fd3ff" },
+        { bg: "#86f0c8", ink: "#0f1a2b", accent: "#a3003f", sub: "#1f4a3c", tint: "#a0f5d5", plate: "#0f1a2b", plateInk: "#86f0c8", ghostA: "#ff6fae", ghostB: "#4b1fa8" },
+      ] as readonly LyricPalette[],
+      arrangements: ["center", "stack"] as readonly LyricArrangement[],
+      decor: ["dots", "bars", "orb"] as readonly LyricDecor[],
+    },
+    /** Emphasis: a white or dark sticker outline round the accent word. */
+    engine: { faces: { zh: "kuaile", ja: "maru", latin: "maru" }, stroke: null, gradientText: null, glow: null,
+      blur: null } as EngineSlots,
+  },
+  /** Night: black and deep-blue grounds, acid and magenta cuts; pixel and oblique faces (DotGothic16 / 得意黑); chromatic ghosts, scanlines, grain, glitch cuts, stepped motion. */
+  night: {
+    background: "#07070a", signature: "#9a9aa6",
+    poster: { ...POSTER, orb: false },
+    motion: {
+      ...MOTION,
+      palette: [
+        { bg: "#07070a", ink: "#f2f2f2", accent: "#c6ff00", sub: "#9a9aa6", tint: "#15151c", plate: "#c6ff00", plateInk: "#07070a", ghostA: "#ff2bd6", ghostB: "#00e5ff" },
+        { bg: "#0a0f2c", ink: "#e8f0ff", accent: "#00e5ff", sub: "#a4acd0", tint: "#141a3d", plate: "#00e5ff", plateInk: "#0a0f2c", ghostA: "#ff2bd6", ghostB: "#c6ff00" },
+        { bg: "#c6ff00", ink: "#07070a", accent: "#5a00c8", sub: "#2c3a00", tint: "#b4ea00", plate: "#07070a", plateInk: "#c6ff00", ghostA: "#ff2bd6", ghostB: "#00a0e9" },
+        { bg: "#ff2e93", ink: "#07070a", accent: "#1b1464", sub: "#2a0418", tint: "#ff4ba3", plate: "#07070a", plateInk: "#ff2e93", ghostA: "#00e5ff", ghostB: "#c6ff00" },
+      ] as readonly LyricPalette[],
+      arrangements: ["left", "center"] as readonly LyricArrangement[],
+      decor: ["bars", "frame", "dots"] as readonly LyricDecor[],
+    },
+    /** Emphasis: an accent glow (neon). */
+    engine: { faces: { zh: "grin", ja: "dot", latin: "dot" }, stroke: null, gradientText: null, glow: { radiusEm: 0.28, alpha: 0.55, gain: 1.4 },
+      blur: null } as EngineSlots,
+  },
 } as const;
-export type LyricsStyle = (typeof LYRICS_STYLES)[keyof typeof LYRICS_STYLES];
+export type LyricsVariant = keyof typeof LYRICS_STYLES;
+export const LYRICS_VARIANTS = Object.keys(LYRICS_STYLES) as LyricsVariant[];
+export type LyricsStyle = (typeof LYRICS_STYLES)[LyricsVariant];
+/** The lyric style of a plan's variant (Stage for anything unknown). */
+export const lyricsVariant = (variant: string): LyricsVariant => (variant in LYRICS_STYLES ? variant as LyricsVariant : "classic");
+export type LyricArrangement = "center" | "left" | "stack" | "vertical";
+export type LyricDecor = "bars" | "orb" | "frame" | "dots" | "rules" | "sun" | "none";
 
-/** Motion timing per style (ms, and lengths in em of the glyph size). Not scaled with the canvas. */
+/** The script a card's display face is chosen for. */
+export function lyricScript(text: string): keyof LyricFaces {
+  return /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text) ? "ja" : /\p{Script=Han}/u.test(text) ? "zh" : "latin";
+}
+/** The named face a lyric card of `variant` asks for (compose.ts opens it and checks it draws the lyric). */
+export function lyricFaceNames(variant: string, sourceText: string): string[] {
+  const faces = (LYRICS_STYLES[lyricsVariant(variant)].engine as EngineSlots).faces;
+  return faces ? [faces[lyricScript(sourceText)]] : [];
+}
+
+/** The cut layouts (lyric-video.ts): how one cut's words sit on the screen. */
+export const LYRIC_LAYOUTS = ["center", "low", "stack", "steps", "giant", "focus", "diagonal", "split", "mix", "vertical", "echo", "jump", "labels", "sweep",
+  "numeral", "caption", "cascade", "frame", "ticker", "wide", "wave"] as const;
+export type LyricLayout = (typeof LYRIC_LAYOUTS)[number];
+/** Entrances: per glyph (rise, drop, slide, pop, focus, flicker, type), per plate (zoom, pop), or of the whole block (wipe, slice). */
+export const LYRIC_ENTRANCES = ["rise", "drop", "slide", "pop", "focus", "flicker", "type", "zoom", "wipe", "slice"] as const;
+export type LyricEntrance = (typeof LYRIC_ENTRANCES)[number];
+/** How the block moves while it holds. */
+export type LyricHold = "still" | "drift" | "float" | "breathe" | "jitter";
+/** How a cut replaces the one before it. */
+export type LyricTransition = "none" | "cut" | "wipe-l" | "wipe-r" | "wipe-u" | "wipe-d" | "slice" | "flash" | "swap" | "glitch" | "fade";
+type Weights<K extends string> = Partial<Record<K, number>>;
+
+/**
+ * The motion vocabulary per style (never scaled with the canvas): timing in
+ * ms and em of the glyph size, the weights the planner draws layouts,
+ * entrances, holds and transitions with, the chromatic ghost passes, the
+ * texture over the picture, `chunk` (the share of lines of six units or more
+ * broken into word chunks, a cut each), `koma` (motion quantised to this many drawings a
+ * second, 0 for smooth) and `bpm` (cut lengths snap to beats of this tempo;
+ * decor and ghosts pulse on them).
+ */
 export const LYRICS_MOTION = {
-  classic: { enterMs: 440, staggerMs: 60, maxStaggerMs: 760, typeMs: 55, exitMs: 260, transitionMs: 360, punchMs: 560, driftEm: 0.28, riseEm: 0.55, slideEm: 0.7, scaleFrom: 1.7, rotateFrom: -11, exitEm: 0.35, transition: "wipe" as "wipe" | "fade" },
-  editorial: { enterMs: 680, staggerMs: 80, maxStaggerMs: 900, typeMs: 70, exitMs: 320, transitionMs: 460, punchMs: 640, driftEm: 0.1, riseEm: 0.3, slideEm: 0.4, scaleFrom: 1.3, rotateFrom: -5, exitEm: 0, transition: "fade" as "wipe" | "fade" },
+  classic: {
+    enterMs: 420, staggerMs: 45, maxStaggerMs: 620, typeMs: 55, exitMs: 220, transitionMs: 300, punchMs: 480,
+    driftEm: 0.22, riseEm: 0.6, slideEm: 0.8, dropEm: 0.8, exitEm: 0.3, koma: 0, bpm: 120, chunk: 0.55, hud: false,
+    layouts: { center: 0.5, low: 0.8, stack: 0.7, steps: 1.2, giant: 1.6, focus: 1.1, diagonal: 1.1, split: 1.1, mix: 0.9, echo: 0.8, jump: 1.1, labels: 0.9, sweep: 1, numeral: 0.8, cascade: 0.8, frame: 0.5, ticker: 0.9, wide: 0.3, wave: 0.2 } as Weights<LyricLayout>,
+    entrances: { rise: 1, drop: 0.8, slide: 1, pop: 0.5, focus: 0.4, zoom: 1, wipe: 1, slice: 1.2 } as Weights<LyricEntrance>,
+    holds: { still: 0.3, drift: 1, float: 0.5, breathe: 0.9 } as Weights<LyricHold>,
+    transitions: { cut: 1.4, "wipe-l": 0.4, "wipe-r": 0.4, "wipe-u": 0.3, "wipe-d": 0.3, slice: 1, flash: 0.5, swap: 0.6 } as Weights<LyricTransition>,
+    /** Chromatic ghosts: the share of cuts that get them, their opacity and offset (em), the offset at a spike (cut start, beats). */
+    ghosts: { share: 0.45, alpha: 0.8, offsetEm: 0.03, spike: 3.2 },
+    texture: { grain: 0.07, scanlines: 0, vignette: 0.28, paper: 0 },
+  },
+  editorial: {
+    enterMs: 680, staggerMs: 70, maxStaggerMs: 900, typeMs: 70, exitMs: 320, transitionMs: 480, punchMs: 640,
+    driftEm: 0.08, riseEm: 0.3, slideEm: 0.4, dropEm: 0.4, exitEm: 0, koma: 0, bpm: 84, chunk: 0.12, hud: false,
+    layouts: { center: 1, low: 1, vertical: 1.4, mix: 1.1, focus: 1, caption: 1.3, wide: 1, echo: 0.5, sweep: 0.5, frame: 0.6, numeral: 0.6, cascade: 0.4, giant: 0.5 } as Weights<LyricLayout>,
+    entrances: { rise: 1, focus: 1.4, slide: 0.5, type: 0.3, wipe: 0.6 } as Weights<LyricEntrance>,
+    holds: { still: 0.6, drift: 1, float: 0.8, breathe: 0.4 } as Weights<LyricHold>,
+    transitions: { fade: 1.6, "wipe-l": 0.4, "wipe-r": 0.3, cut: 0.4 } as Weights<LyricTransition>,
+    ghosts: { share: 0, alpha: 0.6, offsetEm: 0.02, spike: 2 },
+    texture: { grain: 0.05, scanlines: 0, vignette: 0.12, paper: 0.06 },
+  },
+  pop: {
+    enterMs: 360, staggerMs: 50, maxStaggerMs: 560, typeMs: 50, exitMs: 200, transitionMs: 260, punchMs: 440,
+    driftEm: 0.15, riseEm: 0.7, slideEm: 0.8, dropEm: 1.1, exitEm: 0.4, koma: 12, bpm: 128, chunk: 0.6, hud: false,
+    layouts: { center: 0.4, stack: 0.7, steps: 1.2, giant: 1.3, jump: 1.5, labels: 1.5, wave: 1.5, cascade: 1, split: 1, echo: 0.6, ticker: 0.8, frame: 0.7, sweep: 0.8, diagonal: 0.7, focus: 0.5 } as Weights<LyricLayout>,
+    entrances: { pop: 1.5, drop: 1.2, rise: 0.8, zoom: 1, slice: 0.5, wipe: 0.4 } as Weights<LyricEntrance>,
+    holds: { float: 1.2, breathe: 1, still: 0.2 } as Weights<LyricHold>,
+    transitions: { cut: 1, slice: 1, swap: 1, flash: 0.6, "wipe-l": 0.3, "wipe-r": 0.3 } as Weights<LyricTransition>,
+    ghosts: { share: 0.35, alpha: 0.9, offsetEm: 0.035, spike: 2.6 },
+    texture: { grain: 0.05, scanlines: 0, vignette: 0, paper: 0 },
+  },
+  night: {
+    enterMs: 380, staggerMs: 40, maxStaggerMs: 520, typeMs: 45, exitMs: 180, transitionMs: 220, punchMs: 420,
+    driftEm: 0.12, riseEm: 0.4, slideEm: 0.6, dropEm: 0.6, exitEm: 0, koma: 12, bpm: 132, chunk: 0.6, hud: true,
+    layouts: { low: 1, center: 0.6, focus: 1.2, echo: 1.3, ticker: 1.2, wide: 1, numeral: 1, giant: 1.1, diagonal: 0.8, split: 0.8, sweep: 0.6, steps: 0.8, caption: 0.5, frame: 0.6 } as Weights<LyricLayout>,
+    entrances: { flicker: 1.4, type: 0.8, slice: 1, wipe: 0.8, zoom: 0.6, rise: 0.5, focus: 0.3 } as Weights<LyricEntrance>,
+    holds: { jitter: 1, drift: 0.6, still: 0.4 } as Weights<LyricHold>,
+    transitions: { glitch: 1.6, cut: 0.8, slice: 0.6, flash: 0.5 } as Weights<LyricTransition>,
+    ghosts: { share: 1, alpha: 0.85, offsetEm: 0.035, spike: 3.4 },
+    texture: { grain: 0.09, scanlines: 0.2, vignette: 0.35, paper: 0 },
+  },
 } as const;
 
 /** How long a cut stays: reading time per character, clamped per cut. A
@@ -136,13 +272,13 @@ export const LYRICS_TIMING = {
 } as const;
 
 /* ───────────── Randomness ───────────── */
-function seedOf(text: string): number {
+export function seedOf(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
   return h >>> 0;
 }
 /** mulberry32: a small deterministic generator. */
-function generator(seed: number): () => number {
+export function generator(seed: number): () => number {
   let a = seed | 0;
   return () => {
     a = (a + 0x6d2b79f5) | 0;
@@ -158,24 +294,24 @@ const pick = <T>(random: () => number, list: readonly T[], avoid?: T): T => {
 
 /* ───────────── Glyphs, tokens, rows ───────────── */
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-const graphemes = (text: string): string[] => [...graphemeSegmenter.segment(text)].map((part) => part.segment);
-const NO_LINE_START = /^[，。、；：？！）」』”’》〉】〕…—·,.;:?!)\]}%％‰~～]$/u;
+export const graphemes = (text: string): string[] => [...graphemeSegmenter.segment(text)].map((part) => part.segment);
+export const NO_LINE_START = /^[，。、；：？！）」』”’》〉】〕…—·,.;:?!)\]}%％‰~～]$/u;
 const NO_LINE_END = /^[（「『“‘《〈【〔(\[{]$/u;
-const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}　-〿＀-￯ー・]/u;
-const KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
+export const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}　-〿＀-￯ー・]/u;
+export const KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/u;
 const HIRAGANA = /^[\p{Script=Hiragana}ー]$/u;
 /** Chinese particles that stay with the word before them. */
 const PARTICLE = /^[的地得了着过吗呢吧啊呀么嘛哦]$/u;
 /** Glyphs that stand upright in a vertical column (no Latin, no brackets or ー that would have to turn). */
 const VERTICAL_SAFE = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}々〆〇，。、！？・\s]$/u;
 /** Punctuation set in the top-right corner of its cell in a vertical column. */
-const CORNER = /^[，。、．]$/u;
+export const CORNER = /^[，。、．]$/u;
 
-interface Glyph { text: string; size: number; bold: boolean; color: string; emph: boolean; paint?: TextPaint; face?: string }
-interface Token { glyphs: Glyph[]; width: number; trail: number }
-interface Row { tokens: Token[]; width: number; height: number; base: number }
+export interface Glyph { text: string; size: number; bold: boolean; color: string; emph: boolean; paint?: TextPaint; face?: string }
+export interface Token { glyphs: Glyph[]; width: number; trail: number }
+export interface Row { tokens: Token[]; width: number; height: number; base: number }
 
-class Typesetter {
+export class Typesetter {
   constructor(private readonly m: TemplateMeasure, private readonly leading: number) {}
   lh(size: number, bold: boolean, leading = this.leading, face?: string): number { return Math.ceil(this.m.lineHeight(size, bold, face) * leading); }
   /** Where a glyph's baseline sits below the top of its line box (Noto's ascender). */
@@ -343,7 +479,7 @@ class Typesetter {
 }
 
 /** Glyphs of `text` (normalized as drawn), emphasised ranges at `emphSize` in `accent` (with `paint`, when the style paints emphasis). */
-function glyphsOf(text: string, ranges: readonly (readonly [number, number])[] | undefined, size: number, emphSize: number, bold: boolean, ink: string, accent: string, paint?: TextPaint, face?: string): Glyph[] {
+export function glyphsOf(text: string, ranges: readonly (readonly [number, number])[] | undefined, size: number, emphSize: number, bold: boolean, ink: string, accent: string, paint?: TextPaint, face?: string): Glyph[] {
   return graphemes(normalizeText(text, "plain")).map((g, i) => {
     const emph = Boolean(ranges?.some(([a, b]) => i >= a && i < b)) && g.trim() !== "";
     return { text: g, size: emph ? emphSize : size, bold, color: emph ? accent : ink, emph, ...(emph && paint ? { paint } : {}), ...(face ? { face } : {}) };
@@ -365,7 +501,7 @@ function keepContrast(stop: string, accent: string, ground: string, ratio: numbe
   return mixToward(stop, accent, hi);
 }
 /** Alpha appended to #rrggbb. */
-const withAlpha = (color: string, alpha: number) => `${color.slice(0, 7)}${Math.round(Math.min(1, Math.max(0, alpha)) * 255).toString(16).padStart(2, "0")}`;
+export const withAlpha = (color: string, alpha: number) => `${color.slice(0, 7)}${Math.round(Math.min(1, Math.max(0, alpha)) * 255).toString(16).padStart(2, "0")}`;
 /** The contrast an emphasised run needs at `size` on a `width` canvas (checks.ts: large text 3:1, body 4.5:1). */
 const neededRatio = (size: number, width: number) => size * CHECK_THRESHOLDS.readability.referenceWidth / width >= CHECK_THRESHOLDS.contrast.largeSize ? CHECK_THRESHOLDS.contrast.large : CHECK_THRESHOLDS.contrast.body;
 
@@ -386,7 +522,9 @@ export function emphasisPaint(engine: EngineSlots, palette: LyricPalette, size: 
   if (g) {
     const top = oklchHex({ l: Math.min(0.98, accent.l + g.lightTop), c: accent.c, h: accent.h });
     const foot = oklchHex({ l: Math.max(0.05, accent.l + g.lightFoot), c: accent.c, h: (accent.h + g.hueTurn + 360) % 360 });
-    paint.gradient = { from: keepContrast(top, palette.accent, palette.bg, need), to: keepContrast(foot, palette.accent, palette.bg, need), fromAt: 0.22, toAt: 0.86 };
+    // Each stop keeps the contrast against the ground and against its tint (a poster's gradient ground runs from one to the other).
+    const keep = (stop: string) => keepContrast(keepContrast(stop, palette.accent, palette.bg, need), palette.accent, palette.tint, need);
+    paint.gradient = { from: keep(top), to: keep(foot), fromAt: 0.22, toAt: 0.86 };
   }
   if (st && (hollow || !st.hollow)) paint.stroke = { width: Math.max(1.5, Math.round(size * st.widthEm * 2) / 2), color: palette.accent, position: st.position, ...(hollow ? { hollow: true } : {}) };
   // A glow is light: only an accent lighter than its ground glows (on the yellow ground a red glow would be a smear).
@@ -416,7 +554,9 @@ export interface LyricsContext {
   footerRoom(): number;
   /** The style, already scaled to this canvas. */
   readonly style: LyricsStyle;
-  readonly variant: keyof typeof LYRICS_STYLES;
+  readonly variant: LyricsVariant;
+  /** The card's font pair (type plates are drawn from it when no display face applies; none from Noto). */
+  readonly font?: TemplateFont;
 }
 export interface LyricsResult {
   background: string;
@@ -438,32 +578,58 @@ export interface LyricsProgram {
   readonly durationMs: number;
   readonly frameHeight: number;
   readonly cuts: readonly LyricsCut[];
+  /** Motion quantised to this many drawings a second ("koma-uchi"; 0: smooth). */
+  readonly koma: number;
+  /** One beat in ms: cut lengths snap to beats, ghosts and decor pulse on them. */
+  readonly beatMs: number;
+  /** Texture over the picture (opacities; 0 = none). */
+  readonly texture: { readonly grain: number; readonly scanlines: number; readonly vignette: number; readonly paper: number };
 }
+/** What a shape of a cut is, and how it comes in. */
+export type LyricShapeRole = "field" | "band" | "plate" | "rule" | "marker" | "frame" | "decor";
+export type LyricShapeMotion = "none" | "slide-l" | "slide-r" | "slide-u" | "slide-d" | "grow-x" | "grow-x-r" | "grow-x-c" | "grow-y" | "pop" | "fade" | "pulse";
+export interface LyricsShape {
+  readonly shape: number; readonly role: LyricShapeRole; readonly motion: LyricShapeMotion;
+  /** ms after the cut's start. */
+  readonly delay: number;
+  /** Degrees, clockwise (a tilted band). */
+  readonly rotate?: number;
+  /** Drawn over the lyric (a frame), not under it. */
+  readonly over?: boolean;
+}
+/** Decorative text (ghost repeats, tickers, big numerals): how it moves. */
+export type LyricDecorMotion = "fade" | "scroll-l" | "scroll-r" | "settle" | "rise";
 export interface LyricsCut {
   /** When the cut's ground starts coming in, when its text starts entering, when it is covered (the next cut's start; the duration for the last). */
   readonly inAt: number; readonly start: number; readonly hold: number; readonly end: number;
   readonly palette: LyricPalette;
-  readonly entrance: LyricEntrance; readonly arrangement: LyricArrangement; readonly decor: LyricDecor;
-  readonly transition: "wipe-l" | "wipe-r" | "wipe-u" | "wipe-d" | "fade" | "none";
+  readonly layout: LyricLayout; readonly entrance: LyricEntrance; readonly motion: LyricHold; readonly transition: LyricTransition;
   readonly bang: boolean;
-  /** Lyric runs (entering glyph by glyph), in reading order. */
+  /** Lyric runs (entering glyph by glyph, or plate by plate), in reading order. */
   readonly text: readonly number[];
   /** Notes, labels and the credit: fade in with the cut. */
   readonly quiet: readonly number[];
-  /** The ground, then decor, then emphasis underlines. */
+  /** Decorative lines (never counted as the text): ghost repeats, tickers, the big numeral. */
+  readonly decor: readonly { readonly line: number; readonly motion: LyricDecorMotion; readonly delay: number }[];
   readonly ground: number;
-  readonly decorShapes: readonly number[];
-  readonly underlines: readonly { readonly shape: number; readonly line: number }[];
-  /** The lyric block's box (the centre scale and rotation turn about) and the box of everything the cut writes. */
+  readonly shapes: readonly LyricsShape[];
+  /** The lyric block's box (holds turn about its centre) and the box of everything the cut writes. */
   readonly box: Box; readonly outer: Box;
   /** The lyric's type size (entrance distances, drift and shake scale with it). */
   readonly glyphSize: number;
+  /** Chromatic ghost passes behind the lyric. */
+  readonly chroma: boolean;
+  /** The signature's colour on this cut (the scheme under the footer). */
+  readonly signature: string;
+  /** A chunk of a line (lyric-video.ts chunked): its index; absent for a whole line. */
+  readonly part?: number;
 }
-interface Box { x: number; y: number; width: number; height: number }
+export interface Box { x: number; y: number; width: number; height: number }
 
-/** The named face the style sets `role` in, when it has one and the card can use it (else the card's font pair). */
-function faceOf(ctx: LyricsContext, role: "display" | "text"): string | undefined {
-  const name = ctx.style.engine.faces?.[role];
+/** The named face the lyric is set in, when the style has one for the card's script and the card can use it (else the card's font pair). Notes, labels and credits keep the pair. */
+export function faceOf(ctx: LyricsContext, role: "display" | "text"): string | undefined {
+  if (role === "text") return undefined;
+  const name = lyricFaceNames(ctx.variant, ctx.plan.sourceText)[0];
   return name && ctx.faces.includes(name) ? name : undefined;
 }
 
@@ -473,8 +639,8 @@ export function layoutLyrics(ctx: LyricsContext): LyricsResult {
 }
 
 /** Every character upright-safe for a vertical column. */
-const verticalSafe = (text: string) => graphemes(text).every((g) => VERTICAL_SAFE.test(g));
-const snapUp = (sizes: readonly number[], n: number) => sizes.find((s) => s >= n) ?? sizes.at(-1)!;
+export const verticalSafe = (text: string) => graphemes(text).every((g) => VERTICAL_SAFE.test(g));
+export const snapUp = (sizes: readonly number[], n: number) => sizes.find((s) => s >= n) ?? sizes.at(-1)!;
 
 /* ───────────── Poster ───────────── */
 function poster(ctx: LyricsContext): LyricsResult {
@@ -484,6 +650,8 @@ function poster(ctx: LyricsContext): LyricsResult {
   const t = new Typesetter(ctx.measure, s.leading);
   const secondary = (n: number) => Math.max(ctx.minSecondary, n);
   const allLines = content.stanzas.flatMap((stanza) => stanza.lines);
+  // A display face has one weight: set in it, nothing is bold.
+  const face = faceOf(ctx, "display"), bold = face ? false : s.bold;
   const boxH = ctx.fit - 2 * margin - ctx.footerRoom();
   // The poster's colours: one of the style's palette, picked by the lyrics (the same lyrics, the same poster).
   const pal = style.motion.palette[seedOf(`${ctx.plan.sourceText}\u0000poster`) % style.motion.palette.length]!;
@@ -514,26 +682,33 @@ function poster(ctx: LyricsContext): LyricsResult {
       if (line.note) units.push({ kind: "note", text: line.note, gapBefore: "note", stanza: i });
     }
   }
-  const sizes = s.sizes.filter((size) => size >= ctx.minBody);
+  // Stacked posters may set lines larger than the engine can, as type plates (lyric-video.ts).
+  const plate = s.stacked ? plateFaceOf(ctx, face, bold) : undefined;
+  const drawable = plate && units.every((u) => u.kind !== "line" || !missingGlyphs(plate.face, normalizeText(u.text, "plain")).length);
+  const plateSizes = drawable ? PLATE_SIZES.map((n) => Math.round(n * W / 1080)).filter((n) => n > Math.max(...s.sizes)) : [];
+  const pt = drawable ? plateSetter(plate.face, s.leading) : undefined;
+  const setterFor = (size: number) => (plateSizes.includes(size) ? pt! : t);
+  const sizes = [...plateSizes, ...s.sizes.filter((size) => size >= ctx.minBody)];
   /** A lyric line at `size`: at most `maxRows` rows, balanced when it wraps. */
   const tokenCache = new Map<string, Token[]>(), rowCache = new Map<string, Row[] | undefined>();
   const rowsFor = (u: Unit, size: number, emph: number, width: number, maxRows: number): Row[] | undefined => {
     const key = `${units.indexOf(u)}|${size}|${emph}|${width}|${maxRows}`;
     if (rowCache.has(key)) return rowCache.get(key);
     const tokenKey = `${units.indexOf(u)}|${size}|${emph}`;
-    const tokens = tokenCache.get(tokenKey) ?? t.tokens(glyphsOf(u.text, u.ranges, size, emph, s.bold, pal.ink, pal.accent, emphasisPaint(style.engine, pal, emph, W, ctx.format), faceOf(ctx, "display")));
+    const tokens = tokenCache.get(tokenKey) ?? setterFor(size).tokens(glyphsOf(u.text, u.ranges, size, face || plateSizes.includes(size) ? size : emph, bold, pal.ink, pal.accent, emphasisPaint(style.engine, pal, face || plateSizes.includes(size) ? size : emph, W, ctx.format), face));
     tokenCache.set(tokenKey, tokens);
     const result = balancedRows(tokens, width, maxRows);
     rowCache.set(key, result);
     return result;
   };
   const balancedRows = (tokens: Token[], width: number, maxRows: number): Row[] | undefined => {
-    let rows = t.wrap(tokens, width);
+    const tt = setterFor(tokens[0]?.glyphs[0]?.size ?? 0);
+    let rows = tt.wrap(tokens, width);
     if (!rows || rows.length > maxRows) return;
     if (rows.length > 1) {
       let lo = Math.floor(width * 0.4), hi = width;
-      while (hi - lo > 6) { const mid = Math.floor((lo + hi) / 2); const trial = t.wrap(tokens, mid, false); if (trial && trial.length <= rows.length) hi = mid; else lo = mid; }
-      rows = t.wrap(tokens, hi, false) ?? rows;
+      while (hi - lo > 6) { const mid = Math.floor((lo + hi) / 2); const trial = tt.wrap(tokens, mid, false); if (trial && trial.length <= rows.length) hi = mid; else lo = mid; }
+      rows = tt.wrap(tokens, hi, false) ?? rows;
     }
     return rows;
   };
@@ -546,14 +721,14 @@ function poster(ctx: LyricsContext): LyricsResult {
   };
   const quietRows = (u: Unit): Row[] | undefined => {
     const size = u.kind === "title" ? secondary(s.title.size) : secondary(u.kind === "credit" ? s.credit.size : u.kind === "label" ? s.label.size : s.note.size);
-    return t.wrap(t.tokens(glyphsOf(u.text, undefined, size, size, u.kind === "title", u.kind === "title" ? pal.accent : pal.sub, pal.accent, undefined, faceOf(ctx, u.kind === "title" ? "display" : "text"))), inner);
+    return t.wrap(t.tokens(glyphsOf(u.text, undefined, size, size, u.kind === "title" && !face, u.kind === "title" ? pal.accent : pal.sub, pal.accent, undefined, u.kind === "title" ? face : undefined)), inner);
   };
   type Set = { rows: Row[][]; gaps: number[]; height: number; widest: number };
   /** Everything set with `line(u)` giving a lyric unit's rows; undefined when a unit does not fit. */
   const setAll = (line: (u: Unit) => Row[] | undefined, base: number): Set | undefined => {
     const rows: Row[][] = [];
     for (const u of units) { const r = u.kind === "line" ? line(u) : quiet(u); if (!r) return; rows.push(r); }
-    const lh = t.lh(base, s.bold);
+    const lh = setterFor(base).lh(base, bold, undefined, face);
     const gap = (g: Unit["gapBefore"]) => g === "title" ? s.title.gap : g === "credit" ? s.credit.gap : g === "stanza" ? Math.round(lh * s.stanzaLeading) : g === "label" ? s.label.gap : g === "note" ? s.note.gap : 0;
     const gaps = units.map((u) => gap(u.gapBefore));
     const height = units.reduce((h, _u, k) => h + gaps[k]! + rows[k]!.reduce((n, r) => n + r.height, 0), 0);
@@ -627,7 +802,9 @@ function poster(ctx: LyricsContext): LyricsResult {
     y += chosen.gaps[k]!;
     for (const row of chosen.rows[k]!) {
       const x = s.align === "center" ? Math.round((W - row.width) / 2) : blockX;
-      result.lines.push(...t.emit(row, x, y, { group: group++, ...(u.kind === "line" || u.kind === "title" ? {} : { secondary: true }) }));
+      const size = row.tokens[0]?.glyphs[0]?.size ?? 0, setter = setterFor(size);
+      const lines = setter.emit(row, x, y, { group: group++, ...(u.kind === "line" || u.kind === "title" ? {} : { secondary: true }) });
+      result.lines.push(...(setter === t ? lines : platesFrom(plate!, lines, setter)));
       y += row.height;
     }
   }
@@ -647,6 +824,7 @@ function verticalPoster(ctx: LyricsContext, result: LyricsResult, margin: number
   const { content, style, width: W } = ctx;
   const s = style.poster;
   const inner = W - 2 * margin;
+  const bold = faceOf(ctx, "display") ? false : s.bold;
   for (const size of s.sizes.filter((n) => n >= Math.max(ctx.minBody, 48))) {
     const pitch = Math.round(size * 1.12), advance = Math.round(size * 1.75);
     const perColumn = Math.floor(boxH / pitch);
@@ -667,7 +845,7 @@ function verticalPoster(ctx: LyricsContext, result: LyricsResult, margin: number
       return [...out, rest];
     };
     const titleSize = Math.max(ctx.minBody, Math.min(size, s.title.size));
-    if (content.title) for (const g of split(content.title)) columns.push({ glyphs: g, size: titleSize, bold: true, color: pal.accent, secondary: false, emph: [], gapBefore: 0, offset: 0 });
+    if (content.title) for (const g of split(content.title)) columns.push({ glyphs: g, size: titleSize, bold: !faceOf(ctx, "display"), color: pal.accent, secondary: false, emph: [], gapBefore: 0, offset: 0 });
     if (content.credit) {
       // The author sits lower in the column after the title, as in a printed poem.
       for (const g of split(content.credit)) columns.push({ glyphs: g, size: Math.max(ctx.minSecondary, s.credit.size), bold: false, color: pal.sub, secondary: true, emph: [], gapBefore: 0,
@@ -678,7 +856,7 @@ function verticalPoster(ctx: LyricsContext, result: LyricsResult, margin: number
         let at = 0;
         for (const g of split(line.text)) {
           const ranges = (line.emphasis ?? []).map(([a, b]) => [a - at, b - at] as const);
-          columns.push({ glyphs: g, size, bold: s.bold, color: pal.ink, secondary: false, emph: ranges, gapBefore: j === 0 && at === 0 && (i > 0 || columns.length) ? Math.round(advance * (i > 0 ? 0.9 : 0.6)) : 0, offset: 0 });
+          columns.push({ glyphs: g, size, bold, color: pal.ink, secondary: false, emph: ranges, gapBefore: j === 0 && at === 0 && (i > 0 || columns.length) ? Math.round(advance * (i > 0 ? 0.9 : 0.6)) : 0, offset: 0 });
           at += g.length;
         }
       }
@@ -713,20 +891,22 @@ function verticalPoster(ctx: LyricsContext, result: LyricsResult, margin: number
 }
 
 /** A comma or full stop in a vertical column sits in the top-right quarter of its cell: its box is that quarter, and it is drawn offset so the mark lands there. */
-function cornerPunctuation(line: TemplateLine, cx: number, cellTop: number, size: number): void {
+export function cornerPunctuation(line: TemplateLine, cx: number, cellTop: number, size: number): void {
   const drawX = cx - line.width / 2 + size * 0.52, drawY = cellTop - size * 0.72;
   line.x = cx; line.y = cellTop; line.width = size / 2; line.height = Math.round(size * 0.5);
   line.offset = { x: drawX - line.x, y: drawY - line.y };
 }
 
 /* ───────────── Video ───────────── */
-interface CutSpec {
+export interface CutSpec {
   kind: "title" | "line";
   segments: { text: string; emphasis: (readonly [number, number])[] }[];
   notes: string[]; label?: string; credit?: string;
   bang: boolean; readMs: number; timedMs?: number; stanza: number;
   /** The shortest this cut may be shown (prose: its reading floor). */
   floorMs: number;
+  /** A chunk of a line broken into several cuts: its index (0 first) and the count. */
+  part?: number; parts?: number;
 }
 
 /** Reading time: per CJK character and per other visible character. */
@@ -734,7 +914,7 @@ const readingMs = (text: string) => graphemes(text).reduce((ms, g) => ms + (!g.t
 /** The floor of a prose cut: the fastest it can still be read. */
 const proseFloorMs = (text: string) => Math.max(LYRICS_TIMING.minCutMs, graphemes(text).reduce((ms, g) => ms + (!g.trim() ? 0 : WIDE.test(g) ? LYRICS_TIMING.proseCjkMs : LYRICS_TIMING.proseLatinMs), 0));
 
-function cutSpecs(content: LyricsContent): CutSpec[] {
+export function cutSpecs(content: LyricsContent): CutSpec[] {
   const cuts: CutSpec[] = [];
   if (content.title || content.credit) cuts.push({ kind: "title", segments: content.title ? [{ text: content.title, emphasis: [] }] : [], notes: [], ...(content.credit ? { credit: content.credit } : {}),
     bang: false, readMs: LYRICS_TIMING.titleMs, stanza: -1, floorMs: LYRICS_TIMING.titleMs });
@@ -767,7 +947,7 @@ function cutSpecs(content: LyricsContent): CutSpec[] {
 }
 
 /** Two consecutive line cuts of one stanza on one screen. */
-function pairCuts(cuts: readonly CutSpec[], prose = false): CutSpec[] {
+export function pairCuts(cuts: readonly CutSpec[], prose = false): CutSpec[] {
   const out: CutSpec[] = [];
   for (let i = 0; i < cuts.length; i++) {
     const a = cuts[i]!, b = cuts[i + 1];
@@ -789,7 +969,7 @@ export function lyricsMaxMs(width: number, height: number, format: TemplateForma
 }
 
 /** Per-cut durations fitted into `available` ms: shrink proportionally, never below each cut's floor. */
-function fitDurations(wanted: readonly number[], floors: readonly number[], available: number): number[] | undefined {
+export function fitDurations(wanted: readonly number[], floors: readonly number[], available: number): number[] | undefined {
   let durations = [...wanted];
   for (let pass = 0; pass < 6; pass++) {
     const total = durations.reduce((a, b) => a + b, 0);
@@ -802,518 +982,5 @@ function fitDurations(wanted: readonly number[], floors: readonly number[], avai
   return durations.reduce((a, b) => a + b, 0) <= available + 1 ? durations.map(Math.floor) : undefined;
 }
 
-function video(ctx: LyricsContext): LyricsResult {
-  const { content, style, width: W, variant } = ctx;
-  const H = ctx.plan.aspect === "auto" ? ctx.fit : ctx.height;
-  const M = style.motion, timing = LYRICS_MOTION[variant], T = LYRICS_TIMING;
-  const random = generator(seedOf(`${ctx.plan.sourceText}\u0000${variant}`));
-  const cap = lyricsMaxMs(W, H, ctx.format);
-  // Durations: LRC timing when given, else reading time; clamped per cut, then fitted.
-  const plan = (specs: CutSpec[]) => {
-    const floors = specs.map((c) => (c.kind === "title" ? T.titleMs : c.floorMs));
-    const wanted = specs.map((c, i) => c.kind === "title" ? T.titleMs : Math.max(floors[i]!, Math.min(T.maxCutMs, Math.max(T.minCutMs, c.timedMs ?? c.readMs))));
-    const last = wanted.length - 1;
-    const tail = Math.max(0, T.finalHoldMs + 600 - wanted[last]!);
-    const available = cap - T.introMs - last * timing.transitionMs - tail;
-    const durations = fitDurations(wanted, floors, available);
-    return durations && { durations, tail };
-  };
-  let specs = cutSpecs(content);
-  let fitted = plan(specs);
-  if (!fitted) { specs = pairCuts(specs, Boolean(content.prose)); fitted = plan(specs); }
-  if (!fitted) {
-    const screens = specs.length, most = Math.floor((cap - T.introMs - T.finalHoldMs) / (T.minCutMs + timing.transitionMs));
-    throw new ComposeError("lyric-too-long", `This text needs ${screens} screens even two cuts at a time; a ${(cap / 1000).toFixed(1)} s lyric-motion ${ctx.format === "gif" ? "GIF" : "video"} holds about ${most}${content.prose ? " at a readable pace" : ""}. Copy a shorter passage, or use PNG for a poster of all of it. No content was dropped.`);
-  }
-  const { durations, tail } = fitted;
-  const margin = M.margin;
-  const t = new Typesetter(ctx.measure, M.leading);
-  const result: LyricsResult = { background: M.palette[0]!.bg, margin, lines: [], shapes: [], backdrop: [], pinned: [], bottom: H - margin,
-    signatureColor: M.palette[0]!.sub, signatureAlign: "left" };
-  const cuts: LyricsCut[] = [];
-  let at: number = T.introMs;
-  let previous: { entrance?: LyricEntrance; arrangement?: LyricArrangement; decor?: LyricDecor; transition?: LyricsCut["transition"]; palette?: number } = {};
-  const secondary = (n: number) => Math.max(ctx.minSecondary, n);
-  for (const [i, spec] of specs.entries()) {
-    const duration = durations[i]!;
-    // The first cut takes the style's own ground; later cuts move round the palette, never the same colour twice running.
-    const index = i === 0 ? 0 : (() => { const k = Math.floor(random() * (M.palette.length - 1)); return k >= previous.palette! ? k + 1 : k; })();
-    const palette = M.palette[index]!;
-    const vertical = style.poster.vertical && spec.segments.every((seg) => verticalSafe(seg.text)) && !spec.notes.length && !spec.label && !spec.credit;
-    const arrangement: LyricArrangement = spec.kind === "title" ? "center" : vertical && (content.poem || random() < 0.5) ? "vertical" : pick(random, M.arrangements, previous.arrangement);
-    const entrance: LyricEntrance = ctx.plan.motion === "typewriter" ? "type" : spec.kind === "title" ? "rise" : pick(random, M.entrances, previous.entrance);
-    const decor = pick(random, M.decor, previous.decor);
-    const transition: LyricsCut["transition"] = i === 0 ? "none" : timing.transition === "fade" ? "fade" : pick(random, ["wipe-l", "wipe-r", "wipe-u", "wipe-d"] as const, previous.transition as never);
-    previous = { entrance, arrangement, decor, transition, palette: index };
-    const firstLine = result.lines.length, firstShape = result.shapes.length;
-    // Ground.
-    const ground = result.shapes.length;
-    result.shapes.push({ x: 0, y: 0, width: W, height: H, color: palette.bg, radius: 0 });
-    // Room for the label on top and the notes and credit underneath.
-    const quietSize = secondary(M.note.size);
-    const labelRoom = spec.label ? t.lh(secondary(M.label.size), false, 1.2) + Math.round(M.note.gap / 2) : 0;
-    const noteRows = (text: string) => t.wrap(t.tokens(glyphsOf(text, undefined, quietSize, quietSize, false, palette.sub, palette.accent, undefined, faceOf(ctx, "text"))), W - 2 * margin) ?? [];
-    const notes = spec.notes.map(noteRows);
-    const creditSize = secondary(M.title.creditSize);
-    const credit = spec.credit ? t.wrap(t.tokens(glyphsOf(spec.credit, undefined, creditSize, creditSize, false, palette.sub, palette.accent, undefined, faceOf(ctx, "text"))), W - 2 * margin) ?? [] : [];
-    const quietH = [...notes.flat(), ...credit].reduce((h, r) => h + r.height, 0) + (notes.length || credit.length ? M.note.gap : 0);
-    const box = { x: margin, y: margin + labelRoom, width: W - 2 * margin, height: H - 2 * margin - ctx.footerRoom() - labelRoom - quietH };
-    const block = arrangement === "vertical"
-      ? verticalCut(ctx, spec, palette, box, M) ?? horizontalCut(ctx, t, spec, palette, box, "center", M)
-      : horizontalCut(ctx, t, spec, palette, box, arrangement, M);
-    if (!block) throw new ComposeError("overflow", "A lyric line is too long for one screen of this frame even at the smallest size. Use PNG, a wider frame, or break the line with `/`. No content was dropped.");
-    const textStart = result.lines.length;
-    result.lines.push(...block.lines);
-    const textIndices = block.lines.map((_, k) => textStart + k);
-    // Notes and the credit under the block, the label above it.
-    const quiet: number[] = [];
-    let qy = block.box.y + block.box.height + (quietH ? M.note.gap : 0);
-    for (const row of [...credit, ...notes.flat()]) {
-      const x = block.align === "center" ? Math.round((W - row.width) / 2) : block.box.x;
-      for (const line of t.emit(row, x, qy, { secondary: true })) { quiet.push(result.lines.length); result.lines.push(line); }
-      qy += row.height;
-    }
-    if (spec.label) {
-      const rows = t.wrap(t.tokens(glyphsOf(spec.label, undefined, secondary(M.label.size), secondary(M.label.size), false, palette.sub, palette.accent, undefined, faceOf(ctx, "text"))), W - 2 * margin) ?? [];
-      let ly = margin;
-      for (const row of rows) { for (const line of t.emit(row, margin, ly, { secondary: true })) { quiet.push(result.lines.length); result.lines.push(line); } ly += row.height; }
-    }
-    // Underlines under emphasised runs (horizontal cuts only).
-    const underlines: { shape: number; line: number }[] = [];
-    if (arrangement !== "vertical") for (const index of textIndices) {
-      const line = result.lines[index]!;
-      if (!line.emphasis) continue;
-      const u = M.underline;
-      underlines.push({ shape: result.shapes.length, line: index });
-      result.shapes.push({ x: line.x, y: line.y + t.base(line.size) + u.gap, width: line.width, height: u.thickness, color: palette.accent, radius: u.thickness / 2 });
-    }
-    const outer = unionBox([block.box, ...result.lines.slice(firstLine).map((l) => ({ x: l.x, y: l.y, width: l.width, height: l.height }))]);
-    const decorShapes = decorate(decor, W, H, margin, outer, palette, M, result.shapes, style.engine.blur?.decor ?? 0);
-    // Timing: the cut's ground comes in during the transition before `start`.
-    const start = at;
-    const inAt = i === 0 ? 0 : start - timing.transitionMs;
-    const end = i === specs.length - 1 ? start + duration + tail : start + duration + timing.transitionMs;
-    cuts.push({ inAt, start, hold: duration, end, palette, entrance, arrangement, decor, transition, bang: spec.bang,
-      text: textIndices, quiet, ground, decorShapes, underlines, box: block.box, outer, glyphSize: block.size });
-    at = end;
-    for (let k = firstShape; k < result.shapes.length; k++) result.pinned.push(result.shapes[k]!);
-  }
-  result.program = { durationMs: at, frameHeight: H, cuts };
-  result.bottom = H - margin;
-  return result;
-}
-
-const unionBox = (boxes: readonly Box[]): Box => {
-  const x0 = Math.min(...boxes.map((b) => b.x)), y0 = Math.min(...boxes.map((b) => b.y));
-  const x1 = Math.max(...boxes.map((b) => b.x + b.width)), y1 = Math.max(...boxes.map((b) => b.y + b.height));
-  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-};
-
-type MotionStyle = LyricsStyle["motion"];
-interface Block { lines: TemplateLine[]; box: Box; size: number; align: "left" | "center" }
-
-/** A cut's lyric set in rows: the largest size that fits the box in at most maxRows rows, then arranged. */
-function horizontalCut(ctx: LyricsContext, t: Typesetter, spec: CutSpec, palette: LyricPalette, box: Box, arrangement: LyricArrangement, M: MotionStyle, strict = true, only?: number): Block | undefined {
-  const bold = spec.kind === "title" || M.bold;
-  const sizes = (spec.kind === "title" ? M.sizes.filter((n) => n <= M.title.size) : M.sizes).filter((n) => n >= ctx.minBody && (only === undefined || n === only));
-  const stack = arrangement === "stack";
-  for (const size of sizes) {
-    const emph = snapUp(ctx.sizes, size * 1.2);
-    const paint = emphasisPaint(ctx.style.engine, palette, emph, ctx.width, ctx.format);
-    const segments = spec.segments.map((seg) => t.tokens(glyphsOf(seg.text, seg.emphasis, size, emph, bold, palette.ink, palette.accent, paint, faceOf(ctx, "display"))));
-    const wrapAll = (width: number, split = true): Row[] | undefined => {
-      const rows: Row[] = [];
-      for (const tokens of segments) { const r = t.wrap(tokens, width, split); if (!r) return; rows.push(...r); }
-      return rows;
-    };
-    // Stack breaks the line into short rows of a word or two, stepping across the screen.
-    let rows = wrapAll(stack ? Math.min(box.width, Math.max(box.width * 0.6, ...segments.flat().map((tk) => tk.width - tk.trail))) : box.width);
-    if (!rows || rows.length > M.maxRows) continue;
-    const height = rows.reduce((h, r) => h + r.height, 0);
-    if (height > box.height) continue;
-    if (stack && rows.length < 2) return horizontalCut(ctx, t, spec, palette, box, "center", M, strict);
-    // Balance: the narrowest measure that keeps the row count, so no row is left nearly empty.
-    if (rows.length > segments.length) {
-      let lo = Math.floor(box.width * 0.3), hi = Math.ceil(Math.max(...rows.map((r) => r.width)));
-      while (hi - lo > 6) { const mid = Math.floor((lo + hi) / 2); const trial = wrapAll(mid, false); if (trial && trial.length <= rows.length) hi = mid; else lo = mid; }
-      const balanced = wrapAll(hi, false);
-      if (balanced && balanced.length === rows.length) rows = balanced;
-    }
-    // A row holding a scrap of the line (a lone "I", one character) reads as a mistake: a smaller size instead.
-    const widest = Math.max(...rows.map((r) => r.width));
-    if (strict && rows.length > 1 && rows.some((r) => r.width < widest * 0.3)) {
-      // A stack that leaves a scrap is set centred at this size instead.
-      if (stack) { const centred = horizontalCut(ctx, t, spec, palette, box, "center", M, true, size); if (centred?.size === size) return centred; }
-      continue;
-    }
-    const lines: TemplateLine[] = [];
-    // Centre: the block in the middle. Left: left edge, low in the frame. Stack: rows alternate left and right.
-    const top = arrangement === "left" ? box.y + Math.round((box.height - height) * 0.72) : box.y + Math.round((box.height - height) / 2);
-    let y = top;
-    for (const [k, row] of rows.entries()) {
-      const x = arrangement === "center" ? box.x + Math.round((box.width - row.width) / 2)
-        : arrangement === "stack" ? Math.max(box.x, Math.min(box.x + box.width - row.width, k % 2 ? box.x + box.width - row.width - Math.round(box.width * 0.04 * (rows.length - k)) : box.x + Math.round(box.width * 0.04 * k)))
-          : box.x;
-      lines.push(...t.emit(row, x, y));
-      y += row.height;
-    }
-    const x0 = Math.min(...lines.map((l) => l.x)), x1 = Math.max(...lines.map((l) => l.x + l.width));
-    return { lines, box: { x: x0, y: top, width: Math.max(x1 - x0, arrangement === "center" ? widest : 0), height }, size, align: arrangement === "center" ? "center" : "left" };
-  }
-  // Nothing without a scrap row: allow one rather than fail.
-  return strict && only === undefined ? horizontalCut(ctx, t, spec, palette, box, arrangement === "stack" ? "center" : arrangement, M, false) : undefined;
-}
-
-/** A cut's lyric in columns, right to left, centred; a phrase mark ends a column when one falls late enough. */
-function verticalCut(ctx: LyricsContext, spec: CutSpec, palette: LyricPalette, box: Box, M: MotionStyle): Block | undefined {
-  const glyphs = spec.segments.map((seg) => graphemes(normalizeText(seg.text, "plain")));
-  const ranges = spec.segments.map((seg) => seg.emphasis);
-  // A line of phrases gets a column per phrase (its mark stays with it); longer phrases wrap.
-  const phrases = glyphs.map((g) => {
-    const out: { glyphs: string[]; from: number }[] = [];
-    let from = 0;
-    for (let i = 0; i < g.length; i++) if (/[，。、！？]/u.test(g[i]!) && !/[，。、！？]/u.test(g[i + 1] ?? "")) { out.push({ glyphs: g.slice(from, i + 1), from }); from = i + 1; }
-    if (from < g.length) out.push({ glyphs: g.slice(from), from });
-    return out;
-  });
-  // Cells a phrase needs: a closing mark at its end hangs in the corner of half a cell.
-  const cells = (g: readonly string[]) => g.length - (CORNER.test(g.at(-1) ?? "") ? 0.5 : 0);
-  const longest = Math.max(...phrases.flat().map((p) => cells(p.glyphs)));
-  const sizes = M.sizes.filter((n) => n >= ctx.minBody);
-  // Prefer a size at which every phrase stands in one column.
-  const whole = sizes.find((n) => longest * Math.round(n * 1.12) <= box.height);
-  for (const size of whole !== undefined ? [whole, ...sizes.filter((n) => n < whole)] : sizes) {
-    const pitch = Math.round(size * 1.12), advance = Math.round(size * 1.6);
-    const per = Math.floor(box.height / pitch);
-    if (per < 2) continue;
-    const columns: { glyphs: string[]; from: number; seg: number }[] = [];
-    for (const [s, list] of phrases.entries()) for (const phrase of list) {
-      let rest = phrase.glyphs, from = phrase.from;
-      if (cells(rest) * pitch <= box.height) { columns.push({ glyphs: rest, from, seg: s }); continue; }
-      while (rest.length > per) {
-        let cut = per;
-        // Never start a column with a closing mark.
-        while (cut > 1 && NO_LINE_START.test(rest[cut]!)) cut--;
-        columns.push({ glyphs: rest.slice(0, cut), from, seg: s }); rest = rest.slice(cut); from += cut;
-      }
-      if (rest.length) columns.push({ glyphs: rest, from, seg: s });
-    }
-    const width = columns.length * advance - (advance - size);
-    if (width > box.width || columns.length > 4) continue;
-    const tallest = Math.ceil(Math.max(...columns.map((c) => cells(c.glyphs))) * pitch);
-    const top = box.y + Math.round((box.height - tallest) / 2);
-    let x = box.x + Math.round((box.width + width) / 2);
-    const lines: TemplateLine[] = [];
-    for (const column of columns) {
-      const cx = x - size / 2;
-      for (const [k, glyph] of column.glyphs.entries()) {
-        if (!glyph.trim()) continue;
-        const i = column.from + k, emph = ranges[column.seg]!.some(([a, b]) => i >= a && i < b);
-        const face = faceOf(ctx, "display");
-        const w = ctx.measure.width(glyph, size, M.bold, face);
-        const paint = emph ? emphasisPaint(ctx.style.engine, palette, size, ctx.width, ctx.format) : undefined;
-        const line: TemplateLine = { text: glyph, x: cx - w / 2, y: top + k * pitch, width: w, size, height: pitch, bold: M.bold, color: emph ? palette.accent : palette.ink, group: 0, boldAt: [M.bold],
-          ...(emph ? { emphasis: true } : {}), ...(paint ? { paint } : {}), ...(face ? { face } : {}) };
-        if (CORNER.test(glyph)) cornerPunctuation(line, cx, top + k * pitch, size);
-        lines.push(line);
-      }
-      x -= advance;
-    }
-    return { lines, box: { x: box.x + Math.round((box.width - width) / 2), y: top, width, height: tallest }, size, align: "center" };
-  }
-  return;
-}
-
-/** Decor shapes for one cut, kept clear of everything the cut writes. Returns their indices. */
-function decorate(kind: LyricDecor, W: number, H: number, margin: number, text: Box, palette: LyricPalette, M: MotionStyle, shapes: TemplateRect[], soft = 0): number[] {
-  const out: number[] = [];
-  const add = (rect: TemplateRect) => { out.push(shapes.length); shapes.push(rect); };
-  const pad = Math.round(margin * 0.3);
-  const clear = (r: { x: number; y: number; width: number; height: number }) =>
-    r.x + r.width + pad <= text.x || r.x >= text.x + text.width + pad || r.y + r.height + pad <= text.y || r.y >= text.y + text.height + pad;
-  const u = W / 1080;
-  switch (kind) {
-    case "bars": {
-      // Three bars in the emptier band above or below the text.
-      const above = text.y - margin * 0.4, below = H - (text.y + text.height) - margin * 0.9;
-      const h = Math.round(18 * u), gap = Math.round(14 * u);
-      const band = 3 * h + 2 * gap;
-      const useTop = above >= below;
-      if (Math.max(above, below) < band + pad) return out;
-      const y0 = useTop ? Math.round(margin * 0.45) : Math.round(H - margin * 0.9 - band);
-      const widths = [0.42, 0.26, 0.34];
-      widths.forEach((f, k) => { const r = { x: k % 2 ? Math.round(W - margin * 0.5 - W * f) : Math.round(margin * 0.5), y: y0 + k * (h + gap), width: Math.round(W * f), height: h, color: palette.accent, radius: h / 2 }; if (clear(r)) add(r); });
-      return out;
-    }
-    case "orb": {
-      // A big quiet disc in the corner farthest from the text, as large as the clearance allows.
-      const cx = text.x + text.width / 2 < W / 2 ? W : 0, cy = text.y + text.height / 2 < H / 2 ? H : 0;
-      for (let r = Math.round(Math.min(W, H) * 0.42); r >= Math.round(Math.min(W, H) * 0.12); r -= Math.round(20 * u)) {
-        const rect: TemplateRect = { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, color: palette.tint, radius: r };
-        // A soft light rather than a hard disc; the clearance counts its full radius, where it has faded to nothing.
-        if (clear(rect)) { if (soft) rect.soft = soft; add(rect); return out; }
-      }
-      return out;
-    }
-    case "frame": {
-      const f = M.frame, i = f.inset, k = f.thickness;
-      for (const r of [{ x: i, y: i, width: W - 2 * i, height: k }, { x: i, y: H - i - k, width: W - 2 * i, height: k }, { x: i, y: i, width: k, height: H - 2 * i }, { x: W - i - k, y: i, width: k, height: H - 2 * i }]) {
-        add({ ...r, color: M.bold ? palette.accent : palette.ink, radius: 0 });
-      }
-      return out;
-    }
-    case "dots": {
-      const r = Math.round(13 * u), gap = Math.round(22 * u), n = 5;
-      const top = text.y > H / 2;
-      const y = top ? Math.round(margin * 0.55) : Math.round(H - margin * 0.55 - 2 * r);
-      const x0 = text.x + text.width / 2 > W / 2 ? Math.round(margin * 0.55) : Math.round(W - margin * 0.55 - n * 2 * r - (n - 1) * gap);
-      for (let k = 0; k < n; k++) { const d = { x: x0 + k * (2 * r + gap), y, width: 2 * r, height: 2 * r, color: palette.accent, radius: r }; if (clear(d)) add(d); }
-      return out;
-    }
-    case "rules": {
-      // Hairlines above and below the text block, as wide as it is (plus a little).
-      const k = Math.max(2, Math.round(3 * u)), gap = Math.round(36 * u), extra = Math.round(40 * u);
-      const x = Math.max(margin * 0.5, text.x - extra), w = Math.min(W - margin, text.width + 2 * extra);
-      for (const y of [text.y - gap - k, text.y + text.height + gap]) if (y > margin * 0.3 && y + k < H - margin * 0.3) add({ x: Math.round(x), y: Math.round(y), width: Math.round(w), height: k, color: palette.ink, radius: 0 });
-      return out;
-    }
-    case "sun": {
-      const r = Math.round(46 * u);
-      const x = text.x + text.width / 2 > W / 2 ? Math.round(margin * 0.9) : Math.round(W - margin * 0.9 - 2 * r);
-      const y = text.y > H / 2 ? Math.round(margin * 0.8) : Math.round(H - margin * 1.2 - 2 * r);
-      const disc = { x, y, width: 2 * r, height: 2 * r, color: palette.accent, radius: r };
-      if (clear(disc)) add(disc);
-      return out;
-    }
-    case "none": return out;
-  }
-}
-
-/* ───────────── Checks ───────────── */
-/** The quality gate for a lyric video: source fidelity over the whole
- * layout, and every other check per cut, against that cut's own ground (the
- * cuts share the canvas but are never on screen together). */
-export function lyricsViolations(layout: TemplateLayout, program: LyricsProgram, plan: Pick<TemplatePlan, "content">): CheckViolation[] {
-  const out = fidelityViolations(layout, plan);
-  const signature = layout.lines.filter((l) => l.signature);
-  for (const [i, cut] of program.cuts.entries()) {
-    const lines = [...cut.text, ...cut.quiet].map((k) => layout.lines[k]!);
-    const shapes = [cut.ground, ...cut.decorShapes, ...cut.underlines.map((u) => u.shape)].map((k) => layout.shapes[k]!);
-    const sub = { width: layout.width, height: program.frameHeight, background: cut.palette.bg, lines: [...lines, ...signature.map((l) => ({ ...l, color: cut.palette.sub }))], shapes };
-    for (const v of checkLayout(sub)) out.push({ kind: v.kind, message: `cut ${i}: ${v.message}` });
-  }
-  return out;
-}
-
-/* ───────────── Composition ───────────── */
-export interface LyricsComposition {
-  readonly body: string;
-  readonly keyframes: Record<string, unknown>;
-  readonly animations: Record<string, { value: string }>;
-  readonly frames: number;
-  readonly emojiKeys: Set<string>;
-}
-const px = (n: number) => `${Math.round(n * 100) / 100}px`;
-const ms = (n: number) => `${Math.max(0, Math.round(n))}ms`;
-const hex = (color: string) => color.replace(/^#/, "");
-
-/** The lyric video as Pocket Motion nodes and baked animations. */
-export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram, measure: TemplateMeasure, variant: keyof typeof LYRICS_STYLES): LyricsComposition {
-  const timing = LYRICS_MOTION[variant], engine: EngineSlots = LYRICS_STYLES[variant].engine;
-  const W = layout.width, H = program.frameHeight;
-  const keyframes: Record<string, unknown> = {}, animations: Record<string, { value: string }> = {};
-  const emojiKeys = new Set<string>();
-  let animationCount = 0;
-  const animate = (value: string) => { const name = `l${animationCount++}`; animations[name] = { value }; return ` animate-${name}`; };
-  const key = (name: string, frames: Record<string, Record<string, string>>) => { keyframes[name] ??= frames; return name; };
-  const cubic = { out: "cubic-bezier(0.16,1,0.3,1)", back: "cubic-bezier(0.34,1.56,0.64,1)", inOut: "cubic-bezier(0.65,0,0.35,1)", in: "cubic-bezier(0.5,0,0.75,0)" };
-  const view = (box: Box, extra: string, children: string[]) => `<View class="absolute left-[${px(box.x)}] top-[${px(box.y)}] w-[${px(box.width)}] h-[${px(box.height)}]${extra}">\n${children.join("\n")}\n</View>`;
-  const rectNode = (r: TemplateRect, dx: number, dy: number, extra = "") => `<View class="absolute left-[${px(r.x - dx)}] top-[${px(r.y - dy)}] w-[${px(r.width)}] h-[${px(r.height)}] ${r.soft ? softFill(r.color, r.soft) : `bg-[${r.color}]`} rounded-[${px(r.radius)}]${extra}" />`;
-  /** `ink` is the colour/paint class tokens (compose.ts paintClasses). */
-  const glyphNode = (text: string, x: number, y: number, line: TemplateLine, ink: string, anim: string) => {
-    const emoji = splitEmoji(text).find((run) => "emoji" in run);
-    if (emoji && "emoji" in emoji) {
-      emojiKeys.add(emoji.key);
-      return `<Image class="absolute left-[${px(x)}] top-[${px(y + (line.height - line.size) / 2)}] w-[${line.size}px] h-[${line.size}px]${anim}" src="e_${emoji.key}.png" />`;
-    }
-    return `<Text class="absolute left-[${px(x)}] top-[${px(y)}] text-[${line.size}px] ${line.bold ? "font-bold" : ""}${line.face ? ` font-[${line.face}]` : ""} ${ink} h-[${px(line.height)}]${anim}">{${JSON.stringify(text)}}</Text>`;
-  };
-  const signature = layout.lines.filter((l) => l.signature);
-  const nodes: string[] = [];
-  for (const [i, cut] of program.cuts.entries()) {
-    const last = i === program.cuts.length - 1;
-    const p = cut.palette, S = cut.start;
-    const inner: string[] = [];
-    // Ground: wiped or faded in during the transition.
-    const ground = layout.shapes[cut.ground]!;
-    const groundAnim = cut.transition === "none" ? "" : cut.transition === "fade"
-      ? animate(`${key("lfadein", { from: { opacity: "0" }, to: { opacity: "1" } })} ${ms(timing.transitionMs)} ease-in-out ${ms(cut.inAt)} both`)
-      : animate(`${key(`lwipe${cut.transition.slice(5)}`, { from: cut.transition === "wipe-l" ? { translateX: px(-W) } : cut.transition === "wipe-r" ? { translateX: px(W) } : cut.transition === "wipe-u" ? { translateY: px(H) } : { translateY: px(-H) },
-        to: cut.transition === "wipe-l" || cut.transition === "wipe-r" ? { translateX: "0px" } : { translateY: "0px" } })} ${ms(timing.transitionMs)} ${cubic.inOut} ${ms(cut.inAt)} both`);
-    inner.push(rectNode(ground, 0, 0, groundAnim));
-    // Decor: comes in with the text, then keeps moving slowly through the hold.
-    const holdEnd = last ? program.durationMs : cut.end;
-    for (const [k, index] of cut.decorShapes.entries()) {
-      const r = layout.shapes[index]!;
-      const delay = S + 80 + k * 70, life = Math.max(400, holdEnd - delay);
-      let anim: string;
-      switch (cut.decor) {
-        case "bars": {
-          const from = r.x < W / 2 ? -r.width - r.x : W - r.x;
-          anim = animate(`${key(`lbar${Math.round(from)}`, { from: { translateX: px(from) }, "30%": { translateX: px(0) }, to: { translateX: px(r.x < W / 2 ? 24 : -24) } })} ${ms(Math.min(life, 2600))} ${cubic.out} ${ms(delay)} both`);
-          break;
-        }
-        case "orb": anim = animate(`${key("lorb", { from: { scale: "0" }, "35%": { scale: "1.04" }, "50%": { scale: "1" }, to: { scale: "1.08" } })} ${ms(life)} ${cubic.out} ${ms(S)} both`); break;
-        case "frame": {
-          const horizontal = r.width > r.height;
-          anim = animate(`${key(horizontal ? "lframeh" : "lframev", horizontal ? { from: { scaleX: "0" }, to: { scaleX: "1" } } : { from: { scaleY: "0" }, to: { scaleY: "1" } })} ${ms(520)} ${cubic.out} ${ms(S + k * 90)} both`);
-          break;
-        }
-        case "dots": anim = animate(`${key(`ldot${Math.round(r.height)}`, { from: { scale: "0", translateY: "0px" }, "25%": { scale: "1.3", translateY: px(-r.height * 0.6) }, "40%": { scale: "1", translateY: "0px" }, to: { scale: "1", translateY: px(r.height * 0.5) } })} ${ms(Math.min(life, 3000))} ${cubic.out} ${ms(S + k * 90)} both`); break;
-        case "rules": anim = animate(`${key("lrule", { from: { scaleX: "0" }, to: { scaleX: "1" } })} ${ms(700)} ${cubic.out} ${ms(S + k * 120)} both`); break;
-        case "sun": anim = animate(`${key(`lsun${Math.round(r.height)}`, { from: { opacity: "0", translateY: px(r.height * 0.9) }, "40%": { opacity: "1", translateY: "0px" }, to: { opacity: "1", translateY: px(-r.height * 0.25) } })} ${ms(Math.min(life, 4000))} ${cubic.out} ${ms(S)} both`); break;
-        default: anim = "";
-      }
-      inner.push(rectNode(r, 0, 0, anim));
-    }
-    // The text: an exit wrapper around everything the cut writes, a motion wrapper around the lyric block.
-    const outer = cut.outer, box = cut.box;
-    const n = cut.text.reduce((count, k) => count + graphemes(layout.lines[k]!.text).filter((g) => g.trim()).length, 0);
-    const entrance = cut.entrance;
-    const typing = entrance === "type";
-    const window = typing ? 0 : Math.min(timing.maxStaggerMs, cut.hold * 0.4, timing.staggerMs * Math.max(0, n - 1));
-    const enterMs = Math.max(220, Math.min(timing.enterMs, cut.hold * 0.7 - window));
-    const typeStep = Math.min(timing.typeMs, (cut.hold * 0.6) / Math.max(1, n));
-    const revealEnd = S + (typing ? typeStep * n : window + enterMs);
-    const motionAnims: string[] = [];
-    if (entrance === "scale") motionAnims.push(`${key(`lgather${Math.round(timing.scaleFrom * 100)}`, { from: { scale: String(timing.scaleFrom) }, to: { scale: "1" } })} ${ms(Math.min(900, cut.hold * 0.6))} ${cubic.out} ${ms(S)} both`);
-    if (entrance === "rotate") motionAnims.push(`${key(`lswing${-timing.rotateFrom}`, { from: { rotate: `${timing.rotateFrom}deg` }, to: { rotate: "0deg" } })} ${ms(Math.min(1000, cut.hold * 0.65))} ${cubic.back} ${ms(S)} both`);
-    // The hold drifts slowly on a diagonal, alternating direction from cut to cut.
-    const drift = Math.round(cut.glyphSize * timing.driftEm), side = i % 2 ? -1 : 1;
-    if (drift) motionAnims.push(`${key(`ldrift${drift * side}`, { from: { translateX: "0px", translateY: "0px" }, to: { translateX: px(drift * side), translateY: px(-drift * 0.5) } })} ${ms(Math.max(300, (last ? program.durationMs : cut.end) - S))} ease-in-out ${ms(S)} both`);
-    // The shake runs on the exit wrapper (translateX there is free), so it never contends with the drift.
-    const exitAnims: string[] = [];
-    if (cut.bang) exitAnims.push(`${key(`lshake${Math.round(cut.glyphSize / 8)}`, (() => { const a = Math.max(6, Math.round(cut.glyphSize / 8)); return { "0%": { translateX: "0px" }, "12%": { translateX: px(-a) }, "28%": { translateX: px(a) }, "44%": { translateX: px(-a * 0.7) }, "60%": { translateX: px(a * 0.5) }, "78%": { translateX: px(-a * 0.25) }, "100%": { translateX: "0px" } }; })())} 420ms linear ${ms(revealEnd - 40)} both`);
-    const textNodes: string[] = [];
-    // Emphasis: an underline grows under the word, and the word pops in the accent.
-    const punchAt = revealEnd + 60;
-    for (const u of cut.underlines) {
-      const r = layout.shapes[u.shape]!;
-      textNodes.push(rectNode(r, box.x, box.y, ` origin-left${animate(`${key("lunder", { from: { scaleX: "0" }, to: { scaleX: "1" } })} 320ms ${cubic.out} ${ms(punchAt)} both`)}`));
-    }
-    // Glyphs in reading order, each with its own entrance delay.
-    let order = 0;
-    const cursorStops: { t: number; left: number; x: number; y: number; h: number }[] = [];
-    for (const index of cut.text) {
-      const line = layout.lines[index]!;
-      const emph = Boolean(line.emphasis);
-      const offset = line.offset;
-      const glyphs = graphemes(line.text);
-      const run: string[] = [];
-      let prefix = "";
-      const baseX = offset ? line.x + offset.x : line.x, baseY = offset ? line.y + offset.y : line.y;
-      for (const g of glyphs) {
-        const gx = baseX + (offset ? 0 : measure.width(prefix, line.size, line.bold, line.face));
-        prefix += g;
-        if (!g.trim()) continue;
-        const k = order++;
-        const delay = typing ? S + k * typeStep : S + (n > 1 ? (window * k) / (n - 1) : 0);
-        const s = line.size;
-        // Letters come into focus as they arrive: a blur that falls to 0 over the entrance (not for typing).
-        const b = engine.blur && !typing ? Math.round(s * engine.blur.entranceEm * 10) / 10 : 0;
-        const focus = (from: Record<string, string>) => (b ? { ...from, blur: px(b) } : from);
-        const sharp = (to: Record<string, string>) => (b ? { ...to, blur: "0px" } : to);
-        const tag = b ? `b${Math.round(b * 10)}` : "";
-        let value: string;
-        switch (entrance) {
-          case "rise": value = `${key(`lrise${Math.round(s * timing.riseEm)}${tag}`, { from: focus({ opacity: "0", translateY: px(s * timing.riseEm) }), to: sharp({ opacity: "1", translateY: "0px" }) })} ${ms(enterMs)} ${cubic.out} ${ms(delay)} both`; break;
-          case "drop": { const d = Math.round(s * 0.7); value = `${key(`ldrop${d}${tag}`, { from: focus({ opacity: "0", translateY: px(-d) }), "45%": { opacity: "1", translateY: px(d * 0.12), ...(b ? { blur: px(b * 0.25) } : {}) }, "72%": sharp({ opacity: "1", translateY: px(-d * 0.04) }), to: sharp({ opacity: "1", translateY: "0px" }) })} ${ms(enterMs + 80)} ${cubic.out} ${ms(delay)} both`; break; }
-          case "slide": value = `${key(`lslide${Math.round(s * timing.slideEm)}${tag}`, { from: focus({ opacity: "0", translateX: px(-s * timing.slideEm) }), to: sharp({ opacity: "1", translateX: "0px" }) })} ${ms(enterMs)} ${cubic.out} ${ms(delay)} both`; break;
-          case "type": value = `${key("ltype", { from: { opacity: "0" }, to: { opacity: "1" } })} 17ms linear ${ms(delay)} both`; break;
-          default: value = `${key(`lfade${tag}`, { from: focus({ opacity: "0" }), to: sharp({ opacity: "1" }) })} ${ms(Math.min(enterMs, 380))} ease-out ${ms(delay)} both`;
-        }
-        // The emphasised word turns from ink to its paint at the punch: gradient stops, outline and fill colours animate; the classes hold the state before it.
-        let ink = paintClasses(undefined, line.color);
-        if (emph) {
-          const paint = line.paint, clear = (c: string) => withAlpha(c, 0);
-          if (paint?.gradient) {
-            const g = paint.gradient;
-            ink = paintClasses({ gradient: { ...g, from: p.ink, to: p.ink } }, p.ink);
-            value += `, ${key(`lgild${hex(p.ink)}${hex(g.from)}${hex(g.to)}`, { from: { gradFrom: p.ink, gradTo: p.ink }, to: { gradFrom: g.from, gradTo: g.to } })} 320ms ease-out ${ms(punchAt)} both`;
-          } else if (paint?.stroke) {
-            const st = paint.stroke, fill = st.hollow ? clear(p.ink) : line.color;
-            ink = `${paintClasses({ stroke: { ...st, hollow: false, color: clear(st.color) } }, p.ink)}`;
-            value += `, ${key(`lring${hex(p.ink)}${hex(fill)}${hex(st.color)}`, { from: { color: p.ink, textStrokeColor: clear(st.color) }, to: { color: fill, textStrokeColor: st.color } })} 320ms ease-out ${ms(punchAt)} both`;
-          } else {
-            ink = paintClasses(undefined, p.ink);
-            value += `, ${key(`lglow${hex(p.ink)}${hex(line.color)}`, { from: { color: p.ink }, to: { color: line.color } })} 260ms ease-out ${ms(punchAt)} both`;
-          }
-        }
-        if (typing) cursorStops.push({ t: delay, left: gx - box.x, x: gx + measure.width(g, line.size, line.bold, line.face) - box.x, y: line.y - box.y, h: line.size });
-        run.push(glyphNode(g, gx - (emph ? line.x : box.x), baseY - (emph ? line.y : box.y), line, ink, animate(value)));
-      }
-      if (emph) {
-        const r = { x: line.x - box.x, y: line.y - box.y, width: line.width, height: line.height };
-        const lift = Math.round(line.size * 0.2);
-        const punch = `${key(`lpunch${lift}`, { "0%": { translateY: "0px", scale: "1" }, "35%": { translateY: px(-lift), scale: "1.18" }, "68%": { translateY: px(lift * 0.15), scale: "0.98" }, "100%": { translateY: "0px", scale: "1" } })} ${ms(timing.punchMs)} ${cubic.out} ${ms(punchAt)} both`;
-        // A glow, one layer for the whole word, lit at the punch.
-        const glow = line.paint?.glow;
-        const lit = glow ? `, ${key(`llit${hex(glow.color)}`, { from: { dropShadowColor: withAlpha(glow.color, 0) }, to: { dropShadowColor: glow.color } })} 420ms ease-out ${ms(punchAt)} both` : "";
-        const glowClass = glow ? ` glow-[${glow.radius}px] glow-[${withAlpha(glow.color, 0)}]${glow.gain !== 1 ? ` glow-gain-[${glow.gain}]` : ""}` : "";
-        textNodes.push(view(r, `${glowClass}${animate(punch + lit)}`, run));
-      } else textNodes.push(...run);
-    }
-    // Typewriter: a caret that follows the typing, then blinks.
-    if (typing && cursorStops.length && cut.arrangement !== "vertical") {
-      const first = cursorStops[0]!, lastStop = cursorStops.at(-1)!, span = Math.max(17, lastStop.t - first.t);
-      const thickness = Math.max(3, Math.round(LYRICS_STYLES[variant].motion.cursor.thickness * W / 1080));
-      // The caret waits at the left of each glyph until it is typed, then jumps past it.
-      const frames: Record<string, Record<string, string>> = { "0%": { translateX: px(first.left), translateY: px(first.y) } };
-      for (const stop of cursorStops) {
-        const at = Math.round(((stop.t - first.t) / span) * 10000) / 100;
-        if (at > 0 && at < 100) frames[`${at}%`] = { translateX: px(stop.x), translateY: px(stop.y) };
-      }
-      frames["100%"] = { translateX: px(lastStop.x), translateY: px(lastStop.y) };
-      const name = key(`lcaret${i}`, frames);
-      const caret = `<View class="absolute left-[0px] top-[${px(Math.round(first.h * 0.12))}] w-[${thickness}px] h-[${px(Math.round(first.h * 1.02))}] bg-[${p.accent}]${animate(`${name} ${ms(span)} linear ${ms(first.t)} both, ${key("lblink", { "0%": { opacity: "1" }, "49%": { opacity: "1" }, "50%": { opacity: "0" }, "99%": { opacity: "0" }, "100%": { opacity: "1" } })} 900ms linear ${ms(lastStop.t + 300)} infinite`)}" />`;
-      textNodes.push(caret);
-    }
-    const quietNodes: string[] = [];
-    for (const index of cut.quiet) {
-      const line = layout.lines[index]!;
-      let prefix = "";
-      const anim = animate(`${key(`lquiet${Math.round(line.size * 0.3)}`, { from: { opacity: "0", translateY: px(line.size * 0.3) }, to: { opacity: "1", translateY: "0px" } })} 480ms ${cubic.out} ${ms(S + (cut.text.length ? Math.min(window + enterMs, cut.hold * 0.5) * 0.6 : 0))} both`);
-      const run: string[] = [];
-      for (const g of graphemes(line.text)) {
-        const gx = line.x + measure.width(prefix, line.size, line.bold, line.face);
-        prefix += g;
-        if (g.trim()) run.push(glyphNode(g, gx - outer.x, line.y - outer.y, line, paintClasses(undefined, line.color), ""));
-      }
-      quietNodes.push(view({ x: 0, y: 0, width: outer.width, height: outer.height }, anim, run));
-    }
-    const motion = view({ x: box.x - outer.x, y: box.y - outer.y, width: box.width, height: box.height }, motionAnims.length ? animate(motionAnims.join(", ")) : "", textNodes);
-    if (!last) exitAnims.push(timing.exitEm
-      ? `${key(`lexit${Math.round(cut.glyphSize * timing.exitEm)}`, { from: { opacity: "1", translateY: "0px" }, to: { opacity: "0", translateY: px(-cut.glyphSize * timing.exitEm) } })} ${ms(timing.exitMs)} ${cubic.in} ${ms(S + cut.hold - timing.exitMs * 0.4)} both`
-      : `${key("lfadeout", { from: { opacity: "1" }, to: { opacity: "0" } })} ${ms(timing.exitMs)} ease-in ${ms(S + cut.hold - timing.exitMs * 0.5)} both`);
-    const exitAnim = exitAnims.length ? animate(exitAnims.join(", ")) : "";
-    inner.push(view(outer, exitAnim, [motion, ...quietNodes]));
-    // A trailing "!": a quick flash over the screen as the line lands.
-    if (cut.bang) inner.push(`<View class="absolute left-[0px] top-[0px] w-[${W}px] h-[${H}px] bg-[${variant === "classic" ? p.ink : p.accent}]${animate(`${key("lflash", { "0%": { opacity: "0" }, "18%": { opacity: variant === "classic" ? "0.55" : "0.22" }, "100%": { opacity: "0" } })} 340ms ease-out ${ms(revealEnd - 60)} both`)}" />`);
-    // The signature, in this cut's secondary colour.
-    for (const line of signature) {
-      let prefix = "";
-      for (const g of graphemes(line.text)) {
-        const gx = line.x + measure.width(prefix, line.size, line.bold, line.face);
-        prefix += g;
-        if (g.trim()) inner.push(glyphNode(g, gx, line.y, line, paintClasses(undefined, p.sub), i === 0 ? "" : animate(`${key("lfadein", { from: { opacity: "0" }, to: { opacity: "1" } })} ${ms(timing.transitionMs)} ease-in-out ${ms(cut.inAt)} both`)));
-      }
-    }
-    // Gates: a cut appears when its transition starts and is hidden once the next one covers it.
-    const show = i === 0 ? "" : animate(`${key("lshow", { from: { opacity: "0" }, to: { opacity: "1" } })} 17ms linear ${ms(cut.inAt)} both`);
-    const hide = last ? "" : animate(`${key("lhide", { from: { opacity: "1" }, to: { opacity: "0" } })} 17ms linear ${ms(cut.end)} both`);
-    const full = { x: 0, y: 0, width: W, height: H };
-    nodes.push(view(full, show, [hide ? view(full, hide, inner) : inner.join("\n")]));
-  }
-  const frames = Math.ceil((program.durationMs / 1000) * LYRICS_TIMING.fps) + 1;
-  return { body: nodes.join("\n"), keyframes, animations, frames, emojiKeys };
-}
+export { lyricsViolations } from "./lyric-video.ts";
+export { lyricsComposition, type LyricsComposition } from "./lyric-film.ts";

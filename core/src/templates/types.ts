@@ -2,8 +2,8 @@ import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
 export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "diff", "error", "timeline", "stats", "lyrics", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
-/** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
-export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
+/** Style ids. Every template has classic and editorial; poster (text), pop and night (lyrics) exist only where registered. */
+export const VARIANT_IDS = ["classic", "editorial", "poster", "pop", "night"] as const;
 export type VariantId = (typeof VARIANT_IDS)[number];
 /** Visible graphemes one card may hold (TEMPLATE_LIMITS.maxGraphemes). */
 export const TEMPLATE_MAX_GRAPHEMES = 2400;

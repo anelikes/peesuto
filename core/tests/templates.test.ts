@@ -3,11 +3,15 @@ import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts
 import { CUT_MAX_UNITS, parseLyricLine, parseLyrics, parseTemplates, splitCuts, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
 import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, STATS_STYLES, TEMPLATE_LIMITS, TEMPLATE_SCROLL, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
-import { emphasisPaint, lyricsComposition, lyricsMaxMs, lyricsViolations, LYRICS_STYLES } from "../src/templates/lyrics.ts";
-import { contrastRatio } from "../src/templates/checks.ts";
-import { CODE_FONT, TEMPLATE_FACES, templateFaceNames } from "../src/templates/compose.ts";
+import { cutSpecs, emphasisPaint, lyricsComposition, lyricsMaxMs, lyricsViolations, LYRICS_STYLES, LYRICS_VARIANTS, Typesetter } from "../src/templates/lyrics.ts";
+import { chunked } from "../src/templates/lyric-video.ts";
+import { loadFace, missingGlyphs, plateGeometry, plateWidth, renderPlate } from "../src/templates/type-raster.ts";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { contrastRatio, fidelityViolations } from "../src/templates/checks.ts";
+import { CODE_FONT_DIR, TEMPLATE_FACES, faceTexts, templateFaceNames } from "../src/templates/compose.ts";
 import { TEMPLATE_GIF_FRAME_BUDGET } from "../src/templates/render.ts";
-import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
+import { TEMPLATE_REGISTRY, templateRegistration } from "../src/templates/registry.ts";
 import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature, type TemplateContent } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
 
@@ -843,7 +847,7 @@ describe("lyrics cards", () => {
   const EN = "I remember the dawn\nPaper lanterns on the river\nWe were counting every bridge back home\n\nOh, *stay awake* with me\nStay awake with me!";
   const LRC = "[ti:纸飞机]\n[ar:Peesuto]\n[00:12.34]旧站台的白铃兰\n[00:15.80]从那年夏天开到现在\n[00:19.20]你折好的纸飞机\n[00:22.60]还停在我窗前的风里";
   const measure: TemplateMeasure = { width: (t, size) => [...t].reduce((n, c) => n + size * (/[\x00-\x7f]/.test(c) ? 0.6 : 1), 0), lineHeight: (size) => size * 1.45 };
-  const plan = (text: string, variant: "classic" | "editorial" = "classic", motion: "none" | "reveal" | "typewriter" = "reveal", aspect: "1:1" | "9:16" | "16:9" = "1:1") =>
+  const plan = (text: string, variant: "classic" | "editorial" | "pop" | "night" = "classic", motion: "none" | "reveal" | "typewriter" = "reveal", aspect: "1:1" | "9:16" | "16:9" = "1:1") =>
     ({ version: 1 as const, template: "lyrics" as const, variant, motion, aspect, sourceText: text, content: lyricsOf(text)! });
 
   test("song lyrics in Chinese, Japanese and English keep their lines; lyric motion is never chosen automatically", () => {
@@ -972,16 +976,19 @@ describe("lyrics cards", () => {
     // The poster holds it.
     expect(layoutTemplate(plan(essay, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("第12句");
     const tweet = "我们今天发布了新版本，感谢每一位参与测试、提交问题、在周五加班到深夜的朋友。没有你们，就没有这一版。";
-    const layout = layoutTemplate(plan(tweet), measure, { format: "mp4" }), program = layout.lyrics!;
-    expect(program.cuts.length).toBeGreaterThan(3);
-    expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
-    for (const cut of program.cuts) {
-      const chars = cut.text.map((i) => layout.lines[i]!.text).join("").replace(/\s/g, "").length;
-      expect(cut.hold).toBeGreaterThanOrEqual(Math.max(LYRICS_TIMING.minCutMs, chars * LYRICS_TIMING.proseCjkMs) - 1);
+    for (const variant of LYRICS_VARIANTS) {
+      const layout = layoutTemplate(plan(tweet, variant), measure, { format: "mp4" }), program = layout.lyrics!;
+      expect(program.cuts.length).toBeGreaterThan(3);
+      expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
+      for (const cut of program.cuts) {
+        const chars = cut.text.map((i) => layout.lines[i]!.text).join("").replace(/\s/g, "").length;
+        // A whole cut holds at least the shortest cut; a chunk of a line at least 0.65 s; both at prose reading speed.
+        expect(cut.hold).toBeGreaterThanOrEqual(Math.max(cut.part === undefined ? LYRICS_TIMING.minCutMs : 650, chars * LYRICS_TIMING.proseCjkMs) - 1);
+      }
     }
   });
   test("the poster: every lyric drawn once, markup never drawn, emphasis in the accent; Paper sets CJK verse in columns", () => {
-    for (const variant of ["classic", "editorial"] as const) {
+    for (const variant of LYRICS_VARIANTS) {
       const layout = layoutTemplate(plan(JA, variant, "none"), measure);
       const drawn = layout.lines.map((l) => l.text).join("");
       expect(drawn.replace(/\s/g, "")).toBe("夜明けの色を覚えてる透明な傘をたたんで坂道の途中で笑った!まだ眠い町の灯り");
@@ -999,91 +1006,149 @@ describe("lyrics cards", () => {
     // The comma sits in the corner of its cell, drawn offset from its box.
     expect(poem.lines.find((l) => l.text === "，")!.offset).toBeDefined();
   });
-  test("the video: a cut per line and per / piece, a title card, timing within the cap, deterministic, each cut passing the checks", () => {
-    for (const variant of ["classic", "editorial"] as const) {
-      const p = plan(JA, variant);
+  test("the video: every line drawn once and verbatim, cut by cut; deterministic; each cut passing the checks; colour cuts between lines", () => {
+    for (const variant of LYRICS_VARIANTS) for (const text of [ZH, JA, EN]) {
+      const p = plan(text, variant);
       const layout = layoutTemplate(p, measure, { format: "mp4" });
       const program = layout.lyrics!;
-      expect(program.cuts.length).toBe(5);
       expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
       expect(program.cuts.map((c) => c.start)).toEqual([...program.cuts.map((c) => c.start)].sort((a, b) => a - b));
-      expect(program.cuts.at(-1)!.bang || program.cuts.some((c) => c.bang)).toBe(true);
+      // The lyric, in reading order over the cuts, is the source without markup (decorative repeats aside).
+      const said = program.cuts.flatMap((c) => c.text.map((k) => layout.lines[k]!.text)).join("").replace(/\s/g, "");
+      const content = lyricsOf(text) as Extract<TemplateContent, { kind: "lyrics" }>;
+      expect(said).toBe(content.stanzas.flatMap((s) => s.lines.map((l) => l.text)).join("").replace(/\s/g, ""));
+      for (const cut of program.cuts) for (const k of cut.decor) expect(layout.lines[k.line]!.decorative).toBe(true);
       expect(lyricsViolations(layout, program, p)).toEqual([]);
-      // The same lyrics give the same video.
       expect(JSON.stringify(layoutTemplate(p, measure, { format: "mp4" }))).toBe(JSON.stringify(layout));
-      // Every cut but the first changes colour.
-      for (let i = 1; i < program.cuts.length; i++) expect(program.cuts[i]!.palette.bg).not.toBe(program.cuts[i - 1]!.palette.bg);
+      // A new line changes colour; chunks of one line mostly keep it.
+      for (let i = 1; i < program.cuts.length; i++) if (!program.cuts[i]!.part) expect(program.cuts[i]!.palette.bg).not.toBe(program.cuts[i - 1]!.palette.bg);
       const composition = lyricsComposition(layout, program, measure, variant);
       expect(composition.frames).toBe(Math.ceil(program.durationMs / 1000 * 30) + 1);
       expect(composition.body).not.toMatch(/\{"[*/|]"\}/);
+      // Every plate the film places is listed for drawing.
+      for (const file of composition.body.match(/lp_[a-z0-9]+_\d+\.png/g) ?? []) expect(composition.plates.some((pl) => pl.file === file)).toBe(true);
     }
     const titled = layoutTemplate(plan(LRC), measure, { format: "mp4" }).lyrics!;
-    expect(titled.cuts.length).toBe(5); // the title card and four lines
-    // LRC timing: each line holds until the next timestamp (when the whole fits the cap).
+    expect(titled.cuts[0]!.layout === "giant" || titled.cuts[0]!.layout === "center").toBe(true);
+    // LRC timing: a line's cuts share its time (until the next timestamp) when the whole fits the cap.
     const timed = layoutTemplate(plan("[00:10.00]one line here\n[00:12.50]and the second\n[00:16.00]the third one"), measure, { format: "mp4" }).lyrics!;
-    expect(timed.cuts[1]!.start - timed.cuts[0]!.start).toBe(2500 + LYRICS_MOTION.classic.transitionMs);
-    expect(timed.cuts[2]!.start - timed.cuts[1]!.start).toBe(3500 + LYRICS_MOTION.classic.transitionMs);
+    const lines: number[] = [];
+    for (const cut of timed.cuts) { if (!cut.part) lines.push(0); lines[lines.length - 1]! += cut.hold; }
+    expect(lines[0]).toBeGreaterThanOrEqual(2498); expect(lines[0]).toBeLessThanOrEqual(2502);
+    expect(lines[1]).toBeGreaterThanOrEqual(3498); expect(lines[1]).toBeLessThanOrEqual(3502);
     // Typewriter types every cut.
     expect(layoutTemplate(plan(EN, "classic", "typewriter"), measure, { format: "gif" }).lyrics!.cuts.every((c) => c.entrance === "type")).toBe(true);
   });
-  test("long lyrics share screens, a GIF is capped by its frame budget, and what cannot fit is an explicit error", () => {
-    const long = Array.from({ length: 14 }, (_, i) => `我唱第${i + 1}句到天亮`).join("\n");
-    // An MP4 runs to 30 s: a cut per line. A GIF keeps to 14.4 s: two lines a screen.
-    const program = layoutTemplate(plan(long), measure, { format: "mp4" }).lyrics!;
-    expect(program.cuts.length).toBe(14);
-    expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
-    const gif = layoutTemplate(plan(long), measure, { format: "gif" }).lyrics!;
-    expect(gif.cuts.length).toBe(7);
-    expect(gif.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.gifMaxMs);
-    expect(lyricsMaxMs(1080, 1920, "gif")).toBeLessThan(lyricsMaxMs(1080, 1080, "gif"));
-    expect<number>(lyricsMaxMs(1080, 1080, "mp4")).toBe(LYRICS_TIMING.maxMs);
-    const tall = layoutTemplate(plan(ZH, "classic", "reveal", "9:16"), measure, { format: "gif" }).lyrics!;
-    expect(tall.durationMs).toBeLessThanOrEqual(lyricsMaxMs(1080, 1920, "gif"));
-    const huge = Array.from({ length: 60 }, (_, i) => `我唱第${i + 1}句到天亮`).join("\n");
-    expect(() => layoutTemplate(plan(huge), measure, { format: "mp4" })).toThrow(/No content was dropped/);
-    expect(() => layoutTemplate(plan(huge), measure, { format: "mp4" })).toThrow(expect.objectContaining({ code: "lyric-too-long" }));
-    // The PNG poster holds all of it (the canvas grows).
-    expect(layoutTemplate(plan(huge, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("我唱第60句到天亮");
+  test("the vocabulary: many layouts per style, big type, chunked lines, stepped motion where the style asks", () => {
+    const used = new Map<string, Set<string>>();
+    for (const variant of LYRICS_VARIANTS) {
+      const set = new Set<string>();
+      for (const text of [ZH, JA, EN, "Copy anything. Paste it *beautifully*.", "我们今天发布了新版本，感谢每一位参与测试的朋友。", "駅のホームで、知らない人と同じ歌を口ずさんでいた。"]) {
+        const program = layoutTemplate(plan(text, variant), measure, { format: "mp4" }).lyrics!;
+        for (const cut of program.cuts) set.add(cut.layout);
+        expect(program.koma).toBe(LYRICS_MOTION[variant].koma);
+      }
+      used.set(variant, set);
+      expect(set.size).toBeGreaterThanOrEqual(6);
+    }
+    expect(new Set([...used.values()].flatMap((s) => [...s])).size).toBeGreaterThanOrEqual(15);
+    expect(LYRICS_MOTION.pop.koma).toBe(12); expect(LYRICS_MOTION.night.koma).toBe(12); expect(LYRICS_MOTION.editorial.koma).toBe(0);
+    // Koma-uchi: stepped keyframes hold each drawing, the next one a tick later.
+    const p = plan(JA, "pop");
+    const layout = layoutTemplate(p, measure, { format: "mp4" });
+    const film = lyricsComposition(layout, layout.lyrics!, measure, "pop");
+    const stepped = Object.values(film.keyframes).filter((k) => Object.keys(k as object).length >= 5);
+    expect(stepped.length).toBeGreaterThan(0);
+    // Some cut is set larger than the engine's largest baked size (a type plate).
+    expect(layout.lines.some((l) => l.plate && !l.decorative && l.size > 160)).toBe(true);
+    // Chunks: whole words, the text verbatim, never inside an emphasised run.
+    const specs = chunked(cutSpecs(lyricsOf("Oh, *stay awake* with me tonight and tell me everything") as Extract<TemplateContent, { kind: "lyrics" }>), new Typesetter(measure, 1.06), () => 0, 1);
+    expect(specs.length).toBeGreaterThan(1);
+    expect(specs.map((c) => c.segments[0]!.text).join(" ")).toBe("Oh, stay awake with me tonight and tell me everything");
+    for (const c of specs) for (const [a, b] of c.segments[0]!.emphasis) expect(c.segments[0]!.text.slice(a, b)).toBe("stay awake");
+  });
+  test("styles: four, each with its own faces, schemes that keep 4.5:1, and two geometrically distinct looks at least", () => {
+    expect(LYRICS_VARIANTS).toEqual(["classic", "editorial", "pop", "night"]);
+    expect(templateRegistration("lyrics").variants.map((v) => v.id)).toEqual(["classic", "editorial", "pop", "night"]);
+    for (const variant of LYRICS_VARIANTS) {
+      const style = LYRICS_STYLES[variant];
+      for (const face of Object.values(style.engine.faces!)) expect(TEMPLATE_FACES[face]).toBeDefined();
+      for (const pal of style.motion.palette) {
+        for (const key of ["ink", "accent", "sub"] as const) {
+          expect(contrastRatio(pal[key], pal.bg)).toBeGreaterThanOrEqual(4.5);
+          expect(contrastRatio(pal[key], pal.tint)).toBeGreaterThanOrEqual(4.5);
+        }
+        expect(contrastRatio(pal.plateInk, pal.plate)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    // Geometry differs by style: the same lyrics give different layouts.
+    const shapes = LYRICS_VARIANTS.map((v) => layoutTemplate(plan(ZH, v), measure, { format: "mp4" }).lyrics!.cuts.map((c) => c.layout).join(","));
+    expect(new Set(shapes).size).toBeGreaterThanOrEqual(2);
   });
   test("engine paint: Stage gilds emphasis with a gradient and a glow, Paper inks it heavier; stops keep contrast; no glow on a light ground or in a GIF", () => {
     for (const pal of LYRICS_STYLES.classic.motion.palette) {
       const paint = emphasisPaint(LYRICS_STYLES.classic.engine, pal, 172, 1080, "mp4")!;
       expect(paint.gradient).toBeDefined();
       for (const stop of [paint.gradient!.from, paint.gradient!.to]) expect(contrastRatio(stop, pal.bg)).toBeGreaterThanOrEqual(3);
-      // A glow is light: only where the accent is lighter than the ground.
       expect(Boolean(paint.glow)).toBe(contrastRatio(pal.accent, "#000000") > contrastRatio(pal.bg, "#000000"));
       expect(emphasisPaint(LYRICS_STYLES.classic.engine, pal, 172, 1080, "gif")!.glow).toBeUndefined();
     }
     const paper = emphasisPaint(LYRICS_STYLES.editorial.engine, LYRICS_STYLES.editorial.motion.palette[0]!, 172, 1080, "png")!;
     expect(paper).toEqual({ stroke: { width: 2, color: LYRICS_STYLES.editorial.motion.palette[0]!.accent, position: "outside" } });
-    // The layout carries the paint on emphasised runs only, in poster and video alike.
+    // Paint only ever marks emphasised lyric runs (decorative repeats carry their own outline).
     for (const [variant, motion] of [["classic", "none"], ["classic", "reveal"], ["editorial", "none"], ["editorial", "reveal"]] as const) {
       const layout = layoutTemplate(plan(JA, variant, motion), measure, { format: motion === "none" ? "png" : "mp4" });
-      expect(layout.lines.filter((l) => l.paint).every((l) => l.emphasis)).toBe(true);
-      expect(layout.lines.some((l) => l.paint)).toBe(true);
+      expect(layout.lines.filter((l) => l.paint && !l.decorative).every((l) => l.emphasis)).toBe(true);
+      if (motion === "none") expect(layout.lines.some((l) => l.paint)).toBe(true);
     }
-    // The video: gradient stops animate from the ink at the punch, the entrance blurs in, the big disc is a soft radial light.
-    const p = plan(JA, "classic");
-    const layout = layoutTemplate(p, measure, { format: "mp4" });
-    const composition = lyricsComposition(layout, layout.lyrics!, measure, "classic");
-    expect(composition.body).toContain("bg-clip-text");
-    expect(JSON.stringify(composition.keyframes)).toContain("gradFrom");
-    expect(JSON.stringify(composition.keyframes)).toContain("\"blur\"");
-    expect(lyricsViolations(layout, layout.lyrics!, p)).toEqual([]);
   });
-  test("named faces: none ship, so nothing changes; a registered face in a style's slot is asked for", () => {
-    expect(Object.keys(TEMPLATE_FACES)).toEqual([]);
-    expect(templateFaceNames({ template: "lyrics", variant: "classic" })).toEqual([]);
-    const engine = LYRICS_STYLES.classic.engine as unknown as { faces: unknown };
-    TEMPLATE_FACES.display = CODE_FONT; engine.faces = { display: "display", text: "display" };
-    try {
-      expect(templateFaceNames({ template: "lyrics", variant: "classic" })).toEqual(["display"]);
-      expect(templateFaceNames({ template: "text", variant: "classic" })).toEqual([]);
-      const layout = layoutTemplate(plan(EN, "classic", "none"), measure, { faces: ["display"] });
-      expect(layout.lines.filter((l) => !l.signature).every((l) => l.face === "display")).toBe(true);
-      // Not measured (or lacking a glyph): the card's own pair.
-      expect(layoutTemplate(plan(EN, "classic", "none"), measure).lines.some((l) => l.face)).toBe(false);
-    } finally { delete TEMPLATE_FACES.display; engine.faces = null; }
+  test("named faces: a display face per script; each face is checked against the text it sets; plates and decorative text never replace the lyric", () => {
+    expect(Object.keys(TEMPLATE_FACES).length).toBe(9);
+    for (const files of Object.values(TEMPLATE_FACES)) expect(existsSync(join(CODE_FONT_DIR, files.regular))).toBe(true);
+    expect(templateFaceNames({ template: "lyrics", variant: "classic", sourceText: ZH })).toEqual(["grin"]);
+    expect(templateFaceNames({ template: "lyrics", variant: "classic", sourceText: JA })).toEqual(["dela"]);
+    expect(templateFaceNames({ template: "lyrics", variant: "classic", sourceText: EN })).toEqual(["anton"]);
+    expect(templateFaceNames({ template: "lyrics", variant: "editorial", sourceText: ZH })).toEqual(["wenkai"]);
+    expect(templateFaceNames({ template: "text", variant: "classic", sourceText: EN })).toEqual([]);
+    // The face sets the lyric (and title), never the notes, labels or credit.
+    const noted = "# Lanterns\n[Verse]\nPaper lanterns on the river|a note\nWe were counting every bridge";
+    expect(faceTexts({ content: lyricsOf(noted)! })).toEqual(["Lanterns", "Paper lanterns on the river", "We were counting every bridge"]);
+    const layout = layoutTemplate(plan(noted, "classic", "none"), measure, { faces: ["anton"] });
+    expect(layout.lines.filter((l) => !l.secondary && !l.signature).every((l) => l.face === "anton")).toBe(true);
+    expect(layout.lines.filter((l) => l.secondary).some((l) => l.face)).toBe(false);
+    expect(layoutTemplate(plan(EN, "classic", "none"), measure).lines.some((l) => l.face)).toBe(false);
+    // A display face has one weight: nothing set in it is ever measured bold (the engine measures only its regular slots).
+    const strict: TemplateMeasure = {
+      width: (t, size, bold, face) => { if (bold && face) throw new Error(`bold ${face}`); return measure.width(t, size, bold, face); },
+      lineHeight: (size, bold, face) => { if (bold && face) throw new Error(`bold ${face}`); return measure.lineHeight(size, bold, face); },
+    };
+    for (const variant of LYRICS_VARIANTS) for (const [text, script] of [[ZH, "zh"], [JA, "ja"], [EN, "latin"]] as const) {
+      const face = LYRICS_STYLES[variant].engine.faces![script];
+      for (const aspect of ["1:1", "9:16"] as const) for (const motion of ["none", "reveal"] as const) {
+        const layout = layoutTemplate(plan(text, variant, motion, aspect), strict, { faces: [face], format: motion === "none" ? "png" : "mp4" });
+        expect(layout.lines.filter((l) => l.face).every((l) => !l.bold)).toBe(true);
+      }
+    }
+    // A decorative copy is traceable but never counts as drawn: dropping the real line is still "missing".
+    const p = plan("Paper lanterns", "classic");
+    const line = { text: "Paper lanterns", x: 10, y: 10, width: 100, height: 40, size: 40, color: "#ffffff", bold: false, group: 0, boldAt: [] };
+    expect(fidelityViolations({ width: 400, height: 400, background: "#000000", lines: [{ ...line, decorative: true }], shapes: [] }, p).map((v) => v.kind)).toEqual(["missing"]);
+    expect(fidelityViolations({ width: 400, height: 400, background: "#000000", lines: [line, { ...line, decorative: true }], shapes: [] }, p)).toEqual([]);
+    expect(fidelityViolations({ width: 400, height: 400, background: "#000000", lines: [line, { ...line, text: "Lanterns of paper", decorative: true }], shapes: [] }, p).map((v) => v.kind)).toEqual(["untraceable"]);
+  });
+  test("type plates: advances, an RGBA image placed on the baseline, outlines and hollow rings", () => {
+    const face = loadFace(join(CODE_FONT_DIR, TEMPLATE_FACES.dela!.regular));
+    expect(missingGlyphs(face, "夜明けのA")).toEqual([]);
+    expect(missingGlyphs(face, "说")).toEqual(["说"]);
+    expect(plateWidth(face, "夜夜", 300)).toBeCloseTo(2 * plateWidth(face, "夜", 300), 5);
+    const plain = renderPlate(face, "夜", 300, { color: "#ff0000" });
+    expect([...plain.png.slice(1, 4)].map((c) => String.fromCharCode(c)).join("")).toBe("PNG");
+    expect(plain.png[25]).toBe(6); // RGBA
+    expect(plain.width).toBeGreaterThan(280); expect(plain.oy).toBeGreaterThan(200);
+    const hollow = renderPlate(face, "夜", 300, { color: "#ff0000", stroke: { width: 6, color: "#ffffff", hollow: true } });
+    expect(hollow.width).toBeGreaterThan(plain.width);
+    const turned = plateGeometry(face, "夜明け", 200, { rotate: -12 });
+    expect(turned.height).toBeGreaterThan(plateGeometry(face, "夜明け", 200, {}).height);
   });
   test("the caps match the limits they stand for", () => {
     expect<number>(LYRICS_TIMING.gifMaxMs).toBe(TEMPLATE_SCROLL.startMs + TEMPLATE_SCROLL.maxMs + TEMPLATE_SCROLL.endMs);

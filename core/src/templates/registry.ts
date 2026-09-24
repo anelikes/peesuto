@@ -64,6 +64,7 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
   // "Lyric motion" (文字 PV): kinetic type for any text; the id stays "lyrics" (saved styles and disabled lists use it).
   { id: "lyrics", name: "Lyric motion", nameZh: "文字 PV", variants: [
     { id: "classic", name: "Stage", nameZh: "舞台" }, { id: "editorial", name: "Paper", nameZh: "纸面" },
+    { id: "pop", name: "Pop", nameZh: "糖果" }, { id: "night", name: "Night", nameZh: "夜行" },
   ], motions: MOTIONS },
   { id: "qr", name: "QR code", nameZh: "二维码", variants: [
     { id: "classic", name: "Plain", nameZh: "纯净" }, { id: "editorial", name: "Card", nameZh: "卡片" },
