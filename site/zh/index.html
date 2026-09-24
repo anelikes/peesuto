@@ -90,7 +90,7 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>图片<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>视频<kbd>M</kbd></li>
-<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字 PV<kbd>L</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字 PV · GIF<kbd>L</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-qr"/></svg>二维码<kbd>Q</kbd></li>
 <li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>贴到屏幕<kbd>P</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-history"/></svg>剪贴板历史<kbd>H</kbd></li>
@@ -231,8 +231,8 @@ Host: https://staging.example.com</pre></div>
 <dl>
 <dt><kbd class="inline-cap">I</kbd></dt><dd><strong>图片</strong>：PNG，直接粘贴进你正在输入的应用</dd>
 <dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>：同一张卡片，逐行出现</dd>
-<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>视频</strong>：MP4，用你 Mac 上的 ffmpeg 生成</dd>
-<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字 PV</strong>：任意文字做成动态文字视频，按句子和分句切成一幕幕</dd>
+<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>视频</strong>：MP4，由 Mac 自带的视频硬件编码</dd>
+<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字 PV</strong>：任意文字做成动态文字，按句子和分句切成一幕幕：默认 GIF，也可以设成视频或海报</dd>
 <dt><kbd class="inline-cap">Q</kbd></dt><dd><strong>二维码</strong>：编码的就是你复制的原文，不会发给任何模型</dd>
 <dt><kbd class="inline-cap">P</kbd></dt><dd><strong>贴到屏幕</strong>：浮在所有窗口之上；可拖动、捏合缩放，双击关闭</dd>
 </dl>
@@ -249,7 +249,7 @@ Host: https://staging.example.com</pre></div>
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>图片<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>视频<kbd>M</kbd></li>
-<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字 PV<kbd>L</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字 PV · GIF<kbd>L</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-qr"/></svg>二维码<kbd>Q</kbd></li>
 <li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>贴到屏幕<kbd>P</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-history"/></svg>剪贴板历史<kbd>H</kbd></li>
@@ -281,7 +281,7 @@ Host: https://staging.example.com</pre></div>
 <details><summary>为什么需要“辅助功能”权限？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>为了把结果粘贴进你正在使用的应用、在光标处打开选择面板，并在粘贴前确认光标还在原来的位置。不授权也能正常复制和查看历史，结果会放进剪贴板，由你自己按 ⌘V。</p></details>
 <details><summary>哪些数据会离开我的 Mac？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>默认什么都不会。只有当你配置了 AI 服务，复制的文字才会先脱敏，再用你的密钥发给该服务商。设置里有一个离线开关，可以一键全部切断。<a href="/zh/privacy/">隐私政策</a>列出了每一种情况。</p></details>
 <details><summary>必须用 AI 吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>不必。本地规则就能为所有内容选好模板。如果愿意，也可以填入自己的密钥，让小模型 Jev 来挑模板和样式，支持 TypeSafe、Vercel AI Gateway、OpenRouter 或你自己的 Cloudflare 账号。它只负责选择呈现方式，从不改写你的文字。</p></details>
-<details><summary>需要安装 ffmpeg 吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>只有生成 MP4 视频时需要。Peesuto 使用你 Mac 上已有的 ffmpeg（<code>brew install ffmpeg</code>），不会自带或自动安装。图片、GIF 和二维码不需要任何额外组件。</p></details>
+<details><summary>生成视频需要装别的吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>不需要。MP4 由 Peesuto 自己用 Mac 内置的视频编码器（VideoToolbox）生成。图片、GIF、视频和二维码都不用另外安装任何组件。</p></details>
 <details><summary>支持哪些 Mac？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>搭载 Apple 芯片、运行 macOS 13 Ventura 或更高版本的 Mac。</p></details>
 <details><summary>可以用 Homebrew 安装吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>可以：<code>brew install --cask anelikes/tap/peesuto</code>。之后应用会自己更新。</p></details>
 <details><summary>收费吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>免费。Peesuto 以 MIT 许可证开源，开源版本没有任何功能保留。</p></details>

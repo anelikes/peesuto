@@ -90,7 +90,7 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>Video<kbd>M</kbd></li>
-<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>Lyric motion<kbd>L</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>Lyric motion · GIF<kbd>L</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR code<kbd>Q</kbd></li>
 <li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>Pin to screen<kbd>P</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-history"/></svg>Clipboard history<kbd>H</kbd></li>
@@ -231,8 +231,8 @@ Host: https://staging.example.com</pre></div>
 <dl>
 <dt><kbd class="inline-cap">I</kbd></dt><dd><strong>Image</strong>: a PNG, pasted into the app you are typing in</dd>
 <dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>: the same card, revealed line by line</dd>
-<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>Video</strong>: MP4, made with the ffmpeg on your Mac</dd>
-<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>Lyric motion</strong>: any text as kinetic type, cut into screens at its sentences and clauses</dd>
+<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>Video</strong>: an MP4, encoded by your Mac's own video hardware</dd>
+<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>Lyric motion</strong>: any text as kinetic type, cut into screens at its sentences and clauses: a GIF, or a video or poster if you prefer</dd>
 <dt><kbd class="inline-cap">Q</kbd></dt><dd><strong>QR code</strong>: exactly the text you copied; never sent to a model</dd>
 <dt><kbd class="inline-cap">P</kbd></dt><dd><strong>Pin to screen</strong>: floats above every window; drag, pinch to zoom, double-click to close</dd>
 </dl>
@@ -249,7 +249,7 @@ Host: https://staging.example.com</pre></div>
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>Video<kbd>M</kbd></li>
-<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>Lyric motion<kbd>L</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>Lyric motion · GIF<kbd>L</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR code<kbd>Q</kbd></li>
 <li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>Pin to screen<kbd>P</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-history"/></svg>Clipboard history<kbd>H</kbd></li>
@@ -281,7 +281,7 @@ Host: https://staging.example.com</pre></div>
 <details><summary>Why does it ask for Accessibility access?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>To paste into the app you are typing in, to open the chooser at your caret, and to check that the caret is still where you left it before pasting. Without the permission, copying and history still work; the result is copied and you press ⌘V yourself.</p></details>
 <details><summary>What leaves my Mac?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>By default, nothing. Only if you set up an AI provider is copied text sent, with secrets redacted first, to that provider with your key. One offline switch in Settings stops all of it. The <a href="/privacy/">privacy policy</a> lists every case.</p></details>
 <details><summary>Is AI required?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>No. Local rules choose a template for everything. If you like, bring your own key and let Jev, a small model, choose the template and style, through TypeSafe, Vercel AI Gateway, OpenRouter or your own Cloudflare account. It picks presentation only; it never rewrites your text.</p></details>
-<details><summary>Do I need ffmpeg?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Only for MP4 video. Peesuto uses the ffmpeg already on your Mac (<code>brew install ffmpeg</code>) and does not bundle or install it. Images, GIFs and QR codes need nothing extra.</p></details>
+<details><summary>Does video need anything extra?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>No. Peesuto makes MP4 itself, with the video encoder built into your Mac (VideoToolbox). Images, GIFs, video and QR codes need nothing else installed.</p></details>
 <details><summary>Which Macs does it run on?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Macs with Apple silicon, on macOS 13 Ventura or later.</p></details>
 <details><summary>Can I install it with Homebrew?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Yes: <code>brew install --cask anelikes/tap/peesuto</code>. The app keeps itself up to date from then on.</p></details>
 <details><summary>What does it cost?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Nothing. Peesuto is free and MIT-licensed, and no feature is held back from the open-source build.</p></details>

@@ -90,7 +90,7 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>画像<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>動画<kbd>M</kbd></li>
-<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字PV<kbd>L</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字PV · GIF<kbd>L</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR コード<kbd>Q</kbd></li>
 <li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>画面にピン留め<kbd>P</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-history"/></svg>クリップボード履歴<kbd>H</kbd></li>
@@ -231,8 +231,8 @@ Host: https://staging.example.com</pre></div>
 <dl>
 <dt><kbd class="inline-cap">I</kbd></dt><dd><strong>画像</strong>：PNG を、いま入力中のアプリにそのままペースト</dd>
 <dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>：同じカードを、一行ずつ表示</dd>
-<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>動画</strong>：MP4。Mac に入っている ffmpeg で作ります</dd>
-<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字PV</strong>：どんなテキストも、文や句の切れ目で場面に分けた動く文字に</dd>
+<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>動画</strong>：MP4。Mac 内蔵のビデオハードウェアでエンコードします</dd>
+<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字PV</strong>：どんなテキストも、文や句の切れ目で場面に分けた動く文字に。GIF のほか、ビデオやポスターにも</dd>
 <dt><kbd class="inline-cap">Q</kbd></dt><dd><strong>QR コード</strong>：コピーしたテキストをそのまま。モデルには送りません</dd>
 <dt><kbd class="inline-cap">P</kbd></dt><dd><strong>画面にピン留め</strong>：すべてのウィンドウの上に浮かびます。ドラッグで移動、ピンチで拡大、ダブルクリックで閉じます</dd>
 </dl>
@@ -249,7 +249,7 @@ Host: https://staging.example.com</pre></div>
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>画像<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>動画<kbd>M</kbd></li>
-<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字PV<kbd>L</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-lyric"/></svg>文字PV · GIF<kbd>L</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR コード<kbd>Q</kbd></li>
 <li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>画面にピン留め<kbd>P</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-history"/></svg>クリップボード履歴<kbd>H</kbd></li>
@@ -281,7 +281,7 @@ Host: https://staging.example.com</pre></div>
 <details><summary>なぜ「アクセシビリティ」の許可が必要なのですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>入力中のアプリにペーストするため、カーソルの位置にパネルを開くため、そしてペーストの直前にカーソルが元の場所にあるかを確かめるためです。許可しなくてもコピーと履歴は使えます。その場合、結果はクリップボードに入るので、⌘V はご自分で押してください。</p></details>
 <details><summary>Mac の外に出るデータはありますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/ja/privacy/">プライバシーポリシー</a>に書いてあります。</p></details>
 <details><summary>AI は必須ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。</p></details>
-<details><summary>ffmpeg は必要ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>MP4 動画を作るときだけ必要です。Peesuto は Mac にインストール済みの ffmpeg（<code>brew install ffmpeg</code>）を使い、同梱も自動インストールもしません。画像、GIF、QR コードには何も要りません。</p></details>
+<details><summary>動画を作るのに何か必要ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>いいえ。MP4 は Peesuto 自身が、Mac に内蔵のビデオエンコーダ（VideoToolbox）で作ります。画像、GIF、動画、QR コードのどれにも、追加でインストールするものはありません。</p></details>
 <details><summary>対応している Mac は？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。</p></details>
 <details><summary>Homebrew で入れられますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>はい。<code>brew install --cask anelikes/tap/peesuto</code> でインストールできます。アップデートはアプリ自身が行います。</p></details>
 <details><summary>料金はかかりますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>かかりません。Peesuto は MIT ライセンスのオープンソースで、オープンソース版から外している機能もありません。</p></details>
