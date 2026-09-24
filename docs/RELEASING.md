@@ -263,7 +263,7 @@ print or copy the private key.
    Items stay newest first; rerunning for the same build replaces its item. To
    redo only this step: `bun scripts/appcast.ts --dmg native/dist/Peesuto-<version>-arm64.dmg --build <build> [--dry-run]`.
 3. Commit `site/appcast.xml`.
-4. Create the GitHub Release `v<version>` and upload the DMG (and `.sha256`)
+4. Create the GitHub Release `v<version>` and upload the DMG (and `.sha256`), plus a copy named `Peesuto.dmg` (the website's Download button is `releases/latest/download/Peesuto.dmg`)
    **exactly as signed**; any change to the file invalidates the signature. The
    repository must be public (or the enclosure hosted elsewhere) for the
    download to work.

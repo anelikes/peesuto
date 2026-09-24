@@ -21,6 +21,8 @@ own license:
 - Peesuto Text, the same subset with full-width glyphs narrowed to 1em
   (scripts/fonts/peesuto-text.py), SIL Open Font License 1.1.
 - Noto Sans SC, Copyright Google LLC and Adobe, SIL Open Font License 1.1.
+- Sparkle 2 (https://sparkle-project.org), Copyright Andy Matuschak and
+  the Sparkle Project contributors, MIT License.
 - highlight.js 11.12.0 (https://highlightjs.org/), Copyright 2006 Ivan
   Sagalaev and contributors, BSD 3-Clause License.
 - gifenc (https://github.com/mattdesl/gifenc), Copyright 2017 Matt

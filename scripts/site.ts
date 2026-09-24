@@ -22,7 +22,8 @@ const REPO = resolve(import.meta.dir, "..");
 const SITE = join(REPO, "site");
 const ORIGIN = "https://peesuto.com";
 const GITHUB = "https://github.com/anelikes/peesuto";
-const DOWNLOAD = `${GITHUB}/releases/latest`;
+/** Every release also carries the DMG as Peesuto.dmg, so this always downloads the newest one. */
+const DOWNLOAD = `${GITHUB}/releases/latest/download/Peesuto.dmg`;
 /**
  * The hero plays an HTML/CSS loop. When the promo video exists, put it at
  * site/assets/<name>.mp4 (and a poster .webp beside it) and set this to the
