@@ -6,6 +6,19 @@
     <description>Peesuto updates</description>
     <language>en</language>
     <item>
+      <title>Version 0.2.1</title>
+      <pubDate>Thu, 24 Sep 2026 09:18:11 GMT</pubDate>
+      <sparkle:version>150</sparkle:version>
+      <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>Six new templates, and a lighter app.</p>
+<h3>New</h3>
+<ul><li>**Lyrics cards** — song lyrics, LRC files and classical poems become a lyric poster (PNG) or a short kinetic-type lyric video (GIF/MP4): a cut per line with staggered letters, colour changes, moving decor, emphasis that punches; JIZURA&apos;s <code>/</code>, <code>*emphasis*</code>, <code>|note</code> and <code>!</code> markup works. &quot;Open in JIZURA&quot; hands the lyrics to [JIZURA](https://github.com/852wa/JIZURA) for a full lyric video.</li><li>**Metrics cards** — several <code>label: number</code> lines, with changes such as (+8%), become a grid of big numbers; rises are green, falls red.</li><li>**Schedule cards** — agendas, itineraries and roadmaps (lines that start with a time or a date) become a timeline with a dot per event.</li><li>**Error cards** — a copied error with its stack trace (JavaScript, Python, Java, C#, Go, Rust, Ruby, PHP) leads with the message; your own frames stand out, library frames are dimmed.</li><li>**Diff cards** — a copied <code>git diff</code> or patch becomes a review card: file names as titles, added and removed lines on green and red rows, and a +N −M count. A <code>git show</code> or <code>git format-patch</code> header (sha, author, date, message) sits above it as written.</li><li>**Terminal session cards** — a copied shell session becomes a terminal window: prompts and commands stand out, output is dimmed, errors are red and a final exit status sits in a pill.</li></ul>
+<h3>Improved</h3>
+<ul><li>**A smaller download** — the app is about 45 MB smaller (the DMG about 11 MB), with every template still rendered offline.</li><li>**Install with Homebrew** — <code>brew install --cask anelikes/tap/peesuto</code>.</li></ul>]]></description>
+      <enclosure url="https://github.com/anelikes/peesuto/releases/download/v0.2.1/Peesuto-0.2.1-arm64.dmg" length="87637391" type="application/octet-stream" sparkle:edSignature="kdtqLiSVzJU1oLUCKqsPaSbVSnb7IQyM3eZqawada7u7MnyPnoYQ0Lzr03vNehAtb0HxL4BWJv0WOFUpqmjFCw=="/>
+    </item>
+    <item>
       <title>Version 0.2.0</title>
       <pubDate>Thu, 24 Sep 2026 05:36:26 GMT</pubDate>
       <sparkle:version>128</sparkle:version>
