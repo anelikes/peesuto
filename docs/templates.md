@@ -598,7 +598,7 @@ user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
   broken into two or three chunks of whole words, a cut each, never inside an
   emphasised run: a line lands in two or three hits and keeps its colour
   across them. A cut is:
-  - a **layout**, drawn by a seeded planner from 21 (`LYRIC_LAYOUTS`): centre;
+  - a **layout**, drawn by a seeded planner from 22 (`LYRIC_LAYOUTS`): centre;
     low left under an accent rule; a stack stepping across; **steps** (rows of
     one or two words whose sizes jump, big–small–big); **giant** (a short line
     as one or two rows filling the frame's width); **focus** (one glyph of the
@@ -614,7 +614,8 @@ user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
     **cascade** (words stepping down); **frame** (a thick frame drawing itself
     round the screen); **ticker** (bands of the line running above and below);
     **wide** (one spaced-out row between rules); **wave** (glyphs whose sizes
-    and baselines rise and fall). Weights come from the style, the cut
+    and baselines rise and fall); **tilt** (glyphs as plates, each turned a
+    little, alternately left and right). Weights come from the style, the cut
     (short lines favour giant and wave, emphasis and `!` giant, jump and split,
     CJK portrait frames vertical and mix) and novelty (a layout used in the
     last two cuts is almost never drawn, in the last six rarely). A layout
@@ -638,8 +639,10 @@ user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
     dark grounds and multiplied on light ones, spiking on the cut and on every
     beat;
   - **decor** on quiet layouts (bars, a soft orb, dots; rules and a sun in
-    Paper) kept clear of the text; Night adds a camera HUD (corner brackets,
-    the cut number over the count);
+    Paper) kept clear of the text, and sometimes micro-copy (the cut's own
+    words, small and spaced, in an empty band after a short accent bar;
+    decorative); Night adds a camera HUD (corner brackets, the cut number
+    over the count);
   - **texture** over everything (`texture`): sparse film grain that changes
     12 times a second, scanlines (Night), a paper tooth (Paper), a vignette
     lighter on light grounds; none in a GIF.
@@ -688,9 +691,9 @@ user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
   Contrast checks read the paint (`inkColors` in checks.ts): gradient ink
   counts both stops, hollow text its outline (and fails below the large
   size), an outline of at least 4% of the size counts as a halo.
-- **Cost**: a 20 s 1:1 MP4 renders in about 17–23 s on an M-series Mac
-  (Paper fastest, Night slowest), 9:16 in 15–38 s. Full-canvas images are the
-  expensive part of the software rasteriser, so textures are sparse and
+- **Cost**: a 20 s MP4 renders in about 12–28 s at 1:1 and 17–40 s at 9:16
+  on an M-series Mac (Pop fastest, Night slowest). Full-canvas images are
+  the expensive part of the software rasteriser, so textures are sparse and
   sampled nearest.
 - **Open in JIZURA** (native result panel, lyric-motion results only):
   JIZURA's web app takes no lyrics in its URL (it starts from what it saved

@@ -192,7 +192,7 @@ export function lyricFaceNames(variant: string, sourceText: string): string[] {
 
 /** The cut layouts (lyric-video.ts): how one cut's words sit on the screen. */
 export const LYRIC_LAYOUTS = ["center", "low", "stack", "steps", "giant", "focus", "diagonal", "split", "mix", "vertical", "echo", "jump", "labels", "sweep",
-  "numeral", "caption", "cascade", "frame", "ticker", "wide", "wave"] as const;
+  "numeral", "caption", "cascade", "frame", "ticker", "wide", "wave", "tilt"] as const;
 export type LyricLayout = (typeof LYRIC_LAYOUTS)[number];
 /** Entrances: per glyph (rise, drop, slide, pop, focus, flicker, type), per plate (zoom, pop), or of the whole block (wipe, slice). */
 export const LYRIC_ENTRANCES = ["rise", "drop", "slide", "pop", "focus", "flicker", "type", "zoom", "wipe", "slice"] as const;
@@ -215,8 +215,8 @@ type Weights<K extends string> = Partial<Record<K, number>>;
 export const LYRICS_MOTION = {
   classic: {
     enterMs: 420, staggerMs: 45, maxStaggerMs: 620, typeMs: 55, exitMs: 220, transitionMs: 300, punchMs: 480,
-    driftEm: 0.22, riseEm: 0.6, slideEm: 0.8, dropEm: 0.8, exitEm: 0.3, koma: 0, bpm: 120, chunk: 0.55, hud: false,
-    layouts: { center: 0.5, low: 0.8, stack: 0.7, steps: 1.2, giant: 1.6, focus: 1.1, diagonal: 1.1, split: 1.1, mix: 0.9, echo: 0.8, jump: 1.1, labels: 0.9, sweep: 1, numeral: 0.8, cascade: 0.8, frame: 0.5, ticker: 0.9, wide: 0.3, wave: 0.2 } as Weights<LyricLayout>,
+    driftEm: 0.22, riseEm: 0.6, slideEm: 0.8, dropEm: 0.8, exitEm: 0.3, koma: 0, bpm: 120, chunk: 0.55, hud: false, micro: 0.5,
+    layouts: { center: 0.5, low: 0.8, stack: 0.7, steps: 1.2, giant: 1.6, focus: 1.1, diagonal: 1.1, split: 1.1, mix: 0.9, echo: 0.8, jump: 1.1, labels: 0.9, sweep: 1, numeral: 0.8, cascade: 0.8, frame: 0.5, ticker: 0.9, wide: 0.3, wave: 0.2, tilt: 0.6 } as Weights<LyricLayout>,
     entrances: { rise: 1, drop: 0.8, slide: 1, pop: 0.5, focus: 0.4, zoom: 1, wipe: 1, slice: 1.2 } as Weights<LyricEntrance>,
     holds: { still: 0.3, drift: 1, float: 0.5, breathe: 0.9 } as Weights<LyricHold>,
     transitions: { cut: 1.4, "wipe-l": 0.4, "wipe-r": 0.4, "wipe-u": 0.3, "wipe-d": 0.3, slice: 1, flash: 0.5, swap: 0.6 } as Weights<LyricTransition>,
@@ -226,7 +226,7 @@ export const LYRICS_MOTION = {
   },
   editorial: {
     enterMs: 680, staggerMs: 70, maxStaggerMs: 900, typeMs: 70, exitMs: 320, transitionMs: 480, punchMs: 640,
-    driftEm: 0.08, riseEm: 0.3, slideEm: 0.4, dropEm: 0.4, exitEm: 0, koma: 0, bpm: 84, chunk: 0.12, hud: false,
+    driftEm: 0.08, riseEm: 0.3, slideEm: 0.4, dropEm: 0.4, exitEm: 0, koma: 0, bpm: 84, chunk: 0.12, hud: false, micro: 0.25,
     layouts: { center: 1, low: 1, vertical: 1.4, mix: 1.1, focus: 1, caption: 1.3, wide: 1, echo: 0.5, sweep: 0.5, frame: 0.6, numeral: 0.6, cascade: 0.4, giant: 0.5 } as Weights<LyricLayout>,
     entrances: { rise: 1, focus: 1.4, slide: 0.5, type: 0.3, wipe: 0.6 } as Weights<LyricEntrance>,
     holds: { still: 0.6, drift: 1, float: 0.8, breathe: 0.4 } as Weights<LyricHold>,
@@ -236,8 +236,8 @@ export const LYRICS_MOTION = {
   },
   pop: {
     enterMs: 360, staggerMs: 50, maxStaggerMs: 560, typeMs: 50, exitMs: 200, transitionMs: 260, punchMs: 440,
-    driftEm: 0.15, riseEm: 0.7, slideEm: 0.8, dropEm: 1.1, exitEm: 0.4, koma: 12, bpm: 128, chunk: 0.6, hud: false,
-    layouts: { center: 0.4, stack: 0.7, steps: 1.2, giant: 1.3, jump: 1.5, labels: 1.5, wave: 1.5, cascade: 1, split: 1, echo: 0.6, ticker: 0.8, frame: 0.7, sweep: 0.8, diagonal: 0.7, focus: 0.5 } as Weights<LyricLayout>,
+    driftEm: 0.15, riseEm: 0.7, slideEm: 0.8, dropEm: 1.1, exitEm: 0.4, koma: 12, bpm: 128, chunk: 0.6, hud: false, micro: 0.3,
+    layouts: { center: 0.4, stack: 0.7, steps: 1.2, giant: 1.3, jump: 1.5, labels: 1.5, wave: 1.5, cascade: 1, split: 1, echo: 0.6, ticker: 0.8, frame: 0.7, sweep: 0.8, diagonal: 0.7, focus: 0.5, tilt: 1.3 } as Weights<LyricLayout>,
     entrances: { pop: 1.5, drop: 1.2, rise: 0.8, zoom: 1, slice: 0.5, wipe: 0.4 } as Weights<LyricEntrance>,
     holds: { float: 1.2, breathe: 1, still: 0.2 } as Weights<LyricHold>,
     transitions: { cut: 1, slice: 1, swap: 1, flash: 0.6, "wipe-l": 0.3, "wipe-r": 0.3 } as Weights<LyricTransition>,
@@ -246,8 +246,8 @@ export const LYRICS_MOTION = {
   },
   night: {
     enterMs: 380, staggerMs: 40, maxStaggerMs: 520, typeMs: 45, exitMs: 180, transitionMs: 220, punchMs: 420,
-    driftEm: 0.12, riseEm: 0.4, slideEm: 0.6, dropEm: 0.6, exitEm: 0, koma: 12, bpm: 132, chunk: 0.6, hud: true,
-    layouts: { low: 1, center: 0.6, focus: 1.2, echo: 1.3, ticker: 1.2, wide: 1, numeral: 1, giant: 1.1, diagonal: 0.8, split: 0.8, sweep: 0.6, steps: 0.8, caption: 0.5, frame: 0.6 } as Weights<LyricLayout>,
+    driftEm: 0.12, riseEm: 0.4, slideEm: 0.6, dropEm: 0.6, exitEm: 0, koma: 12, bpm: 132, chunk: 0.6, hud: true, micro: 0.4,
+    layouts: { low: 1, center: 0.6, focus: 1.2, echo: 1.3, ticker: 1.2, wide: 1, numeral: 1, giant: 1.1, diagonal: 0.8, split: 0.8, sweep: 0.6, steps: 0.8, caption: 0.5, frame: 0.6, tilt: 0.7 } as Weights<LyricLayout>,
     entrances: { flicker: 1.4, type: 0.8, slice: 1, wipe: 0.8, zoom: 0.6, rise: 0.5, focus: 0.3 } as Weights<LyricEntrance>,
     holds: { jitter: 1, drift: 0.6, still: 0.4 } as Weights<LyricHold>,
     transitions: { glitch: 1.6, cut: 0.8, slice: 0.6, flash: 0.5 } as Weights<LyricTransition>,

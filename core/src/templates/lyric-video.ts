@@ -834,7 +834,50 @@ const wave: LayoutFn = (env) => {
   return { lines: set.lines, size: Math.round(base * 0.6), align: "center", entrances: ["pop", "drop", "rise", "flicker"], holds: ["float", "breathe"] };
 };
 
-const LAYOUTS: Record<LyricLayout, LayoutFn> = { center, low, stack, steps, giant, focus, diagonal, split, mix, vertical, echo, jump, labels, sweep, numeral, caption, cascade, frame, ticker, wide, wave };
+/** Glyphs as plates each turned a little, alternately left and right, on a jittered baseline (one or two rows). */
+const tilt: LayoutFn = (env) => {
+  const seg = single(env);
+  if (!seg || !env.plate || units(seg.text) > 10 || missingGlyphs(env.plate.face, seg.text).length) return;
+  const g = graphemes(normalizeText(seg.text, "plain"));
+  if (g.filter((c) => c.trim()).length < 3) return;
+  const face = env.plate.face;
+  const angle = (i: number) => (i % 2 ? -1 : 1) * (6 + ((i * 7) % 5) * 2);
+  // A turned glyph's box: its em box turned.
+  const boxOf1 = (c: string, size: number, deg: number) => {
+    const w = plateWidth(face, c, size), h = size, r = (Math.abs(deg) * Math.PI) / 180;
+    return { w: w * Math.cos(r) + h * Math.sin(r), h: w * Math.sin(r) + h * Math.cos(r), adv: w };
+  };
+  const rows = units(seg.text) > 6 ? (() => { const k = middleBreak(env); return k === undefined ? undefined : [[0, k], [k, g.length]] as const; })() : [[0, g.length]] as const;
+  if (!rows) return;
+  // The size that fits: measured at 100 px, scaled (turned boxes scale with the size).
+  const probe = (size: number) => rows.map(([a, b]) => g.slice(a, b).map((c, k) => boxOf1(c, size, angle(a + k))).filter((_, k) => g[rows[0]![0] + k] !== undefined).reduce((n, x) => n + x.w + size * 0.02, 0));
+  const fitted = Math.floor(Math.min(100 * env.box.width / Math.max(...probe(100)), env.box.height / (1.25 * rows.length), 360 * u(env)));
+  for (const size of [fitted]) {
+    if (size < minImpact(env) * 1.3) break;
+    const laid: { c: string; i: number; w: number; h: number }[][] = rows.map(([a, b]) => g.slice(a, b).map((c, k) => ({ c, i: a + k, ...boxOf1(c, size, angle(a + k)) })).filter((x) => x.c.trim()));
+    const gap = size * 0.02;
+    const widths = laid.map((row) => row.reduce((n, x) => n + x.w + gap, -gap));
+    const rowH = size * 1.25;
+    if (Math.max(...widths) > env.box.width || rowH * laid.length > env.box.height) continue;
+    const lines: TemplateLine[] = [];
+    let cy = env.box.y + (env.box.height - rowH * laid.length) / 2 + rowH / 2;
+    for (const [r, row] of laid.entries()) {
+      let x = env.box.x + (env.box.width - widths[r]!) / 2;
+      for (const item of row) {
+        const lift = ((item.i * 5) % 3 - 1) * size * 0.06;
+        const emph = seg.emphasis.some(([a, b]) => item.i >= a && item.i < b);
+        const line = plateLine(env, item.c, 0, 0, size, emph || item.i % 4 === 1 ? env.pal.accent : env.pal.ink, emph ? { emphasis: true } : {});
+        lines.push({ ...line, x: Math.round(x), y: Math.round(cy - item.h / 2 + lift), width: Math.round(item.w), height: Math.round(item.h), plate: { rotate: angle(item.i) } });
+        x += item.w + gap;
+      }
+      cy += rowH;
+    }
+    return { lines, size, align: "center", entrances: ["pop", "drop", "zoom", "flicker"], holds: ["float", "breathe", "jitter"] };
+  }
+  return;
+};
+
+const LAYOUTS: Record<LyricLayout, LayoutFn> = { center, low, stack, steps, giant, focus, diagonal, split, mix, vertical, echo, jump, labels, sweep, numeral, caption, cascade, frame, ticker, wide, wave, tilt };
 
 /* ───────────── Ambient decor ───────────── */
 /** Decor shapes for one cut, kept clear of everything the cut writes. Returns the rects. */
@@ -920,6 +963,7 @@ function suitability(env: Env, layout: LyricLayout): number {
     case "center": case "low": w = n > 20 ? 1.6 : 1; break;
     case "steps": case "cascade": case "labels": w = n >= 4 && n <= 16 ? 1.2 : 0.6; break;
     case "wave": w = n <= 8 ? 1.3 : 0.7; break;
+    case "tilt": w = n <= 7 ? 1.3 : 0.7; if (emph) w *= 1.2; break;
     default: w = 1;
   }
   if (spec.bang && (layout === "giant" || layout === "jump" || layout === "split")) w *= 1.5;
@@ -1128,6 +1172,22 @@ export function video(ctx: LyricsContext): LyricsResult {
       const kind = decor[Math.floor(random() * decor.length)] ?? "none";
       prevDecor = kind;
       for (const k of decorate(kind, W, H, margin, outer, pal, M, result.shapes, style.engine.blur?.decor ?? 0)) shapes.push({ shape: k, role: "decor", motion: kind === "orb" ? "pop" : kind === "frame" || kind === "rules" ? "grow-x" : "pop", delay: 80 + shapes.length * 50 });
+      // Micro-copy: the cut's own words, small and spaced, in an empty band with a short accent bar (editorial texture; decorative).
+      const seg = spec.segments.length === 1 ? spec.segments[0] : undefined;
+      if (seg && V.micro > 0 && random() < V.micro && graphemes(seg.text).length <= 48) {
+        const small = Math.max(ctx.minSecondary, Math.round(M.small.size * 0.8));
+        const text = normalizeText(seg.text, "plain"), n = graphemes(text).length, track = 0.14;
+        const w = ctx.measure.width(text, small, false) + track * small * (n - 1), h = Math.round(small * 1.3);
+        const bar = { w: Math.round(small * 1.1), h: Math.max(3, Math.round(small * 0.18)) };
+        const top = outer.y > margin + h * 2, x = margin, y = top ? Math.round(margin * 0.55) : Math.round(H - margin * 0.55 - h - ctx.footerRoom());
+        const clear = top ? y + h + margin * 0.3 < outer.y : y > outer.y + outer.height + margin * 0.3;
+        if (clear && x + bar.w * 1.6 + w < W - margin) {
+          result.lines.push({ text, x: x + Math.round(bar.w * 1.6), y, width: Math.round(w), size: small, height: h, bold: false, color: pal.sub, group: 0, boldAt: graphemes(text).map(() => false), tracking: track, decorative: true, secondary: true });
+          decorEntries.push({ line: result.lines.length - 1, motion: "fade", delay: 140 });
+          shapes.push({ shape: result.shapes.length, role: "decor", motion: "grow-x", delay: 100 });
+          result.shapes.push({ x, y: y + Math.round((h - bar.h) / 2), width: bar.w, height: bar.h, color: pal.accent, radius: 0 });
+        }
+      }
     }
     // Night: a camera HUD round the frame (corner brackets and the cut counter) on every cut.
     if (V.hud) {
