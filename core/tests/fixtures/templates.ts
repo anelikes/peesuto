@@ -25,6 +25,10 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
     { kind: "prompt", prompt: "nya@mbp:~/peesuto$ ", command: "git push 推送" },
     { kind: "output", text: "error: failed to push some refs", tone: "error" }, { kind: "exit", text: "[exit 1]", ok: false },
   ] },
+  { kind: "diff", files: [{ path: "core/src/render/fonts.ts", meta: [], hunks: [{ header: "@@ -1,4 +1,5 @@ export const FONTS = {", lines: [
+    { type: "context", text: " export const FONTS = {" }, { type: "del", text: "-  code: \"NotoSansSC\"," }, { type: "add", text: "+  code: \"PeesutoCode\", // 等宽" },
+    { type: "add", text: "+  fallback: \"NotoSansSC\"," }, { type: "context", text: "   text: \"NotoSansSC\"," }, { type: "context", text: " };" },
+  ] }] }] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

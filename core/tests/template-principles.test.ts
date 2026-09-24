@@ -40,6 +40,12 @@ const EXTRA: readonly TemplateContent[] = [
     { kind: "output", text: "npm WARN config production Use `--omit=dev` instead.", tone: "warning" }, { kind: "output", text: "" },
     { kind: "output", text: "  构建完成，用时 3.2 秒" }, { kind: "prompt", prompt: "$ ", command: "" }, { kind: "exit", text: "exit status 0", ok: true },
   ] },
+  { kind: "diff", files: [
+    { path: "docs/新名字.md", oldPath: "docs/old-name.md", meta: ["similarity index 90%", "rename from docs/old-name.md", "rename to docs/新名字.md"], hunks: [
+      { header: "@@ -3 +3 @@", lines: [{ type: "del", text: "-旧的一行" }, { type: "add", text: "+A replaced line that is long enough to wrap across the whole width of the card, twice over at least." }, { type: "note", text: "\\ No newline at end of file" }] }] },
+    { path: "assets/logo.png", meta: ["new file mode 100644", "Binary files /dev/null and b/assets/logo.png differ"], hunks: [] },
+    { meta: [], hunks: [{ header: "@@ -10,3 +10,2 @@", lines: [{ type: "context", text: "" }, { type: "del", text: "-x" }, { type: "del", text: "-y" }, { type: "context", text: " z" }] }] },
+  ] },
   { kind: "info", title: "张三", fields: [{ value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" }] },
 ];
 const ALL = [...TEMPLATE_SAMPLES, ...EXTRA];
@@ -65,6 +71,8 @@ function sourceStrings(content: TemplateContent): string[] {
     case "changelog": return [...(content.title ? [content.title] : []), ...content.releases.flatMap((r) => [r.version, ...(r.date ? [r.date] : []),
       ...r.sections.flatMap((s) => [...(s.title ? [s.title] : []), ...s.items])])].map((s) => clean(s));
     case "terminal": return content.lines.map((l) => clean(l.kind === "prompt" ? l.prompt + l.command : l.text, true));
+    case "diff": return content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
+      ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((s) => clean(s, true));
     case "qr": return [content.data];
   }
 }
@@ -74,6 +82,8 @@ function orderedCount(content: TemplateContent): number {
   if (content.kind === "document") return Math.max(0, ...(content.blocks ?? []).map((b) => b.kind === "list" && b.ordered ? b.items.length : 0));
   // Code cards number their lines from 1 (the user asked for line numbers).
   if (content.kind === "code") return content.code.split("\n").length;
+  // A diff's "+N −M" summary counts its added and removed lines (the signs are shapes).
+  if (content.kind === "diff") return Math.max(...(["add", "del"] as const).map((type) => content.files.flatMap((f) => f.hunks.flatMap((h) => h.lines)).filter((l) => l.type === type).length));
   return 0;
 }
 const isNumber = (text: string, max: number) => /^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= max;
@@ -87,7 +97,7 @@ function eachLayout(visit: (layout: TemplateLayout, content: TemplateContent, la
 }
 
 describe("template principles", () => {
-  test("every drawn character comes from the source, except ordered-list numbers, code line numbers and the signature", () => {
+  test("every drawn character comes from the source, except ordered-list numbers, code line numbers, a diff's line counts and the signature", () => {
     eachLayout((layout, content, label) => {
       const sources = sourceStrings(content), max = orderedCount(content);
       for (const line of layout.lines) {

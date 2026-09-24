@@ -11,7 +11,7 @@ import { highlight, type CodePalette } from "./highlight.ts";
 import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type ChangeType, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
 import { CODE_FIELDS, stageField, type ColourField } from "./backdrop.ts";
-import { FATAL_CHECKS, checkLayout, type CheckViolation } from "./checks.ts";
+import { FATAL_CHECKS, checkLayout, diffCount, type CheckViolation } from "./checks.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
 /** GIF/MP4 content taller than the frame scrolls through it (the frame never
@@ -297,6 +297,29 @@ export const TERMINAL_STYLES = {
 type TerminalPanel = { readonly fill: string; readonly radius: number; readonly pad: number; readonly header: number; readonly shadow: "shadow" | "shadow-md" | "shadow-lg";
   readonly dots: { readonly size: number; readonly gap: number; readonly colors: readonly string[] } };
 type TerminalBand = { readonly fill: string; readonly padX: number; readonly padY: number; readonly radius: number; readonly gap: number };
+
+/** Unified diffs, set in Peesuto Code. The path is the title; `@@` headers are
+ * small; added and removed lines sit on green and red tinted rows with their
+ * +/- in a gutter; a summary of the counted lines (the one thing drawn that
+ * the source did not write, digits only, marked `generated`) sits in the
+ * title's corner, its + and − drawn as shapes. */
+export const DIFF_STYLES = {
+  /** Review: each file a white card, its path in a header band, the summary at its right. */
+  classic: { background: "#eeece6", signature: "#6b675e", margin: 64, layout: "card", card: { fill: "#ffffff", radius: 24, shadow: "shadow-md" } as DiffCard | null,
+    title: { size: 36, color: "#18181b", padY: 26, fill: "#f7f6f2", rule: "#e2ded4" }, meta: { size: 32, color: "#6b675e" }, old: "#6b675e",
+    sizes: [40, 36], floor: 36, leading: 1.3, padX: 28, gutter: 2, fileGap: 32, hunkGap: 0,
+    hunk: { size: 32, color: "#3b4a73", fill: "#eaeef8", padY: 10 },
+    add: { fill: "#e3f3e6", ink: "#14361f", sign: "#17692f" }, del: { fill: "#fbe6e4", ink: "#4a1512", sign: "#b42318" }, context: "#4f4b44", note: "#6b675e",
+    summary: { size: 32, add: "#17692f", del: "#b42318", sign: 16, bar: 4, gap: 10, between: 24 } },
+  /** Night diff: a dark page, the path as a heading with the summary under it, rows running edge to edge. */
+  editorial: { background: "#0f1115", signature: "#8c887f", margin: 80, layout: "bleed", card: null,
+    title: { size: 48, color: "#f2f0ea", padY: 0, fill: "", rule: "" }, meta: { size: 32, color: "#8b93a3" }, old: "#8b93a3",
+    sizes: [40, 36], floor: 36, leading: 1.3, padX: 0, gutter: 2, fileGap: 64, hunkGap: 24,
+    hunk: { size: 32, color: "#8fa3e0", fill: "", padY: 8 },
+    add: { fill: "#12301f", ink: "#d5f5de", sign: "#56d364" }, del: { fill: "#3b1519", ink: "#ffd8d5", sign: "#ff7b72" }, context: "#a3aab6", note: "#8b93a3",
+    summary: { size: 36, add: "#56d364", del: "#ff7b72", sign: 18, bar: 4, gap: 10, between: 28 } },
+} as const;
+type DiffCard = { readonly fill: string; readonly radius: number; readonly shadow: "shadow" | "shadow-md" | "shadow-lg" };
 
 /** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
 const LOCK_PATH = "M20 28 L20 20 C20 13.4 25.4 8 32 8 C38.6 8 44 13.4 44 20 L44 28 L38 28 L38 20 C38 16.7 35.3 14 32 14 C28.7 14 26 16.7 26 20 L26 28 Z "
@@ -919,6 +942,102 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       }
       backdropRects = backdrop;
       if (panel && P) { y += P.pad; panel.height = y - panel.y; }
+      bottom = settle(top, y);
+      break;
+    }
+    case "diff": {
+      const s = styleOf(DIFF_STYLES);
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
+      const C: DiffCard | null = s.card, card = s.layout === "card";
+      // Rows: inside the card (padded), or from edge to edge with the text at the margin.
+      const rowX = card ? margin : 0, rowW = card ? innerW() : W, textPad = card ? s.padX : margin;
+      const signW = (sz: number) => Math.ceil(measure.width("+", sz, true)) + Math.round(sz * 0.6);
+      const bodies = content.files.flatMap((f) => f.hunks.flatMap((h) => h.lines.map((l) => normalizeText(l.type === "note" ? l.text : l.text.slice(1), "code"))));
+      const totalRows = content.files.reduce((n, f) => n + f.meta.length + 2 + f.hunks.reduce((m, h) => m + 1 + h.lines.length, 0), 0);
+      const textW = (sz: number) => rowW - 2 * textPad - signW(sz);
+      const availH = view.fit - 2 * margin - footerRoom() - content.files.length * (2 * s.title.padY + s.fileGap);
+      const sizes: readonly number[] = s.sizes;
+      const fits = (sz: number) => bodies.every((b) => measure.width(b, sz, false) <= textW(sz));
+      const size = sizes.find((sz) => fits(sz) && totalRows * lh(sz, s.leading) <= availH) ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
+      const hang = Math.ceil(measure.width("  ", size, false));
+      const adds = diffCount(content, "add"), dels = diffCount(content, "del");
+      let y = margin; const top = y;
+      /** The "+N −M" summary, right-aligned to `right` on the first line at `ty`: signs as shapes, counts as generated digits. */
+      const summary = (right: number, ty: number, g: number) => {
+        const S = s.summary, parts = ([["add", adds], ["del", dels]] as const).filter(([, n]) => n > 0);
+        let x = right;
+        for (const [i, [type, n]] of [...parts].reverse().entries()) {
+          if (i) x -= S.between;
+          const digits = String(n), w = Math.ceil(measure.width(digits, S.size, true));
+          x -= w;
+          block(digits, x, ty, w + 1, S.size, true, S[type], { leading: 1.2, groupID: g, code: true, markdown: false, secondary: true, generated: true });
+          x -= S.gap + S.sign;
+          const cy = ty + mid(S.size);
+          rect(x, cy - S.bar / 2, S.sign, S.bar, S[type], 1).group = g;
+          if (type === "add") rect(x + S.sign / 2 - S.bar / 2, cy - S.sign / 2, S.bar, S.sign, S[type], 1).group = g;
+        }
+        return right - x;
+      };
+      const summaryW = () => {
+        const S = s.summary, parts = [adds, dels].filter((n) => n > 0);
+        return parts.reduce((w, n) => w + Math.ceil(measure.width(String(n), S.size, true)) + S.gap + S.sign, 0) + (parts.length - 1) * S.between;
+      };
+      for (const [f, file] of content.files.entries()) {
+        if (f) y += s.fileGap;
+        const g = group++;
+        const panel = C ? rect(rowX, y, rowW, 0, C.fill, C.radius) : undefined;
+        if (panel && C) { panel.shadow = C.shadow; panel.group = g; }
+        // Header: the path (the old one first, dimmed, when it was renamed) and, on the first file, the summary.
+        const withSummary = f === 0 && (adds > 0 || dels > 0);
+        const room = withSummary ? summaryW() + 32 : 0;
+        const headTop = y;
+        if (card) {
+          // The band's lower corners are squared off by a second rect beneath everything drawn on it.
+          const band = rect(rowX, y, rowW, 0, s.title.fill, C?.radius ?? 0), square = rect(rowX, y, rowW, 0, s.title.fill);
+          band.group = g; square.group = g;
+          y += s.title.padY;
+          if (file.oldPath) y += block(file.oldPath, rowX + textPad, y, rowW - 2 * textPad - room, s.meta.size, false, s.old, { leading: 1.25, groupID: g, code: true, markdown: false, secondary: true });
+          const titleTop = y;
+          if (file.path) y += block(file.path, rowX + textPad, y, rowW - 2 * textPad - room, s.title.size, true, s.title.color, { leading: 1.25, groupID: g, code: true, markdown: false });
+          for (const meta of file.meta) y += block(meta, rowX + textPad, y, rowW - 2 * textPad - room, s.meta.size, false, s.meta.color, { leading: 1.25, groupID: g, code: true, markdown: false, secondary: true });
+          if (withSummary) { const top = file.path ? titleTop + base(s.title.size) - base(s.summary.size) : headTop + s.title.padY; summary(rowX + rowW - textPad, top, g); y = Math.max(y, top + lh(s.summary.size, 1.2)); }
+          y += s.title.padY;
+          band.height = y - band.y;
+          // A file without hunks (a binary, a mode change) is its header alone.
+          if (file.hunks.length) { square.y = band.y + band.height / 2; square.height = band.height / 2; rect(rowX, y, rowW, 2, s.title.rule).group = g; y += 2; }
+        } else {
+          if (file.oldPath) y += block(file.oldPath, margin, y, innerW(), s.meta.size, false, s.old, { leading: 1.25, groupID: g, code: true, markdown: false, secondary: true });
+          if (file.path) y += block(file.path, margin, y, innerW(), s.title.size, true, s.title.color, { leading: 1.15, groupID: g, code: true, markdown: false });
+          for (const meta of file.meta) y += block(meta, margin, y, innerW(), s.meta.size, false, s.meta.color, { leading: 1.25, groupID: g, code: true, markdown: false, secondary: true });
+          if (withSummary) { y += 12; summary(margin + summaryW(), y, g); y += lh(s.summary.size, 1.2); }
+          y += 24;
+        }
+        for (const [h, hunk] of file.hunks.entries()) {
+          const gh = group++;
+          y += h ? s.hunkGap : s.hunkGap / 2;
+          const hunkRow = s.hunk.fill ? rect(rowX, y, rowW, 0, s.hunk.fill) : undefined;
+          if (hunkRow) hunkRow.group = gh;
+          const hh = block(hunk.header, rowX + textPad, y + s.hunk.padY, rowW - 2 * textPad, s.hunk.size, false, s.hunk.color, { leading: 1.25, groupID: gh, code: true, markdown: false, secondary: true, hang });
+          if (hunkRow) hunkRow.height = hh + 2 * s.hunk.padY;
+          y += hh + 2 * s.hunk.padY;
+          for (const line of hunk.lines) {
+            const gl = group++;
+            if (line.type === "note") { y += block(line.text, rowX + textPad + signW(size), y, textW(size), s.meta.size, false, s.note, { leading: s.leading, groupID: gl, code: true, markdown: false, secondary: true }); continue; }
+            const tone = line.type === "add" ? s.add : line.type === "del" ? s.del : undefined;
+            const row = tone ? rect(rowX, y, rowW, 0, tone.fill) : undefined;
+            if (row) row.group = gl;
+            if (tone) block(line.text[0]!, rowX + textPad, y, signW(size), size, true, tone.sign, { leading: s.leading, groupID: gl, code: true, markdown: false });
+            const h = block(line.text.slice(1), rowX + textPad + signW(size), y, textW(size), size, false, tone ? tone.ink : s.context, { leading: s.leading, groupID: gl, code: true, markdown: false, hang });
+            if (row) row.height = h;
+            y += h;
+          }
+        }
+        if (panel) {
+          // The last row's corners follow the card's.
+          if (file.hunks.length) y += C!.radius;
+          panel.height = y - panel.y;
+        }
+      }
       bottom = settle(top, y);
       break;
     }
@@ -1554,7 +1673,7 @@ const CODE_FONT_STAGE = "compositions/paste/fonts";
  * default) and always for code, unless it lacks a (non-emoji) glyph of the
  * content: then the whole card falls back to Noto Sans SC, without an error. */
 /** Templates set in Peesuto Code (CJK at two columns, so columns hold), whatever the font choice. */
-export const MONO_TEMPLATES: readonly TemplateId[] = ["code", "terminal"];
+export const MONO_TEMPLATES: readonly TemplateId[] = ["code", "terminal", "diff"];
 export function wantsMapleFont(template: TemplateId, choice: TemplateFontChoice = DEFAULT_TEMPLATE_FONT): boolean {
   return MONO_TEMPLATES.includes(template) || choice === "maple";
 }

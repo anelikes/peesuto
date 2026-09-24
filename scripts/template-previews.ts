@@ -41,6 +41,7 @@ const PREVIEW_SAMPLES: Record<TemplateId, string> = {
   info: "Staging account\nUser: admin\nPassword: P@ssw0rd!2026\nEmail: ops@example.com\nHost: https://staging.example.com",
   changelog: "## v1.2.0 — 2026-09-24\n### Added\n- Signatures on cards\n- Release notes cards\n### Fixed\n- Long code lines wrap",
   terminal: "$ bun test\n 512 pass\n 0 fail\n$ git push\nEverything up-to-date",
+  diff: "--- a/greet.swift\n+++ b/greet.swift\n@@ -1,3 +1,3 @@\n func greet(_ name: String) -> String {\n-    \"Hi, \\(name)\"\n+    \"Hello, \\(name)!\"\n }",
   qr: "https://peesuto.com",
 };
 

@@ -117,10 +117,10 @@ describe("highlight.js colouring", () => {
 });
 
 describe("code font", () => {
-  test("Maple Mono by default for every template, Noto Sans SC when chosen (never for code and shell sessions) or a glyph is missing", () => {
-    expect(MONO_TEMPLATES).toEqual(["code", "terminal"]);
+  test("Maple Mono by default for every template, Noto Sans SC when chosen (never for code, shell sessions and diffs) or a glyph is missing", () => {
+    expect(MONO_TEMPLATES).toEqual(["code", "terminal", "diff"]);
     for (const id of TEMPLATE_IDS) {
-      // Code and shell sessions keep Chinese at two columns; every other card uses Peesuto Text (Chinese at 1em).
+      // Code, shell sessions and diffs keep Chinese at two columns; every other card uses Peesuto Text (Chinese at 1em).
       const mono = MONO_TEMPLATES.includes(id);
       expect(chooseTemplateFont(id, [])).toBe(mono ? "peesuto-code" : "peesuto-text");
       expect(chooseTemplateFont(id, ["한"])).toBe("noto-sans-sc");

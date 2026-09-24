@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
 import { parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
-import { layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
+import { DIFF_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
@@ -568,6 +568,49 @@ describe("terminal sessions", () => {
       expect(error[1]!.x).toBeGreaterThan(error[0]!.x); // the hanging indent
       expect(new Set(error.map((line) => line.color)).size).toBe(1);
       expect(error[0]!.color).not.toBe(command.color);
+    }
+  });
+});
+
+describe("diff cards", () => {
+  const gitDiff = "diff --git a/src/a.ts b/src/a.ts\nindex 3f2a1c9..8b7e4d0 100644\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,3 +1,3 @@ export {}\n const a = 1;\n-const b = 2;\n+const b = 3;\n--- c\n";
+  test("git diff: the path as title, header lines as syntax, hunk lines verbatim; the counts tell a removed '---' line from a header", () => {
+    const source = "diff --git a/src/a.ts b/src/a.ts\nindex 3f2a1c9..8b7e4d0 100644\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,3 +1,2 @@ export {}\n const a = 1;\n-const b = 2;\n--- c\n\\ No newline at end of file";
+    const parsed = parseTemplates(source);
+    expect(parsed.preferred).toBe("diff");
+    expect(parsed.candidates.has("code")).toBe(true); // the highlighted code card stays the alternative
+    expect(parsed.candidates.get("diff")).toEqual({ kind: "diff", files: [{ path: "src/a.ts", meta: [], hunks: [{ header: "@@ -1,3 +1,2 @@ export {}", lines: [
+      { type: "context", text: " const a = 1;" }, { type: "del", text: "-const b = 2;" }, { type: "del", text: "--- c" }, { type: "note", text: "\\ No newline at end of file" },
+    ] }] }] });
+    expect(parseTemplates(gitDiff).preferred).toBe("diff");
+  });
+  test("diff -u, a bare hunk, a fenced ```diff, renames and binaries", () => {
+    const u = parseTemplates("--- old/说明.md\t2026-09-24\n+++ new/说明.md\t2026-09-24\n@@ -1 +1 @@\n-旧\n+新").candidates.get("diff");
+    expect(u?.kind === "diff" && [u.files[0]!.path, u.files[0]!.oldPath]).toEqual(["new/说明.md", "old/说明.md"]);
+    expect(parseTemplates("@@ -1,2 +1,2 @@\n a\n-b\n+c").preferred).toBe("diff");
+    const fenced = parseTemplates("```diff\n@@ -1 +1 @@\n-a\n+b\n```");
+    expect(fenced.preferred).toBe("diff");
+    expect(fenced.candidates.get("code")).toEqual({ kind: "code", code: "@@ -1 +1 @@\n-a\n+b", language: "diff" });
+    const rename = parseTemplates("diff --git a/x.md b/y.md\nsimilarity index 90%\nrename from x.md\nrename to y.md\n@@ -1 +1 @@\n-a\n+b\ndiff --git a/l.png b/l.png\nnew file mode 100644\nBinary files /dev/null and b/l.png differ").candidates.get("diff");
+    expect(rename?.kind === "diff" && rename.files.map((f) => [f.path, f.oldPath ?? null, f.meta.length, f.hunks.length])).toEqual([["y.md", null, 3, 1], ["l.png", null, 2, 0]]);
+  });
+  test("not a diff: lists with + and -, Markdown rules, headers without hunks, stray lines, context only", () => {
+    for (const source of [
+      "- one\n- two\n+ three", "--- \ntitle\n---", "--- a/x\n+++ b/x", "@@ -1 +1 @@\n-a\n+b\nSome prose after it.", "@@ -1,2 +1,2 @@\n a\n b",
+      "Pros:\n+ fast\n- expensive", "```ts\n@@ -1 +1 @@\n-a\n+b\n```",
+    ]) expect(parseTemplates(source).candidates.has("diff")).toBe(false);
+  });
+  test("both styles: tinted rows with the sign in a gutter, and a +N −M summary of generated counts with shape signs", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const content = parseTemplates(gitDiff).candidates.get("diff")!;
+    for (const variant of ["classic", "editorial"] as const) {
+      const layout = layoutTemplate({ version: 1, template: "diff", variant, motion: "none", aspect: "1:1", sourceText: gitDiff, content }, measure);
+      expect(layout.lines.filter((line) => line.generated).map((line) => line.text).sort()).toEqual(["1", "2"]);
+      expect(layout.lines.some((line) => line.text === "src/a.ts" && line.bold)).toBe(true);
+      expect(layout.lines.some((line) => /diff --git|^index |^\+\+\+ /.test(line.text))).toBe(false);
+      const plus = layout.lines.find((line) => line.text === "+")!, body = layout.lines.find((line) => line.text === "const b = 3;")!;
+      expect(body.x).toBeGreaterThan(plus.x);
+      expect(layout.shapes.some((shape) => shape.y <= body.y && shape.y + shape.height >= body.y + body.height && shape.color === DIFF_STYLES[variant].add.fill)).toBe(true);
     }
   });
 });

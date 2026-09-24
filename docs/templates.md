@@ -36,6 +36,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Info card | Field list | Credentials | |
 | Release notes | Release card | Timeline | |
 | Terminal session | Night terminal | Command log | |
+| Diff | Review | Night diff | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -161,7 +162,7 @@ Cards are set in Maple Mono by default, with a choice of Noto Sans SC in
 Settings › Templates (`template_font`, sent as `templateFont` with every
 render and precompose request, part of the precompose key, carried in the
 plan as `font`). Code and the other monospace templates (`MONO_TEMPLATES`:
-code, terminal) are always Peesuto Code. Maple comes in two cuts under
+code, terminal, diff) are always Peesuto Code. Maple comes in two cuts under
 `core/src/render/fonts/`: Peesuto Code, Chinese at two Latin columns so code
 aligns, and Peesuto Text, Chinese at 1em for everything else (the two-column
 width reads as letter-spacing in prose; `scripts/fonts/peesuto-text.py`).
@@ -333,6 +334,36 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
 - Night terminal: a window with three dots on the code card's Indigo night
   field (the hue arc in GIFs). Command log: a light page, each command on a
   tinted band, output beneath. Styles are `TERMINAL_STYLES` in `compose.ts`.
+
+### Diff: added and removed lines
+
+- Recognized when every line belongs to a unified diff: `diff --git` and
+  `index` lines, mode, rename, similarity and `Binary files … differ` lines,
+  `---`/`+++` headers, `@@ -a,b +c,d @@` hunks, and hunk lines starting with
+  `+`, `-`, a space or `\` (a blank line is an empty context line). At least
+  one hunk and one added or removed line. The hunk's counts decide whether a
+  `---` line is a removed line or the next file's header; past the counts,
+  a trimmed hunk still reads as one. A fence marked `diff` or `patch` (or
+  unmarked) is read the same way. It ranks before code; the code card's own
+  diff colouring remains the alternative and the fallback for anything this
+  does not recognize (a `git show` header above the diff, say).
+- Drawn verbatim: each file's path is its title (from `+++`, or `---` for a
+  deleted file, or `diff --git`); the `diff --git`, `index`, `---` and `+++`
+  lines and the `a/` `b/` prefixes are syntax and not drawn. A renamed file
+  shows its old path above the new one unless a `rename from` line says it.
+  Mode, rename and binary lines are drawn small, hunk headers small, every
+  hunk line as written: its `+`/`-` in a gutter, the rest on a green or red
+  tinted row (context untinted), `\ No newline at end of file` small. Wrapped
+  lines hang two columns in.
+- The summary: the counted added and removed lines, `+N −M`, beside the
+  first file's path (Review) or under it (Night diff). The digits are the
+  one thing drawn that the source did not write; they are marked
+  `generated` and checked like code line numbers (a number from 1 to the
+  larger count), and the + and − are shapes, not glyphs. A zero count is
+  left out.
+- Review: each file a white card, its path in a header band. Night diff:
+  dark, the path as a heading, rows running edge to edge. Styles are
+  `DIFF_STYLES` in `compose.ts`.
 
 ### QR code: any text, by shortcut only
 

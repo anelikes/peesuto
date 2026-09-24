@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -25,6 +25,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   // allows one (```console, ```sh…); the fenced source stays available as code.
   const inner = code?.kind === "code" ? code : undefined;
   const terminal = inner ? (!inner.language || SESSION_FENCES.test(inner.language) ? parseTerminal(inner.code) : undefined) : parseTerminal(text);
+  const diff = inner ? (!inner.language || /^(?:diff|patch|udiff|git)$/i.test(inner.language) ? parseDiff(inner.code) : undefined) : parseDiff(text);
   // A Mermaid flowchart, fenced as ```mermaid or bare, is a diagram; the
   // fenced source stays available as code.
   const mermaid = code?.kind === "code" && (!code.language || /^mermaid$/i.test(code.language)) ? parseMermaid(code.code) : parseMermaid(text.trim());
@@ -45,8 +46,8 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     // The legacy classifier also understands commands, JSON and stack traces.
     // Keep those capabilities without treating malformed tables or mixed
     // Markdown containing a fence as one large code block.
-    // A shell session keeps code as its alternative.
-    if (candidates.size === 1 && (terminal || isRawCode(text.trim()))) candidates.set("code", { kind: "code", code: normalized });
+    // A shell session or a diff keeps code as its alternative.
+    if (candidates.size === 1 && (terminal || diff || isRawCode(text.trim()))) candidates.set("code", { kind: "code", code: normalized });
     // Arrow chains: every line "A → B → C". Code (JS `=>`) never qualifies.
     if (!candidates.has("code")) {
       const chains = parseArrowChains(text);
@@ -54,6 +55,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     }
   }
   if (terminal) candidates.set("terminal", terminal);
+  if (diff) candidates.set("diff", diff);
   const prose = parseText(text, candidates);
   if (prose) candidates.set("text", prose);
   // Anything can be a QR code: the exact source (surrounding whitespace aside),
@@ -63,7 +65,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -92,7 +94,7 @@ export function withoutTemplates(parsed: ParsedTemplates, disabled: unknown): Pa
  * specialized template would lose (code, table, list, chat, comparison).
  * Quotes and statistics keep text as an alternative. */
 function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent | undefined {
-  if (["code", "terminal", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
+  if (["code", "terminal", "diff", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
   if (/^(?:graph|flowchart)\b/i.test(text.trim())) return;
   if (exceedsGraphemes(text, TEXT_MAX_GRAPHEMES) !== undefined) return;
   const blocks = documentBlocks(text);
@@ -373,6 +375,73 @@ export function parseTerminal(text: string): TemplateContent | undefined {
   }
   if (!evidence || !(commands >= 2 || (commands >= 1 && outputs >= 1))) return;
   return { kind: "terminal", lines: out };
+}
+
+/** File header lines of a diff that carry meaning and are drawn as written. */
+const DIFF_META = /^(?:(?:new|deleted) file mode \d+|old mode \d+|new mode \d+|similarity index \d+%|dissimilarity index \d+%|rename (?:from|to) .+|copy (?:from|to) .+|Binary files .+ differ|GIT binary patch)$/;
+const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/;
+/** A path from a `---`/`+++` line or `diff --git`: the a/ b/ prefix and a trailing timestamp are syntax. */
+const diffPath = (raw: string): string | undefined => {
+  const path = raw.replace(/\t.*$/, "").trim().replace(/^"(.*)"$/, "$1");
+  return path === "/dev/null" ? undefined : path.replace(/^[ab]\//, "");
+};
+
+/**
+ * A unified diff (`git diff`, `diff -u`, a patch): optional `diff --git` and
+ * `index` lines, mode, rename and binary lines, `---`/`+++` headers, and `@@`
+ * hunks of lines starting with `+`, `-`, a space or `\` (blank lines count as
+ * context). Every line must be one of these, with at least one hunk and one
+ * added or removed line; the hunk header's counts decide whether a `---` line
+ * is a removed line or the next file's header.
+ */
+export function parseDiff(text: string): TemplateContent | undefined {
+  const lines = trimBlankLines(text).split("\n");
+  if (lines.length < 2 || lines.length > 600) return;
+  const files: { path?: string; oldPath?: string; meta: string[]; hunks: { header: string; lines: DiffLine[] }[] }[] = [];
+  let file: (typeof files)[number] | undefined, hunk: (typeof files)[number]["hunks"][number] | undefined;
+  let oldLeft = 0, newLeft = 0, changes = 0;
+  const start = () => { file = { meta: [], hunks: [] }; files.push(file); hunk = undefined; return file; };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const inHunk = hunk && (oldLeft > 0 || newLeft > 0);
+    if (inHunk && /^[ +\-]|^$/.test(line)) {
+      const type = line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "context";
+      if (type !== "add") oldLeft--;
+      if (type !== "del") newLeft--;
+      if (type !== "context") changes++;
+      hunk!.lines.push({ type, text: line });
+      continue;
+    }
+    if (hunk && line.startsWith("\\")) { hunk.lines.push({ type: "note", text: line }); continue; }
+    const git = line.match(/^diff --git (\S+) (\S+)$/);
+    if (git) { const f = start(); f.path = diffPath(git[2]!); const old = diffPath(git[1]!); if (old && old !== f.path) f.oldPath = old; continue; }
+    if (/^index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?$/.test(line) || /^diff (?:-\S+ )*\S+ \S+$/.test(line)) { if (!file || file.hunks.length) start(); continue; }
+    if (DIFF_META.test(line)) { (file && !file.hunks.length ? file : start()).meta.push(line); continue; }
+    if (line.startsWith("--- ") && lines[i + 1]?.startsWith("+++ ")) {
+      const f = file && !file.hunks.length ? file : start();
+      const from = diffPath(line.slice(4)), to = diffPath(lines[i + 1]!.slice(4));
+      f.path = to ?? from;
+      if (from && to && from !== to) f.oldPath = from; else delete f.oldPath;
+      i++; continue;
+    }
+    const header = line.match(HUNK);
+    if (header) {
+      const f = file ?? start();
+      hunk = { header: line, lines: [] };
+      f.hunks.push(hunk);
+      oldLeft = header[2] === undefined ? 1 : Number(header[2]); newLeft = header[4] === undefined ? 1 : Number(header[4]);
+      continue;
+    }
+    // Past the counts: a trimmed or hand-edited hunk still reads as one.
+    if (hunk && /^[+\-]/.test(line) && !/^(?:\+\+\+|---) /.test(line)) { hunk.lines.push({ type: line[0] === "+" ? "add" : "del", text: line }); changes++; continue; }
+    if (hunk && line.startsWith(" ")) { hunk.lines.push({ type: "context", text: line }); continue; }
+    return;
+  }
+  if (!changes || !files.length || files.some((f) => !f.hunks.length && !f.meta.length)) return;
+  if (!files.some((f) => f.hunks.length)) return;
+  // A rename's "rename from" line already names the old path.
+  for (const f of files) if (f.meta.some((m) => m.startsWith("rename from "))) delete f.oldPath;
+  return { kind: "diff", files: files.map((f): DiffFile => ({ ...(f.path ? { path: f.path } : {}), ...(f.oldPath ? { oldPath: f.oldPath } : {}), meta: f.meta, hunks: f.hunks })) };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

@@ -87,16 +87,25 @@ export function contentStrings(content: TemplateContent): string[] {
     case "changelog": return [...(content.title ? [content.title] : []), ...content.releases.flatMap((r) => [r.version, ...(r.date ? [r.date] : []),
       ...r.sections.flatMap((s) => [...(s.title ? [s.title] : []), ...s.items.map((i) => stripBold(i))])])].map(plain);
     case "terminal": return content.lines.map((line) => normalizeText(line.kind === "prompt" ? line.prompt + line.command : line.text, "code"));
+    case "diff": return content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
+      ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((text) => normalizeText(text, "code"));
     case "qr": return [plain(content.data)];
   }
 }
 
-/** The largest number a layout may draw on its own: ordered-list numbers and code line numbers count from 1. */
+/** The largest number a layout may draw on its own: ordered-list numbers and code line numbers count from 1; a diff counts its lines. */
 export function generatedNumberLimit(content: TemplateContent): number {
   if (content.kind === "list") return content.ordered ? content.items.length : 0;
   if (content.kind === "document") return Math.max(0, ...(content.blocks ?? []).map((b) => (b.kind === "list" && b.ordered ? b.items.length : 0)));
   if (content.kind === "code") return normalizeText(content.code, "code").split("\n").length;
+  // A diff's "+N −M" summary: the counted added and removed lines.
+  if (content.kind === "diff") return Math.max(...(["add", "del"] as const).map((type) => diffCount(content, type)));
   return 0;
+}
+
+/** Added or removed lines of a diff, over all its files. */
+export function diffCount(content: Extract<TemplateContent, { kind: "diff" }>, type: "add" | "del"): number {
+  return content.files.reduce((n, f) => n + f.hunks.reduce((m, h) => m + h.lines.filter((l) => l.type === type).length, 0), 0);
 }
 
 /** Source fidelity alone: nothing drawn that the source did not say, and
