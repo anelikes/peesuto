@@ -270,6 +270,22 @@ print or copy the private key.
 5. Deploy `site/` (the future peesuto.com root, Cloudflare Pages) so
    `https://peesuto.com/appcast.xml` serves the new feed. Publish the DMG
    before the feed, never the other way round.
+6. Bump the Homebrew cask in the tap
+   [anelikes/homebrew-tap](https://github.com/anelikes/homebrew-tap)
+   (`brew install --cask anelikes/tap/peesuto`) once the release assets are
+   public:
+
+   ```sh
+   git clone https://github.com/anelikes/homebrew-tap.git ../homebrew-tap   # once
+   bun scripts/update-cask.ts --tap ../homebrew-tap --dmg native/dist/Peesuto-<version>-arm64.dmg
+   brew update && brew audit --cask --strict --online anelikes/tap/peesuto
+   ```
+
+   The script rewrites `version` and `sha256` in `Casks/peesuto.rb` (the URL
+   interpolates the version), commits with `-s` and pushes; `--dry-run` prints
+   the new cask, `--no-push` commits only. Hash the DMG exactly as uploaded.
+   The cask is `auto_updates true`, so Homebrew users get updates from Sparkle
+   anyway; the bump keeps fresh installs and `brew upgrade --greedy` current.
 
 ## Before enabling public distribution
 
@@ -284,6 +300,5 @@ print or copy the private key.
   acceptance. Removing legacy source does not implement account/pack management,
   custom action editing or other missing native features.
 - After these checks, implement a reviewed publishing workflow, tag the version
-  from root `package.json`, update `CHANGELOG.md`, and provide a real Homebrew
-  cask (N5). The old placeholder cask was removed; see
-  [Homebrew status](homebrew/README.md).
+  from root `package.json` and update `CHANGELOG.md`. The Homebrew cask exists
+  since 0.2.0 in the own tap; see [Homebrew](homebrew/README.md).

@@ -372,6 +372,7 @@ function faq(lang: Lang): string {
     ["AI は必須ですか？", "いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。"],
     ["ffmpeg は必要ですか？", "MP4 動画を作るときだけ必要です。Peesuto は Mac にインストール済みの ffmpeg（<code>brew install ffmpeg</code>）を使い、同梱も自動インストールもしません。画像、GIF、QR コードには何も要りません。"],
     ["対応している Mac は？", "Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。"],
+    ["Homebrew で入れられますか？", "はい。<code>brew install --cask anelikes/tap/peesuto</code> でインストールできます。アップデートはアプリ自身が行います。"],
     ["料金はかかりますか？", "かかりません。Peesuto は MIT ライセンスのオープンソースで、オープンソース版から外している機能もありません。"],
     ["アップデートはどうなりますか？", `Peesuto は 1 日に 1 回 <code>peesuto.com/appcast.xml</code> を確認し、署名済みのアップデートがあればお知らせします（Sparkle）。自動確認は「設定 › 一般」でオフにできます。0.1.0 と 0.1.1 はアップデート機能より前の版なので、一度だけ手動で更新してください。変更点は<a href="/changelog/">更新履歴</a>（英語）にあります。`],
   ] : lang === "en" ? [
@@ -380,6 +381,7 @@ function faq(lang: Lang): string {
     ["Is AI required?", "No. Local rules choose a template for everything. If you like, bring your own key and let Jev, a small model, choose the template and style, through TypeSafe, Vercel AI Gateway, OpenRouter or your own Cloudflare account. It picks presentation only; it never rewrites your text."],
     ["Do I need ffmpeg?", "Only for MP4 video. Peesuto uses the ffmpeg already on your Mac (<code>brew install ffmpeg</code>) and does not bundle or install it. Images, GIFs and QR codes need nothing extra."],
     ["Which Macs does it run on?", "Macs with Apple silicon, on macOS 13 Ventura or later."],
+    ["Can I install it with Homebrew?", "Yes: <code>brew install --cask anelikes/tap/peesuto</code>. The app keeps itself up to date from then on."],
     ["What does it cost?", "Nothing. Peesuto is free and MIT-licensed, and no feature is held back from the open-source build."],
     ["How do updates work?", `Peesuto checks <code>peesuto.com/appcast.xml</code> once a day and offers signed updates (Sparkle); you can turn the check off in Settings › General. Versions 0.1.0 and 0.1.1 came before the updater, so update those once by hand. The <a href="/changelog/">changelog</a> lists what changed.`],
   ] : [
@@ -388,6 +390,7 @@ function faq(lang: Lang): string {
     ["必须用 AI 吗？", "不必。本地规则就能为所有内容选好模板。如果愿意，也可以填入自己的密钥，让小模型 Jev 来挑模板和样式，支持 TypeSafe、Vercel AI Gateway、OpenRouter 或你自己的 Cloudflare 账号。它只负责选择呈现方式，从不改写你的文字。"],
     ["需要安装 ffmpeg 吗？", "只有生成 MP4 视频时需要。Peesuto 使用你 Mac 上已有的 ffmpeg（<code>brew install ffmpeg</code>），不会自带或自动安装。图片、GIF 和二维码不需要任何额外组件。"],
     ["支持哪些 Mac？", "搭载 Apple 芯片、运行 macOS 13 Ventura 或更高版本的 Mac。"],
+    ["可以用 Homebrew 安装吗？", "可以：<code>brew install --cask anelikes/tap/peesuto</code>。之后应用会自己更新。"],
     ["收费吗？", "免费。Peesuto 以 MIT 许可证开源，开源版本没有任何功能保留。"],
     ["怎么更新？", `Peesuto 每天检查一次 <code>peesuto.com/appcast.xml</code>，有新版本时提示安装经过签名的更新（Sparkle）；可以在“设置 › 通用”里关闭自动检查。0.1.0 和 0.1.1 早于更新器，需要手动更新一次。改动见<a href="/changelog/">更新日志</a>。`],
   ];

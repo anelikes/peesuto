@@ -70,7 +70,7 @@ Peesuto は Mac のための小さなオープンソースのクリップボー�
 
 ## インストール
 
-1. [最新リリース](https://github.com/anelikes/peesuto/releases/latest)から DMG をダウンロードし、Peesuto を「アプリケーション」にドラッグします。
+1. [最新リリース](https://github.com/anelikes/peesuto/releases/latest)から DMG をダウンロードし、Peesuto を「アプリケーション」にドラッグします。Homebrew なら `brew install --cask anelikes/tap/peesuto` でも入ります。
 2. 起動すると、3 ステップのガイドがショートカットと必要な許可を案内します。
 3. 求められたら **アクセシビリティ** を許可します（システム設定 › プライバシーとセキュリティ › アクセシビリティ）。入力中のアプリにペーストするため、カーソルの位置にパネルを開くため、そしてペーストの直前にカーソルが動いていないかを確かめるために使います。許可しなくてもコピーと履歴は使えます。
 

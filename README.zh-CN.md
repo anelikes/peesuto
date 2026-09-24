@@ -70,7 +70,7 @@ Peesuto 是一款小巧的开源 Mac 剪贴板应用。它看得懂你复制的�
 
 ## 安装
 
-1. 从 [最新版本](https://github.com/anelikes/peesuto/releases/latest) 下载 DMG，把 Peesuto 拖进“应用程序”。
+1. 从 [最新版本](https://github.com/anelikes/peesuto/releases/latest) 下载 DMG，把 Peesuto 拖进“应用程序”；也可以用 Homebrew：`brew install --cask anelikes/tap/peesuto`。
 2. 打开它，三步欢迎向导会介绍快捷键和所需权限。
 3. 按提示允许 **辅助功能**（系统设置 › 隐私与安全性 › 辅助功能）。Peesuto 需要它把结果粘贴进你正在使用的应用、在光标处打开面板，并在粘贴前确认光标没有移动。不授权也能正常复制和查看历史。
 

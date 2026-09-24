@@ -95,7 +95,8 @@ Details: [privacy policy](https://peesuto.com/privacy/) ·
 
 1. Download the DMG from the
    [latest release](https://github.com/anelikes/peesuto/releases/latest) and
-   drag Peesuto into Applications.
+   drag Peesuto into Applications, or use Homebrew:
+   `brew install --cask anelikes/tap/peesuto`.
 2. Open it. A three-step welcome guide walks you through the shortcuts and
    permissions.
 3. Allow **Accessibility** when asked (System Settings › Privacy & Security ›
