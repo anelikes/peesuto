@@ -28,8 +28,8 @@
 <meta property="og:locale" content="ja_JP">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/assets/fonts/peesuto-mono-bold.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/site.css?v=a8f66cbd43">
-<script src="/assets/site.js?v=ec0c5407ef" defer></script>
+<link rel="stylesheet" href="/assets/site.css?v=c3f9613375">
+<script src="/assets/site.js?v=94ac2ea535" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">本文へスキップ</a>
@@ -45,8 +45,8 @@
 </svg>
 <header class="site-header">
 <nav class="wrap" aria-label="メイン">
-<a class="brand" href="/ja/" aria-current="page"><img src="/assets/icon-64.png" width="26" height="26" alt="">Peesuto</a>
-<a class="nav-link hide-sm" href="/ja/#templates">テンプレート</a>
+<a class="brand" href="/ja/" aria-current="page"><img src="/assets/icon-64.png" width="26" height="26" alt=""><span>Peesuto</span></a>
+<a class="nav-link" href="/ja/templates/">テンプレート</a>
 <a class="nav-link hide-sm" href="/ja/#privacy">プライバシー</a>
 <a class="nav-link hide-sm" href="/ja/#faq">よくある質問</a>
 <a class="nav-link hide-sm" href="/changelog/">更新履歴</a>
@@ -67,6 +67,7 @@
 </div>
 <figure class="demo" data-demo>
 <div class="field">
+<div class="hero-video" hidden><video data-hero-video controls muted loop playsinline preload="none" poster="/assets/peesuto-promo.webp?v=99f1b15ba6" width="1920" height="1080" aria-label="Peesuto の紹介動画：テキストをコピーし、⌥V で「ペースト形式」を開いて、カード、GIF、動画、QR コードとしてペースト。"><source src="/assets/peesuto-promo.mp4?v=0f1cf604ea" type="video/mp4"></video></div>
 <div class="stage-wrap" role="img" aria-label="短いループ：テキストを選んでコピーし、⌥V を押すとカーソルの位置に「ペースト形式」のパネルが開き、カードはもうできています。Return でチャットにペーストされます。">
 <div class="stage" aria-hidden="true">
 <div class="win src"><div class="win-bar"><i></i><i></i><i></i><b>greet.swift</b></div><span class="toast"><kbd>⌘C</kbd>コピーしました</span><pre><span><span class="sel">func greet(_ name: String) -&gt; String {
@@ -78,12 +79,12 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <div class="win chat"><div class="win-bar"><i></i><i></i><i></i><b># リリース</b></div>
 <div class="thread">
 <div class="msg msg-ask"><span class="avatar">佐</span><b>佐藤<small>10:02</small></b><p>あいさつの関数、送ってもらえますか？</p></div>
-<div class="msg msg-new"><span class="avatar you">自</span><b>自分<small>10:03</small></b><img data-card="msg" src="/cards/code-classic.webp" width="240" height="240" alt=""></div>
+<div class="msg msg-new"><span class="avatar you">自</span><b>自分<small>10:03</small></b><img data-card="msg" src="/gallery/en/code-classic.webp?v=47cfa5d93849" width="240" height="240" alt=""></div>
 </div>
 <div class="composer"><span class="caret"></span>#リリース へメッセージを送信</div>
 <div class="chooser" aria-hidden="true">
 <div class="ch-head">ペースト形式…<span>キャンセル <kbd>esc</kbd></span></div>
-<div class="ch-prev"><img data-card="thumb" src="/cards/code-classic.webp" width="116" height="116" alt=""></div>
+<div class="ch-prev"><img data-card="thumb" src="/gallery/en/code-classic.webp?v=47cfa5d93849" width="116" height="116" alt=""></div>
 <ul class="ch-rows">
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>画像<kbd>↩</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
@@ -101,28 +102,28 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <button class="play" type="button" hidden aria-pressed="false" data-play="再生" data-pause="一時停止"><svg viewBox="0 0 10 12" aria-hidden="true"><path d="M0 0h3.5v12H0zM6.5 0H10v12H6.5z" fill="currentColor"/></svg><span class="label">一時停止</span></button>
 </div>
 </div>
-<script type="application/json">[{"file":"greet.swift","text":"func greet(_ name: String) -> String {\n    \"Hello, \\(name)!\"\n}\n\nprint(greet(\"Peesuto\"))","card":"/cards/code-classic.webp","ask":"あいさつの関数、送ってもらえますか？","alt":"コードカード：ハイライトされた Swift の関数。藍色の背景に暗いウィンドウ。"},{"file":"メモ","text":"Make room for a clearer thought.","card":"/cards/text-poster.webp","ask":"3 枚目のスライド、まだタイトルがないです。","alt":"ポスターカード：赤地に大きな文字で「Make room for a clearer thought.」"},{"file":"plans.md","text":"| Plan | Price | Seats |\n|---|---|---|\n| Solo | $0 | 1 |\n| Team | $12 | 10 |","card":"/cards/table-classic.webp","ask":"プランの料金、どうなってましたっけ？","alt":"表カード：プラン、料金、席数。見出しは緑。"}]</script>
-<figcaption>Mac で「視差効果を減らす」がオンのときは静止します。</figcaption>
+<script type="application/json">[{"file":"greet.swift","text":"func greet(_ name: String) -> String {\n    \"Hello, \\(name)!\"\n}\n\nprint(greet(\"Peesuto\"))","card":"/gallery/en/code-classic.webp?v=47cfa5d93849","ask":"あいさつの関数、送ってもらえますか？","alt":"コードカード：ハイライトされた Swift の関数。藍色の背景に暗いウィンドウ。"},{"file":"メモ","text":"Make room for a clearer thought.","card":"/gallery/en/text-poster.webp?v=dd55bea23849","ask":"3 枚目のスライド、まだタイトルがないです。","alt":"ポスターカード：赤地に大きな文字で「Make room for a clearer thought.」"},{"file":"plans.md","text":"| Plan | Price | Seats |\n|---|---|---|\n| Solo | $0 | 1 |\n| Team | $12 | 10 |","card":"/gallery/en/table-classic.webp?v=b2404bc53849","ask":"プランの料金、どうなってましたっけ？","alt":"表カード：プラン、料金、席数。見出しは緑。"}]</script>
+<figcaption data-video-caption="音声はミュート。Mac で「視差効果を減らす」がオンのときは自動再生しません。">Mac で「視差効果を減らす」がオンのときは静止します。</figcaption>
 </figure>
 </div>
 </section>
 <section class="strip" aria-labelledby="strip-title">
 <h2 id="strip-title" class="visually-hidden">Peesuto で作ったカード</h2>
 <ul>
-<li><img src="/cards/text-poster.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, ポスター"></li>
-<li><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="コード, ターミナル"></li>
-<li><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="会話, 吹き出し"></li>
-<li><img src="/cards/stat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="数字, 大きな数字"></li>
-<li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="情報カード, 認証情報"></li>
-<li><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="図, ブループリント"></li>
-<li><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="引用, ステートメント"></li>
-<li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="リリースノート, リリースカード"></li>
-<li><img src="/cards/comparison-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="比較, 上下に分ける"></li>
-<li><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="表, グリッド"></li>
-<li><img src="/cards/list-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="リスト, ステップ"></li>
-<li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR コード, カード"></li>
+<li><a href="/ja/templates/text/"><img src="/gallery/ja/text-poster.webp?v=462f60ef3849" width="208" height="208" alt="テキスト, ポスター" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/code/"><img src="/gallery/ja/code-classic.webp?v=949da03b3849" width="208" height="208" alt="コード, ターミナル" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/chat/"><img src="/gallery/ja/chat-classic.webp?v=022aadb13849" width="208" height="208" alt="会話, 吹き出し" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/stats/"><img src="/gallery/ja/stats-editorial.webp?v=bba8ce913849" width="208" height="208" alt="指標, スコアボード" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/info/"><img src="/gallery/ja/info-editorial.webp?v=4d72198d3849" width="208" height="208" alt="情報カード, 認証情報" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/diagram/"><img src="/gallery/ja/diagram-editorial.webp?v=41cbb32b3849" width="208" height="208" alt="図, ブループリント" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/quote/"><img src="/gallery/ja/quote-editorial.webp?v=1299937a3849" width="208" height="208" alt="引用, ステートメント" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/terminal/"><img src="/gallery/ja/terminal-classic.webp?v=97ab5b923849" width="208" height="208" alt="ターミナルセッション, 夜のターミナル" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/changelog/"><img src="/gallery/ja/changelog-classic.webp?v=41f52a543849" width="208" height="208" alt="リリースノート, リリースカード" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/timeline/"><img src="/gallery/ja/timeline-classic.webp?v=6c7c44b63849" width="208" height="208" alt="スケジュール, アジェンダ" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/table/"><img src="/gallery/ja/table-classic.webp?v=7c2bd8b83849" width="208" height="208" alt="表, グリッド" loading="lazy" decoding="async"></a></li>
+<li><a href="/ja/templates/diff/"><img src="/gallery/ja/diff-classic.webp?v=f20c2faf3849" width="208" height="208" alt="差分, レビュー" loading="lazy" decoding="async"></a></li>
 </ul>
-<p class="wrap">どれもプレーンテキストからペーストしたものです。</p>
+<p class="wrap">どれもプレーンテキストからペーストしたものです。 <a href="/ja/templates/">18 のテンプレートをすべて見る</a></p>
 </section>
 <section class="reads pad" id="reads" data-theme="light" aria-labelledby="reads-title">
 <div class="wrap">
@@ -144,7 +145,7 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 
 print(greet(&quot;Peesuto&quot;))</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作ったコードカード。"></div>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/gallery/en/code-classic.webp?v=47cfa5d93849" width="320" height="320" alt="左のテキストから作ったコードカード。" loading="lazy" decoding="async"></div>
 <p class="note"><strong>コード.</strong> 24 言語をハイライト。コードブロックの指定か自動判別で。長い行は折り返し、インデントは崩れません。</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-tint="chat" hidden>
@@ -152,7 +153,7 @@ print(greet(&quot;Peesuto&quot;))</pre></div>
 Ash: Yes, copy it and press the shortcut.
 Lin: Nice, that's all?</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作ったチャットカード。"></div>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/gallery/en/chat-classic.webp?v=5ee0ca163849" width="320" height="320" alt="左のテキストから作ったチャットカード。" loading="lazy" decoding="async"></div>
 <p class="note"><strong>チャット.</strong> チャットアプリからコピーした発言者と時刻は、吹き出しか書き起こしになります。</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-table" aria-labelledby="tab-table" data-tint="table" hidden>
@@ -161,7 +162,7 @@ Lin: Nice, that's all?</pre></div>
 | Solo | $0 | 1 |
 | Team | $12 | 10 |</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った表カード。"></div>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/gallery/en/table-classic.webp?v=b2404bc53849" width="320" height="320" alt="左のテキストから作った表カード。" loading="lazy" decoding="async"></div>
 <p class="note"><strong>表.</strong> タブ区切り、Markdown、ターミナルの罫線表に対応。単語が列の途中で切れることはありません。</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-info" aria-labelledby="tab-info" data-tint="info" hidden>
@@ -171,20 +172,20 @@ Password: P@ssw0rd!2026
 Email: ops@example.com
 Host: https://staging.example.com</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/info-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った情報カードカード。"></div>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/gallery/en/info-classic.webp?v=0d0866813849" width="320" height="320" alt="左のテキストから作った情報カードカード。" loading="lazy" decoding="async"></div>
 <p class="note"><strong>情報カード.</strong> 連絡先、アカウント、dotenv は項目ごとに整理。パスワードやキーには鍵マークが付きます。</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-diagram" aria-labelledby="tab-diagram" data-tint="diagram" hidden>
 <div class="from"><span class="eyebrow">クリップボードの中身</span><pre>Copy → Decide → Render → Paste</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った図カード。"></div>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/gallery/en/diagram-editorial.webp?v=03bf02613849" width="320" height="320" alt="左のテキストから作った図カード。" loading="lazy" decoding="async"></div>
 <p class="note"><strong>図.</strong> Mermaid のフローチャートや、矢印でつないだ手順を配置して線を引きます。</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-quote" aria-labelledby="tab-quote" data-tint="quote" hidden>
 <div class="from"><span class="eyebrow">クリップボードの中身</span><pre>“Simplicity is the ultimate sophistication.”
 — Leonardo da Vinci</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った引用カード。"></div>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/gallery/en/quote-editorial.webp?v=970bdc013849" width="320" height="320" alt="左のテキストから作った引用カード。" loading="lazy" decoding="async"></div>
 <p class="note"><strong>引用.</strong> 著者名は、元のテキストにあるときだけ表示します。</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-changelog" aria-labelledby="tab-changelog" data-tint="changelog" hidden>
@@ -195,7 +196,7 @@ Host: https://staging.example.com</pre></div>
 ### Fixed
 - Long code lines wrap</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作ったリリースノートカード。"></div>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/gallery/en/changelog-classic.webp?v=e83419ce3849" width="320" height="320" alt="左のテキストから作ったリリースノートカード。" loading="lazy" decoding="async"></div>
 <p class="note"><strong>リリースノート.</strong> Keep a Changelog 形式や、バージョン行に続く箇条書きがリリースカードになります。</p>
 </div>
 </div>
@@ -207,44 +208,14 @@ Host: https://staging.example.com</pre></div>
 <p>テンプレートはローカルのルールが選びます。ペーストしたあとでスタイルを変えたり、テンプレートごとに既定のスタイルを決めたり、設定でオフにしたりできます。スタイルはどれも、書体と配色を定めた公開の表です：<a href="https://github.com/anelikes/peesuto/blob/main/docs/templates.md">テンプレートの仕組み</a>（英語）。</p>
 </div>
 <ul class="grid">
-<li><img src="/cards/text-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, ペーパー"><p>テキスト <span>ペーパー</span></p></li>
-<li><img src="/cards/text-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, インク"><p>テキスト <span>インク</span></p></li>
-<li class="big"><img src="/cards/text-poster.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, ポスター"><p>テキスト <span>ポスター</span></p></li>
-<li><img src="/cards/document-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="ドキュメント, 読みもの"><p>ドキュメント <span>読みもの</span></p></li>
-<li><img src="/cards/document-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="ドキュメント, コラム"><p>ドキュメント <span>コラム</span></p></li>
-<li><img src="/cards/quote-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="引用, 本の抜き書き"><p>引用 <span>本の抜き書き</span></p></li>
-<li><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="引用, ステートメント"><p>引用 <span>ステートメント</span></p></li>
-<li class="big"><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="コード, ターミナル"><p>コード <span>ターミナル</span></p></li>
-<li><img src="/cards/code-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="コード, コードノート"><p>コード <span>コードノート</span></p></li>
-<li><img src="/cards/stat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="数字, 大きな数字"><p>数字 <span>大きな数字</span></p></li>
-<li><img src="/cards/stat-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="数字, 指標バー"><p>数字 <span>指標バー</span></p></li>
-<li><img src="/cards/list-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="リスト, チェックリスト"><p>リスト <span>チェックリスト</span></p></li>
-<li><img src="/cards/list-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="リスト, ステップ"><p>リスト <span>ステップ</span></p></li>
-<li class="big"><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="会話, 吹き出し"><p>会話 <span>吹き出し</span></p></li>
-<li><img src="/cards/chat-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="会話, 書き起こし"><p>会話 <span>書き起こし</span></p></li>
-<li><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="表, グリッド"><p>表 <span>グリッド</span></p></li>
-<li><img src="/cards/table-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="表, 罫線表"><p>表 <span>罫線表</span></p></li>
-<li><img src="/cards/comparison-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="比較, 左右に並べる"><p>比較 <span>左右に並べる</span></p></li>
-<li><img src="/cards/comparison-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="比較, 上下に分ける"><p>比較 <span>上下に分ける</span></p></li>
-<li><img src="/cards/diagram-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="図, フロー"><p>図 <span>フロー</span></p></li>
-<li><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="図, ブループリント"><p>図 <span>ブループリント</span></p></li>
-<li><img src="/cards/info-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="情報カード, 項目リスト"><p>情報カード <span>項目リスト</span></p></li>
-<li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="情報カード, 認証情報"><p>情報カード <span>認証情報</span></p></li>
-<li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="リリースノート, リリースカード"><p>リリースノート <span>リリースカード</span></p></li>
-<li><img src="/cards/changelog-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="リリースノート, タイムライン"><p>リリースノート <span>タイムライン</span></p></li>
-<li><img src="/cards/terminal-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="ターミナルセッション, 夜のターミナル"><p>ターミナルセッション <span>夜のターミナル</span></p></li>
-<li><img src="/cards/terminal-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="ターミナルセッション, コマンドログ"><p>ターミナルセッション <span>コマンドログ</span></p></li>
-<li><img src="/cards/diff-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="差分, レビュー"><p>差分 <span>レビュー</span></p></li>
-<li><img src="/cards/diff-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="差分, 夜の差分"><p>差分 <span>夜の差分</span></p></li>
-<li><img src="/cards/error-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="エラー, クラッシュレポート"><p>エラー <span>クラッシュレポート</span></p></li>
-<li><img src="/cards/error-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="エラー, コンソール"><p>エラー <span>コンソール</span></p></li>
-<li><img src="/cards/timeline-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="スケジュール, アジェンダ"><p>スケジュール <span>アジェンダ</span></p></li>
-<li><img src="/cards/timeline-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="スケジュール, マイルストーン"><p>スケジュール <span>マイルストーン</span></p></li>
-<li><img src="/cards/stats-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="指標, ダッシュボード"><p>指標 <span>ダッシュボード</span></p></li>
-<li><img src="/cards/stats-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="指標, スコアボード"><p>指標 <span>スコアボード</span></p></li>
-<li><img src="/cards/qr-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR コード, シンプル"><p>QR コード <span>シンプル</span></p></li>
-<li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR コード, カード"><p>QR コード <span>カード</span></p></li>
+<li class="big"><a href="/ja/templates/text/"><img src="/gallery/ja/text-poster.webp?v=462f60ef3849" width="320" height="320" alt="テキスト, ポスター" loading="lazy" decoding="async"><p>テキスト <span>ポスター</span></p></a></li>
+<li class="big"><a href="/ja/templates/code/"><img src="/gallery/ja/code-classic.webp?v=949da03b3849" width="320" height="320" alt="コード, ターミナル" loading="lazy" decoding="async"><p>コード <span>ターミナル</span></p></a></li>
+<li><a href="/ja/templates/error/"><img src="/gallery/ja/error-editorial.webp?v=f20c2af53849" width="320" height="321" alt="エラー, コンソール" loading="lazy" decoding="async"><p>エラー <span>コンソール</span></p></a></li>
+<li><a href="/ja/templates/stats/"><img src="/gallery/ja/stats-classic.webp?v=256d03223849" width="320" height="320" alt="指標, ダッシュボード" loading="lazy" decoding="async"><p>指標 <span>ダッシュボード</span></p></a></li>
+<li><a href="/ja/templates/chat/"><img src="/gallery/ja/chat-classic.webp?v=022aadb13849" width="320" height="320" alt="会話, 吹き出し" loading="lazy" decoding="async"><p>会話 <span>吹き出し</span></p></a></li>
+<li><a href="/ja/templates/timeline/"><img src="/gallery/ja/timeline-editorial.webp?v=3f25b44d3849" width="320" height="320" alt="スケジュール, マイルストーン" loading="lazy" decoding="async"><p>スケジュール <span>マイルストーン</span></p></a></li>
 </ul>
+<p class="gallery-more"><a class="btn btn-primary" href="/ja/templates/">18 のテンプレートをすべて見る<svg aria-hidden="true" viewBox="0 0 48 14"><use href="#i-arrow"/></svg></a></p>
 </div>
 </section>
 <section class="pad" id="shortcuts" aria-labelledby="shortcuts-title">
@@ -270,7 +241,7 @@ Host: https://staging.example.com</pre></div>
 </div>
 <div class="keys-art"><div class="field"><div class="chooser" aria-hidden="true">
 <div class="ch-head">ペースト形式…<span>キャンセル <kbd>esc</kbd></span></div>
-<div class="ch-prev"><img data-card="thumb" src="/cards/text-poster.webp" width="116" height="116" alt=""></div>
+<div class="ch-prev"><img data-card="thumb" src="/gallery/en/text-poster.webp?v=dd55bea23849" width="116" height="116" alt=""></div>
 <ul class="ch-rows">
 <li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>画像<kbd>↩</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
@@ -295,7 +266,7 @@ Host: https://staging.example.com</pre></div>
 <dl class="facts">
 <div><dt>ローカルでレンダリング</dt><dd>解析も組版もレンダリングも Mac の中。テンプレートはローカルのルールが選ぶので、モデルは要りません。</dd></div>
 <div><dt>パスワードは記録しない</dt><dd>パスワードマネージャーや保護された入力欄からのコピーは記録しません。</dd></div>
-<div><dt>オープンソース</dt><dd>MIT ライセンスなので、中身を確かめられます。詳しくは<a href="/privacy/">プライバシーポリシー</a>（英語）へ。</dd></div>
+<div><dt>オープンソース</dt><dd>MIT ライセンスなので、中身を確かめられます。詳しくは<a href="/ja/privacy/">プライバシーポリシー</a>へ。</dd></div>
 </dl>
 </div>
 </section>
@@ -304,7 +275,7 @@ Host: https://staging.example.com</pre></div>
 <h2 class="h2" id="faq-title">よくある質問。</h2>
 <div class="faq-list">
 <details><summary>なぜ「アクセシビリティ」の許可が必要なのですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>入力中のアプリにペーストするため、カーソルの位置にパネルを開くため、そしてペーストの直前にカーソルが元の場所にあるかを確かめるためです。許可しなくてもコピーと履歴は使えます。その場合、結果はクリップボードに入るので、⌘V はご自分で押してください。</p></details>
-<details><summary>Mac の外に出るデータはありますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/privacy/">プライバシーポリシー</a>（英語）に書いてあります。</p></details>
+<details><summary>Mac の外に出るデータはありますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/ja/privacy/">プライバシーポリシー</a>に書いてあります。</p></details>
 <details><summary>AI は必須ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。</p></details>
 <details><summary>ffmpeg は必要ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>MP4 動画を作るときだけ必要です。Peesuto は Mac にインストール済みの ffmpeg（<code>brew install ffmpeg</code>）を使い、同梱も自動インストールもしません。画像、GIF、QR コードには何も要りません。</p></details>
 <details><summary>対応している Mac は？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。</p></details>
@@ -327,8 +298,9 @@ Host: https://staging.example.com</pre></div>
 <div class="who"><b>Peesuto</b><span>Mac のための小さなクリップボードアプリ。</span></div>
 <nav aria-label="フッター">
 <a href="https://github.com/anelikes/peesuto">GitHub</a>
+<a href="/ja/templates/">テンプレート</a>
 <a href="/changelog/">更新履歴</a>
-<a href="/privacy/">プライバシーポリシー</a>
+<a href="/ja/privacy/">プライバシーポリシー</a>
 <a href="mailto:contact@peesuto.com">contact@peesuto.com</a>
 <a href="/" lang="en" hreflang="en">English</a>
 <a href="/zh/" lang="zh-Hans" hreflang="zh-Hans">中文</a>

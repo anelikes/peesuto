@@ -3,21 +3,25 @@
  * Regenerates the website's binary assets under site/ from the repository's
  * own sources. Run it when a template preview, the app icon or the fonts
  * change; the outputs are committed, so `bun run site:build` never needs it.
+ * Template cards are rendered by scripts/site-gallery.ts instead.
  *
- *   bun scripts/site-assets.ts [--only cards,icons,fonts,backdrop,og]
+ *   bun scripts/site-assets.ts [--only icons,fonts,backdrop,og,hero] [--promo path/to/promo.mp4]
  *
  * Local tools only (no network): macOS sips and iconutil, cwebp (brew install
- * webp), fontTools' pyftsubset with brotli (pip install fonttools brotli) and
- * Google Chrome for the Open Graph image. What it writes:
+ * webp), fontTools' pyftsubset with brotli (pip install fonttools brotli),
+ * ffmpeg for the hero video and Google Chrome for the Open Graph image.
+ * What it writes:
  *
- *   site/cards/<template>-<style>.webp   native/Resources/TemplatePreviews/*.png, lossless WebP
  *   site/assets/icon-*.png, favicon.ico  native/Resources/AppIcon.icns
  *   site/assets/fonts/*.woff2            core/src/render/fonts/PeesutoText-*.ttf, Latin + keyboard symbols
  *   site/assets/field-indigo.{webp,jpg}  the code cards' "Indigo night" colour field (core/src/templates/backdrop.ts)
  *   site/assets/grain.png                a small tile of monochrome grain laid over the field
  *   site/og.png                          scripts/site/og.html rendered at 1200×630
+ *   site/assets/peesuto-promo.{mp4,webp} the promo film for the hero (only with --promo): H.264
+ *                                        1080p60, CRF 22 capped at 2.6 Mbit/s, AAC 96k, faststart;
+ *                                        poster = the frame at 2.8 s
  */
-import { copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { deflateSync } from "node:zlib";
@@ -27,7 +31,8 @@ const REPO = resolve(import.meta.dir, "..");
 const SITE = join(REPO, "site");
 const argv = process.argv.slice(2);
 const onlyArg = argv.includes("--only") ? argv[argv.indexOf("--only") + 1]!.split(",") : undefined;
-const want = (step: string) => !onlyArg || onlyArg.includes(step);
+const promo = argv.includes("--promo") ? resolve(argv[argv.indexOf("--promo") + 1]!) : undefined;
+const want = (step: string) => (!onlyArg && step !== "hero") || onlyArg?.includes(step) || (step === "hero" && !!promo && !onlyArg);
 const scratch = join(tmpdir(), `peesuto-site-${process.pid}`);
 const CHROME = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
@@ -42,18 +47,16 @@ const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
 await rm(scratch, { recursive: true, force: true });
 await mkdir(scratch, { recursive: true });
 await mkdir(join(SITE, "assets/fonts"), { recursive: true });
-await mkdir(join(SITE, "cards"), { recursive: true });
 
 try {
-  if (want("cards")) {
-    const from = join(REPO, "native/Resources/TemplatePreviews");
-    let total = 0;
-    for (const file of (await readdir(from)).filter((f) => f.endsWith(".png")).sort()) {
-      const out = join(SITE, "cards", file.replace(/\.png$/, ".webp"));
-      await run(["cwebp", "-quiet", "-lossless", "-z", "9", "-metadata", "none", join(from, file), "-o", out]);
-      total += await size(out);
-    }
-    console.log(`cards → site/cards (${kb(total)})`);
+  if (want("hero")) {
+    if (!promo) throw new Error("--only hero needs --promo path/to/promo.mp4");
+    const mp4 = join(SITE, "assets/peesuto-promo.mp4"), poster = join(scratch, "poster.png");
+    await run(["ffmpeg", "-y", "-loglevel", "error", "-i", promo, "-c:v", "libx264", "-preset", "slower", "-crf", "22", "-maxrate", "2600k", "-bufsize", "5200k",
+      "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "4.2", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", mp4]);
+    await run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "2.8", "-i", promo, "-frames:v", "1", poster]);
+    await run(["cwebp", "-quiet", "-q", "82", "-sharp_yuv", "-resize", "1600", "0", "-metadata", "none", poster, "-o", join(SITE, "assets/peesuto-promo.webp")]);
+    console.log(`hero → peesuto-promo.mp4 (${kb(await size(mp4))}), peesuto-promo.webp (${kb(await size(join(SITE, "assets/peesuto-promo.webp")))})`);
   }
 
   if (want("icons")) {

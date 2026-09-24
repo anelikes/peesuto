@@ -1,4 +1,4 @@
-// Peesuto website: the hero loop, its scaling, and the content-type tabs. No dependencies.
+// Peesuto website: the hero video or loop, the content-type tabs, card videos and the copy button. No dependencies.
 (() => {
   "use strict";
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -22,7 +22,8 @@
 
   // --- Hero loop: copy → ⌥V → Paste as… → Return → the card lands.
   const demo = document.querySelector("[data-demo]");
-  if (demo && stage) {
+  const startLoop = () => {
+    if (!demo || !stage) return;
     const samples = JSON.parse(demo.querySelector("script[type='application/json']").textContent);
     const steps = demo.querySelectorAll(".steps li");
     const button = demo.querySelector(".play");
@@ -83,7 +84,77 @@
       else if (playing && visible) { window.clearTimeout(timer); timer = window.setTimeout(tick, TIMELINE[at][1]); }
     });
     if (reduce.matches) { still(); setPlaying(false); } else { apply(0); setPlaying(true); }
+  };
+
+  // --- Hero video: shown in place of the loop when the browser can play it; it
+  // plays by itself (muted) only without a reduced-motion preference. If it
+  // fails to load, the loop comes back.
+  const heroVideo = demo && demo.querySelector("video[data-hero-video]");
+  const useVideo = heroVideo && heroVideo.canPlayType('video/mp4; codecs="avc1.640028"') !== "";
+  if (useVideo) {
+    const box = heroVideo.parentElement;
+    const loopParts = [wrap, demo.querySelector(".demo-bar")];
+    const caption = demo.querySelector("figcaption");
+    const loopCaption = caption.textContent;
+    box.hidden = false;
+    loopParts.forEach((el) => { if (el) el.hidden = true; });
+    caption.textContent = caption.dataset.videoCaption;
+    const fallback = () => {
+      heroVideo.pause();
+      box.hidden = true;
+      loopParts.forEach((el) => { if (el) el.hidden = false; });
+      caption.textContent = loopCaption;
+      startLoop();
+    };
+    heroVideo.querySelector("source").addEventListener("error", fallback, { once: true });
+    heroVideo.addEventListener("error", fallback, { once: true });
+    if (!reduce.matches) {
+      heroVideo.preload = "auto";
+      heroVideo.muted = true;
+      heroVideo.autoplay = true;
+      const p = heroVideo.play();
+      if (p) p.catch(() => {}); // autoplay refused: the poster and controls remain
+    } else heroVideo.preload = "metadata";
+  } else startLoop();
+
+  // --- Card videos on template pages: loop muted while on screen, unless the
+  // visitor prefers reduced motion (then the poster stays, with controls).
+  const cardVideos = document.querySelectorAll("video[data-card-video]");
+  if (cardVideos.length && !reduce.matches && "IntersectionObserver" in window) {
+    const seen = new IntersectionObserver((entries) => entries.forEach((e) => {
+      const v = e.target;
+      if (e.isIntersecting) { v.preload = "auto"; const p = v.play(); if (p) p.catch(() => {}); } else v.pause();
+    }), { threshold: 0.4 });
+    cardVideos.forEach((v) => { v.controls = false; v.muted = true; seen.observe(v); });
   }
+
+  // --- Copy sample: the exact text of the <pre> it names, onto the clipboard.
+  document.querySelectorAll("button[data-copy]").forEach((button) => {
+    const source = document.getElementById(button.dataset.copy);
+    if (!source || !navigator.clipboard || !window.isSecureContext) return;
+    const label = button.querySelector(".label");
+    const idle = label.textContent;
+    const status = document.querySelector(".copy-status");
+    let reset = 0;
+    button.hidden = false;
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(source.textContent);
+        label.textContent = button.dataset.done;
+        button.classList.add("done");
+        if (status) status.textContent = button.dataset.done;
+      } catch {
+        // Denied: select the text so ⌘C works.
+        const range = document.createRange();
+        range.selectNodeContents(source);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      window.clearTimeout(reset);
+      reset = window.setTimeout(() => { label.textContent = idle; button.classList.remove("done"); if (status) status.textContent = ""; }, 2000);
+    });
+  });
 
   // --- Content-type tabs (roving tabindex, arrow keys).
   document.querySelectorAll("[role='tablist']").forEach((list) => {

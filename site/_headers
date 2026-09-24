@@ -19,7 +19,7 @@
 /assets/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 
-/cards/*
+/gallery/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 
 /og.png
