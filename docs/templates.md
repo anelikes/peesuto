@@ -10,7 +10,7 @@ An output format is not a separate template. `paste-card`, `paste-gif` and
 2. Core parses source-backed candidate structures, always retaining a document fallback.
 3. The configured decision provider chooses a template, variant and motion from valid options.
 4. Core validates the choices, measures and lays out the complete content, then creates a Pocket Motion composition.
-5. Pocket Motion renders the frames. Core exports PNG/GIF or uses locally available ffmpeg for MP4.
+5. Pocket Motion renders the frames. Core exports PNG/GIF itself and MP4 through the app's PeesutoEncoder (AVFoundation), or ffmpeg outside the app.
 6. Swift previews the output and performs the existing conservative paste checks.
 
 The parser owns words, numbers, speakers, attribution, order and table cells. Jev
@@ -495,9 +495,13 @@ Lyric motion is a **manual** template, like QR: rules and the model never
 choose it (`MANUAL_TEMPLATES`; the model is never offered it), and every text
 has it as an available candidate, so a result's template menu can always
 switch to it. The `paste-lyric` action (L in the ⌥V chooser, an unbound
-shortcut in Settings, Paste Directly in the menu bar) always uses it: an MP4
-when ffmpeg is installed, else a GIF, and the result says so
-(`meta.fallback = { from: "video", to: "gif", reason: "ffmpeg" }`). It is
+shortcut in Settings, Paste Directly in the menu bar) always uses it: a GIF by
+default, or the video or poster (PNG) chosen in Settings › Templates › Lyric
+motion (`input.output`, settings key `lyric_output`). Text too long for the
+14.4 s GIF fails with `lyric-gif-too-long`, which points at video; it is never
+switched silently. Only when no MP4 encoder exists at all does a video request
+become a GIF, and the result says so
+(`meta.fallback = { from: "video", to: "gif", reason: "encoder" }`). It is
 never precomposed (fixed-template actions have no precompose key). The id
 stays `lyrics`, so saved styles and disabled lists keep working; the
 user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
@@ -788,7 +792,7 @@ content taller than the frame scrolls. `auto` for GIF/MP4 means 1:1. Legacy
   are `TEMPLATE_SCROLL` in `core/src/templates/compose.ts`. PNG always grows in
   height instead (up to 4096 px), and the result reports `scroll`.
 - GIF uses at most 128 MiB for retained raw frames (engine and palette memory are additional). It starts at 540 px wide, may reduce to 360 px, and rejects taller animations that still exceed this budget.
-- MP4 still requires ffmpeg; this app does not install it automatically.
+- MP4 is encoded by the app's own PeesutoEncoder (AVFoundation/VideoToolbox); ffmpeg is only a fallback outside the app.
 
 ## Native controls and protocol
 

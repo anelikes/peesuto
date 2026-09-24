@@ -97,7 +97,7 @@ lower priority (`nice 10`), GIF encoding yielding between frames.
   install cannot render), `empty` for whitespace, `too-long` above `maxChars`
   visible characters (grapheme clusters that are not whitespace), `secret` when
   `skipSecrets` is on and an enabled built-in secret rule matches. Video is
-  left out silently when ffmpeg is missing. A `frames` value that is not a
+  left out silently when no MP4 encoder (PeesutoEncoder or ffmpeg) is available. A `frames` value that is not a
   frame is a `usage` error.
 - **Latest only.** A new `precompose` replaces queued work and cancels the
   running task unless it is for the same key. Cancelling kills the engine's

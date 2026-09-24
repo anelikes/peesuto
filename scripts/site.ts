@@ -202,7 +202,7 @@ function chooser(lang: Lang, cardName: string, alt = ""): string {
 ${row("image", T(lang, "Image", "图片", "画像"), "I", "on")}
 ${row("gif", "GIF", "G")}
 ${row("video", T(lang, "Video", "视频", "動画"), "M")}
-${row("lyric", T(lang, "Lyric motion", "文字 PV", "文字PV"), "L")}
+${row("lyric", T(lang, "Lyric motion · GIF", "文字 PV · GIF", "文字PV · GIF"), "L")}
 ${row("qr", T(lang, "QR code", "二维码", "QR コード"), "Q")}
 ${row("pin", T(lang, "Pin to screen", "贴到屏幕", "画面にピン留め"), "P", "sep")}
 ${row("history", T(lang, "Clipboard history", "剪贴板历史", "クリップボード履歴"), "H")}
@@ -352,8 +352,8 @@ function shortcuts(lang: Lang): string {
 <dl>
 ${out("I", T(lang, "Image", "图片", "画像"), T(lang, "a PNG, pasted into the app you are typing in", "PNG，直接粘贴进你正在输入的应用", "PNG を、いま入力中のアプリにそのままペースト"))}
 ${out("G", "GIF", T(lang, "the same card, revealed line by line", "同一张卡片，逐行出现", "同じカードを、一行ずつ表示"))}
-${out("M", T(lang, "Video", "视频", "動画"), T(lang, "MP4, made with the ffmpeg on your Mac", "MP4，用你 Mac 上的 ffmpeg 生成", "MP4。Mac に入っている ffmpeg で作ります"))}
-${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang, "any text as kinetic type, cut into screens at its sentences and clauses", "任意文字做成动态文字视频，按句子和分句切成一幕幕", "どんなテキストも、文や句の切れ目で場面に分けた動く文字に"))}
+${out("M", T(lang, "Video", "视频", "動画"), T(lang, "an MP4, encoded by your Mac's own video hardware", "MP4，由 Mac 自带的视频硬件编码", "MP4。Mac 内蔵のビデオハードウェアでエンコードします"))}
+${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang, "any text as kinetic type, cut into screens at its sentences and clauses: a GIF, or a video or poster if you prefer", "任意文字做成动态文字，按句子和分句切成一幕幕：默认 GIF，也可以设成视频或海报", "どんなテキストも、文や句の切れ目で場面に分けた動く文字に。GIF のほか、ビデオやポスターにも"))}
 ${out("Q", T(lang, "QR code", "二维码", "QR コード"), T(lang, "exactly the text you copied; never sent to a model", "编码的就是你复制的原文，不会发给任何模型", "コピーしたテキストをそのまま。モデルには送りません"))}
 ${out("P", T(lang, "Pin to screen", "贴到屏幕", "画面にピン留め"), T(lang, "floats above every window; drag, pinch to zoom, double-click to close", "浮在所有窗口之上；可拖动、捏合缩放，双击关闭", "すべてのウィンドウの上に浮かびます。ドラッグで移動、ピンチで拡大、ダブルクリックで閉じます"))}
 </dl>
@@ -393,7 +393,7 @@ function faq(lang: Lang): string {
     ["なぜ「アクセシビリティ」の許可が必要なのですか？", "入力中のアプリにペーストするため、カーソルの位置にパネルを開くため、そしてペーストの直前にカーソルが元の場所にあるかを確かめるためです。許可しなくてもコピーと履歴は使えます。その場合、結果はクリップボードに入るので、⌘V はご自分で押してください。"],
     ["Mac の外に出るデータはありますか？", `初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/ja/privacy/">プライバシーポリシー</a>に書いてあります。`],
     ["AI は必須ですか？", "いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。"],
-    ["ffmpeg は必要ですか？", "MP4 動画を作るときだけ必要です。Peesuto は Mac にインストール済みの ffmpeg（<code>brew install ffmpeg</code>）を使い、同梱も自動インストールもしません。画像、GIF、QR コードには何も要りません。"],
+    ["動画を作るのに何か必要ですか？", "いいえ。MP4 は Peesuto 自身が、Mac に内蔵のビデオエンコーダ（VideoToolbox）で作ります。画像、GIF、動画、QR コードのどれにも、追加でインストールするものはありません。"],
     ["対応している Mac は？", "Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。"],
     ["Homebrew で入れられますか？", "はい。<code>brew install --cask anelikes/tap/peesuto</code> でインストールできます。アップデートはアプリ自身が行います。"],
     ["料金はかかりますか？", "かかりません。Peesuto は MIT ライセンスのオープンソースで、オープンソース版から外している機能もありません。"],
@@ -402,7 +402,7 @@ function faq(lang: Lang): string {
     ["Why does it ask for Accessibility access?", "To paste into the app you are typing in, to open the chooser at your caret, and to check that the caret is still where you left it before pasting. Without the permission, copying and history still work; the result is copied and you press ⌘V yourself."],
     ["What leaves my Mac?", `By default, nothing. Only if you set up an AI provider is copied text sent, with secrets redacted first, to that provider with your key. One offline switch in Settings stops all of it. The <a href="/privacy/">privacy policy</a> lists every case.`],
     ["Is AI required?", "No. Local rules choose a template for everything. If you like, bring your own key and let Jev, a small model, choose the template and style, through TypeSafe, Vercel AI Gateway, OpenRouter or your own Cloudflare account. It picks presentation only; it never rewrites your text."],
-    ["Do I need ffmpeg?", "Only for MP4 video. Peesuto uses the ffmpeg already on your Mac (<code>brew install ffmpeg</code>) and does not bundle or install it. Images, GIFs and QR codes need nothing extra."],
+    ["Does video need anything extra?", "No. Peesuto makes MP4 itself, with the video encoder built into your Mac (VideoToolbox). Images, GIFs, video and QR codes need nothing else installed."],
     ["Which Macs does it run on?", "Macs with Apple silicon, on macOS 13 Ventura or later."],
     ["Can I install it with Homebrew?", "Yes: <code>brew install --cask anelikes/tap/peesuto</code>. The app keeps itself up to date from then on."],
     ["What does it cost?", "Nothing. Peesuto is free and MIT-licensed, and no feature is held back from the open-source build."],
@@ -411,7 +411,7 @@ function faq(lang: Lang): string {
     ["为什么需要“辅助功能”权限？", "为了把结果粘贴进你正在使用的应用、在光标处打开选择面板，并在粘贴前确认光标还在原来的位置。不授权也能正常复制和查看历史，结果会放进剪贴板，由你自己按 ⌘V。"],
     ["哪些数据会离开我的 Mac？", `默认什么都不会。只有当你配置了 AI 服务，复制的文字才会先脱敏，再用你的密钥发给该服务商。设置里有一个离线开关，可以一键全部切断。<a href="/zh/privacy/">隐私政策</a>列出了每一种情况。`],
     ["必须用 AI 吗？", "不必。本地规则就能为所有内容选好模板。如果愿意，也可以填入自己的密钥，让小模型 Jev 来挑模板和样式，支持 TypeSafe、Vercel AI Gateway、OpenRouter 或你自己的 Cloudflare 账号。它只负责选择呈现方式，从不改写你的文字。"],
-    ["需要安装 ffmpeg 吗？", "只有生成 MP4 视频时需要。Peesuto 使用你 Mac 上已有的 ffmpeg（<code>brew install ffmpeg</code>），不会自带或自动安装。图片、GIF 和二维码不需要任何额外组件。"],
+    ["生成视频需要装别的吗？", "不需要。MP4 由 Peesuto 自己用 Mac 内置的视频编码器（VideoToolbox）生成。图片、GIF、视频和二维码都不用另外安装任何组件。"],
     ["支持哪些 Mac？", "搭载 Apple 芯片、运行 macOS 13 Ventura 或更高版本的 Mac。"],
     ["可以用 Homebrew 安装吗？", "可以：<code>brew install --cask anelikes/tap/peesuto</code>。之后应用会自己更新。"],
     ["收费吗？", "免费。Peesuto 以 MIT 许可证开源，开源版本没有任何功能保留。"],
@@ -751,12 +751,12 @@ ${styles}
 <section class="tp-sec tp-motion" aria-labelledby="motion-title">
 <div>
 <h2 id="motion-title">${T(lang, "In motion", "动起来", "動きをつける")}</h2>
-<p>${isLyric ? T(lang, "Press L in the chooser: each sentence or clause gets its own screens, set big in the style's display type, one of twenty-odd compositions per cut, with colour cuts on the beat. You get an MP4 when ffmpeg is on your Mac, a GIF otherwise.",
-    "在选择面板里按 L：每个句子或分句各占几幕，用样式自带的展示字体大字排出，每一幕从二十多种构图里挑一种，颜色随节拍切换。Mac 上装了 ffmpeg 就得到 MP4，否则是 GIF。",
-    "パネルで L を押すと、文や句ごとに場面が生まれ、スタイルの見出し書体で大きく組まれます。場面ごとに二十あまりの構図からひとつ、色はビートで切り替わります。Mac に ffmpeg があれば MP4、なければ GIF になります。")
-  : T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order. The video needs ffmpeg on your Mac.",
-    "在选择面板里按 G 生成 GIF，按 M 生成 MP4：同一张卡片，按阅读顺序逐步出现。视频需要你的 Mac 上装有 ffmpeg。",
-    "パネルで G を押すと GIF、M を押すと MP4 に。同じカードが、読む順に現れます。動画には Mac に ffmpeg が必要です。")}</p>
+<p>${isLyric ? T(lang, "Press L in the chooser: each sentence or clause gets its own screens, set big in the style's display type, one of twenty-odd compositions per cut, with colour cuts on the beat. It makes a GIF; set Lyric motion to Video or Poster in Settings › Templates, or switch one result in its format menu.",
+    "在选择面板里按 L：每个句子或分句各占几幕，用样式自带的展示字体大字排出，每一幕从二十多种构图里挑一种，颜色随节拍切换。默认生成 GIF；可在“设置 › 模板”里把文字 PV 改成视频或海报，也可以在结果的格式菜单里单独切换。",
+    "パネルで L を押すと、文や句ごとに場面が生まれ、スタイルの見出し書体で大きく組まれます。場面ごとに二十あまりの構図からひとつ、色はビートで切り替わります。できあがるのは GIF。「設定 › テンプレート」でビデオやポスターに変えられ、結果の形式メニューで一枚ずつ切り替えることもできます。")
+  : T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order.",
+    "在选择面板里按 G 生成 GIF，按 M 生成 MP4：同一张卡片，按阅读顺序逐步出现。",
+    "パネルで G を押すと GIF、M を押すと MP4 に。同じカードが、読む順に現れます。")}</p>
 </div>
 <video data-card-video muted loop playsinline controls preload="none" poster="${poster.src}" width="320" height="${Math.round(320 * motion.height / motion.width)}" aria-label="${esc(T(lang, `The ${name} card, animated.`, `${name}卡片的动画版。`, `${name}カードのアニメーション。`))}"><source src="${motion.src}" type="video/mp4"></video>
 </section>

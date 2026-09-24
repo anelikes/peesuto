@@ -33,5 +33,5 @@ Each release bumps `version` and `sha256` with `scripts/update-cask.ts`
 `brew style` in the tap and
 `brew audit --cask --strict --online anelikes/tap/peesuto`.
 
-ffmpeg (MP4 only) is not a cask dependency; people install it with
-`brew install ffmpeg` when they want video.
+The cask has no dependencies: MP4 is encoded by the app's own
+`PeesutoEncoder` (AVFoundation), not ffmpeg.

@@ -11,7 +11,7 @@ bun scripts/studio.ts [--port 4455] [--engine <prepared engine>] [--ffmpeg <path
 
 - The server listens on `127.0.0.1` only (default port 4455) and opens the browser.
 - The engine (default `.work/native-engine`, a prepared pocket-motion checkout at the `engine.json` sha) is copied once into `.work/studio/.engine`, because its build tools write caches. The copy is reused until the source path or its git HEAD changes; `--fresh-engine` copies it again.
-- MP4 needs ffmpeg (on `PATH` or `--ffmpeg`). Without it the MP4 option is disabled.
+- MP4 uses the native `PeesutoEncoder` when it is built (`swift build --package-path native -c release`), else ffmpeg (on `PATH` or `--ffmpeg`). With neither the MP4 option is disabled.
 - The "Jev (Cloudflare)" decider is enabled when `PASTE_CF_TOKEN` and `PASTE_CF_ACCOUNT_ID` are set (Bun loads the repo's `.env`). Jev answers are cached in `.work/studio/answers`.
 
 ## What it shows

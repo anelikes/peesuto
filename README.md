@@ -40,8 +40,8 @@ it with the arrow keys):
 |---|---|
 | **I** | Image: a PNG, pasted into the app you are typing in |
 | **G** | GIF: the same card, revealed line by line |
-| **M** | Video: MP4, made with the ffmpeg on your Mac |
-| **L** | Lyric motion: any text as kinetic type, cut into screens at its sentences and clauses (MP4, or a GIF without ffmpeg) |
+| **M** | Video: an MP4, encoded by your Mac's own video hardware |
+| **L** | Lyric motion: any text as kinetic type, cut into screens at its sentences and clauses (a GIF; Video or Poster in Settings › Templates) |
 | **Q** | QR code: exactly the text you copied; never sent to a model |
 | **P** | Pin to screen: floats above every window; drag, pinch to zoom, double-click to close |
 | **H** | Clipboard history (also **⇧⌥V**) |
@@ -107,8 +107,7 @@ Details: [privacy policy](https://peesuto.com/privacy/) ·
    moved before pasting. Copying and history work without it.
 
 **Requirements:** a Mac with Apple silicon, macOS 13 Ventura or later.
-[ffmpeg](https://ffmpeg.org) (`brew install ffmpeg`) only for MP4 video;
-Peesuto does not bundle or install it.
+Nothing else: video is encoded with the Mac's built-in H.264 encoder.
 
 **Updates** are automatic: Peesuto checks once a day and offers signed
 updates (Sparkle). Turn the check off in Settings › General. Versions 0.1.0

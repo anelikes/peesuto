@@ -33,13 +33,15 @@ rebuild rules. A bare Swift build is not a complete application bundle.
 node_modules closures (source maps, type declarations, docs, Vue's browser
 builds, unreached packages, all but Core's highlight.js languages; the rules
 and how they were measured are in the script). It then renders every template
-and variant as PNG and GIF (and one MP4 when ffmpeg is installed) with the
+and variant as PNG and GIF, plus a text card and a Lyric motion video as MP4
+through the freshly built `PeesutoEncoder` (never ffmpeg), with the
 bundled Bun, offline, from a copy of the pruned tree
 (`scripts/bundle-render-probe.ts`, about a minute), and fails the build if any
 render fails. After an engine or dependency bump, a rule that no longer
 matches also fails the build and should be revisited.
 
-MP4 additionally needs a locally installed ffmpeg. Where available, run:
+The smoke with `--video` checks MP4 through the bundled encoder (no ffmpeg
+needed; `meta.encoder` must be `native`) and Lyric motion as video:
 
 ```sh
 native/.build/release/PeesutoSmoke native/dist/Peesuto.app --video
@@ -143,7 +145,8 @@ What it does:
    currently the engine's `compiler-rs.darwin-arm64.node`), then
    `Contents/MacOS/paste` (bundled Bun, identifier `com.peesuto.desktop.paste`,
    entitlements `native/Resources/Bun.entitlements.plist`), then
-   `PeesutoCoreHost` (`com.peesuto.desktop.corehost`), then Sparkle as its
+   `PeesutoCoreHost` (`com.peesuto.desktop.corehost`), the MP4 encoder
+   `PeesutoEncoder` (`com.peesuto.desktop.encoder`), then Sparkle as its
    "Sandboxing and code signing" guide lists (`Versions/B/Autoupdate`,
    `Versions/B/Updater.app`, then `Contents/Frameworks/Sparkle.framework`),
    then the bundle, which

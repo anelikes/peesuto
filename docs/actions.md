@@ -80,16 +80,31 @@ the native action-management UI is still incomplete.
 | `render.template` | a template id | render actions; always this template (the model is not asked); the result view can still switch |
 | `render.aspect` | `auto` \| `1:1` \| `4:5` \| `16:9` \| `9:16` (legacy `chat` \| `doc` \| `social` = 1:1, 16:9, 9:16) | render actions; absent = the output's default (image `auto`, GIF and video `1:1`); the panel's per-format frame setting overrides |
 | `render.animate` | `auto` \| `always` \| `never` | `auto` lets the decider choose |
+| `render.outputs` | list of `image` \| `gif` \| `video`, including `output` | outputs the request's `input.output` may choose instead (paste-lyric: `["gif", "video", "image"]`, from Settings › Templates › Lyric motion); anything else is an `input` error |
+| `render.fallback` | `gif` | an action that can make video renders a GIF when no MP4 encoder exists at all (`meta.fallback = { from: "video", to: "gif", reason: "encoder" }`) |
 
-`video` is implemented by the render runtime and the `paste-video` built-in.
-Pocket Motion renders and encodes an MP4 using a locally installed ffmpeg.
-The application does not bundle or automatically install ffmpeg. Discovery
-checks an explicit `PEESUTO_FFMPEG_PATH`, then PATH, then the usual macOS
-Homebrew locations `/opt/homebrew/bin/ffmpeg` and `/usr/local/bin/ffmpeg`.
+`video` is implemented by the render runtime and the `paste-video` built-in
+(core/src/render/video.ts). Frames are rendered in Core by the engine's frame
+source and encoded by one of two encoders, both H.264 High 4:2:0 with the moov
+atom first and no audio:
+
+- **PeesutoEncoder** (preferred): a small Swift helper in the app bundle
+  (`Contents/MacOS/PeesutoEncoder`, next to the bundled Bun), signed with the
+  app. Core pipes raw RGBA frames to it and it encodes with AVFoundation and
+  the VideoToolbox hardware encoder, BT.709 limited range tagged with the sRGB
+  transfer so players show the PNG's colours. Found next to the running Bun,
+  then in a development build (`native/.build/release/PeesutoEncoder`);
+  `PEESUTO_ENCODER_PATH` names it explicitly.
+- **ffmpeg**: Pocket Motion's own `render --format mp4` (libx264, CRF 16).
+  Used when the helper is absent, e.g. `bun run paste` outside the app, or when
+  forced with `PEESUTO_VIDEO_ENCODER=ffmpeg` (`native` refuses to fall back).
+  Discovery checks `PEESUTO_FFMPEG_PATH`, then PATH, then
+  `/opt/homebrew/bin/ffmpeg` and `/usr/local/bin/ffmpeg`.
+
 An explicit path must be absolute and executable; invalid explicit paths fail
-instead of silently selecting another binary. Missing ffmpeg produces an
-action dependency error, while PNG/GIF remain available. Official encoder
-distribution and full target-app video acceptance remain N4 work.
+instead of silently selecting another binary. With neither encoder a video
+action fails with an `action:needs` error before any rendering, while PNG and
+GIF remain available. The result's `meta.encoder` says which one made the MP4.
 
 ## The built-ins
 
@@ -98,8 +113,9 @@ distribution and full target-app video acceptance remain N4 work.
 | `paste-smart` | decider | the history item that fits where you are pasting, preselected; Enter confirms |
 | `paste-card` | render | a still PNG card |
 | `paste-gif` | render | an animated GIF card |
-| `paste-video` | render | an animated MP4 card; requires local ffmpeg |
+| `paste-video` | render | an animated MP4 card |
 | `paste-qr` | render | the copied text, exactly, as a QR code image (`render.template: "qr"`; no model is asked) |
+| `paste-lyric` | render | Lyric motion (`render.template: "lyrics"`): a GIF by default; `input.output` `"video"` or `"image"` (poster) per Settings › Templates |
 | `paste-translate` | generator | English translation |
 | `paste-summary` | generator | three-sentence summary in the input's language |
 

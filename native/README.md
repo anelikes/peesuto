@@ -69,7 +69,7 @@ bun scripts/release-native.ts --identity "Developer ID Application: <name> (<tea
 
 脚本在 `build-native.ts` 构建后按由内到外的顺序以 hardened runtime 重新签名（资源中的
 Mach-O，如引擎的 `.node`；随包 Bun `paste` 使用 `Resources/Bun.entitlements.plist`；
-`PeesutoCoreHost`；最后是应用包，不用 `--deep`），校验后生成
+`PeesutoCoreHost`；MP4 编码器 `PeesutoEncoder`；最后是应用包，不用 `--deep`），校验后生成
 `dist/Peesuto-<版本>-arm64.dmg`（含 `/Applications` 链接）并签名，然后公证、staple，
 并写出 `.sha256`。没有 Developer ID 证书时可用任一 Apple Development 身份加
 `--no-notarize` 离线演练（不加时间戳、不公证，spctl 拒绝只报告），再用
@@ -192,7 +192,7 @@ swift test --package-path native
 
 ```sh
 native/.build/release/PeesutoSmoke native/dist/Peesuto.app
-# 已安装 ffmpeg 时连同 MP4 验证：
+# 连同 MP4（随包 PeesutoEncoder，无需 ffmpeg）与文字 PV 视频验证：
 native/.build/release/PeesutoSmoke native/dist/Peesuto.app --video
 ```
 
@@ -212,6 +212,7 @@ native/.build/release/PeesutoSmoke native/dist/Peesuto.app --video
 | `Sources/Peesuto/` | SwiftUI 面板/设置、AppKit 窗口与应用状态 |
 | `Sources/PeesutoKit/` | 存储、设置、Keychain、系统集成和 Core 通信 |
 | `Sources/PeesutoCoreHost/` | Core 启动与进程组 |
+| `Sources/PeesutoEncoder/` | MP4 编码器：Core 经 stdin 送入 RGBA 帧，AVFoundation/VideoToolbox 编码 H.264（放在 `Contents/MacOS`，与随包 Bun 同目录） |
 | `Sources/PeesutoSmoke/` | 完整 bundle 的隔离冒烟检查 |
 | `Tests/PeesutoKitTests/` | 原生模块测试 |
 | `Resources/` | 应用图标与 Bun 的签名权限配置（hardened runtime） |
