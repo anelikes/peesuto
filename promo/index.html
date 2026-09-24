@@ -14,55 +14,56 @@
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="42" data-width="1920" data-height="1080">
-      <div id="stage-bg" class="clip" data-start="0" data-duration="42" data-track-index="0"></div>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="60" data-width="1920" data-height="1080">
+      <div id="stage-bg" class="clip" data-start="0" data-duration="60" data-track-index="0"></div>
 
-      <!-- 0–3.0 s  Hook: copied text → ⌥V → every character flies to its place on the card -->
-      <section id="s-hook" class="clip scene" data-start="0" data-duration="3.0" data-track-index="1">
+      <!-- Hook: copied text → ⌥V → every character flies to its place on the card -->
+      <section id="s-hook" class="clip scene" data-start="0" data-duration="4.8" data-track-index="1">
         <div id="hook-world" class="world"></div>
       </section>
 
-      <!-- 3.0–7.8 s  Four steps vs one key -->
-      <section id="s-pain" class="clip scene" data-start="3.0" data-duration="4.8" data-track-index="2">
+      <!-- Four steps vs one key -->
+      <section id="s-pain" class="clip scene" data-start="4.8" data-duration="4.8" data-track-index="2">
         <div id="pain-world" class="world"></div>
       </section>
 
-      <!-- 7.8–22.2 s  It reads what you copied: six cards, accelerating -->
-      <section id="s-show" class="clip scene" data-start="7.8" data-duration="14.4" data-track-index="1">
+      <!-- It reads what you copied: six cards, accelerating -->
+      <section id="s-show" class="clip scene" data-start="9.6" data-duration="25.2" data-track-index="1">
         <div id="show-world" class="world"></div>
         <div id="show-hud" class="hud"></div>
       </section>
 
-      <!-- 22.2–28.2 s  One card, many forms -->
-      <section id="s-forms" class="clip scene" data-start="22.2" data-duration="6.0" data-track-index="2">
+      <!-- One card, many forms -->
+      <section id="s-forms" class="clip scene" data-start="34.8" data-duration="9.6" data-track-index="2">
         <div id="forms-world" class="world"></div>
       </section>
 
-      <!-- 28.2–34.2 s  Real use: ⌥V in a chat -->
-      <section id="s-use" class="clip scene" data-start="28.2" data-duration="6.0" data-track-index="1">
+      <!-- Real use: ⌥V in a chat -->
+      <section id="s-use" class="clip scene" data-start="44.4" data-duration="7.2" data-track-index="1">
         <div id="use-world" class="world"></div>
         <div id="use-overlay" class="world"></div>
       </section>
 
-      <!-- 34.2–37.8 s  Trust -->
-      <section id="s-trust" class="clip scene" data-start="34.2" data-duration="3.6" data-track-index="2">
+      <!-- Trust -->
+      <section id="s-trust" class="clip scene" data-start="51.6" data-duration="4.8" data-track-index="2">
         <div id="trust-world" class="world"></div>
       </section>
 
-      <!-- 37.8–42 s  Outro -->
-      <section id="s-outro" class="clip scene" data-start="37.8" data-duration="4.2" data-track-index="1">
+      <!-- Outro -->
+      <section id="s-outro" class="clip scene" data-start="56.4" data-duration="3.6" data-track-index="1">
         <div id="outro-world" class="world"></div>
       </section>
 
-      <audio id="bed" src="assets/audio/peesuto-bed.m4a" data-start="0" data-duration="42" data-track-index="9"></audio>
+      <audio id="bed" src="assets/audio/peesuto-bed.m4a" data-start="0" data-duration="60" data-track-index="9"></audio>
     </div>
 
+    <script src="music/timeline.js"></script>
     <script src="assets/cards/cards.js"></script>
     <script src="lib/card.js"></script>
     <script src="lib/stage.js"></script>
     <script src="lib/scenes.js"></script>
     <script>
-      window.__timelines["main"] = window.PROMO_TIMELINE;
+      window.__timelines["main"] = window.PROMO_GSAP;
     </script>
   </body>
 </html>

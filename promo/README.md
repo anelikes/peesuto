@@ -1,21 +1,31 @@
-# Peesuto promo (42 s, 16:9)
+# Peesuto promo (60 s, 16:9)
 
 A HyperFrames composition for the X (Twitter) launch film. 1920×1080, rendered
 at 60 fps, English on-screen text only (X autoplays muted), original
 synthesised music. Plan and intent: [`BRIEF.md`](BRIEF.md),
 [`STORYBOARD.md`](STORYBOARD.md).
 
-## Timeline (100 BPM, one beat = 0.6 s)
+## Timeline (100 BPM, one beat = 0.6 s; bars on beats 2, 6, 10 …)
+
+Every copied text is held still and readable before it moves (≥ 1.2 s, about
+2 s for the longer ones), every finished card holds ≥ 1.2 s with its name on
+screen, and every caption stays ≥ 1.5 s. The flights themselves are unchanged.
 
 | Time | Beats | Scene |
 |---|---|---|
-| 0–3.0 s | 0–5 | Hook: copied code in a notes window → ⌥V on the downbeat → the text is highlighted in place → every character flies to its place on the terminal card. "Copy text. Paste a card." |
-| 3.0–7.8 s | 5–13 | Four steps (screenshot → crop → resize → paste, stuttering) vs one key. |
-| 7.8–22.2 s | 13–37 | "It reads what you copied": terminal, chat, table, contact, Mermaid, release notes, each raw text flying into its card; the camera pans between stations, faster each time. |
-| 22.2–28.2 s | 37–47 | One card, many forms: image, GIF (types itself), video (reveal + play bar), QR code (flip), pinned above a window. |
-| 28.2–34.2 s | 47–57 | Real use: typing in a chat, ⌥V, the Paste as… chooser at the caret, Return, the card lands in the message box, sent. |
-| 34.2–37.8 s | 57–63 | Runs on your Mac. No telemetry. Open source. |
-| 37.8–42 s | 63–70 | Peesuto, "Free & open source for macOS", peesuto.com · github.com/anelikes/peesuto. |
+| 0–4.8 s | 0–8 | Hook: "On your clipboard", the copied code selected in a notes window, held 1.2 s. ⌥V on the first downbeat (1.2 s); the window turns to the card's panel colour and the code is highlighted in place; line by line the characters arc onto the terminal card (landed ≈ 2.9 s). "Copy text. / Paste a card." from 2.4 s. |
+| 4.8–9.6 s | 8–16 | Four steps (screenshot → crop → resize → paste, stuttering) → "Four steps."; one ⌥V at 7.2 s → the card → "One key." |
+| 9.6–34.8 s | 16–58 | "It reads what you copied." (alone 1.5 s), then five stations of 8 beats: pan in · raw text with "On your clipboard · …" held 1.8–2.1 s · flight · card + its name held 1.2 s. Chat (flight 12.6 s), table (17.4), contact (22.2), Mermaid (27.0), release notes (31.8). |
+| 34.8–44.4 s | 58–74 | One card, many forms, 1.8 s each (pin 2.4 s): image, GIF (types itself), video (reveal + play bar), QR code (flip), pinned above a window. |
+| 44.4–51.6 s | 74–86 | Chat: typing, ⌥V (46.8 s), the Paste as… chooser at the caret, Return (48.6 s), the card in the message box, send (49.8 s), the message holds. |
+| 51.6–56.4 s | 86–94 | Runs on your Mac. / No telemetry. / Open source. |
+| 56.4–60 s | 94–100 | Peesuto, "Free & open source for macOS", peesuto.com · github.com/anelikes/peesuto, fade. |
+
+The code → terminal card example is the hook itself, so the showcase starts
+with the chat (the `terminal` sample is still exported, unused).
+`music/timeline.js` is the single source for these beats: `lib/scenes.js`
+reads it as a script, `music/synth.py` parses it as JSON. The clip
+`data-start`/`data-duration` values in `index.html` must match its sections.
 
 ## How the character flight works
 
@@ -56,7 +66,7 @@ sine/saw bass, a 16th-note pluck arpeggio with ping-pong delay, soft kick,
 clap and hats, keycap clicks for the typing and the ⌥V / Return presses,
 filtered-noise risers and a bell accent on every card cut, a convolution
 reverb and kick sidechain on pad and arp. Every event is placed on the grid
-in `music/timeline.json`, which the picture uses too. `music/master.sh` does a
+in `music/timeline.js`, which the picture uses too. `music/master.sh` does a
 two-pass loudnorm to −14 LUFS (−1 dBTP) and encodes
 `assets/audio/peesuto-bed.m4a`.
 

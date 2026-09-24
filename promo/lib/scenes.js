@@ -1,9 +1,10 @@
-/* The promo's scenes on one paused timeline. Times are absolute seconds on
- * the 100 BPM grid of promo/music/timeline.json: B(n) is beat n (0.6 s).
+/* The promo's scenes on one paused timeline. Times come from the beat grid in
+ * promo/music/timeline.js (shared with the music): B(n) is beat n (0.6 s).
  * All layout is computed here once, before any tween is added. */
 (function () {
   const { el, morph, keycaps, maskedWords, rawLayout, mulberry32 } = ST;
-  const B = (n) => n * 0.6;
+  const TL = window.PROMO_TIMELINE, SEC = TL.sections;
+  const B = (n) => n * TL.beat;
   const tl = gsap.timeline({ paused: true });
   const $ = (id) => document.getElementById(id);
   // "600 26px <family>" → DOM measurement (see stage.js).
@@ -31,14 +32,14 @@
     return { win, bar, textX: x + 44, textY: y + 56 + 34 };
   }
 
-  // ─────────────────────────────── 1. Hook (0 – 3.0) ───────────────────────────────
+  // ─────────────────────────────── 1. Hook ───────────────────────────────
   (function hook() {
     const world = $("hook-world");
     const card = CARDS.hook;
     const k = 0.7, cx = 1920 - 150 - card.width * k, cy = (1080 - card.height * k) / 2;
     const nw = notesWindow(world, 150, 262, 700, 556, "ease.js — Notes");
     // Selection behind every line: this text was just copied.
-    const size = 29, lh = 44;
+    const size = 33, lh = 50;
     const lay = rawLayout(card.source, { x: nw.textX, y: nw.textY, size, lineHeight: lh });
     const lines = card.source.split("\n");
     const sels = lines.map((line, r) => {
@@ -50,40 +51,45 @@
     // Glyph layer above the window.
     world.appendChild(m.host);
     const keys = keycaps(world, ["⌥", "V"], { x: 500 - 129, y: 872, size: 120 });
+    const clip = el("div", "kind abs", { left: "150px", top: "206px" }, world); clip.textContent = "On your clipboard";
+    const P = B(TL.hook.press);
 
     m.prime(tl, 0);
     // Keycaps rise in, press on the downbeat.
-    tl.fromTo(keys.root, { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "expo.out" }, 0.05);
-    keys.press(tl, B(1), 0.1);
-    tl.to(keys.root, { y: 30, opacity: 0, duration: 0.4, ease: "power2.in" }, 1.45);
+    // The copied snippet is on screen, selected and still, before anything moves.
+    tl.fromTo(keys.root, { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "expo.out" }, B(TL.hook.keysIn));
+    keys.press(tl, P, 0.1);
+    tl.to(keys.root, { y: 30, opacity: 0, duration: 0.4, ease: "power2.in" }, P + 0.85);
+    tl.to(clip, { opacity: 0, duration: 0.3 }, P + 0.2);
     // The selection clears as the text lifts off; the window steps back and goes.
-    tl.to(sels, { opacity: 0, duration: 0.12, ease: "none" }, B(1));
+    tl.to(sels, { opacity: 0, duration: 0.12, ease: "none" }, P);
     // The window empties top-down behind the departing lines (a wipe, not a fade: no grey).
     // The empty lower part folds up under the text; once the last line has left, the window closes to a line.
-    tl.fromTo(nw.win, { clipPath: "inset(0% 0% 0% 0% round 18px)" }, { clipPath: "inset(0% 0% 25% 0% round 18px)", duration: 0.3, ease: "power2.out" }, B(1) + 0.08);
-    tl.to(nw.win, { clipPath: "inset(37% 0% 63% 0% round 18px)", duration: 0.3, ease: "power3.in" }, 1.45);
+    tl.fromTo(nw.win, { clipPath: "inset(0% 0% 0% 0% round 18px)" }, { clipPath: "inset(0% 0% 25% 0% round 18px)", duration: 0.3, ease: "power2.out" }, P + 0.08);
+    tl.to(nw.win, { clipPath: "inset(37% 0% 63% 0% round 18px)", duration: 0.3, ease: "power3.in" }, P + 0.85);
     // The flight.
 // On the key press the notes window turns to the card's panel colour and the
     // text is highlighted in place (Peesuto reading it); then the lines lift off.
-    tl.to(nw.win, { backgroundColor: "#1a1d23", boxShadow: "0 40px 90px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08)", duration: 0.25, ease: "power2.out" }, B(1));
-    tl.to(nw.bar, { backgroundColor: "#22252c", borderBottomColor: "#2a2e36", duration: 0.25, ease: "power2.out" }, B(1));
-    tl.to(nw.bar.querySelectorAll(".notes-dot"), { backgroundColor: "#3a3e46", duration: 0.25 }, B(1));
-    tl.to(nw.bar.querySelector(".notes-title"), { color: "#8b93a3", duration: 0.25 }, B(1));
-    m.animate(tl, B(1) + 0.22, 1.25, { spread: 0.42, lift: 1, ribbon: 0.005, colorAt: B(1) + 0.02 });
+    tl.to(nw.win, { backgroundColor: "#1a1d23", boxShadow: "0 40px 90px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08)", duration: 0.25, ease: "power2.out" }, P);
+    tl.to(nw.bar, { backgroundColor: "#22252c", borderBottomColor: "#2a2e36", duration: 0.25, ease: "power2.out" }, P);
+    tl.to(nw.bar.querySelectorAll(".notes-dot"), { backgroundColor: "#3a3e46", duration: 0.25 }, P);
+    tl.to(nw.bar.querySelector(".notes-title"), { color: "#8b93a3", duration: 0.25 }, P);
+    m.animate(tl, P + 0.22, 1.25, { spread: 0.42, lift: 1, ribbon: 0.005, colorAt: P + 0.02 });
     // Caption where the window was.
     const c1 = maskedWords(world, "Copy text.", { left: "150px", top: "388px", fontSize: "104px" });
     const c2 = maskedWords(world, "Paste a card.", { left: "150px", top: "516px", fontSize: "104px" });
     c1.line.className += " display"; c2.line.className += " display";
-    rise(1.75, c1.words, { stagger: 0.07 });
-    rise(1.95, c2.words, { stagger: 0.07 });
+    rise(P + 1.15, c1.words, { stagger: 0.07 });
+    rise(P + 1.35, c2.words, { stagger: 0.07 });
     // Camera: a slow push-in, then a push through into the next scene.
-    tl.fromTo(world, { scale: 1 }, { scale: 1.035, duration: 2.8, ease: "sine.inOut" }, 0);
-    tl.to(world, { scale: 1.12, opacity: 0, duration: 0.22, ease: "power2.in" }, 2.78);
+    const END = B(SEC.pain);
+    tl.fromTo(world, { scale: 1 }, { scale: 1.03, duration: END - 0.22, ease: "sine.inOut" }, 0);
+    tl.to(world, { scale: 1.12, opacity: 0, duration: 0.22, ease: "power2.in" }, END - 0.22);
   })();
 
-  // ─────────────────────────────── 2. Pain (3.0 – 7.8) ───────────────────────────────
+  // ─────────────────────────────── 2. Pain ───────────────────────────────
   (function pain() {
-    const T = 3.0, world = $("pain-world");
+    const T = B(SEC.pain), END = B(SEC.showcase), PR = B(TL.pain.press), world = $("pain-world");
     const P = { w: 800, h: 560, y: 210 };
     const L = el("div", "panel", { left: "120px", top: P.y + "px", width: P.w + "px", height: P.h + "px" }, world);
     const R = el("div", "panel", { left: 1000 + "px", top: P.y + "px", width: P.w + "px", height: P.h + "px" }, world);
@@ -103,7 +109,7 @@
 
     // Left: four awkward steps.
     const steps = ["Screenshot", "Crop", "Resize", "Paste"];
-    const stepAt = [B(5.5), B(6.5), B(7.5), B(8.5)];
+    const stepAt = TL.pain.steps.map(B);
     const chips = [];
     let cx = 60;
     steps.forEach((s, i) => {
@@ -171,84 +177,83 @@
     tl.to(ml, { opacity: 1, duration: 0.05 }, s4);
     tl.fromTo(pasted, { opacity: 0, rotation: 0 }, { opacity: 1, rotation: -2.5, duration: 0.2, ease: "steps(2)" }, s4 + 0.05);
     tl.to(chips[6], { color: "#6e6e73", duration: 0.2 }, s4 + 0.55);
-    rise(s4 + 0.3, vl.words);
-    tl.to([L, hl], { opacity: 0.4, duration: 0.5, ease: "power2.out" }, B(10) - 0.25);
-    tl.to(vl.line, { opacity: 0.4, duration: 0.5, ease: "power2.out" }, B(10) - 0.25);
+    rise(B(TL.pain.verdict), vl.words);
+    tl.to([L, hl], { opacity: 0.4, duration: 0.5, ease: "power2.out" }, PR - 0.25);
+    tl.to(vl.line, { opacity: 0.4, duration: 0.5, ease: "power2.out" }, PR - 0.25);
     // Right: one keystroke on beat 10.
-    tl.to(R, { opacity: 1, duration: 0.3 }, B(10) - 0.35);
-    rk.press(tl, B(10), 0.1);
-    tl.to(mr, { opacity: 0, scale: 0.96, duration: 0.25, ease: "power2.out", transformOrigin: "50% 50%" }, B(10));
-    tl.fromTo(rCard, { opacity: 0, scale: 0.86 }, { opacity: 1, scale: 1, duration: 0.7, ease: "expo.out", transformOrigin: "50% 60%" }, B(10) + 0.03);
-    rise(B(10) + 0.15, vr.words);
+    tl.to(R, { opacity: 1, duration: 0.3 }, PR - 0.35);
+    rk.press(tl, PR, 0.1);
+    tl.to(mr, { opacity: 0, scale: 0.96, duration: 0.25, ease: "power2.out", transformOrigin: "50% 50%" }, PR);
+    tl.fromTo(rCard, { opacity: 0, scale: 0.86 }, { opacity: 1, scale: 1, duration: 0.7, ease: "expo.out", transformOrigin: "50% 60%" }, PR + 0.03);
+    rise(PR + 0.15, vr.words);
     // After the verdict, the camera drifts toward the answer.
-    tl.to(world, { scale: 1.05, x: -60, duration: 7.8 - B(10) - 0.35, ease: "sine.inOut" }, B(10) + 0.1);
+    tl.to(world, { scale: 1.03, x: -40, duration: END - PR - 0.45, ease: "sine.inOut" }, PR + 0.1);
     // Exit: everything slides left as the camera moves on.
-    tl.to(world, { x: -160, opacity: 0, duration: 0.3, ease: "power2.in" }, 7.8 - 0.3);
+    tl.to(world, { x: -160, opacity: 0, duration: 0.3, ease: "power2.in" }, END - 0.3);
   })();
 
-  // ─────────────────────────────── 3. Showcase (7.8 – 22.2) ───────────────────────────────
+  // ─────────────────────────────── 3. Showcase ───────────────────────────────
+  // Per station (8 beats): pan in (1) · raw text held still and readable (3) ·
+  // flight (2) · finished card held with its name (2). The hook already showed
+  // code → terminal card, so the showcase starts with the chat.
   (function showcase() {
-    const T = 7.8, world = $("show-world"), hud = $("show-hud");
-    const kinds = { terminal: "Terminal output", chat: "A chat", table: "Markdown table", info: "Contact details", diagram: "Mermaid", changelog: "Release notes" };
+    const SC = TL.showcase, T = B(SEC.showcase), END = B(SEC.forms), world = $("show-world"), hud = $("show-hud");
+    const kinds = { terminal: "Terminal output", chat: "A chat", table: "A Markdown table", info: "Contact details", diagram: "A Mermaid chart", changelog: "Release notes" };
     const outs = { terminal: "Terminal card", chat: "Chat bubbles", table: "Data grid", info: "Contact card", diagram: "Flow diagram", changelog: "Release card" };
-    const plan = [
-      { id: "terminal", at: B(15), fly: 1.35, sx: 0, sy: 0 },
-      { id: "chat", at: B(19), fly: 1.15, sx: 2100, sy: 300 },
-      { id: "table", at: B(24), fly: 1.0, sx: 4200, sy: -120 },
-      { id: "info", at: B(28), fly: 0.9, sx: 6300, sy: 260 },
-      { id: "diagram", at: B(31), fly: 0.85, sx: 8400, sy: -60 },
-      { id: "changelog", at: B(34), fly: 0.85, sx: 10500, sy: 220 },
-    ];
+    const spots = [[0, 0], [2100, 300], [4200, -120], [6300, 260], [8400, -60], [10500, 220]];
+    const FLY = 1.15, PAN = B(SC.panBeats);
+    const plan = SC.stations.map((st, i) => ({ id: st.id, at: B(st.flight), fly: FLY, sx: spots[i][0], sy: spots[i][1] }));
     const morphs = plan.map((p, i) => {
       const card = CARDS[p.id];
       const station = el("div", "abs", { left: p.sx + "px", top: p.sy + "px", width: "1920px", height: "1080px" }, world);
       const k = 0.68, cx = 1920 - 150 - card.width * k, cy = (1080 - card.height * k) / 2 + 30;
-      const kind = el("div", "kind abs", { left: "150px", top: "330px" }, station); kind.textContent = kinds[p.id];
-      const m = morph(station, card, { k, cx, cy, seed: 10 + i, radius: 24, raw: { x: 150, y: 390, size: 30, lineHeight: 46, color: "#d1d1d6" } });
+      const kind = el("div", "kind abs", { left: "150px", top: "330px" }, station); kind.textContent = "On your clipboard · " + kinds[p.id];
+      const m = morph(station, card, { k, cx, cy, seed: 10 + i, radius: 24, raw: { x: 150, y: 400, size: 36, lineHeight: 54, color: "#dcdce0" } });
       const out = maskedWords(station, outs[p.id], { left: "150px", top: "392px", fontSize: "80px" });
       out.line.className += " display";
       return { p, m, station, kind, out };
     });
-    // Headline, then it settles into the corner as a running title.
+    // Headline: alone and large first, then (while the first text is read) it stays;
+    // it settles into the corner as a running title when the first flight starts.
     const head = maskedWords(hud, "It reads what you copied.", { left: "150px", top: "120px", fontSize: "92px" });
     head.line.className += " display";
     head.line.style.transformOrigin = "0 0";
     rise(T + 0.02, head.words, { stagger: 0.05 });
-    tl.to(head.line, { scale: 0.5, x: 0, y: -40, duration: 0.7, ease: "power3.inOut" }, B(15) - 0.2);
-    tl.to(head.line, { opacity: 0.8, duration: 0.7 }, B(15) - 0.2);
+    tl.to(head.line, { scale: 0.5, x: 0, y: -40, duration: 0.7, ease: "power3.inOut" }, plan[0].at - 0.2);
+    tl.to(head.line, { opacity: 0.8, duration: 0.7 }, plan[0].at - 0.2);
 
-    // Camera: world moves so the current station is in frame; a slight zoom-out mid-pan gives depth.
     tl.set(world, { x: 0, y: 0, scale: 1 }, T);
     morphs.forEach(({ p, m, kind, out }, i) => {
       m.prime(tl, T);
       tl.set(m.rawLayer, { opacity: 0 }, T);
       tl.set(kind, { opacity: 0 }, T);
       if (i > 0) {
-        const pan = [0, 0.62, 0.56, 0.5, 0.46, 0.46][i];
-        const t0 = p.at - pan;
-        tl.to(world, { x: -p.sx, y: -p.sy, duration: pan, ease: "power3.inOut" }, t0);
-        tl.to(world, { keyframes: [{ scale: 0.93, duration: pan * 0.5, ease: "sine.out" }, { scale: 1, duration: pan * 0.5, ease: "sine.in" }] }, t0);
-        tl.to(m.rawLayer, { opacity: 1, duration: 0.25 }, t0 + 0.05);
-        tl.to(kind, { opacity: 1, duration: 0.25 }, t0 + 0.05);
+        // pan in 4 beats before the flight; the raw text arrives with the camera and then holds still
+        const t0 = p.at - B(4);
+        tl.to(world, { x: -p.sx, y: -p.sy, duration: PAN, ease: "power3.inOut" }, t0);
+        tl.to(world, { keyframes: [{ scale: 0.93, duration: PAN * 0.5, ease: "sine.out" }, { scale: 1, duration: PAN * 0.5, ease: "sine.in" }] }, t0);
+        tl.to(m.rawLayer, { opacity: 1, duration: 0.3 }, t0 + 0.1);
+        tl.to(kind, { opacity: 1, duration: 0.3 }, t0 + 0.1);
       } else {
-        tl.to(m.rawLayer, { opacity: 1, duration: 0.5 }, T + 0.3);
-        tl.to(kind, { opacity: 1, duration: 0.5 }, T + 0.3);
+        tl.to(m.rawLayer, { opacity: 1, duration: 0.5 }, B(SC.firstRaw));
+        tl.to(kind, { opacity: 1, duration: 0.5 }, B(SC.firstRaw));
       }
       m.animate(tl, p.at, p.fly, { spread: p.fly * 0.38, lift: 0.8 });
-      // a slow push on the finished card until the camera moves on
-      const next = i + 1 < plan.length ? plan[i + 1].at - 0.5 : 22.2;
-      tl.fromTo(m.host.parentNode, { scale: 1 }, { scale: 1.035, duration: next - p.at, ease: "none", transformOrigin: "62% 50%" }, p.at);
-      // once the raw text has flown, the left side names what it became
+      // the finished card holds; only a very gentle push until the camera moves on
+      const next = i + 1 < plan.length ? plan[i + 1].at - B(4) : END - 0.3;
+      tl.fromTo(m.host.parentNode, { scale: 1 }, { scale: 1.012, duration: next - p.at, ease: "none", transformOrigin: "62% 50%" }, p.at);
+      // once the raw text has flown, the left side names what it became (it stays through the hold)
       rise(p.at + p.fly * 0.7, out.words, { stagger: 0.05, d: 0.6 });
     });
     // Out: the last card pushes forward into the next scene.
-    tl.to(world, { scale: 1.12, opacity: 0, duration: 0.3, ease: "power2.in" }, 22.2 - 0.3);
-    tl.to(head.line, { opacity: 0, duration: 0.3 }, 22.2 - 0.3);
+    tl.to(world, { scale: 1.12, opacity: 0, duration: 0.3, ease: "power2.in" }, END - 0.3);
+    tl.to(head.line, { opacity: 0, duration: 0.3 }, END - 0.3);
   })();
 
-  // ─────────────────────────────── 4. Forms (22.2 – 28.2) ───────────────────────────────
+  // ─────────────────────────────── 4. Forms ───────────────────────────────
+  // Each state holds ≥ 1.2 s fully formed, its caption on screen the whole state.
   (function forms() {
-    const T = 22.2, world = $("forms-world");
+    const T = B(SEC.forms), END = B(SEC.use), world = $("forms-world");
     const card = CARDS.forms, qr = CARDS.qr;
     const k = 0.6, W = card.width * k, cx = (1920 - W) / 2, cy = 250;
     // Chips
@@ -297,7 +302,7 @@
     const capLines = ["PNG, pasted as an image", "GIF: it types itself", "MP4, for anywhere video plays", "A QR code of the same text", "Pinned above every window"];
     const capEls = capLines.map((t) => { const s = el("div", "abs", { left: "0px", top: "0px", width: "1920px", opacity: 0 }, cap); s.textContent = t; return s; });
 
-    const at = [B(37), B(39), B(41), B(43), B(45)];
+    const at = TL.forms.map(B);
     function activate(i) {
       tl.to(pill, { x: Number(chipEls[i].dataset.x) - Number(chipEls[0].dataset.x), width: widths[i], duration: 0.4, ease: "expo.out" }, at[i]);
       tl.to(chipEls, { color: "#6e6e73", duration: 0.2 }, at[i]);
@@ -315,7 +320,7 @@
     tl.set(badge, { opacity: 1 }, at[1]);
     badge.textContent = "GIF";
     tl.set(A.glyphs, { opacity: 0 }, at[1]);
-    A.glyphs.forEach((g, i) => tl.set(g, { opacity: 1 }, at[1] + 0.08 + i * 0.03));
+    A.glyphs.forEach((g, i) => tl.set(g, { opacity: 1 }, at[1] + 0.06 + i * 0.02));
     // Video: reveal by line, with a play bar
     activate(2);
     tl.set(badge, { opacity: 0 }, at[2]);
@@ -323,10 +328,10 @@
     const lines = [...new Set(card.glyphs.map((g) => g.line))];
     lines.forEach((ln, i) => {
       const gs = A.glyphs.filter((_, gi) => card.glyphs[gi].line === ln);
-      tl.fromTo(gs, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out", immediateRender: false }, at[2] + 0.1 + i * 0.14);
+      tl.fromTo(gs, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.28, ease: "power2.out", immediateRender: false }, at[2] + 0.08 + i * 0.08);
     });
     tl.to(bar, { opacity: 1, duration: 0.2 }, at[2]);
-    tl.fromTo(prog, { scaleX: 0 }, { scaleX: 1, duration: 1.15, ease: "none" }, at[2]);
+    tl.fromTo(prog, { scaleX: 0 }, { scaleX: 1, duration: at[3] - at[2] - 0.1, ease: "none" }, at[2]);
     tl.set(prog, { scaleX: 0 }, T);
     tl.to(bar, { opacity: 0, duration: 0.2 }, at[3] - 0.05);
     // QR: flip
@@ -339,12 +344,12 @@
     // centre of the card → (1400, 430): over the window's top-right, where a pinned note would sit
     tl.to(flip, { x: 1400 - (cx + W / 2), y: 430 - (cy + W / 2), scale: 0.4, duration: 0.7, ease: "expo.inOut" }, at[4] + 0.05);
     tl.to(flip, { y: `-=8`, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, at[4] + 0.75);
-    tl.to(world, { opacity: 0, scale: 1.04, duration: 0.3, ease: "power2.in" }, 28.2 - 0.3);
+    tl.to(world, { opacity: 0, scale: 1.04, duration: 0.3, ease: "power2.in" }, END - 0.3);
   })();
 
-  // ─────────────────────────────── 5. Use (28.2 – 34.2) ───────────────────────────────
+  // ─────────────────────────────── 5. Use ───────────────────────────────
   (function use() {
-    const T = 28.2, world = $("use-world"), over = $("use-overlay");
+    const T = B(SEC.use), END = B(SEC.trust), U = TL.use, world = $("use-world"), over = $("use-overlay");
     const X = 240, Y = 100, W = 1440, H = 830;
     const app = el("div", "app", { left: X + "px", top: Y + "px", width: W + "px", height: H + "px" }, world);
     const side = el("div", "side", null, app);
@@ -428,7 +433,7 @@
       tl.to(world, { scale: s1, x: (960 - fx1) * s1, y: (540 - fy1) * s1, duration: 1.6, ease: "power2.inOut" }, T + 0.4);
     }
     // Typing
-    const t0 = B(47.5), step = (B(50.5) - t0) / typed.length;
+    const t0 = B(U.typeStart), step = (B(U.typeEnd) - t0) / typed.length;
     tl.set(ph, { opacity: 0 }, t0);
     let acc = 0;
     chars.forEach((c, i) => {
@@ -438,9 +443,9 @@
       tl.set(caret, { x: acc }, t);
     });
     // caret blinks while waiting
-    for (let t = B(50.5) + 0.3; t < B(51) + 0.1; t += 0.5) { tl.set(caret, { opacity: 0 }, t); tl.set(caret, { opacity: 1 }, t + 0.25); }
+    for (let t = B(U.typeEnd) + 0.3; t < B(U.optionV) + 0.1; t += 0.5) { tl.set(caret, { opacity: 0 }, t); tl.set(caret, { opacity: 1 }, t + 0.25); }
     // ⌥V
-    const tv = B(51);
+    const tv = B(U.optionV);
     tl.fromTo(keys.root, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.25, ease: "expo.out" }, tv - 0.35);
     keys.press(tl, tv, 0.1);
     tl.to(keys.root, { opacity: 0, y: 20, duration: 0.25, ease: "power2.in" }, tv + 0.45);
@@ -450,7 +455,7 @@
     const sc = 1.3;
     tl.to(world, { scale: sc, x: (960 - fx) * sc, y: (540 - fy) * sc, duration: 0.8, ease: "power3.inOut" }, tv + 0.05);
     // Return
-    const te = B(53);
+    const te = B(U.enter);
     tl.fromTo(ret.root, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.25, ease: "expo.out" }, te - 0.35);
     ret.press(tl, te, 0.1);
     tl.to(ret.root, { opacity: 0, y: 20, duration: 0.25, ease: "power2.in" }, te + 0.4);
@@ -464,7 +469,7 @@
     tl.fromTo(attach, { opacity: 0, scale: 0.6, y: -40 }, { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: "back.out(1.4)", transformOrigin: "50% 50%" }, te + 0.2);
     tl.to(send, { backgroundColor: "#2a6df4", duration: 0.2 }, te + 0.3);
     // Send
-    const ts = B(55);
+    const ts = B(U.send);
     tl.to(send, { scale: 0.88, duration: 0.07, yoyo: true, repeat: 1, transformOrigin: "50% 50%" }, ts - 0.07);
     tl.to([attach, typedEl], { opacity: 0, y: -30, duration: 0.25, ease: "power2.in" }, ts);
     tl.to(comp, { height: 92, top: H - 128, duration: 0.35, ease: "expo.out" }, ts + 0.15);
@@ -473,22 +478,23 @@
     tl.to([m1, m2], { y: -40, duration: 0.5, ease: "expo.out" }, ts + 0.05);
     tl.fromTo(mine, { opacity: 0, y: 30 }, { opacity: 1, y: -40, duration: 0.55, ease: "expo.out" }, ts + 0.05);
     tl.to(world, { scale: 1.06, duration: 1.2, ease: "sine.inOut", transformOrigin: "960px 600px" }, ts + 0.1);
-    tl.to(world, { opacity: 0, duration: 0.3, ease: "power2.in" }, 34.2 - 0.3);
+    tl.to(world, { opacity: 0, duration: 0.3, ease: "power2.in" }, END - 0.3);
   })();
 
-  // ─────────────────────────────── 6. Trust (34.2 – 37.8) ───────────────────────────────
+  // ─────────────────────────────── 6. Trust ───────────────────────────────
   (function trust() {
     const world = $("trust-world");
     const lines = ["Runs on your Mac.", "No telemetry.", "Open source."];
     const ms = lines.map((t, i) => { const m = maskedWords(world, t, { left: "240px", top: 270 + i * 170 + "px", fontSize: "124px" }); m.line.className += " display"; return m; });
-    [57, 58.5, 60].forEach((b, i) => rise(B(b), ms[i].words, { stagger: 0.07, d: 0.8 }));
-    tl.fromTo(world, { y: 20 }, { y: -20, duration: 3.6, ease: "none" }, 34.2);
-    ms.forEach((m, i) => sink(37.8 - 0.4 + i * 0.04, m.words));
+    const T = B(SEC.trust), END = B(SEC.outro);
+    TL.trust.forEach((b, i) => rise(B(b), ms[i].words, { stagger: 0.07, d: 0.8 }));
+    tl.fromTo(world, { y: 16 }, { y: -16, duration: END - T, ease: "none" }, T);
+    ms.forEach((m, i) => sink(END - 0.4 + i * 0.04, m.words));
   })();
 
-  // ─────────────────────────────── 7. Outro (37.8 – 42) ───────────────────────────────
+  // ─────────────────────────────── 7. Outro ───────────────────────────────
   (function outro() {
-    const T = 37.8, world = $("outro-world");
+    const T = B(SEC.outro), END = B(SEC.end), world = $("outro-world");
     const icon = el("img", "abs", { left: 960 - 80 + "px", top: "210px", width: "160px", height: "160px" }, world); icon.src = "assets/img/app-icon.png";
     const word = maskedWords(world, "Peesuto", { left: "0px", top: "400px", width: "1920px", textAlign: "center", fontSize: "150px", letterSpacing: "-0.035em" });
     word.line.className += " display";
@@ -503,9 +509,9 @@
     tl.fromTo(letters, { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "expo.out", stagger: 0.045 }, T + 0.15);
     tl.fromTo(sub, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.7, ease: "expo.out" }, T + 0.7);
     tl.fromTo(url, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.7, ease: "expo.out" }, T + 0.95);
-    tl.fromTo(world, { scale: 1.0 }, { scale: 0.97, duration: 4.2, ease: "sine.out" }, T);
-    tl.to(world, { opacity: 0, duration: 0.8, ease: "power1.in" }, 42 - 0.8);
+    tl.fromTo(world, { scale: 1.0 }, { scale: 0.97, duration: END - T, ease: "sine.out" }, T);
+    tl.to(world, { opacity: 0, duration: 0.8, ease: "power1.in" }, END - 0.8);
   })();
 
-  window.PROMO_TIMELINE = tl;
+  window.PROMO_GSAP = tl;
 })();

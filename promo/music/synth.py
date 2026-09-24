@@ -6,9 +6,10 @@
 Writes one WAV stem per instrument plus mix.wav (unmastered, 48 kHz stereo
 float) into --out. promo/music/master.sh then masters mix.wav to -14 LUFS.
 
-Everything is placed on the beat grid in timeline.json (100 BPM, 0.6 s a
-beat, bars on beats 1, 5, 9 ...), so section changes land on bars and the
-accents land on the picture's cuts. Deterministic: a fixed seed for every
+Everything is placed on the beat grid in timeline.js, the same file the
+picture loads (100 BPM, 0.6 s a beat, bars on beats 2, 6, 10 ...: the hook's
+key press is the first downbeat), so section changes land on bars or
+half-bars and the accents land on the picture's cuts. Deterministic: a fixed seed for every
 noise source, no samples, no downloaded audio.
 """
 import argparse, json, os
@@ -17,10 +18,13 @@ from scipy.signal import butter, sosfilt, fftconvolve
 from scipy.io import wavfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-T = json.load(open(os.path.join(HERE, "timeline.json")))
+_src = open(os.path.join(HERE, "timeline.js")).read()
+T = json.loads(_src[_src.index("= {") + 2: _src.rindex("}") + 1])
 SR = 48000
 BEAT = T["beat"]
-DUR = T["duration"] + 0.0
+OFF = T["barOffset"]           # bars start on beats OFF, OFF + 4, ...
+NB = T["beats"]                # length in beats
+DUR = NB * BEAT
 N = int(SR * DUR)
 rng = np.random.default_rng(20260924)
 
@@ -96,9 +100,13 @@ CH = {
 }
 ROOT = {"D": 38, "Bm": 35, "G": 31, "A": 33, "Em": 40}
 # (beat, chord): bars on 1, 5, 9 ...
-PROG = [(0, "D"), (1, "D"), (5, "Bm"), (9, "G"), (13, "D"), (17, "Bm"), (21, "G"), (25, "A"),
-        (29, "D"), (33, "Bm"), (37, "G"), (41, "A"), (45, "Em"), (47, "G"), (51, "A"),
-        (53, "D"), (57, "G"), (61, "A"), (63, "D")]
+# (beat, chord). Hook and pain: D Bm G A; showcase: D Bm G A twice-plus, one
+# chord a bar; forms G A D Em; UI scene G A D; trust G A; outro resolves on D.
+PROG = [(0, "D"), (2, "D"), (6, "Bm"), (10, "G"), (14, "A"),
+        (18, "D"), (22, "Bm"), (26, "G"), (30, "A"), (34, "D"), (38, "Bm"), (42, "G"), (46, "A"), (50, "D"), (54, "Bm"),
+        (58, "G"), (62, "A"), (66, "D"), (70, "Em"),
+        (74, "G"), (78, "A"), (82, "D"),
+        (86, "G"), (90, "A"), (94, "D")]
 
 
 def chord_at(beat):
@@ -112,7 +120,7 @@ def chord_at(beat):
 def segments():
     out = []
     for i, (b, c) in enumerate(PROG):
-        end = PROG[i + 1][0] if i + 1 < len(PROG) else 70
+        end = PROG[i + 1][0] if i + 1 < len(PROG) else NB
         if end > b:
             out.append((b, end, c))
     return out
@@ -252,39 +260,41 @@ def pingpong(x, delay, fb=0.38, wet=0.3, repeats=6):
 
 # ---------------------------------------------------------------- arrangement
 tracks = {k: Track(k) for k in ["pad", "bass", "arp", "drums", "keys", "fx", "bells"]}
-S = {s["id"]: s["beat"] for s in T["sections"]}
+S = T["sections"]
+PRESS = T["hook"]["press"]
+bar_down = lambda b: (b - OFF) % 4 == 0
 
 # Pad: whole piece; brighter from the showcase, darker for trust, open at the end.
 for b0, b1, c in segments():
     dur = at(b1 - b0)
     bright = 900 if b0 < S["showcase"] else 1600 if b0 < S["use"] else 1100 if b0 < S["trust"] else 1300
-    gain = 0.55 if b0 < 1 else 1.0
+    gain = 0.55 if b0 < PRESS else 1.0
     if b0 >= S["outro"]:
         dur = DUR - at(b0) - 0.2
     for i, m in enumerate(CH[c]):
         tracks["pad"].add(at(b0), pad_note(midi(m), dur, bright), gain=gain * (0.8 if i == 0 else 1.0))
 
 # Pickup riser into the key press (beat 0 -> 1).
-tracks["fx"].add(0.0, whoosh(at(1), True, 400, 5000), gain=0.9)
-tracks["fx"].add(at(T["keyPress"]) - 0.005, thock(1.4))
+tracks["fx"].add(0.0, whoosh(at(PRESS), True, 400, 5000), gain=0.9)
+tracks["fx"].add(at(PRESS) - 0.005, thock(1.4))
 
 # Kick: bar downbeats in hook/pain (with a soft push on beat 3), four on the floor in the groove sections.
 def groove_on(beat):
     return S["showcase"] <= beat < S["use"]
 
-for b in np.arange(1, 70, 1.0):
+for b in np.arange(PRESS, NB, 1.0):
     if b < S["showcase"]:
-        if (b - 1) % 4 == 0:
+        if bar_down(b):
             tracks["drums"].add(at(b), kick(0.8))
-        if (b - 1) % 4 == 2 and b >= S["pain"]:
+        if (b - OFF) % 4 == 2 and b >= S["pain"]:
             tracks["drums"].add(at(b), kick(0.45))
     elif groove_on(b):
         tracks["drums"].add(at(b), kick(0.9))
-        if (b - 1) % 2 == 1:
+        if (b - OFF) % 2 == 1:
             tracks["drums"].add(at(b), clap(0.9))
     elif S["use"] <= b < S["trust"]:
         # the scene is UI: a light pulse only on bar downbeats
-        if (b - 1) % 4 == 0:
+        if bar_down(b):
             tracks["drums"].add(at(b), kick(0.55))
     elif b == S["outro"]:
         tracks["drums"].add(at(b), kick(1.1, 0.9))
@@ -300,7 +310,7 @@ for k in range(int(S["pain"] * 4), int(S["trust"] * 4)):
         if k % 4 == 2:
             tracks["drums"].add(at(b), hat(0.45))
         continue
-    dense = b >= 31
+    dense = b >= T["showcase"]["stations"][-2]["flight"] - 4
     if k % 2 == 0 or dense:
         swing = 0.03 if k % 4 == 2 else 0.0
         g = 0.9 if k % 4 == 2 else 0.55
@@ -340,20 +350,21 @@ for k in range(int(S["use"] * 2), int(S["trust"] * 2)):
     f = midi(c[2 + k % 4] + 12)
     tracks["arp"].add(at(b), pluck(f, 0.2, 1400, 9), pan=(-0.3 if k % 2 else 0.3), gain=0.45)
 # Pain scene: four awkward steps on the left (muted, off-grid by design, but on 8ths), one clean chord hit on the right.
-for i, b in enumerate([5.5, 6.5, 7.5, 8.5]):
+for i, b in enumerate(T["pain"]["steps"]):
     tracks["arp"].add(at(b), pluck(midi(62 + [0, 3, 1, 4][i]), 0.1, 900, 16), pan=-0.5, gain=0.7)
-for m in CH["G"][1:]:
-    tracks["arp"].add(at(10), pluck(midi(m + 12), 0.5, 3600, 5), pan=0.4, gain=0.35)
+for m in CH[chord_at(T["pain"]["press"])][1:]:
+    tracks["arp"].add(at(T["pain"]["press"]), pluck(midi(m + 12), 0.5, 3600, 5), pan=0.4, gain=0.35)
+tracks["keys"].add(at(T["pain"]["press"]), thock(0.8))
 
 # Card-change accents in the showcase and the forms: a bell on each cut.
-for cut in [c["beat"] for c in T["cards"]] + [f["beat"] for f in T["forms"]]:
+for cut in [st["flight"] for st in T["showcase"]["stations"]] + T["forms"]:
     m = CH[chord_at(cut)][5] + 12
     tracks["bells"].add(at(cut), bell(midi(m), 1.2), pan=0.15, gain=0.55)
     tracks["fx"].add(at(cut) - 0.25, whoosh(0.25, True, 1500, 9000), gain=0.35)
 
 # UI scene: typing ticks, the ⌥V press, Return, send.
 U = T["use"]
-typing = np.arange(U["typeStart"], U["optionV"] - 0.6, 0.25)
+typing = np.arange(U["typeStart"], U["typeEnd"], 0.25)
 for i, b in enumerate(typing):
     jitter = [0.0, 0.02, -0.015, 0.01][i % 4]
     tracks["keys"].add(at(b) + jitter, tick(2400 + (i % 3) * 180, 0.6), pan=0.1)
@@ -376,8 +387,8 @@ ir_long = reverb_ir(3.4, seed=9, damp=0.8)
 # Sidechain: duck pad and arp under every kick.
 duck = np.ones(N)
 kick_times = []
-for b in np.arange(1, 70, 1.0):
-    if groove_on(b) or (b < S["showcase"] and (b - 1) % 4 == 0) or b == S["outro"]:
+for b in np.arange(PRESS, NB, 1.0):
+    if groove_on(b) or (b < S["showcase"] and bar_down(b)) or (S["use"] <= b < S["trust"] and bar_down(b)) or b == S["outro"]:
         kick_times.append(at(b))
 for kt in kick_times:
     i = int(kt * SR)

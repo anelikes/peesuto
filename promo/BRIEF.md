@@ -7,7 +7,7 @@ destination: x-twitter
 aspect: "16:9"
 language: en
 audience: Mac users who paste code, chats and notes into chats and docs
-length: 42s
+length: 60s
 ---
 
 # Brief
@@ -33,5 +33,7 @@ trust line, outro.
   after the app's screenshots; music synthesised here.
 
 ## Notes
+
+- Owner feedback after the first cut (2026-09-24): "really stunning", BGM "perfect", but too fast at key moments. Re-timed with reading holds: raw text ≥ 1.2 s (≈ 2 s for longer), landed cards ≥ 1.2 s with the name label, captions ≥ 1.5 s, forms states ≥ 1.2 s; flights unchanged; ≤ ~60 s, so the showcase terminal item merged into the hook.
 
 - Autonomous run: no storyboard review; the owner reviews the rendered file.
