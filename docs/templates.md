@@ -122,6 +122,14 @@ engine bakes; everything else is boxes and text.
   built-ins), property (attributes, properties, variables, parameters), literal
   (true/false/null, symbols), meta (tags, selectors, decorators, headings, diff
   deletions; diff additions use string), punct (operators, punctuation).
+- Backdrop (Terminal): a hue arc, not a two-colour blend. A straight RGB
+  gradient between distant hues goes grey in the middle; walking the hue circle
+  stays saturated. `core/src/templates/gradient.ts` samples the arc in OKLCH
+  (even perceptual steps, chroma reduced to fit sRGB, hue and lightness kept)
+  and the backdrop draws it as adjacent two-stop segments on whole pixels,
+  since the engine only has two-stop gradients. Current arc: indigo, violet,
+  magenta, coral, amber (hue 272° to 62°, lightness 0.34 to 0.76). No overlay:
+  any tint across different hues (black over orange turns brown) muddies it.
 
 ### QR code: any text, by shortcut only
 

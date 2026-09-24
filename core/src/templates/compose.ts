@@ -9,6 +9,7 @@ import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
 import { FRAMES, TEMPLATE_MAX_GRAPHEMES, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
+import { sampleArc, type HueArc } from "./gradient.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
 /** GIF/MP4 content taller than the frame scrolls through it (the frame never
@@ -104,11 +105,16 @@ export const QUOTE_STYLES = {
  * type (types, classes, built-ins), property (attributes, properties,
  * variables, parameters), literal (true/false/null, symbols), meta (tags,
  * selectors, decorators, headings, diff deletions), punct (operators). */
+/** A full-bleed backdrop layer: one two-stop gradient, or a hue arc drawn as segments (gradient.ts). */
+type BackdropLayer = { readonly dir: "t" | "b" | "l" | "r"; readonly from: string; readonly to: string } | { readonly arc: HueArc; readonly segments: number };
+
 export const CODE_STYLES = {
   /** Terminal: night panel, three dots, the language (from the fence only) at top right. */
   classic: { background: "#312e81",
-    /** Full-bleed layers behind the window, bottom first: a left-to-right wash, then a top-to-bottom tint fading in. */
-    backdrop: [{ dir: "r", from: "#4f46e5", to: "#0e7490" }, { dir: "b", from: "#db277700", to: "#db2777a6" }],
+    /** Full-bleed layers behind the window: one hue arc left to right (indigo, violet, magenta,
+     * coral, amber), saturated all the way, never grey in the middle. No overlay: any tint laid
+     * across different hues (even black over orange, which turns brown) muddies them again. */
+    backdrop: [{ arc: { from: { l: 0.34, c: 0.16, h: 272 }, to: { l: 0.76, c: 0.16, h: 62 }, turn: 150 }, segments: 8 }],
     panel: { fill: "#1a1d23", radius: 24, pad: 48, header: 80, shadow: "shadow-lg", dots: { size: 22, gap: 14, colors: ["#ff5f57", "#febc2e", "#28c840"] } },
     lineNumbers: { color: "#5b6272", gap: 32 },
     outer: 88, gutter: null, zebra: null, ink: "#e8e6df", sizes: [52, 48, 44, 40, 36, 32, 28], floor: 32, leading: 1.0,
@@ -835,8 +841,18 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
       const codeX = textX + gutterW(size), codeW = textW - gutterW(size);
       const backdrop: TemplateRect[] = [];
-      for (const layer of s.backdrop ?? []) {
-        const r = rect(0, 0, W, 0, layer.to); r.gradient = layer as TemplateRect["gradient"]; pinned.add(r); backdrop.push(r);
+      for (const layer of (s.backdrop ?? []) as readonly BackdropLayer[]) {
+        if ("arc" in layer) {
+          // A hue arc as adjacent left-to-right segments on whole pixels, so the seams meet exactly.
+          const colors = sampleArc(layer.arc, layer.segments);
+          for (let i = 0; i < layer.segments; i++) {
+            const x0 = Math.round((W * i) / layer.segments), x1 = Math.round((W * (i + 1)) / layer.segments);
+            const r = rect(x0, 0, x1 - x0, 0, colors[i + 1]!); r.gradient = { dir: "r", from: colors[i]!, to: colors[i + 1]! };
+            pinned.add(r); backdrop.push(r);
+          }
+          continue;
+        }
+        const r = rect(0, 0, W, 0, layer.to); r.gradient = layer; pinned.add(r); backdrop.push(r);
       }
       let y = margin; const top = y;
       let panel: TemplateRect | undefined;
