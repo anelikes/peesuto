@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peesuto — テキストをコピー、カードをペースト</title>
+<meta name="description" content="Mac のための小さなオープンソースのクリップボードアプリ。テキストをコピーして ⌥V を押すと、きれいに組んだカードが入力中のアプリにペーストされます。">
+<link rel="canonical" href="https://peesuto.com/ja/">
+<link rel="alternate" hreflang="en" href="https://peesuto.com/">
+<link rel="alternate" hreflang="zh-Hans" href="https://peesuto.com/zh/">
+<link rel="alternate" hreflang="ja" href="https://peesuto.com/ja/">
+<link rel="alternate" hreflang="x-default" href="https://peesuto.com/">
+<meta name="theme-color" content="#F6F3EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161412" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/assets/icon-256.png" type="image/png" sizes="256x256">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Peesuto">
+<meta property="og:title" content="Peesuto — テキストをコピー、カードをペースト">
+<meta property="og:description" content="Mac のための小さなオープンソースのクリップボードアプリ。テキストをコピーして ⌥V を押すと、きれいに組んだカードが入力中のアプリにペーストされます。">
+<meta property="og:url" content="https://peesuto.com/ja/">
+<meta property="og:image" content="https://peesuto.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Peesuto: Copy text. Paste a card.">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="/assets/fonts/peesuto-mono-bold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css?v=a8f66cbd43">
+<script src="/assets/site.js?v=ec0c5407ef" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+<symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="6" r="1.2" fill="currentColor"/><path d="M2 12l3.8-3.6 2.7 2.4 2.2-1.9L14 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-gif" viewBox="0 0 16 16"><path d="M9 2.5 13.5 8 9 13.5 4.5 8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 3.5 1.8 8l3.7 4.5M3.6 3.5 0 8l3.6 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.4 1.4"/></symbol>
+<symbol id="i-video" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 3v10M11.5 3v10M1.5 6h3M1.5 10h3M11.5 6h3M11.5 10h3" stroke="currentColor" stroke-width="1"/></symbol>
+<symbol id="i-qr" viewBox="0 0 16 16"><path d="M2 2h4.5v4.5H2zM9.5 2H14v4.5H9.5zM2 9.5h4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 13h1.5" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
+<symbol id="i-pin" viewBox="0 0 16 16"><path d="M5.5 1.8h5M6.5 2v4.2L4.3 9h7.4L9.5 6.2V2M8 9v5.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-history" viewBox="0 0 16 16"><path d="M2.6 5.2A6 6 0 1 1 2 8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.2 2.2v3.2h3.2M8 4.8V8l2.2 1.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-plus" viewBox="0 0 14 14"><path d="M7 0v14M0 7h14" stroke="currentColor" stroke-width="1.5"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 48 14"><path d="M0 7h44M38 1l7 6-7 6" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+</svg>
+<header class="site-header">
+<nav class="wrap" aria-label="メイン">
+<a class="brand" href="/ja/" aria-current="page"><img src="/assets/icon-64.png" width="26" height="26" alt="">Peesuto</a>
+<a class="nav-link hide-sm" href="/ja/#templates">テンプレート</a>
+<a class="nav-link hide-sm" href="/ja/#privacy">プライバシー</a>
+<a class="nav-link hide-sm" href="/ja/#faq">よくある質問</a>
+<a class="nav-link hide-sm" href="/changelog/">更新履歴</a>
+<span class="langs"><a class="nav-link" href="/" lang="en" hreflang="en">English</a><a class="nav-link" href="/zh/" lang="zh-Hans" hreflang="zh-Hans">中文</a></span>
+<a class="btn btn-primary btn-sm" href="https://github.com/anelikes/peesuto/releases/latest">ダウンロード</a>
+</nav>
+</header>
+<main id="main">
+<section class="hero" aria-labelledby="hero-title">
+<div class="wrap">
+<div class="hero-head">
+<h1 class="display" id="hero-title">テキストをコピー。<br>カードをペースト。</h1>
+<div class="hero-side">
+<p class="intro">Peesuto は Mac のクリップボードアプリです。コピーしたもの（コード、チャット、表、引用など）を読み取り、きれいに組んだ画像にして、いま入力しているところへペーストします。GIF や動画にもできます。</p>
+<div class="cta-row"><a class="btn btn-primary" href="https://github.com/anelikes/peesuto/releases/latest">Mac 版をダウンロード</a><a class="btn btn-ghost" href="https://github.com/anelikes/peesuto">GitHub で見る</a></div>
+<p class="meta"><span>macOS 13 以降</span><span>Apple シリコン</span><span>無料・MIT ライセンス</span></p>
+</div>
+</div>
+<figure class="demo" data-demo>
+<div class="field">
+<div class="stage-wrap" role="img" aria-label="短いループ：テキストを選んでコピーし、⌥V を押すとカーソルの位置に「ペースト形式」のパネルが開き、カードはもうできています。Return でチャットにペーストされます。">
+<div class="stage" aria-hidden="true">
+<div class="win src"><div class="win-bar"><i></i><i></i><i></i><b>greet.swift</b></div><span class="toast"><kbd>⌘C</kbd>コピーしました</span><pre><span><span class="sel">func greet(_ name: String) -&gt; String {
+    &quot;Hello, \(name)!&quot;
+}
+
+print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
+<div class="keys"><span class="cap cap-mod">⌥</span><span class="cap cap-mod">V</span><span class="cap cap-enter">↩</span></div>
+<div class="win chat"><div class="win-bar"><i></i><i></i><i></i><b># リリース</b></div>
+<div class="thread">
+<div class="msg msg-ask"><span class="avatar">佐</span><b>佐藤<small>10:02</small></b><p>あいさつの関数、送ってもらえますか？</p></div>
+<div class="msg msg-new"><span class="avatar you">自</span><b>自分<small>10:03</small></b><img data-card="msg" src="/cards/code-classic.webp" width="240" height="240" alt=""></div>
+</div>
+<div class="composer"><span class="caret"></span>#リリース へメッセージを送信</div>
+<div class="chooser" aria-hidden="true">
+<div class="ch-head">ペースト形式…<span>キャンセル <kbd>esc</kbd></span></div>
+<div class="ch-prev"><img data-card="thumb" src="/cards/code-classic.webp" width="116" height="116" alt=""></div>
+<ul class="ch-rows">
+<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>画像<kbd>↩</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-video"/></svg>動画<kbd>M</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR コード<kbd>Q</kbd></li>
+<li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>画面にピン留め<kbd>P</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-history"/></svg>クリップボード履歴<kbd>H</kbd></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="demo-bar">
+<ol class="steps" aria-hidden="true"><li>コピー</li><li>⌥V</li><li>ペースト形式…</li><li>ペースト完了</li></ol>
+<button class="play" type="button" hidden aria-pressed="false" data-play="再生" data-pause="一時停止"><svg viewBox="0 0 10 12" aria-hidden="true"><path d="M0 0h3.5v12H0zM6.5 0H10v12H6.5z" fill="currentColor"/></svg><span class="label">一時停止</span></button>
+</div>
+</div>
+<script type="application/json">[{"file":"greet.swift","text":"func greet(_ name: String) -> String {\n    \"Hello, \\(name)!\"\n}\n\nprint(greet(\"Peesuto\"))","card":"/cards/code-classic.webp","ask":"あいさつの関数、送ってもらえますか？","alt":"コードカード：ハイライトされた Swift の関数。藍色の背景に暗いウィンドウ。"},{"file":"メモ","text":"Make room for a clearer thought.","card":"/cards/text-poster.webp","ask":"3 枚目のスライド、まだタイトルがないです。","alt":"ポスターカード：赤地に大きな文字で「Make room for a clearer thought.」"},{"file":"plans.md","text":"| Plan | Price | Seats |\n|---|---|---|\n| Solo | $0 | 1 |\n| Team | $12 | 10 |","card":"/cards/table-classic.webp","ask":"プランの料金、どうなってましたっけ？","alt":"表カード：プラン、料金、席数。見出しは緑。"}]</script>
+<figcaption>Mac で「視差効果を減らす」がオンのときは静止します。</figcaption>
+</figure>
+</div>
+</section>
+<section class="strip" aria-labelledby="strip-title">
+<h2 id="strip-title" class="visually-hidden">Peesuto で作ったカード</h2>
+<ul>
+<li><img src="/cards/text-poster.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, ポスター"></li>
+<li><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="コード, ターミナル"></li>
+<li><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="会話, 吹き出し"></li>
+<li><img src="/cards/stat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="数字, 大きな数字"></li>
+<li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="情報カード, 認証情報"></li>
+<li><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="図, ブループリント"></li>
+<li><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="引用, ステートメント"></li>
+<li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="リリースノート, リリースカード"></li>
+<li><img src="/cards/comparison-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="比較, 上下に分ける"></li>
+<li><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="表, グリッド"></li>
+<li><img src="/cards/list-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="リスト, ステップ"></li>
+<li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR コード, カード"></li>
+</ul>
+<p class="wrap">どれもプレーンテキストからペーストしたものです。</p>
+</section>
+<section class="reads pad" id="reads" data-theme="light" aria-labelledby="reads-title">
+<div class="wrap">
+<h2 class="h2" id="reads-title">コピーしたものを、読み取ります。</h2>
+<p class="lede">言葉、名前、数字、順番はすべて元のテキストのまま。書き換えも付け足しもせず、組むだけです。</p>
+<div class="tabs" role="tablist" aria-label="内容の種類">
+<button class="tab" type="button" role="tab" id="tab-code" aria-controls="panel-code" aria-selected="true" tabindex="0">コード</button>
+<button class="tab" type="button" role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="false" tabindex="-1">チャット</button>
+<button class="tab" type="button" role="tab" id="tab-table" aria-controls="panel-table" aria-selected="false" tabindex="-1">表</button>
+<button class="tab" type="button" role="tab" id="tab-info" aria-controls="panel-info" aria-selected="false" tabindex="-1">情報カード</button>
+<button class="tab" type="button" role="tab" id="tab-diagram" aria-controls="panel-diagram" aria-selected="false" tabindex="-1">図</button>
+<button class="tab" type="button" role="tab" id="tab-quote" aria-controls="panel-quote" aria-selected="false" tabindex="-1">引用</button>
+<button class="tab" type="button" role="tab" id="tab-changelog" aria-controls="panel-changelog" aria-selected="false" tabindex="-1">リリースノート</button>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-code" aria-labelledby="tab-code" data-tint="code">
+<div class="from"><span class="eyebrow">クリップボードの中身</span><pre>func greet(_ name: String) -&gt; String {
+    &quot;Hello, \(name)!&quot;
+}
+
+print(greet(&quot;Peesuto&quot;))</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作ったコードカード。"></div>
+<p class="note"><strong>コード.</strong> 24 言語をハイライト。コードブロックの指定か自動判別で。長い行は折り返し、インデントは崩れません。</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-tint="chat" hidden>
+<div class="from"><span class="eyebrow">クリップボードの中身</span><pre>Lin: Can this chat become an image?
+Ash: Yes, copy it and press the shortcut.
+Lin: Nice, that's all?</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作ったチャットカード。"></div>
+<p class="note"><strong>チャット.</strong> チャットアプリからコピーした発言者と時刻は、吹き出しか書き起こしになります。</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-table" aria-labelledby="tab-table" data-tint="table" hidden>
+<div class="from"><span class="eyebrow">クリップボードの中身</span><pre>| Plan | Price | Seats |
+|---|---|---|
+| Solo | $0 | 1 |
+| Team | $12 | 10 |</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った表カード。"></div>
+<p class="note"><strong>表.</strong> タブ区切り、Markdown、ターミナルの罫線表に対応。単語が列の途中で切れることはありません。</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-info" aria-labelledby="tab-info" data-tint="info" hidden>
+<div class="from"><span class="eyebrow">クリップボードの中身</span><pre>Staging account
+User: admin
+Password: P@ssw0rd!2026
+Email: ops@example.com
+Host: https://staging.example.com</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/info-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った情報カードカード。"></div>
+<p class="note"><strong>情報カード.</strong> 連絡先、アカウント、dotenv は項目ごとに整理。パスワードやキーには鍵マークが付きます。</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-diagram" aria-labelledby="tab-diagram" data-tint="diagram" hidden>
+<div class="from"><span class="eyebrow">クリップボードの中身</span><pre>Copy → Decide → Render → Paste</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った図カード。"></div>
+<p class="note"><strong>図.</strong> Mermaid のフローチャートや、矢印でつないだ手順を配置して線を引きます。</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-quote" aria-labelledby="tab-quote" data-tint="quote" hidden>
+<div class="from"><span class="eyebrow">クリップボードの中身</span><pre>“Simplicity is the ultimate sophistication.”
+— Leonardo da Vinci</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作った引用カード。"></div>
+<p class="note"><strong>引用.</strong> 著者名は、元のテキストにあるときだけ表示します。</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-changelog" aria-labelledby="tab-changelog" data-tint="changelog" hidden>
+<div class="from"><span class="eyebrow">クリップボードの中身</span><pre>## v1.2.0 — 2026-09-24
+### Added
+- Signatures on cards
+- Release notes cards
+### Fixed
+- Long code lines wrap</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">⌥V ↩ でペースト</span><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="左のテキストから作ったリリースノートカード。"></div>
+<p class="note"><strong>リリースノート.</strong> Keep a Changelog 形式や、バージョン行に続く箇条書きがリリースカードになります。</p>
+</div>
+</div>
+</section>
+<section class="gallery pad" id="templates" data-theme="light" aria-labelledby="templates-title">
+<div class="wrap">
+<div class="gallery-head">
+<h2 class="h2" id="templates-title">13 のテンプレート、<br>27 のスタイル。</h2>
+<p>テンプレートはローカルのルールが選びます。ペーストしたあとでスタイルを変えたり、テンプレートごとに既定のスタイルを決めたり、設定でオフにしたりできます。スタイルはどれも、書体と配色を定めた公開の表です：<a href="https://github.com/anelikes/peesuto/blob/main/docs/templates.md">テンプレートの仕組み</a>（英語）。</p>
+</div>
+<ul class="grid">
+<li><img src="/cards/text-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, ペーパー"><p>テキスト <span>ペーパー</span></p></li>
+<li><img src="/cards/text-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, インク"><p>テキスト <span>インク</span></p></li>
+<li class="big"><img src="/cards/text-poster.webp" width="320" height="320" loading="lazy" decoding="async" alt="テキスト, ポスター"><p>テキスト <span>ポスター</span></p></li>
+<li><img src="/cards/document-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="ドキュメント, 読みもの"><p>ドキュメント <span>読みもの</span></p></li>
+<li><img src="/cards/document-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="ドキュメント, コラム"><p>ドキュメント <span>コラム</span></p></li>
+<li><img src="/cards/quote-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="引用, 本の抜き書き"><p>引用 <span>本の抜き書き</span></p></li>
+<li><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="引用, ステートメント"><p>引用 <span>ステートメント</span></p></li>
+<li class="big"><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="コード, ターミナル"><p>コード <span>ターミナル</span></p></li>
+<li><img src="/cards/code-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="コード, コードノート"><p>コード <span>コードノート</span></p></li>
+<li><img src="/cards/stat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="数字, 大きな数字"><p>数字 <span>大きな数字</span></p></li>
+<li><img src="/cards/stat-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="数字, 指標バー"><p>数字 <span>指標バー</span></p></li>
+<li><img src="/cards/list-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="リスト, チェックリスト"><p>リスト <span>チェックリスト</span></p></li>
+<li><img src="/cards/list-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="リスト, ステップ"><p>リスト <span>ステップ</span></p></li>
+<li class="big"><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="会話, 吹き出し"><p>会話 <span>吹き出し</span></p></li>
+<li><img src="/cards/chat-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="会話, 書き起こし"><p>会話 <span>書き起こし</span></p></li>
+<li><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="表, グリッド"><p>表 <span>グリッド</span></p></li>
+<li><img src="/cards/table-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="表, 罫線表"><p>表 <span>罫線表</span></p></li>
+<li><img src="/cards/comparison-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="比較, 左右に並べる"><p>比較 <span>左右に並べる</span></p></li>
+<li><img src="/cards/comparison-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="比較, 上下に分ける"><p>比較 <span>上下に分ける</span></p></li>
+<li><img src="/cards/diagram-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="図, フロー"><p>図 <span>フロー</span></p></li>
+<li><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="図, ブループリント"><p>図 <span>ブループリント</span></p></li>
+<li><img src="/cards/info-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="情報カード, 項目リスト"><p>情報カード <span>項目リスト</span></p></li>
+<li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="情報カード, 認証情報"><p>情報カード <span>認証情報</span></p></li>
+<li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="リリースノート, リリースカード"><p>リリースノート <span>リリースカード</span></p></li>
+<li><img src="/cards/changelog-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="リリースノート, タイムライン"><p>リリースノート <span>タイムライン</span></p></li>
+<li><img src="/cards/qr-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR コード, シンプル"><p>QR コード <span>シンプル</span></p></li>
+<li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR コード, カード"><p>QR コード <span>カード</span></p></li>
+</ul>
+</div>
+</section>
+<section class="pad" id="shortcuts" aria-labelledby="shortcuts-title">
+<div class="wrap keys-grid">
+<div class="keys-copy">
+<h2 class="h2" id="shortcuts-title">覚えるキーはふたつだけ。</h2>
+<p class="lede">どちらも、最後にコピーしたものに働きます。</p>
+<ul class="keys-list">
+<li><span class="caps"><kbd>⌥</kbd><kbd>V</kbd></span><div><h3>ペースト形式…</h3></div>
+<p>カーソルの位置に小さなパネルが開き、カードはもうできています。あとはキーをひとつ：</p>
+<dl>
+<dt><kbd class="inline-cap">↩</kbd></dt><dd><strong>画像</strong>：PNG を、いま入力中のアプリにそのままペースト</dd>
+<dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>：同じカードを、一行ずつ表示</dd>
+<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>動画</strong>：MP4。Mac に入っている ffmpeg で作ります</dd>
+<dt><kbd class="inline-cap">Q</kbd></dt><dd><strong>QR コード</strong>：コピーしたテキストをそのまま。モデルには送りません</dd>
+<dt><kbd class="inline-cap">P</kbd></dt><dd><strong>画面にピン留め</strong>：すべてのウィンドウの上に浮かびます。ドラッグで移動、ピンチで拡大、ダブルクリックで閉じます</dd>
+</dl>
+</li>
+<li><span class="caps"><kbd>⇧</kbd><kbd>⌥</kbd><kbd>V</kbd></span><div><h3>クリップボード履歴</h3></div>
+<p>コピーしたものすべてを Mac の中で暗号化して保存。検索もできます。</p></li>
+</ul>
+<p class="keys-note">画像、GIF、動画、QR コード、ピン留めには「設定 › ショートカット」で個別のキーも割り当てられます。初期状態では未設定です。</p>
+</div>
+<div class="keys-art"><div class="field"><div class="chooser" aria-hidden="true">
+<div class="ch-head">ペースト形式…<span>キャンセル <kbd>esc</kbd></span></div>
+<div class="ch-prev"><img data-card="thumb" src="/cards/text-poster.webp" width="116" height="116" alt=""></div>
+<ul class="ch-rows">
+<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>画像<kbd>↩</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-video"/></svg>動画<kbd>M</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR コード<kbd>Q</kbd></li>
+<li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>画面にピン留め<kbd>P</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-history"/></svg>クリップボード履歴<kbd>H</kbd></li>
+</ul>
+</div></div></div>
+</div>
+</section>
+<section class="privacy pad" id="privacy" data-theme="dark" aria-labelledby="privacy-title">
+<div class="wrap">
+<h2 class="h2" id="privacy-title">コピーしたものは、Mac の外に出ません。</h2>
+<p class="lede">あなたが決めない限りは。アカウントも、テレメトリも、アクセス解析もありません。</p>
+<div class="flow">
+<div class="mac"><span class="eyebrow">あなたの Mac</span>
+<div class="chips"><span>クリップボード履歴・暗号化</span><span>鍵はキーチェーンに</span><span>テンプレートのルール</span><span>組版とレンダリング</span></div></div>
+<div class="link"><svg viewBox="0 0 160 14" preserveAspectRatio="none" aria-hidden="true"><path d="M0 7h150" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/><path d="M146 1l7 6-7 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>自分のキーを入れたときだけ、<br>秘密情報を伏せてから</div>
+<div class="opt"><span class="eyebrow">任意</span><p>AI サービス</p><p>選ぶのはスタイルだけ。言葉には触れません</p></div>
+</div>
+<dl class="facts">
+<div><dt>ローカルでレンダリング</dt><dd>解析も組版もレンダリングも Mac の中。テンプレートはローカルのルールが選ぶので、モデルは要りません。</dd></div>
+<div><dt>パスワードは記録しない</dt><dd>パスワードマネージャーや保護された入力欄からのコピーは記録しません。</dd></div>
+<div><dt>オープンソース</dt><dd>MIT ライセンスなので、中身を確かめられます。詳しくは<a href="/privacy/">プライバシーポリシー</a>（英語）へ。</dd></div>
+</dl>
+</div>
+</section>
+<section class="faq pad" id="faq" aria-labelledby="faq-title">
+<div class="wrap">
+<h2 class="h2" id="faq-title">よくある質問。</h2>
+<div class="faq-list">
+<details><summary>なぜ「アクセシビリティ」の許可が必要なのですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>入力中のアプリにペーストするため、カーソルの位置にパネルを開くため、そしてペーストの直前にカーソルが元の場所にあるかを確かめるためです。許可しなくてもコピーと履歴は使えます。その場合、結果はクリップボードに入るので、⌘V はご自分で押してください。</p></details>
+<details><summary>Mac の外に出るデータはありますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/privacy/">プライバシーポリシー</a>（英語）に書いてあります。</p></details>
+<details><summary>AI は必須ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。</p></details>
+<details><summary>ffmpeg は必要ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>MP4 動画を作るときだけ必要です。Peesuto は Mac にインストール済みの ffmpeg（<code>brew install ffmpeg</code>）を使い、同梱も自動インストールもしません。画像、GIF、QR コードには何も要りません。</p></details>
+<details><summary>対応している Mac は？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。</p></details>
+<details><summary>料金はかかりますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>かかりません。Peesuto は MIT ライセンスのオープンソースで、オープンソース版から外している機能もありません。</p></details>
+<details><summary>アップデートはどうなりますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Peesuto は 1 日に 1 回 <code>peesuto.com/appcast.xml</code> を確認し、署名済みのアップデートがあればお知らせします（Sparkle）。自動確認は「設定 › 一般」でオフにできます。0.1.0 と 0.1.1 はアップデート機能より前の版なので、一度だけ手動で更新してください。変更点は<a href="/changelog/">更新履歴</a>（英語）にあります。</p></details>
+</div>
+</div>
+</section>
+<section class="closing" aria-labelledby="closing-title">
+<div class="wrap">
+<h2 class="h2" id="closing-title">コピー、⌥V、Return。</h2>
+<a class="btn" href="https://github.com/anelikes/peesuto/releases/latest">Mac 版をダウンロード</a>
+<p class="meta"><span>macOS 13 以降 · Apple シリコン · MIT</span></p>
+</div>
+</section>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<div class="who"><b>Peesuto</b><span>Mac のための小さなクリップボードアプリ。</span></div>
+<nav aria-label="フッター">
+<a href="https://github.com/anelikes/peesuto">GitHub</a>
+<a href="/changelog/">更新履歴</a>
+<a href="/privacy/">プライバシーポリシー</a>
+<a href="mailto:security@peesuto.com">security@peesuto.com</a>
+<a href="/" lang="en" hreflang="en">English</a>
+<a href="/zh/" lang="zh-Hans" hreflang="zh-Hans">中文</a>
+<a href="/ja/" lang="ja" hreflang="ja" aria-current="page">日本語</a>
+</nav>
+<small>© 2026 The Peesuto Authors · MIT ライセンス · 「Peesuto」の名称とロゴは商標です。</small>
+</div>
+</footer>
+</body>
+</html>

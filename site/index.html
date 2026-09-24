@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peesuto — Copy text. Paste a card.</title>
+<meta name="description" content="A small, open-source clipboard app for the Mac. Copy text, press ⌥V, and a well-set card is pasted into the app you are typing in.">
+<link rel="canonical" href="https://peesuto.com/">
+<link rel="alternate" hreflang="en" href="https://peesuto.com/">
+<link rel="alternate" hreflang="zh-Hans" href="https://peesuto.com/zh/">
+<link rel="alternate" hreflang="ja" href="https://peesuto.com/ja/">
+<link rel="alternate" hreflang="x-default" href="https://peesuto.com/">
+<meta name="theme-color" content="#F6F3EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161412" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/assets/icon-256.png" type="image/png" sizes="256x256">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Peesuto">
+<meta property="og:title" content="Peesuto — Copy text. Paste a card.">
+<meta property="og:description" content="A small, open-source clipboard app for the Mac. Copy text, press ⌥V, and a well-set card is pasted into the app you are typing in.">
+<meta property="og:url" content="https://peesuto.com/">
+<meta property="og:image" content="https://peesuto.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Peesuto: Copy text. Paste a card.">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="/assets/fonts/peesuto-mono-bold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css?v=a8f66cbd43">
+<script src="/assets/site.js?v=ec0c5407ef" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+<symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="6" r="1.2" fill="currentColor"/><path d="M2 12l3.8-3.6 2.7 2.4 2.2-1.9L14 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-gif" viewBox="0 0 16 16"><path d="M9 2.5 13.5 8 9 13.5 4.5 8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 3.5 1.8 8l3.7 4.5M3.6 3.5 0 8l3.6 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.4 1.4"/></symbol>
+<symbol id="i-video" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 3v10M11.5 3v10M1.5 6h3M1.5 10h3M11.5 6h3M11.5 10h3" stroke="currentColor" stroke-width="1"/></symbol>
+<symbol id="i-qr" viewBox="0 0 16 16"><path d="M2 2h4.5v4.5H2zM9.5 2H14v4.5H9.5zM2 9.5h4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 13h1.5" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
+<symbol id="i-pin" viewBox="0 0 16 16"><path d="M5.5 1.8h5M6.5 2v4.2L4.3 9h7.4L9.5 6.2V2M8 9v5.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-history" viewBox="0 0 16 16"><path d="M2.6 5.2A6 6 0 1 1 2 8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.2 2.2v3.2h3.2M8 4.8V8l2.2 1.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-plus" viewBox="0 0 14 14"><path d="M7 0v14M0 7h14" stroke="currentColor" stroke-width="1.5"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 48 14"><path d="M0 7h44M38 1l7 6-7 6" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+</svg>
+<header class="site-header">
+<nav class="wrap" aria-label="Main">
+<a class="brand" href="/" aria-current="page"><img src="/assets/icon-64.png" width="26" height="26" alt="">Peesuto</a>
+<a class="nav-link hide-sm" href="/#templates">Templates</a>
+<a class="nav-link hide-sm" href="/#privacy">Privacy</a>
+<a class="nav-link hide-sm" href="/#faq">FAQ</a>
+<a class="nav-link hide-sm" href="/changelog/">Changelog</a>
+<span class="langs"><a class="nav-link" href="/zh/" lang="zh-Hans" hreflang="zh-Hans">中文</a><a class="nav-link" href="/ja/" lang="ja" hreflang="ja">日本語</a></span>
+<a class="btn btn-primary btn-sm" href="https://github.com/anelikes/peesuto/releases/latest">Download</a>
+</nav>
+</header>
+<main id="main">
+<section class="hero" aria-labelledby="hero-title">
+<div class="wrap">
+<div class="hero-head">
+<h1 class="display" id="hero-title">Copy text.<br>Paste a card.</h1>
+<div class="hero-side">
+<p class="intro">Peesuto is a clipboard app for the Mac. It sees what you copied (code, a chat, a table, a quote) and pastes it as a well-set image into whatever you are typing in. GIF and video too.</p>
+<div class="cta-row"><a class="btn btn-primary" href="https://github.com/anelikes/peesuto/releases/latest">Download for Mac</a><a class="btn btn-ghost" href="https://github.com/anelikes/peesuto">View on GitHub</a></div>
+<p class="meta"><span>macOS 13+</span><span>Apple silicon</span><span>Free, MIT-licensed</span></p>
+</div>
+</div>
+<figure class="demo" data-demo>
+<div class="field">
+<div class="stage-wrap" role="img" aria-label="A short loop: text is selected and copied, ⌥V opens the Paste as… chooser at the caret with the card already drawn, Return pastes the card into a chat.">
+<div class="stage" aria-hidden="true">
+<div class="win src"><div class="win-bar"><i></i><i></i><i></i><b>greet.swift</b></div><span class="toast"><kbd>⌘C</kbd>Copied</span><pre><span><span class="sel">func greet(_ name: String) -&gt; String {
+    &quot;Hello, \(name)!&quot;
+}
+
+print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
+<div class="keys"><span class="cap cap-mod">⌥</span><span class="cap cap-mod">V</span><span class="cap cap-enter">↩</span></div>
+<div class="win chat"><div class="win-bar"><i></i><i></i><i></i><b># launch</b></div>
+<div class="thread">
+<div class="msg msg-ask"><span class="avatar">M</span><b>Maya<small>10:02</small></b><p>Can you send the greeting helper?</p></div>
+<div class="msg msg-new"><span class="avatar you">Y</span><b>You<small>10:03</small></b><img data-card="msg" src="/cards/code-classic.webp" width="240" height="240" alt=""></div>
+</div>
+<div class="composer"><span class="caret"></span>Message #launch</div>
+<div class="chooser" aria-hidden="true">
+<div class="ch-head">Paste as…<span>Cancel <kbd>esc</kbd></span></div>
+<div class="ch-prev"><img data-card="thumb" src="/cards/code-classic.webp" width="116" height="116" alt=""></div>
+<ul class="ch-rows">
+<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd>↩</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-video"/></svg>Video<kbd>M</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR code<kbd>Q</kbd></li>
+<li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>Pin to screen<kbd>P</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-history"/></svg>Clipboard history<kbd>H</kbd></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="demo-bar">
+<ol class="steps" aria-hidden="true"><li>Copy</li><li>⌥V</li><li>Paste as…</li><li>Pasted</li></ol>
+<button class="play" type="button" hidden aria-pressed="false" data-play="Play" data-pause="Pause"><svg viewBox="0 0 10 12" aria-hidden="true"><path d="M0 0h3.5v12H0zM6.5 0H10v12H6.5z" fill="currentColor"/></svg><span class="label">Pause</span></button>
+</div>
+</div>
+<script type="application/json">[{"file":"greet.swift","text":"func greet(_ name: String) -> String {\n    \"Hello, \\(name)!\"\n}\n\nprint(greet(\"Peesuto\"))","card":"/cards/code-classic.webp","ask":"Can you send the greeting helper?","alt":"Code card: the Swift function, highlighted, in a dark window on an indigo field."},{"file":"Notes","text":"Make room for a clearer thought.","card":"/cards/text-poster.webp","ask":"Slide 3 still needs a title.","alt":"Poster card: “Make room for a clearer thought.” in large type on red."},{"file":"plans.md","text":"| Plan | Price | Seats |\n|---|---|---|\n| Solo | $0 | 1 |\n| Team | $12 | 10 |","card":"/cards/table-classic.webp","ask":"What were the plans again?","alt":"Table card: plans, prices and seats in a green-headed grid."}]</script>
+<figcaption>Still when your Mac is set to reduce motion.</figcaption>
+</figure>
+</div>
+</section>
+<section class="strip" aria-labelledby="strip-title">
+<h2 id="strip-title" class="visually-hidden">Cards made by Peesuto</h2>
+<ul>
+<li><img src="/cards/text-poster.webp" width="320" height="320" loading="lazy" decoding="async" alt="Text, Poster"></li>
+<li><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Code, Terminal"></li>
+<li><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Conversation, Chat bubbles"></li>
+<li><img src="/cards/stat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Statistic, Big number"></li>
+<li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Info card, Credentials"></li>
+<li><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Diagram, Blueprint"></li>
+<li><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Quote, Statement"></li>
+<li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Release notes, Release card"></li>
+<li><img src="/cards/comparison-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Comparison, Split panels"></li>
+<li><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Table, Data grid"></li>
+<li><img src="/cards/list-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="List, Stacked steps"></li>
+<li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR code, Card"></li>
+</ul>
+<p class="wrap">Each of these was pasted from plain text.</p>
+</section>
+<section class="reads pad" id="reads" data-theme="light" aria-labelledby="reads-title">
+<div class="wrap">
+<h2 class="h2" id="reads-title">It reads what you copied.</h2>
+<p class="lede">Words, names, numbers and order come from your text. Nothing is rewritten or made up; it is only set.</p>
+<div class="tabs" role="tablist" aria-label="Content type">
+<button class="tab" type="button" role="tab" id="tab-code" aria-controls="panel-code" aria-selected="true" tabindex="0">Code</button>
+<button class="tab" type="button" role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="false" tabindex="-1">Chat</button>
+<button class="tab" type="button" role="tab" id="tab-table" aria-controls="panel-table" aria-selected="false" tabindex="-1">Table</button>
+<button class="tab" type="button" role="tab" id="tab-info" aria-controls="panel-info" aria-selected="false" tabindex="-1">Info card</button>
+<button class="tab" type="button" role="tab" id="tab-diagram" aria-controls="panel-diagram" aria-selected="false" tabindex="-1">Diagram</button>
+<button class="tab" type="button" role="tab" id="tab-quote" aria-controls="panel-quote" aria-selected="false" tabindex="-1">Quote</button>
+<button class="tab" type="button" role="tab" id="tab-changelog" aria-controls="panel-changelog" aria-selected="false" tabindex="-1">Release notes</button>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-code" aria-labelledby="tab-code" data-tint="code">
+<div class="from"><span class="eyebrow">On your clipboard</span><pre>func greet(_ name: String) -&gt; String {
+    &quot;Hello, \(name)!&quot;
+}
+
+print(greet(&quot;Peesuto&quot;))</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Code card made from the text on the left."></div>
+<p class="note"><strong>Code.</strong> 24 languages highlighted, from the fence or detected. Long lines wrap; indentation holds.</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-tint="chat" hidden>
+<div class="from"><span class="eyebrow">On your clipboard</span><pre>Lin: Can this chat become an image?
+Ash: Yes, copy it and press the shortcut.
+Lin: Nice, that's all?</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Chat card made from the text on the left."></div>
+<p class="note"><strong>Chat.</strong> Speakers and times copied out of chat apps become bubbles or a transcript.</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-table" aria-labelledby="tab-table" data-tint="table" hidden>
+<div class="from"><span class="eyebrow">On your clipboard</span><pre>| Plan | Price | Seats |
+|---|---|---|
+| Solo | $0 | 1 |
+| Team | $12 | 10 |</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Table card made from the text on the left."></div>
+<p class="note"><strong>Table.</strong> Tab-separated, Markdown and terminal box tables. Columns keep whole words.</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-info" aria-labelledby="tab-info" data-tint="info" hidden>
+<div class="from"><span class="eyebrow">On your clipboard</span><pre>Staging account
+User: admin
+Password: P@ssw0rd!2026
+Email: ops@example.com
+Host: https://staging.example.com</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/cards/info-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Info card card made from the text on the left."></div>
+<p class="note"><strong>Info card.</strong> Contacts, accounts and dotenv blocks become fields. Passwords and keys are marked with a lock.</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-diagram" aria-labelledby="tab-diagram" data-tint="diagram" hidden>
+<div class="from"><span class="eyebrow">On your clipboard</span><pre>Copy → Decide → Render → Paste</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Diagram card made from the text on the left."></div>
+<p class="note"><strong>Diagram.</strong> Mermaid flowcharts and plain arrow chains, laid out and routed.</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-quote" aria-labelledby="tab-quote" data-tint="quote" hidden>
+<div class="from"><span class="eyebrow">On your clipboard</span><pre>“Simplicity is the ultimate sophistication.”
+— Leonardo da Vinci</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Quote card made from the text on the left."></div>
+<p class="note"><strong>Quote.</strong> An author is shown only when your text has one.</p>
+</div>
+<div class="tabpanel" role="tabpanel" id="panel-changelog" aria-labelledby="tab-changelog" data-tint="changelog" hidden>
+<div class="from"><span class="eyebrow">On your clipboard</span><pre>## v1.2.0 — 2026-09-24
+### Added
+- Signatures on cards
+- Release notes cards
+### Fixed
+- Long code lines wrap</pre></div>
+<svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Release notes card made from the text on the left."></div>
+<p class="note"><strong>Release notes.</strong> Keep a Changelog sections, or a version line over its items, become a release card.</p>
+</div>
+</div>
+</section>
+<section class="gallery pad" id="templates" data-theme="light" aria-labelledby="templates-title">
+<div class="wrap">
+<div class="gallery-head">
+<h2 class="h2" id="templates-title">13 templates,<br>27 styles.</h2>
+<p>Local rules pick the template; you can switch the style after pasting, choose a default per template, or turn one off in Settings. Each style is an open table of type and colour: <a href="https://github.com/anelikes/peesuto/blob/main/docs/templates.md">how templates work</a>.</p>
+</div>
+<ul class="grid">
+<li><img src="/cards/text-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Text, Paper"><p>Text <span>Paper</span></p></li>
+<li><img src="/cards/text-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Text, Ink"><p>Text <span>Ink</span></p></li>
+<li class="big"><img src="/cards/text-poster.webp" width="320" height="320" loading="lazy" decoding="async" alt="Text, Poster"><p>Text <span>Poster</span></p></li>
+<li><img src="/cards/document-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Document, Reading page"><p>Document <span>Reading page</span></p></li>
+<li><img src="/cards/document-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Document, Editorial column"><p>Document <span>Editorial column</span></p></li>
+<li><img src="/cards/quote-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Quote, Book excerpt"><p>Quote <span>Book excerpt</span></p></li>
+<li><img src="/cards/quote-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Quote, Statement"><p>Quote <span>Statement</span></p></li>
+<li class="big"><img src="/cards/code-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Code, Terminal"><p>Code <span>Terminal</span></p></li>
+<li><img src="/cards/code-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Code, Code notebook"><p>Code <span>Code notebook</span></p></li>
+<li><img src="/cards/stat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Statistic, Big number"><p>Statistic <span>Big number</span></p></li>
+<li><img src="/cards/stat-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Statistic, Metric strip"><p>Statistic <span>Metric strip</span></p></li>
+<li><img src="/cards/list-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="List, Checklist"><p>List <span>Checklist</span></p></li>
+<li><img src="/cards/list-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="List, Stacked steps"><p>List <span>Stacked steps</span></p></li>
+<li class="big"><img src="/cards/chat-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Conversation, Chat bubbles"><p>Conversation <span>Chat bubbles</span></p></li>
+<li><img src="/cards/chat-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Conversation, Transcript"><p>Conversation <span>Transcript</span></p></li>
+<li><img src="/cards/table-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Table, Data grid"><p>Table <span>Data grid</span></p></li>
+<li><img src="/cards/table-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Table, Editorial ledger"><p>Table <span>Editorial ledger</span></p></li>
+<li><img src="/cards/comparison-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Comparison, Side by side"><p>Comparison <span>Side by side</span></p></li>
+<li><img src="/cards/comparison-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Comparison, Split panels"><p>Comparison <span>Split panels</span></p></li>
+<li><img src="/cards/diagram-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Diagram, Flow"><p>Diagram <span>Flow</span></p></li>
+<li><img src="/cards/diagram-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Diagram, Blueprint"><p>Diagram <span>Blueprint</span></p></li>
+<li><img src="/cards/info-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Info card, Field list"><p>Info card <span>Field list</span></p></li>
+<li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Info card, Credentials"><p>Info card <span>Credentials</span></p></li>
+<li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Release notes, Release card"><p>Release notes <span>Release card</span></p></li>
+<li><img src="/cards/changelog-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Release notes, Timeline"><p>Release notes <span>Timeline</span></p></li>
+<li><img src="/cards/qr-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR code, Plain"><p>QR code <span>Plain</span></p></li>
+<li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR code, Card"><p>QR code <span>Card</span></p></li>
+</ul>
+</div>
+</section>
+<section class="pad" id="shortcuts" aria-labelledby="shortcuts-title">
+<div class="wrap keys-grid">
+<div class="keys-copy">
+<h2 class="h2" id="shortcuts-title">Two keys to remember.</h2>
+<p class="lede">Both act on what you copied last.</p>
+<ul class="keys-list">
+<li><span class="caps"><kbd>⌥</kbd><kbd>V</kbd></span><div><h3>Paste as…</h3></div>
+<p>A small chooser opens at your caret, with the card already drawn. One more key:</p>
+<dl>
+<dt><kbd class="inline-cap">↩</kbd></dt><dd><strong>Image</strong>: a PNG, pasted into the app you are typing in</dd>
+<dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>: the same card, revealed line by line</dd>
+<dt><kbd class="inline-cap">M</kbd></dt><dd><strong>Video</strong>: MP4, made with the ffmpeg on your Mac</dd>
+<dt><kbd class="inline-cap">Q</kbd></dt><dd><strong>QR code</strong>: exactly the text you copied; never sent to a model</dd>
+<dt><kbd class="inline-cap">P</kbd></dt><dd><strong>Pin to screen</strong>: floats above every window; drag, pinch to zoom, double-click to close</dd>
+</dl>
+</li>
+<li><span class="caps"><kbd>⇧</kbd><kbd>⌥</kbd><kbd>V</kbd></span><div><h3>Clipboard history</h3></div>
+<p>Everything you copied, encrypted on your Mac and searchable.</p></li>
+</ul>
+<p class="keys-note">Image, GIF, video, QR code and pin can each get a direct shortcut in Settings › Shortcuts. They are unbound by default.</p>
+</div>
+<div class="keys-art"><div class="field"><div class="chooser" aria-hidden="true">
+<div class="ch-head">Paste as…<span>Cancel <kbd>esc</kbd></span></div>
+<div class="ch-prev"><img data-card="thumb" src="/cards/text-poster.webp" width="116" height="116" alt=""></div>
+<ul class="ch-rows">
+<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd>↩</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-video"/></svg>Video<kbd>M</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-qr"/></svg>QR code<kbd>Q</kbd></li>
+<li class="sep"><svg aria-hidden="true"><use href="#i-pin"/></svg>Pin to screen<kbd>P</kbd></li>
+<li><svg aria-hidden="true"><use href="#i-history"/></svg>Clipboard history<kbd>H</kbd></li>
+</ul>
+</div></div></div>
+</div>
+</section>
+<section class="privacy pad" id="privacy" data-theme="dark" aria-labelledby="privacy-title">
+<div class="wrap">
+<h2 class="h2" id="privacy-title">Nothing you copy leaves your Mac.</h2>
+<p class="lede">Unless you decide it should. No account, no telemetry, no analytics.</p>
+<div class="flow">
+<div class="mac"><span class="eyebrow">Your Mac</span>
+<div class="chips"><span>Clipboard history · encrypted</span><span>Key in Keychain</span><span>Template rules</span><span>Layout &amp; rendering</span></div></div>
+<div class="link"><svg viewBox="0 0 160 14" preserveAspectRatio="none" aria-hidden="true"><path d="M0 7h150" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/><path d="M146 1l7 6-7 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>only with your key,<br>secrets redacted</div>
+<div class="opt"><span class="eyebrow">Optional</span><p>AI provider</p><p>picks the style, never the words</p></div>
+</div>
+<dl class="facts">
+<div><dt>Rendered locally</dt><dd>Parsing, layout and rendering run on your Mac. Local rules choose the template; no model needed.</dd></div>
+<div><dt>Passwords skipped</dt><dd>Copies from password managers and secure fields are never recorded.</dd></div>
+<div><dt>Open source</dt><dd>MIT-licensed, so you can check. Read the <a href="/privacy/">privacy policy</a>.</dd></div>
+</dl>
+</div>
+</section>
+<section class="faq pad" id="faq" aria-labelledby="faq-title">
+<div class="wrap">
+<h2 class="h2" id="faq-title">Questions.</h2>
+<div class="faq-list">
+<details><summary>Why does it ask for Accessibility access?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>To paste into the app you are typing in, to open the chooser at your caret, and to check that the caret is still where you left it before pasting. Without the permission, copying and history still work; the result is copied and you press ⌘V yourself.</p></details>
+<details><summary>What leaves my Mac?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>By default, nothing. Only if you set up an AI provider is copied text sent, with secrets redacted first, to that provider with your key. One offline switch in Settings stops all of it. The <a href="/privacy/">privacy policy</a> lists every case.</p></details>
+<details><summary>Is AI required?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>No. Local rules choose a template for everything. If you like, bring your own key and let Jev, a small model, choose the template and style, through TypeSafe, Vercel AI Gateway, OpenRouter or your own Cloudflare account. It picks presentation only; it never rewrites your text.</p></details>
+<details><summary>Do I need ffmpeg?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Only for MP4 video. Peesuto uses the ffmpeg already on your Mac (<code>brew install ffmpeg</code>) and does not bundle or install it. Images, GIFs and QR codes need nothing extra.</p></details>
+<details><summary>Which Macs does it run on?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Macs with Apple silicon, on macOS 13 Ventura or later.</p></details>
+<details><summary>What does it cost?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Nothing. Peesuto is free and MIT-licensed, and no feature is held back from the open-source build.</p></details>
+<details><summary>How do updates work?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Peesuto checks <code>peesuto.com/appcast.xml</code> once a day and offers signed updates (Sparkle); you can turn the check off in Settings › General. Versions 0.1.0 and 0.1.1 came before the updater, so update those once by hand. The <a href="/changelog/">changelog</a> lists what changed.</p></details>
+</div>
+</div>
+</section>
+<section class="closing" aria-labelledby="closing-title">
+<div class="wrap">
+<h2 class="h2" id="closing-title">Copy. ⌥V. Return.</h2>
+<a class="btn" href="https://github.com/anelikes/peesuto/releases/latest">Download for Mac</a>
+<p class="meta"><span>macOS 13+ · Apple silicon · MIT</span></p>
+</div>
+</section>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<div class="who"><b>Peesuto</b><span>A small clipboard app for the Mac.</span></div>
+<nav aria-label="Footer">
+<a href="https://github.com/anelikes/peesuto">GitHub</a>
+<a href="/changelog/">Changelog</a>
+<a href="/privacy/">Privacy policy</a>
+<a href="mailto:security@peesuto.com">security@peesuto.com</a>
+<a href="/" lang="en" hreflang="en" aria-current="page">English</a>
+<a href="/zh/" lang="zh-Hans" hreflang="zh-Hans">中文</a>
+<a href="/ja/" lang="ja" hreflang="ja">日本語</a>
+</nav>
+<small>© 2026 The Peesuto Authors · MIT License · “Peesuto” and its logo are trademarks.</small>
+</div>
+</footer>
+</body>
+</html>

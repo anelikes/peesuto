@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changelog — Peesuto</title>
+<meta name="description" content="What changed in each release of Peesuto, the open-source clipboard app for the Mac.">
+<link rel="canonical" href="https://peesuto.com/changelog/">
+<meta name="theme-color" content="#F6F3EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161412" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/assets/icon-256.png" type="image/png" sizes="256x256">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Peesuto">
+<meta property="og:title" content="Changelog — Peesuto">
+<meta property="og:description" content="What changed in each release of Peesuto, the open-source clipboard app for the Mac.">
+<meta property="og:url" content="https://peesuto.com/changelog/">
+<meta property="og:image" content="https://peesuto.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Peesuto: Copy text. Paste a card.">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="/assets/fonts/peesuto-mono-bold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css?v=a8f66cbd43">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+<symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="6" r="1.2" fill="currentColor"/><path d="M2 12l3.8-3.6 2.7 2.4 2.2-1.9L14 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-gif" viewBox="0 0 16 16"><path d="M9 2.5 13.5 8 9 13.5 4.5 8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 3.5 1.8 8l3.7 4.5M3.6 3.5 0 8l3.6 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.4 1.4"/></symbol>
+<symbol id="i-video" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 3v10M11.5 3v10M1.5 6h3M1.5 10h3M11.5 6h3M11.5 10h3" stroke="currentColor" stroke-width="1"/></symbol>
+<symbol id="i-qr" viewBox="0 0 16 16"><path d="M2 2h4.5v4.5H2zM9.5 2H14v4.5H9.5zM2 9.5h4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 13h1.5" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
+<symbol id="i-pin" viewBox="0 0 16 16"><path d="M5.5 1.8h5M6.5 2v4.2L4.3 9h7.4L9.5 6.2V2M8 9v5.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-history" viewBox="0 0 16 16"><path d="M2.6 5.2A6 6 0 1 1 2 8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.2 2.2v3.2h3.2M8 4.8V8l2.2 1.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+<symbol id="i-plus" viewBox="0 0 14 14"><path d="M7 0v14M0 7h14" stroke="currentColor" stroke-width="1.5"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 48 14"><path d="M0 7h44M38 1l7 6-7 6" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+</svg>
+<header class="site-header">
+<nav class="wrap" aria-label="Main">
+<a class="brand" href="/"><img src="/assets/icon-64.png" width="26" height="26" alt="">Peesuto</a>
+<a class="nav-link hide-sm" href="/#templates">Templates</a>
+<a class="nav-link hide-sm" href="/#privacy">Privacy</a>
+<a class="nav-link hide-sm" href="/#faq">FAQ</a>
+<a class="nav-link hide-sm" href="/changelog/" aria-current="page">Changelog</a>
+<span class="langs"><a class="nav-link" href="/zh/" lang="zh-Hans" hreflang="zh-Hans">中文</a><a class="nav-link" href="/ja/" lang="ja" hreflang="ja">日本語</a></span>
+<a class="btn btn-primary btn-sm" href="https://github.com/anelikes/peesuto/releases/latest">Download</a>
+</nav>
+</header>
+<main id="main">
+<div class="page wrap log">
+<h1>Changelog</h1>
+<p>What changed in each release, newest first. “Unreleased” is what the next release will contain. The source is <a href="https://github.com/anelikes/peesuto/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
+<article class="release" aria-labelledby="unreleased">
+<header><h2 id="unreleased">Unreleased</h2><p>In development</p><span class="tag">Not in a release yet</span></header>
+<div class="body">
+<ul>
+<li>Code cards in the Terminal style sit on a soft, blurred &quot;Indigo night&quot; colour field (deep indigo and violet with a touch of magenta, light from the top left) in images and videos. GIFs keep the hue-arc backdrop, because a GIF's 256-colour palette would band and dither the soft field.</li>
+<li>Where Peesuto says Accessibility is missing (the task window, the Paste as… chooser, the welcome guide and Settings › General) a quiet second line explains the common trap: if the switch is already on in System Settings, remove Peesuto with − and add it again (macOS ties the grant to the app's signature, so an update can leave the switch on but the grant void).</li>
+<li>New shortcut model: ⌥V opens a small &quot;Paste as…&quot; chooser at the text caret (near the pointer when the app does not report a caret) without taking focus from the app you are typing in. It shows the card for the copied text (instant when prepared on copy, a spinner otherwise) and one key per output: Return image, G GIF, M video, Q QR code, P pin to screen, H the full history, Esc cancels; rows are clickable. With an image on the clipboard only pin and history apply. ⇧⌥V opens the clipboard history. The direct image/GIF/video/QR/pin shortcuts (formerly ⌘⌥1–5) stay bindable in Settings › Shortcuts but are unbound by default. Existing installs are reset to these defaults once (<code>shortcuts_version</code> 2; custom bindings are not kept), and the panel says so. The menu bar shows the keys.</li>
+<li>The welcome guide's last page offers optional smarter suggestions: Set Up… ends the guide and opens Settings › AI at the decider, which now explains each choice in a line.</li>
+<li>Release notes template: copied release notes (Markdown <code>## v1.2.0 — date</code> with <code>### Added</code> / <code>### Fixed</code>, Keep a Changelog, Chinese 新增/修复, or a version line over <code>- feat:</code> items) become a card with the version and date up front and each section title as a small coloured tag over its items. Two styles, Release card and Timeline. Ordinary Markdown documents and lists are not affected: a version-like heading is required.</li>
+<li>Automatic updates with Sparkle 2: Peesuto checks https://peesuto.com/appcast.xml once a day and offers EdDSA-signed updates; &quot;Check for Updates…&quot; in the menu bar and app menus, and Settings › General turns automatic checks off and shows the version. Preview builds never check. A notarized release signs the DMG for Sparkle and adds it to site/appcast.xml.</li>
+<li>Source ledger before output: a card is only drawn when every character you copied appears on it (as often as you copied it) and nothing else does, apart from list and line numbers and your signature. A layout that would drop or add text is refused with an explicit error instead of rendered.</li>
+<li>Every card is checked before it is drawn: text below the phone floor, lines outside the canvas, overlapping lines, weak contrast, and text the source did not say. A card that overflows or would show words you did not copy is refused instead of rendered; the rest is logged. Secondary greys that fell short of 4.5:1 (code line numbers and comments, ledger labels, transcript times) are darker. docs/template-spec.md proposes the format community templates would ship in, with these checks as the gate.</li>
+<li>Cards lose ornaments that meant nothing: the square on Paper text, the rule under Ink text, the band under Poster, the bar atop a reading page and the rail beside an editorial column, the side rule of a book excerpt, the gutter bar of a code notebook, the bar under a big number and the ticks beside ledger records. Chat bubbles sit on a warm grey instead of a cool blue-grey, with warm names and times that meet 4.5:1.</li>
+<li>A signature on your cards: Settings › Templates › Signature takes one short line (say &quot;@you · example.com&quot;, up to 40 characters) drawn small at the foot of every card except QR codes, in a quiet colour each style picks. Empty by default. A signature the card font cannot draw is left off instead of failing the card.</li>
+<li>Cards stay readable on a phone: no text below 13 px (labels, times and line numbers 11 px) when a card is shown 390 px wide, which is 36/32 px on a 1080 canvas and scales with wider ones (a 16:9 card is a scaled 1080 card). Long content grows the card or scrolls instead of shrinking type, code wraps, a sideways diagram too wide for the floor turns top-down, and table columns keep whole words. The automatic frame starts at 1080 for everything.</li>
+<li>Onboarding redesigned as three quiet steps on the panel’s glass: what Peesuto does (one real card appearing after a line of text and ⌥⌘1; static with Reduce Motion), the Accessibility permission with its live state, and the two shortcuts to remember. System accent and standard controls only; the teal glows, tinted icon tiles and the Preferences step are gone (those preferences keep their defaults and live in Settings). The window is 680×500.</li>
+<li>Keyboard symbols render: ⌘ ⌥ ⌃ ⎋ ⏎ and 111 other symbols from JetBrains Mono are merged into both Maple cuts, and a card whose chosen font lacks a glyph uses the other font when that one has them all (a JSON keymap with ⌥ used to fail).</li>
+<li>Info cards take unlabelled contact lines: a name, then a phone number, email, website or address each get an icon where a label would be.</li>
+<li>Cards are set in Maple Mono by default (Settings › Templates › Card font switches to Noto Sans SC; code is always Maple). Everything but code uses Peesuto Text, a cut of it with Chinese at 1em, so prose does not look letter-spaced.</li>
+<li>Info cards also take dotenv blocks (<code>OPENAI_API_KEY=…</code>, a <code># comment</code> as the title): names as labels, keys in the secret pill, connection strings styled as links.</li>
+<li>Info card template: contacts, accounts, server details and other <code>label: value</code> text become a card of fields instead of a plain page: phone numbers spaced 3-4-4, email domains and URL schemes muted, links coloured, passwords and keys in a red pill behind a lock (shown in full). Two styles, light Field list and dark Credentials.</li>
+<li>Code cards: the terminal backdrop is a hue arc (indigo, violet, magenta, coral, amber) sampled in OKLCH and drawn as segments, so it stays saturated end to end instead of greying in the middle like a two-colour RGB blend; the rose overlay is gone.</li>
+<li>Settings › Templates: every template with a preview of each style. Switch a template off to keep it out of automatic choice (it stays available by hand), click a style to make it the default. Changes apply at once.</li>
+<li>Latin text no longer splits inside a word: a comma could move a break back into &quot;crop&quot;, an early space was out of reach of the look-back, and larger type was kept even when it split a word (seen in the comparison template).</li>
+<li>The clipboard panel has no title bar or window buttons and runs to its top edge, on Liquid Glass (macOS 26; a behind-window blur before that), with hairline separators.</li>
+<li>The clipboard panel hides as soon as it loses focus, like Spotlight; the pin button next to Settings keeps it open (remembered across launches). Confirmation and save dialogs opened from the panel do not hide it.</li>
+<li>Bring your own key for Jev at TypeSafe, Vercel AI Gateway or OpenRouter, in onboarding (pick a service, paste a key) and in Settings › AI. OpenRouter's and Vercel's key also drives text generation with any model they serve. Model content is redacted by the privacy rules before it leaves, as for every network provider. The hosted option is hidden until the service exists.</li>
+<li>License: MIT, with third-party components listed in NOTICE. Contributions are signed off under the DCO; the Peesuto name and logo are trademarks the license does not cover (CONTRIBUTING.md).</li>
+<li>Code cards: line numbers from 1 in both styles; larger macOS window dots; the terminal style sits on a layered gradient (indigo to teal, a rose tint below) with a drop shadow on the window. Template shapes can carry the engine's two-stop gradients and shadows.</li>
+<li>Code cards use a monospace font (Peesuto Code: Maple Mono NL CN v7.9 subset, SIL OFL; no ligatures) with CJK at two columns, and real syntax highlighting (highlight.js 11.12, 24 languages, fence language or auto-detect); text is verified unchanged, with fallbacks to the proportional font and the simple colouring.</li>
+<li>Pin to screen (⌘⌥5): the copied image, or a card rendered from copied text, floats above every window; drag to move, scroll or pinch to zoom around the cursor, double-click to close; right-click to copy, save or close all. GIFs animate. Also a button on image and GIF results.</li>
+</ul>
+</div>
+</article>
+<article class="release" aria-labelledby="v0.1.1">
+<header><h2 id="v0.1.1">0.1.1</h2><p><time datetime="2026-09-23">23 Sep 2026</time></p><p><a href="https://github.com/anelikes/peesuto/releases/tag/v0.1.1">v0.1.1 on GitHub</a></p></header>
+<div class="body">
+<p>First signed and notarized native release (Apple silicon, macOS 13+).</p>
+<ul>
+<li>Media shortcuts always paste into the frontmost app (no more &quot;copied, press ⌘V&quot; after a focus check); only missing Accessibility, secure input or Peesuto in front fall back to copy, with the reason and a button to grant access.</li>
+<li>Prepare on copy moved next to the paste shortcuts; new installs pre-render images by default, with local rules only.</li>
+<li>First-run welcome guide (what Peesuto does, shortcuts, permissions and privacy including the Keychain prompt, preferences, a try-it step), reopenable from Settings › General › About.</li>
+<li>Box-drawing tables (Unicode, rounded, ASCII, psql) copied from terminals become tables; wrapped cells are joined. Mixed Latin and Chinese lines break between Chinese words instead of stranding a word before a space.</li>
+<li>Template redesign (with Claude Design): one neutral paper and night plus a signature colour per template; every template reads a style table; short content grows a type step and is centred in fixed frames; code gets light syntax colouring; added labels (NOTES, 01, CODE, line numbers) are gone; quote marks and author dashes are shapes, not glyphs. Diagram ports spread over a node side and edge labels avoid nodes, lines and each other.</li>
+<li>QR code: <code>paste-qr</code> (⌘⌥4) encodes the copied text exactly as a QR code, in two styles, with a caption for one short line; never chosen automatically and never sent to a model; too-long text is an explicit error.</li>
+<li>Fix: the app bundle now ships core's own packages (gifenc, qrcode-generator) and Core runs with <code>--no-install</code>. Installed outside the repository, GIF rendering failed offline and Bun would otherwise have fetched the package from npm at runtime, outside the egress layer. The bundler proves offline resolution from a copy outside the repository.</li>
+<li>Precompose (off by default): each copied text is rendered in the background as an image, GIF and/or video, so the paste shortcut returns it at once; local rules decide unless the model is allowed; texts with secrets, long texts, Low Power Mode and busy moments are skipped; a new copy cancels older work, an explicit action preempts it.</li>
+<li>What an AI model sees is now controlled: raw, sensitive details redacted (default) or structure only. Built-in rules catch API keys, private keys, JWTs, bearer tokens, credentials in URLs, secret assignments and random-looking tokens; email, phone, ID card and bank card rules exist but are off. Custom rules (text, keywords or regex) replace matches with the user's text, optionally in the rendered output too. The model still only picks presentation; content is rendered locally. Settings, Privacy &amp; Precompose; Studio shows what the model receives.</li>
+<li>Frames: images fit their content by default (width by content, height hugging it above a per-template minimum); GIF and video keep a strict fixed frame (1:1 by default, also 4:5, 16:9, 9:16) and scroll tall content. The native app has an image, GIF and video frame setting and a per-result frame menu; <code>meta.template.aspect</code> reports the frame used.</li>
+<li>Studio (<code>bun run studio</code>): a local page that decides and renders clipboard scenarios or any pasted text in every template, style, motion and format, with a cache keyed by the template code so edited style tokens re-render on reload; links per scenario (<code>#&lt;id&gt;</code>); the static gallery reuses it.</li>
+<li>Diagram template: Mermaid flowcharts (fenced or bare) and plain arrow chains become a layered node diagram in two styles (Flow, Blueprint), with decision diamonds, edge labels, dotted and thick links, cycles, and a rank-by-rank reveal.</li>
+<li>Mixed Chinese and Latin lines no longer break at a far-back space (&quot;第 1&quot; alone on a line); <code>scripts/gallery.ts</code> renders a preview page of realistic scenarios in every template, style, motion and format.</li>
+<li>Tall GIF/MP4 content scrolls through a fixed canvas (still start, eased scroll at reading speed, still end) instead of growing or failing; PNG still grows.</li>
+<li>Messages copied out of chat apps (speaker, timestamp, message) render as a conversation, with the time kept as small text.</li>
+<li>Invisible characters chat apps insert (U+2005 after a WeChat @mention, zero-width spaces) no longer make a card fail with &quot;could not fit&quot;; layout errors now say which character the font cannot draw, or that there is nothing to render.</li>
+<li>Text template, the default for short plain prose: typography alone in three styles (Paper, Ink, Poster), size by length, balanced and vertically centered lines, and an optional accent on one source word chosen by the model. Styles are a token table for redesign.</li>
+<li>All templates: lines break at word boundaries in Chinese and Japanese too, and closing punctuation no longer starts a line.</li>
+<li>Native app: saving settings during a render no longer restarts Core (the config waits for the task); action timeouts are 300 s for image/GIF and 720 s for video; Core's death fails pending requests at once and its process group is always killed; the last Core stderr lines show in errors and in Settings → Core diagnostics.</li>
+<li>Native app: a locked history keeps capturing in memory and offers &quot;Start fresh&quot;; Clear history; Open at login; decider errors show as a note on the result; the app no longer records its own pasteboard writes.</li>
+<li>GIF and video actions can no longer come out as a single still frame: &quot;none&quot; is not offered as motion when an action needs motion, an override of it falls back to &quot;reveal&quot;, and a one-frame GIF/MP4 is an error.</li>
+<li>Over-long text is refused before any model call or layout; wrapping is linear.</li>
+<li>Renders have a deadline (240 s image/GIF, 600 s MP4, <code>PASTE_RENDER_TIMEOUT_MS</code>); a hung engine or ffmpeg process group is killed.</li>
+<li>Generated files in the cards directory are pruned after each render (older than 24 h or beyond the newest 30).</li>
+<li>A failed decider still renders with the fallback, and the error now comes back as <code>decisionError</code> in the action result.</li>
+<li>A failed render never deletes a caller's existing file; the daemon answers an unknown <code>cmd</code> with a usage error carrying the request id.</li>
+<li>Minimum macOS is now 13.0 (the bundled Bun requires it); builds are arm64 only. CI's macOS jobs moved to <code>macos-15</code> with Xcode 16.4 selected explicitly.</li>
+<li>Removed the legacy desktop source, UI build dependencies and tag-triggered release workflow. <code>native/</code> is now the only desktop entry point; CI builds/tests the native app and bundled Core. Manual workflow artifacts are validation builds only; native signing, notarization, updating and missing management UI remain unfinished.</li>
+<li>Native media shortcuts: configurable <code>⌘⌥1</code> image, <code>⌘⌥2</code> GIF and <code>⌘⌥3</code> video operate on copied text without opening history. Includes a key recorder, conflict rollback, task status window and conservative automatic paste with focus/clipboard guards. Added the <code>paste-video</code> MP4 action (requires locally installed ffmpeg), native video playback, unique result files and opt-in Core lifecycle events; active tasks no longer trigger the daemon idle timeout.</li>
+<li>First SwiftUI + AppKit desktop implementation in <code>native/</code>, retaining Bun Core and Pocket Motion without a UI WebView. Includes native history/results/settings, English and Simplified Chinese, compatible encrypted storage/Keychain, system integration, a process-safe Core client and actual <code>.app</code> build/smoke commands. Full desktop migration and release cutover remain incomplete.</li>
+<li>Recorded the native architecture decision: SwiftUI + AppKit replaces the retired desktop while retaining Bun Core and Pocket Motion. Image/GIF/video generation is a core product capability. The migration plan includes data compatibility, task lifecycle, a simpler bilingual GUI and actual <code>.app</code> acceptance; the first native implementation is now available; complete migration remains unfinished.</li>
+<li>English and Simplified Chinese UI, with a language selector in Settings → General (system default). User content and custom action names stay unchanged.</li>
+<li>The app is called Peesuto. The identifier is com.peesuto.desktop; the repository and internal paths keep the name pocket-paste.</li>
+<li>Cloudflare decider: posts to Workers AI's <code>/ai/run</code> with <code>{model, input}</code> and unwraps the run record <code>{state, result: {answers}}</code>; the old per-model path answered &quot;No route for that URI&quot;. First verified against the real endpoint on 2026-09-22.</li>
+<li>Proxy: the worker entry exports only the handler; <code>wrangler dev</code> refused to start while string constants were exported from it.</li>
+<li>Smart paste: context-levelled pick question, heuristic fallback, hit-rate probe.</li>
+<li>Two-track providers (decider: cloudflare, endpoint, none; generator: openai-compatible, anthropic, hosted, none) behind one egress layer with an offline switch and a destination-only log.</li>
+<li>Actions: JSON format, five built-ins, user files and packs, <code>paste --action</code>.</li>
+<li>Core daemon over JSON lines for the desktop app.</li>
+<li>Proxy worker: hosted mode with subscriber tokens, quota, rate limit, generate, me, packs.</li>
+<li>Release status docs and a manual native validation build; privacy audit checklist.</li>
+<li>Card corpus of 100 samples; composer truncation, wrapping, script refusal, emphasis by the decider's word list.</li>
+<li>Style packs: catalog fragments merged into the Core catalog at load. Installing packs and the account/subscription UI are not in the native app yet.</li>
+<li>Privacy baseline 0.1.0: five automated checks pass; manual list recorded.</li>
+<li>Generator: thinking models on Ollama (qwen3.5, gemma4) answered with empty content and the action reported success; the openai-compatible generator now detects it, retries with <code>reasoning_effort: &quot;none&quot;</code>, learns, and exposes <code>reasoning</code> and <code>timeoutMs</code> (settings, providers.json, env). An action whose generator returns nothing is an error.</li>
+<li>Engine: pinned to the public anelikes/pocket-motion v0.2.1 (the private branch stack replayed, plus paths through fileURLToPath); CI clones it without a credential, Rust pinned to 1.97.1 for the wasm build.</li>
+<li>Decider <code>rules</code>, now the default: card kinds by the rule classifier (moved from the corpus script into core, 91% on the corpus), geometry by the length heuristics, picks by the heuristic; nothing configured, nothing leaves. Decider <code>laya</code>: a local Laya model behind <code>scripts/laya/server.py</code>, blended into the pick at a low weight; <code>docs/laya.md</code>.</li>
+</ul>
+<p>The foundation — M0 of <code>PLAN.md</code>, which was M1 to M3 of the plan's first edition: the render chain as a package, the engine as a pinned dependency, the sidecar proven to run outside the repository, and the decision layer with its providers. No desktop app yet.</p>
+<h3>Added</h3>
+<ul>
+<li><code>paste</code>: clipboard text to a card, a PNG, or a GIF when the text has an order worth revealing. Jev (TypeSafe AI, reached through Cloudflare Workers AI) answers seven typed questions about the text: kind, layout, palette, scale, tone, which word to emphasise, whether to animate. Every answer is a choice from a fixed set; Pocket Motion renders the composition with measured line breaks and sizes, never guessed.</li>
+<li>Aspects <code>chat</code>, <code>doc</code> and <code>social</code>; <code>--stdin</code>; <code>--dsl</code> to render a DSL as-is and skip Jev; <code>--out</code>; <code>--json</code> (path, DSL and timings on one line) for a host program; <code>--app-data</code> and <code>--engine-resources</code> for the packaged app.</li>
+<li><code>core/</code>, the chain as a package: <code>dsl.ts</code> (validation), <code>catalog.ts</code> (every name Jev may choose with the numbers behind it; style packs are fragments of the same shape merged at runtime), <code>questions.ts</code> (the seven questions, answers to DSL), <code>render/</code> (composition generation, engine driver, emoji, GIF), <code>cli.ts</code>.</li>
+<li>Providers behind one interface: <code>none</code> (the plain card, no request), <code>proxy</code> (the <code>wrangler dev</code> worker in <code>proxy/</code>, the CLI default), <code>cloudflare</code> (Workers AI REST on your own account), <code>hosted</code> (our proxy, token-gated). Errors classified as auth, network, timeout, model, bad-response or quota, with readable messages.</li>
+<li>Answers cached by the SHA-256 of the text and the question set, so the same text gives the same card; <code>--fresh</code> asks again.</li>
+<li><code>engine.json</code> pins Pocket Motion by repo, ref and sha. <code>bun run setup</code> (<code>scripts/engine.ts</code>) clones it at the pin and runs its setup steps, or verifies a checkout given by <code>POCKET_ENGINE</code> (<code>--status</code>, <code>--fix</code>).</li>
+<li>Renders happen in a symlink work tree under <code>.work/</code>; the engine checkout is never written to.</li>
+<li>GIF encoded in process with <code>gifenc</code> from the engine's frame source; no ffmpeg, about half the bytes of the ffmpeg pass.</li>
+<li>Text measured against a cached metrics-only bake of <code>core/src/render/charset.txt</code> (ASCII, CJK punctuation, GB2312 level 1), so a paste costs one composition build; warm text-to-card about 1.2 s including Jev. A character outside the charset falls back to a per-paste measurement build.</li>
+<li>Emoji as inline pictures: split out of the text (pictographs, keycaps, VS16, skin tones, ZWJ joins), fetched once as 128 px PNGs from Noto Emoji v2.047 through jsDelivr, drawn at the font size and measured as one advance when wrapping.</li>
+<li><code>scripts/bundle-sidecar.ts</code>: the sidecar the app ships, a Bun binary plus a 73 MB resource tree (engine subset, <code>core/</code>) that renders from a clean environment with no repository and no <code>bun</code> on PATH; cold start about 3.2 s, warm about 0.8 s.</li>
+<li><code>scripts/fetch-emoji.ts</code>: measures the full Noto Emoji 128 px set for the ship-the-set-or-a-subset decision.</li>
+<li>Five DSL fixtures (<code>plain</code>, <code>quote</code>, <code>code</code>, <code>stat</code>, <code>list</code>) with the SHA-256 of the frames they render to at the pinned engine (<code>core/fixtures/digests.json</code>); 96 unit tests; CI runs the unit tests on Ubuntu and the fixture renders at the pinned engine on macOS.</li>
+<li><code>PLAN.md</code>: the v1 implementation plan, second edition: a smart clipboard first, cards as one action, two-track self-hostable providers.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>An <code>animate=yes</code> answer with tone 0 rendered a single frame. Jev answers the two questions independently, so the pair is reachable and now moves.</li>
+</ul>
+</div>
+</article>
+</div>
+</main>
+<footer class="site-footer">
+<div class="wrap">
+<div class="who"><b>Peesuto</b><span>A small clipboard app for the Mac.</span></div>
+<nav aria-label="Footer">
+<a href="https://github.com/anelikes/peesuto">GitHub</a>
+<a href="/changelog/" aria-current="page">Changelog</a>
+<a href="/privacy/">Privacy policy</a>
+<a href="mailto:security@peesuto.com">security@peesuto.com</a>
+<a href="/" lang="en" hreflang="en">English</a>
+<a href="/zh/" lang="zh-Hans" hreflang="zh-Hans">中文</a>
+<a href="/ja/" lang="ja" hreflang="ja">日本語</a>
+</nav>
+<small>© 2026 The Peesuto Authors · MIT License · “Peesuto” and its logo are trademarks.</small>
+</div>
+</footer>
+</body>
+</html>

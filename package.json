@@ -11,7 +11,10 @@
     "install-dev": "bun scripts/install-dev.ts",
     "studio": "bun scripts/studio.ts",
     "test": "bun test core/tests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "site:assets": "bun scripts/site-assets.ts",
+    "site:build": "bun scripts/site.ts",
+    "site:deploy": "bun scripts/site.ts && bunx wrangler pages deploy site --project-name peesuto --branch main"
   },
   "devDependencies": {
     "@types/bun": "^1.3.0",

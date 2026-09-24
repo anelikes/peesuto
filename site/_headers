@@ -1,0 +1,30 @@
+# Cloudflare Pages response headers for peesuto.com (hand-written; see docs/site.md).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Strict-Transport-Security: max-age=15552000
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; media-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+
+# Sparkle update feed, written by scripts/appcast.ts at release time.
+/appcast.xml
+  Content-Type: application/xml; charset=utf-8
+  Cache-Control: public, max-age=300, must-revalidate
+
+/sitemap.xml
+  Content-Type: application/xml; charset=utf-8
+
+/assets/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/cards/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/og.png
+  Cache-Control: public, max-age=86400
+
+# Keep the preview hostnames out of search results; peesuto.com is canonical.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
