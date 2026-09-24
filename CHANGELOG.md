@@ -7,6 +7,10 @@ section here becomes one.
 
 ## Unreleased
 
+## 0.2.1 — 2026-09-24
+
+Six new templates, and a lighter app.
+
 ### New
 - **Lyrics cards** — song lyrics, LRC files and classical poems become a lyric poster (PNG) or a short kinetic-type lyric video (GIF/MP4): a cut per line with staggered letters, colour changes, moving decor, emphasis that punches; JIZURA's `/`, `*emphasis*`, `|note` and `!` markup works. "Open in JIZURA" hands the lyrics to [JIZURA](https://github.com/852wa/JIZURA) for a full lyric video.
 - **Metrics cards** — several `label: number` lines, with changes such as (+8%), become a grid of big numbers; rises are green, falls red.
@@ -14,6 +18,10 @@ section here becomes one.
 - **Error cards** — a copied error with its stack trace (JavaScript, Python, Java, C#, Go, Rust, Ruby, PHP) leads with the message; your own frames stand out, library frames are dimmed.
 - **Diff cards** — a copied `git diff` or patch becomes a review card: file names as titles, added and removed lines on green and red rows, and a +N −M count. A `git show` or `git format-patch` header (sha, author, date, message) sits above it as written.
 - **Terminal session cards** — a copied shell session becomes a terminal window: prompts and commands stand out, output is dimmed, errors are red and a final exit status sits in a pill.
+
+### Improved
+- **A smaller download** — the app is about 45 MB smaller (the DMG about 11 MB), with every template still rendered offline.
+- **Install with Homebrew** — `brew install --cask anelikes/tap/peesuto`.
 
 ## 0.2.0 — 2026-09-24
 
