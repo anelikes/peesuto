@@ -107,8 +107,8 @@ export type LyricsStyle = (typeof LYRICS_STYLES)[keyof typeof LYRICS_STYLES];
 
 /** Motion timing per style (ms, and lengths in em of the glyph size). Not scaled with the canvas. */
 export const LYRICS_MOTION = {
-  classic: { enterMs: 440, staggerMs: 60, maxStaggerMs: 760, typeMs: 55, exitMs: 260, transitionMs: 360, punchMs: 560, driftEm: 0.12, riseEm: 0.55, slideEm: 0.7, scaleFrom: 1.7, rotateFrom: -11, exitEm: 0.35, transition: "wipe" as "wipe" | "fade" },
-  editorial: { enterMs: 680, staggerMs: 80, maxStaggerMs: 900, typeMs: 70, exitMs: 320, transitionMs: 460, punchMs: 640, driftEm: 0.06, riseEm: 0.3, slideEm: 0.4, scaleFrom: 1.3, rotateFrom: -5, exitEm: 0, transition: "fade" as "wipe" | "fade" },
+  classic: { enterMs: 440, staggerMs: 60, maxStaggerMs: 760, typeMs: 55, exitMs: 260, transitionMs: 360, punchMs: 560, driftEm: 0.28, riseEm: 0.55, slideEm: 0.7, scaleFrom: 1.7, rotateFrom: -11, exitEm: 0.35, transition: "wipe" as "wipe" | "fade" },
+  editorial: { enterMs: 680, staggerMs: 80, maxStaggerMs: 900, typeMs: 70, exitMs: 320, transitionMs: 460, punchMs: 640, driftEm: 0.1, riseEm: 0.3, slideEm: 0.4, scaleFrom: 1.3, rotateFrom: -5, exitEm: 0, transition: "fade" as "wipe" | "fade" },
 } as const;
 
 /** How long a cut stays: reading time per character, clamped per cut; the
@@ -1046,9 +1046,12 @@ export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram
     const motionAnims: string[] = [];
     if (entrance === "scale") motionAnims.push(`${key(`lgather${Math.round(timing.scaleFrom * 100)}`, { from: { scale: String(timing.scaleFrom) }, to: { scale: "1" } })} ${ms(Math.min(900, cut.hold * 0.6))} ${cubic.out} ${ms(S)} both`);
     if (entrance === "rotate") motionAnims.push(`${key(`lswing${-timing.rotateFrom}`, { from: { rotate: `${timing.rotateFrom}deg` }, to: { rotate: "0deg" } })} ${ms(Math.min(1000, cut.hold * 0.65))} ${cubic.back} ${ms(S)} both`);
-    const drift = Math.round(cut.glyphSize * timing.driftEm);
-    if (drift) motionAnims.push(`${key(`ldrift${drift}`, { from: { translateY: "0px" }, to: { translateY: px(-drift) } })} ${ms(Math.max(300, (last ? program.durationMs : cut.end) - S))} ease-in-out ${ms(S)} both`);
-    if (cut.bang) motionAnims.push(`${key(`lshake${Math.round(cut.glyphSize / 8)}`, (() => { const a = Math.max(6, Math.round(cut.glyphSize / 8)); return { "0%": { translateX: "0px" }, "12%": { translateX: px(-a) }, "28%": { translateX: px(a) }, "44%": { translateX: px(-a * 0.7) }, "60%": { translateX: px(a * 0.5) }, "78%": { translateX: px(-a * 0.25) }, "100%": { translateX: "0px" } }; })())} 420ms linear ${ms(revealEnd - 40)} both`);
+    // The hold drifts slowly on a diagonal, alternating direction from cut to cut.
+    const drift = Math.round(cut.glyphSize * timing.driftEm), side = i % 2 ? -1 : 1;
+    if (drift) motionAnims.push(`${key(`ldrift${drift * side}`, { from: { translateX: "0px", translateY: "0px" }, to: { translateX: px(drift * side), translateY: px(-drift * 0.5) } })} ${ms(Math.max(300, (last ? program.durationMs : cut.end) - S))} ease-in-out ${ms(S)} both`);
+    // The shake runs on the exit wrapper (translateX there is free), so it never contends with the drift.
+    const exitAnims: string[] = [];
+    if (cut.bang) exitAnims.push(`${key(`lshake${Math.round(cut.glyphSize / 8)}`, (() => { const a = Math.max(6, Math.round(cut.glyphSize / 8)); return { "0%": { translateX: "0px" }, "12%": { translateX: px(-a) }, "28%": { translateX: px(a) }, "44%": { translateX: px(-a * 0.7) }, "60%": { translateX: px(a * 0.5) }, "78%": { translateX: px(-a * 0.25) }, "100%": { translateX: "0px" } }; })())} 420ms linear ${ms(revealEnd - 40)} both`);
     const textNodes: string[] = [];
     // Emphasis: an underline grows under the word, and the word pops in the accent.
     const punchAt = revealEnd + 60;
@@ -1094,7 +1097,7 @@ export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram
       } else textNodes.push(...run);
     }
     // Typewriter: a caret that follows the typing, then blinks.
-    if (typing && cursorStops.length) {
+    if (typing && cursorStops.length && cut.arrangement !== "vertical") {
       const first = cursorStops[0]!, lastStop = cursorStops.at(-1)!, span = Math.max(17, lastStop.t - first.t);
       const thickness = Math.max(3, Math.round(LYRICS_STYLES[variant].motion.cursor.thickness * W / 1080));
       // The caret waits at the left of each glyph until it is typed, then jumps past it.
@@ -1122,9 +1125,10 @@ export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram
       quietNodes.push(view({ x: 0, y: 0, width: outer.width, height: outer.height }, anim, run));
     }
     const motion = view({ x: box.x - outer.x, y: box.y - outer.y, width: box.width, height: box.height }, motionAnims.length ? animate(motionAnims.join(", ")) : "", textNodes);
-    const exitAnim = last ? "" : timing.exitEm
-      ? animate(`${key(`lexit${Math.round(cut.glyphSize * timing.exitEm)}`, { from: { opacity: "1", translateY: "0px" }, to: { opacity: "0", translateY: px(-cut.glyphSize * timing.exitEm) } })} ${ms(timing.exitMs)} ${cubic.in} ${ms(S + cut.hold - timing.exitMs * 0.4)} both`)
-      : animate(`${key("lfadeout", { from: { opacity: "1" }, to: { opacity: "0" } })} ${ms(timing.exitMs)} ease-in ${ms(S + cut.hold - timing.exitMs * 0.5)} both`);
+    if (!last) exitAnims.push(timing.exitEm
+      ? `${key(`lexit${Math.round(cut.glyphSize * timing.exitEm)}`, { from: { opacity: "1", translateY: "0px" }, to: { opacity: "0", translateY: px(-cut.glyphSize * timing.exitEm) } })} ${ms(timing.exitMs)} ${cubic.in} ${ms(S + cut.hold - timing.exitMs * 0.4)} both`
+      : `${key("lfadeout", { from: { opacity: "1" }, to: { opacity: "0" } })} ${ms(timing.exitMs)} ease-in ${ms(S + cut.hold - timing.exitMs * 0.5)} both`);
+    const exitAnim = exitAnims.length ? animate(exitAnims.join(", ")) : "";
     inner.push(view(outer, exitAnim, [motion, ...quietNodes]));
     // A trailing "!": a quick flash over the screen as the line lands.
     if (cut.bang) inner.push(`<View class="absolute left-[0px] top-[0px] w-[${W}px] h-[${H}px] bg-[${variant === "classic" ? p.ink : p.accent}]${animate(`${key("lflash", { "0%": { opacity: "0" }, "18%": { opacity: variant === "classic" ? "0.55" : "0.22" }, "100%": { opacity: "0" } })} 340ms ease-out ${ms(revealEnd - 60)} both`)}" />`);

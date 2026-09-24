@@ -685,9 +685,9 @@ function poemLines(lines: readonly string[]): boolean {
  *   LYRIC_LINE_UNITS: 20 CJK or 40 Latin characters), almost no sentence
  *   punctuation, nothing that marks another structure (list markers, `key:
  *   value` fields, times, URLs, code), and some evidence of a song: JIZURA
- *   markup (`/` cuts, `*emphasis*`, `lyric|note`), stanzas between blank
- *   lines, a repeated line, or a lyric voice (I, you, love, night; 我, 你, 夢…)
- *   in at least half the lines. `[Chorus]` lines label their stanza; a first
+ *   markup (`/` cuts, `*emphasis*`, `lyric|note`); stanzas between blank
+ *   lines or a repeated line, with a lyric voice (I, you, love, night; 我, 你,
+ *   夢…) somewhere; or at least six lines, 60% of them in that voice. `[Chorus]` lines label their stanza; a first
  *   `# ` line is the title.
  */
 export function parseLyrics(text: string): TemplateContent | undefined {
@@ -758,7 +758,8 @@ export function parseLyrics(text: string): TemplateContent | undefined {
   if (prose > Math.max(1, Math.floor(lines * 0.2))) return;
   const repeated = [...seenLines.values()].some((n) => n >= 2);
   const verses = stanzas.filter((stanza) => stanza.lines.length >= 2).length >= 2;
-  if (!markup && !verses && !repeated && voice < lines / 2) return;
+  // Stanzas or a chorus need a lyric voice somewhere (two blocks of notes have none); voice alone needs six lines, most of them in it.
+  if (!markup && !((verses || repeated) && voice >= 1) && !(lines >= 6 && voice >= lines * 0.6)) return;
   return { kind: "lyrics", ...(title ? { title } : {}), stanzas: stanzas.map((stanza) => ({ ...(stanza.label ? { label: stanza.label } : {}), lines: stanza.lines })) };
 }
 

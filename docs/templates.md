@@ -477,13 +477,14 @@ code or assets are used. Peesuto makes the quick version; the result panel's
     ending in or containing a sentence stop, nothing that marks another
     structure (list markers, `key: value` fields on two lines, lines starting
     with a time or date, URLs, emails, code characters, table pipes, more
-    than 30% digits), and some evidence of a song: JIZURA markup, two stanzas
-    between blank lines, a repeated line, or a lyric voice (I, you, love,
-    night, 我, 你, 夢, 君…) in at least half the lines. A first `# ` line is the
+    than 30% digits), and some evidence of a song: JIZURA markup; two stanzas
+    between blank lines or a repeated line, with a lyric voice (I, you, love,
+    night, 我, 你, 夢, 君…) in some line (two blocks of meeting notes have
+    none); or six lines or more, 60% of them in that voice. A first `# ` line is the
     title; `[Chorus]` / `【副歌】` lines label their stanza. It ranks after info
     and before schedule, quote, list and chat; short prose keeps the text
-    template as its alternative. Four short lines with no such evidence (a
-    to-do list without markers) stay text.
+    template as its alternative. Short lines with no such evidence (a to-do
+    list without markers, even "Call my mom / Buy milk for you") stay text.
 - **Markup** (JIZURA's): `/` cuts a line into separate screens (a slash
   between digits, in `//` or a URL is text; two Latin words either side of a
   bare `/` keep a space); `*word*` emphasises; `lyric|note` adds a small note;

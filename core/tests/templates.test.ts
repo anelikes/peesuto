@@ -794,6 +794,8 @@ describe("lyrics cards", () => {
       "https://peesuto.com\nhttps://example.com\nhttps://github.com\nhttps://x.com",
       "这是第一段比较长的说明文字，它显然不是歌词而是一段普通的文章内容，读起来像散文。\n第二段也很长，同样是普通的叙述文字。",
       "| a | b |\n|---|---|\n| 1 | 2 |",
+      "Call my mom\nBuy milk for you\nPick up the kids\nWalk the dog", "Meeting notes\nAPI review\nDB migration\n\nAction items\nShip v2\nFix login",
+      "会议纪要\n接口评审\n数据库迁移\n\n待办事项\n发布二版\n修复登录",
     ]) expect(lyricsOf(text)).toBeUndefined();
   });
   test("the poster: every lyric drawn once, markup never drawn, emphasis in the accent; Paper sets CJK verse in columns", () => {
