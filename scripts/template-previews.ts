@@ -42,6 +42,7 @@ const PREVIEW_SAMPLES: Record<TemplateId, string> = {
   changelog: "## v1.2.0 — 2026-09-24\n### Added\n- Signatures on cards\n- Release notes cards\n### Fixed\n- Long code lines wrap",
   terminal: "$ bun test\n 512 pass\n 0 fail\n$ git push\nEverything up-to-date",
   diff: "--- a/greet.swift\n+++ b/greet.swift\n@@ -1,3 +1,3 @@\n func greet(_ name: String) -> String {\n-    \"Hi, \\(name)\"\n+    \"Hello, \\(name)!\"\n }",
+  error: "TypeError: Cannot read properties of undefined (reading 'name')\n    at greet (/app/src/greet.ts:3:18)\n    at main (/app/src/main.ts:9:3)\n    at node:internal/main/run_main_module:28:49",
   qr: "https://peesuto.com",
 };
 

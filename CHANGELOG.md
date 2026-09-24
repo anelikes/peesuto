@@ -8,6 +8,7 @@ section here becomes one.
 ## Unreleased
 
 ### New
+- **Error cards** — a copied error with its stack trace (JavaScript, Python, Java, C#, Go, Rust) leads with the message; your own frames stand out, library frames are dimmed.
 - **Diff cards** — a copied `git diff` or patch becomes a review card: file names as titles, added and removed lines on green and red rows, and a +N −M count.
 - **Terminal session cards** — a copied shell session becomes a terminal window: prompts and commands stand out, output is dimmed, errors are red and a final exit status sits in a pill.
 

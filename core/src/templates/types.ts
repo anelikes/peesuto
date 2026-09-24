@@ -1,6 +1,6 @@
 import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "diff", "qr"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "diff", "error", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -82,6 +82,13 @@ export type TemplateContent =
    * mode/rename/binary lines kept verbatim as `meta`, then hunks: the `@@`
    * header and every line as written, its first character the +/-/space. */
   | { readonly kind: "diff"; readonly files: readonly DiffFile[] }
+  /** An error with its stack trace: the heading (a `lead` such as
+   * `Exception in thread "main"`, the error `type`, the `message`; the colon
+   * between type and message is syntax), then the trace lines verbatim in
+   * source order: frames, the source lines under Python frames (`code`) and
+   * other lines (`note`). `own` marks the reader's own code (not a
+   * dependency, the standard library or the runtime), for emphasis only. */
+  | { readonly kind: "error"; readonly lead?: string; readonly type?: string; readonly message?: string; readonly trace: readonly ErrorTraceLine[] }
   /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };
@@ -104,6 +111,8 @@ export type TerminalLine =
 export interface DiffLine { readonly type: "add" | "del" | "context" | "note"; readonly text: string }
 export interface DiffHunk { readonly header: string; readonly lines: readonly DiffLine[] }
 export interface DiffFile { readonly path?: string; readonly oldPath?: string; readonly meta: readonly string[]; readonly hunks: readonly DiffHunk[] }
+
+export interface ErrorTraceLine { readonly text: string; readonly role: "frame" | "code" | "note"; readonly own: boolean }
 
 /** The card typeface: Maple Mono (Peesuto Code, the default) or Noto Sans SC. Code cards are always Maple Mono. */
 export const TEMPLATE_FONTS = ["maple", "noto"] as const;

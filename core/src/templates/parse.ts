@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type ErrorTraceLine, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -25,6 +25,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   // allows one (```console, ```sh…); the fenced source stays available as code.
   const inner = code?.kind === "code" ? code : undefined;
   const terminal = inner ? (!inner.language || SESSION_FENCES.test(inner.language) ? parseTerminal(inner.code) : undefined) : parseTerminal(text);
+  const error = inner ? (!inner.language || /^(?:text|txt|plaintext|console|log|python|pytb|traceback|js|javascript|ts|typescript|java|go|rust|csharp|cs|kotlin)$/i.test(inner.language) ? parseError(inner.code) : undefined) : parseError(text);
   const diff = inner ? (!inner.language || /^(?:diff|patch|udiff|git)$/i.test(inner.language) ? parseDiff(inner.code) : undefined) : parseDiff(text);
   // A Mermaid flowchart, fenced as ```mermaid or bare, is a diagram; the
   // fenced source stays available as code.
@@ -46,8 +47,8 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     // The legacy classifier also understands commands, JSON and stack traces.
     // Keep those capabilities without treating malformed tables or mixed
     // Markdown containing a fence as one large code block.
-    // A shell session or a diff keeps code as its alternative.
-    if (candidates.size === 1 && (terminal || diff || isRawCode(text.trim()))) candidates.set("code", { kind: "code", code: normalized });
+    // A shell session, a diff or a stack trace keeps code as its alternative.
+    if (candidates.size === 1 && (terminal || diff || error || isRawCode(text.trim()))) candidates.set("code", { kind: "code", code: normalized });
     // Arrow chains: every line "A → B → C". Code (JS `=>`) never qualifies.
     if (!candidates.has("code")) {
       const chains = parseArrowChains(text);
@@ -56,6 +57,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   }
   if (terminal) candidates.set("terminal", terminal);
   if (diff) candidates.set("diff", diff);
+  if (error) candidates.set("error", error);
   const prose = parseText(text, candidates);
   if (prose) candidates.set("text", prose);
   // Anything can be a QR code: the exact source (surrounding whitespace aside),
@@ -65,7 +67,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -94,7 +96,7 @@ export function withoutTemplates(parsed: ParsedTemplates, disabled: unknown): Pa
  * specialized template would lose (code, table, list, chat, comparison).
  * Quotes and statistics keep text as an alternative. */
 function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent | undefined {
-  if (["code", "terminal", "diff", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
+  if (["code", "terminal", "diff", "error", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
   if (/^(?:graph|flowchart)\b/i.test(text.trim())) return;
   if (exceedsGraphemes(text, TEXT_MAX_GRAPHEMES) !== undefined) return;
   const blocks = documentBlocks(text);
@@ -442,6 +444,71 @@ export function parseDiff(text: string): TemplateContent | undefined {
   // A rename's "rename from" line already names the old path.
   for (const f of files) if (f.meta.some((m) => m.startsWith("rename from "))) delete f.oldPath;
   return { kind: "diff", files: files.map((f): DiffFile => ({ ...(f.path ? { path: f.path } : {}), ...(f.oldPath ? { oldPath: f.oldPath } : {}), meta: f.meta, hunks: f.hunks })) };
+}
+
+/** An error type: `TypeError`, `java.lang.IllegalStateException`, `System.IO.IOException`,
+ * `requests.exceptions.ConnectionError`, Node's `Error [ERR_X]`… */
+const ERROR_TYPE = String.raw`(?:[A-Za-z_$][\w$]*\.)*(?:[A-Z][\w$]*(?:Error|Exception|Exit|Interrupt|Failure|Fault|Panic)|Error|Exception)(?: \[[\w.-]+\])?`;
+const ERROR_HEADING = new RegExp(String.raw`^(?:(Uncaught(?: \(in promise\))?|Unhandled exception\.|Exception in thread "[^"\n]*"|Caused by:)[\t ]+)?(${ERROR_TYPE})(?::[\t ]*(\S.*))?$`);
+/** Frames and the lines around them, trimmed. */
+const TRACE_FRAME = /^(?:at[\t ]+\S.*|File "[^"\n]+", line \d+.*|#\d+[\t ]+\S.*|\d+:[\t ]+\S.*|[\w$.\/*()[\]<>-]+\(.*\)(?:[\t ]+.*)?|created by \S.*)$/;
+const TRACE_NOTE = /^(?:\.\.\.[\t ]+\d+[\t ]+more|\.\.\.[\t ]*\d+ (?:lines|frames).*|Caused by:.*|Suppressed:.*|Traceback \(most recent call last\):|During handling of the above exception, another exception occurred:|The above exception was the direct cause of the following exception:|goroutine \d+ \[[^\]]+\]:|stack backtrace:|Stack trace:|note: .*|exit status \d+|\[CIRCULAR\]|\{main\}|thrown in .*)$/;
+/** Where a frame points into dependencies, the standard library or the runtime (dimmed). */
+const LIBRARY_FRAME = /node_modules|site-packages|dist-packages|\/usr\/(?:local\/)?lib\/|\/lib\/python\d|<frozen |node:|\binternal\/|<anonymous>|\/rustc\/|\.cargo\/registry|\/usr\/local\/go\/|\/go\/src\/|GOROOT|Python\.framework|\/opt\/homebrew\/|webpack\/bootstrap|^at (?:java|javax|jdk|sun|kotlin|kotlinx|scala|org\.junit|org\.springframework|org\.apache|com\.sun|android|dalvik)\.|^at System\.|^at Microsoft\.|^\d+:[\t ]+(?:std|core|alloc|rust_begin_unwind|__rust|_start|__libc)|^runtime\.|^(?:main\.)?goexit|^created by runtime/;
+
+/**
+ * An error and its stack trace. JavaScript, Java, C#, Go and Rust put the
+ * error first (`TypeError: …`, `Exception in thread "main" …`, `panic: …`,
+ * `thread 'main' panicked at …` with the message under it); Python puts it
+ * last, under `Traceback (most recent call last):`. At least one frame, and
+ * every line a frame, a Python source line under its frame, or a known note
+ * (`... 3 more`, `Caused by:`, `goroutine 1 [running]:`…).
+ */
+export function parseError(text: string): TemplateContent | undefined {
+  const lines = trimBlankLines(text).split("\n").map((line) => line.replace(/\s+$/, ""));
+  if (lines.length < 2 || lines.length > 300) return;
+  let lead: string | undefined, type: string | undefined, message: string | undefined, body: string[];
+  const first = lines[0]!.trim();
+  if (/^Traceback \(most recent call last\):$/.test(first)) {
+    // Python: the last line is the exception.
+    const last = lines.at(-1)!.trim(), m = last.match(/^([A-Za-z_][\w.]*)(?::[\t ]*(\S.*))?$/);
+    if (!m || lines.at(-1)!.match(/^\s/)) return;
+    type = m[1]!; message = m[2]; body = lines.slice(0, -1);
+  } else if (first.startsWith("panic: ") || first.startsWith("fatal error: ")) {
+    const at = first.indexOf(": ");
+    type = first.slice(0, at); message = first.slice(at + 2).trim() || undefined; body = lines.slice(1);
+  } else if (/^thread '[^'\n]*' panicked at .+:$/.test(first) && lines[1]?.trim() && !TRACE_NOTE.test(lines[1].trim())) {
+    lead = first.slice(0, -1); message = lines[1]!.trim(); body = lines.slice(2);
+  } else if (/^thread '[^'\n]*' panicked at .+$/.test(first)) {
+    lead = first; body = lines.slice(1);
+  } else {
+    const m = first.match(ERROR_HEADING);
+    if (!m || m[1] === "Caused by:") return;
+    lead = m[1]; type = m[2]; message = m[3]?.trim(); body = lines.slice(1);
+  }
+  const trace: ErrorTraceLine[] = [];
+  let frames = 0, own: boolean | undefined, frameIndent = -1, codeIndent = -1;
+  for (const raw of body) {
+    const line = raw.trim(), indent = raw.length - raw.trimStart().length;
+    if (!line) continue;
+    if (TRACE_NOTE.test(line) || (type && trace.length && ERROR_HEADING.test(line) && !/^at /.test(line))) { trace.push({ text: line, role: "note", own: false }); own = undefined; continue; }
+    if (TRACE_FRAME.test(line) && !(own !== undefined && indent > frameIndent && /^File "/.test(trace.at(-1)?.text ?? "") )) {
+      own = !LIBRARY_FRAME.test(line); frameIndent = indent; codeIndent = -1;
+      trace.push({ text: line, role: "frame", own }); frames++;
+      continue;
+    }
+    // A line under a frame, indented further: Python's source line and carets, Go's file:line, Rust's "at file:line".
+    // Relative indentation under a frame is kept (Python's carets point at columns of the line above).
+    if (own !== undefined && indent > frameIndent) {
+      if (codeIndent < 0) codeIndent = indent;
+      trace.push({ text: raw.slice(Math.min(indent, codeIndent)).replace(/^\t+/, ""), role: "code", own: own && !LIBRARY_FRAME.test(line) });
+      continue;
+    }
+    return;
+  }
+  // A Rust panic names its location in the heading; a backtrace is optional.
+  if (!frames && !(lead && /panicked at/.test(lead) && message)) return;
+  return { kind: "error", ...(lead ? { lead } : {}), ...(type ? { type } : {}), ...(message ? { message } : {}), trace };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

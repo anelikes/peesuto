@@ -46,6 +46,12 @@ const EXTRA: readonly TemplateContent[] = [
     { path: "assets/logo.png", meta: ["new file mode 100644", "Binary files /dev/null and b/assets/logo.png differ"], hunks: [] },
     { meta: [], hunks: [{ header: "@@ -10,3 +10,2 @@", lines: [{ type: "context", text: "" }, { type: "del", text: "-x" }, { type: "del", text: "-y" }, { type: "context", text: " z" }] }] },
   ] },
+  { kind: "error", type: "KeyError", message: "'a'", trace: [
+    { text: "Traceback (most recent call last):", role: "note", own: false }, { text: 'File "/srv/应用.py", line 3, in <module>', role: "frame", own: true },
+    { text: "x = {}['a']", role: "code", own: true }, { text: "    ~~^^^^^", role: "code", own: true },
+    { text: 'File "/usr/lib/python3.12/json/__init__.py", line 293, in load_with_a_very_long_function_name_that_wraps', role: "frame", own: false },
+  ] },
+  { kind: "error", lead: "thread 'main' panicked at src/main.rs:4:5", message: "index out of bounds: the len is 3 but the index is 5 ".repeat(4).trim(), trace: [] },
   { kind: "info", title: "张三", fields: [{ value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" }] },
 ];
 const ALL = [...TEMPLATE_SAMPLES, ...EXTRA];
@@ -73,6 +79,7 @@ function sourceStrings(content: TemplateContent): string[] {
     case "terminal": return content.lines.map((l) => clean(l.kind === "prompt" ? l.prompt + l.command : l.text, true));
     case "diff": return content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
       ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((s) => clean(s, true));
+    case "error": return [...[content.lead, content.type, content.message].filter((t): t is string => Boolean(t)), ...content.trace.map((l) => l.text)].map((s) => clean(s, true));
     case "qr": return [content.data];
   }
 }

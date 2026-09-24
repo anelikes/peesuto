@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
 import { parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
-import { DIFF_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
+import { DIFF_STYLES, ERROR_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
@@ -611,6 +611,52 @@ describe("diff cards", () => {
       const plus = layout.lines.find((line) => line.text === "+")!, body = layout.lines.find((line) => line.text === "const b = 3;")!;
       expect(body.x).toBeGreaterThan(plus.x);
       expect(layout.shapes.some((shape) => shape.y <= body.y && shape.y + shape.height >= body.y + body.height && shape.color === DIFF_STYLES[variant].add.fill)).toBe(true);
+    }
+  });
+});
+
+describe("error cards", () => {
+  test("JavaScript, Java, C#, Go and Rust put the error first; Python last; frames verbatim, own frames told from libraries", () => {
+    const node = parseTemplates("TypeError: Cannot read properties of undefined (reading 'map')\n    at render (/app/src/App.tsx:12:20)\n    at renderWithHooks (/app/node_modules/react-dom/cjs/react-dom.development.js:16305:18)");
+    expect(node.preferred).toBe("error");
+    expect(node.candidates.has("code")).toBe(true);
+    expect(node.candidates.get("error")).toEqual({ kind: "error", type: "TypeError", message: "Cannot read properties of undefined (reading 'map')", trace: [
+      { text: "at render (/app/src/App.tsx:12:20)", role: "frame", own: true },
+      { text: "at renderWithHooks (/app/node_modules/react-dom/cjs/react-dom.development.js:16305:18)", role: "frame", own: false },
+    ] });
+    const py = parseTemplates("Traceback (most recent call last):\n  File \"/srv/应用.py\", line 3, in <module>\n    x = {}['a']\n        ~~^^^^^\n  File \"/usr/lib/python3.12/json/__init__.py\", line 293, in load\n    return loads(fp.read())\nKeyError: 'a'").candidates.get("error");
+    expect(py).toEqual({ kind: "error", type: "KeyError", message: "'a'", trace: [
+      { text: "Traceback (most recent call last):", role: "note", own: false }, { text: "File \"/srv/应用.py\", line 3, in <module>", role: "frame", own: true },
+      { text: "x = {}['a']", role: "code", own: true }, { text: "    ~~^^^^^", role: "code", own: true },
+      { text: "File \"/usr/lib/python3.12/json/__init__.py\", line 293, in load", role: "frame", own: false }, { text: "return loads(fp.read())", role: "code", own: false },
+    ] });
+    const java = parseTemplates("Exception in thread \"main\" java.lang.IllegalStateException: boom\n\tat com.example.App.run(App.java:12)\nCaused by: java.io.IOException: disk full\n\tat java.base/java.io.FileOutputStream.write(FileOutputStream.java:354)\n\t... 2 more").candidates.get("error");
+    expect(java?.kind === "error" && [java.lead, java.type, java.message, java.trace.map((l) => `${l.role}:${l.own}`)]).toEqual(["Exception in thread \"main\"", "java.lang.IllegalStateException", "boom", ["frame:true", "note:false", "frame:false", "note:false"]]);
+    const go = parseTemplates("panic: runtime error: index out of range [5] with length 3\n\ngoroutine 1 [running]:\nmain.main()\n\t/tmp/prog.go:8 +0x1d\nexit status 2").candidates.get("error");
+    expect(go?.kind === "error" && [go.type, go.message, go.trace.map((l) => l.role)]).toEqual(["panic", "runtime error: index out of range [5] with length 3", ["note", "frame", "code", "note"]]);
+    const rust = parseTemplates("thread 'main' panicked at src/main.rs:4:5:\nindex out of bounds: the len is 3 but the index is 5\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace").candidates.get("error");
+    expect(rust?.kind === "error" && [rust.lead, rust.type, rust.message]).toEqual(["thread 'main' panicked at src/main.rs:4:5", undefined, "index out of bounds: the len is 3 but the index is 5"]);
+    const cs = parseTemplates("Unhandled exception. System.InvalidOperationException: Sequence contains no elements\n   at System.Linq.ThrowHelper.ThrowNoElementsException()\n   at Program.Main() in /app/Program.cs:line 5").candidates.get("error");
+    expect(cs?.kind === "error" && cs.trace.map((l) => l.own)).toEqual([false, true]);
+  });
+  test("not an error card: an error line alone or with prose, logs, a lone Python heading, code that names an error", () => {
+    for (const source of [
+      "TypeError: x is undefined", "ValueError: bad\nSome prose explaining.", "Error: something\nnot a frame here", "Traceback (most recent call last):\nKeyError: 'a'",
+      "2026-09-21 14:03:12 ERROR upload failed\n2026-09-21 14:03:14 INFO retrying", "class ParseError extends Error {}\nthrow new ParseError()",
+      "Errors: 0\nWarnings: 2", "```ts\nthrow new TypeError(\"x\");\n```", "```css\nError: x\n    at f (a.ts:1:1)\n```",
+    ]) expect(parseTemplates(source).candidates.has("error")).toBe(false);
+  });
+  test("both styles: the type in the error colour, the message large, own frames bold and marked, library frames dimmed", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const content = parseTemplates("Error: boom\n    at mine (/app/src/a.ts:1:1)\n    at theirs (/app/node_modules/x/index.js:2:2)").candidates.get("error")!;
+    for (const variant of ["classic", "editorial"] as const) {
+      const layout = layoutTemplate({ version: 1, template: "error", variant, motion: "none", aspect: "1:1", sourceText: "x", content }, measure);
+      const S = ERROR_STYLES[variant], line = (text: string) => layout.lines.find((l) => l.text.startsWith(text))!;
+      expect(line("Error").color).toBe(S.type.color);
+      expect(line("boom").size).toBeGreaterThan(line("at mine").size);
+      expect([line("at mine").bold, line("at mine").color]).toEqual([true, S.trace.own]);
+      expect([line("at theirs").bold, line("at theirs").color]).toEqual([false, S.trace.lib]);
+      expect(layout.shapes.filter((shape) => shape.color === S.mark.color)).toHaveLength(1);
     }
   });
 });

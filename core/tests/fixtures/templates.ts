@@ -29,6 +29,11 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
     { type: "context", text: " export const FONTS = {" }, { type: "del", text: "-  code: \"NotoSansSC\"," }, { type: "add", text: "+  code: \"PeesutoCode\", // 等宽" },
     { type: "add", text: "+  fallback: \"NotoSansSC\"," }, { type: "context", text: "   text: \"NotoSansSC\"," }, { type: "context", text: " };" },
   ] }] }] },
+  { kind: "error", type: "Error", message: "ENOENT: no such file or directory, open '/srv/配置/actions.json'", trace: [
+    { text: "at Object.openSync (node:fs:601:3)", role: "frame", own: false },
+    { text: "at loadActions (/srv/paste/core/src/actions/load.ts:18:22)", role: "frame", own: true },
+    { text: "at async handle (/srv/paste/core/src/daemon/server.ts:77:12)", role: "frame", own: true },
+  ] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

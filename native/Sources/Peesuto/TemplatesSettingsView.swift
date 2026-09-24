@@ -160,6 +160,7 @@ struct TemplatesSettingsView: View {
         case "changelog": return model.tr("Release notes: versions, dates and tagged changes", "更新日志：版本、日期与分类标签")
         case "terminal": return model.tr("Shell sessions: commands, output and errors", "终端会话：命令、输出与报错")
         case "diff": return model.tr("Diffs and patches: added and removed lines", "代码差异与补丁：新增与删除的行")
+        case "error": return model.tr("Errors and stack traces, your own frames first", "报错与调用栈，突出你自己的代码")
         case "qr": return model.tr("Any text as a QR code", "任意文字转为二维码")
         default: return ""
         }

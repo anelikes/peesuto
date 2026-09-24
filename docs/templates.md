@@ -37,6 +37,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Release notes | Release card | Timeline | |
 | Terminal session | Night terminal | Command log | |
 | Diff | Review | Night diff | |
+| Error | Crash report | Console | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -162,7 +163,7 @@ Cards are set in Maple Mono by default, with a choice of Noto Sans SC in
 Settings › Templates (`template_font`, sent as `templateFont` with every
 render and precompose request, part of the precompose key, carried in the
 plan as `font`). Code and the other monospace templates (`MONO_TEMPLATES`:
-code, terminal, diff) are always Peesuto Code. Maple comes in two cuts under
+code, terminal, diff, error) are always Peesuto Code. Maple comes in two cuts under
 `core/src/render/fonts/`: Peesuto Code, Chinese at two Latin columns so code
 aligns, and Peesuto Text, Chinese at 1em for everything else (the two-column
 width reads as letter-spacing in prose; `scripts/fonts/peesuto-text.py`).
@@ -364,6 +365,38 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
 - Review: each file a white card, its path in a header band. Night diff:
   dark, the path as a heading, rows running edge to edge. Styles are
   `DIFF_STYLES` in `compose.ts`.
+
+### Error: the message first, your own frames emphasised
+
+- Recognized when a heading is followed by a stack trace and every line is
+  accounted for. Headings: `TypeError: message` (any `…Error`/`…Exception`
+  type, dotted or with Node's `[ERR_X]`), optionally after `Uncaught`,
+  `Unhandled exception.` or `Exception in thread "main"`; `panic: …` and
+  `fatal error: …` (Go); `thread 'main' panicked at file:line:col:` with the
+  message on the next line (Rust; its backtrace is optional). Python puts
+  the error last: `Traceback (most recent call last):` first, the
+  `KeyError: 'a'` line last. Trace lines: frames (`at fn (file:line:col)`,
+  `File "x.py", line n, in f`, `0: fn`, `#0 …`, Go's `main.main()`), lines
+  indented under a frame (Python's source line and carets, Go's `file:line`),
+  and notes (`... 3 more`, `Caused by: …`, `goroutine 1 [running]:`,
+  `During handling of the above exception…`, `note: …`, `exit status 2`).
+  At least one frame. An unfenced trace, or one fenced as text, a log or
+  one of the languages that print these, is read. It ranks before code,
+  which stays the alternative.
+- Drawn verbatim: the lead small, the type in the error colour, the message
+  large (the largest size that keeps it to four lines and the card in its
+  frame); the colon between type and message is syntax. Trace lines keep
+  their text (their leading indentation trimmed; relative indentation under
+  a frame kept, so carets still point). Frames in dependencies, the standard
+  library or the runtime (`node_modules`, `site-packages`, `node:`,
+  `/usr/lib/`, `java.`, `System.`, `/rustc/`, Go's `runtime.`… in
+  `LIBRARY_FRAME`) are dimmed; your own frames are bold with a mark. Lines
+  break at identifier punctuation (`.` `/` `:` `(`…) as well as spaces, so
+  a long qualified name wraps between its parts, never inside one; wrapped
+  lines hang two columns in (terminal and diff cards break the same way).
+- Crash report: warm page, the trace on a tinted panel, a red bar beside
+  each own frame. Console: dark, the trace along a rail with a red dot at
+  each own frame. Styles are `ERROR_STYLES` in `compose.ts`.
 
 ### QR code: any text, by shortcut only
 

@@ -78,7 +78,7 @@ export const AUTO_FRAME = {
  * growth) wins; step 1 is the fallback and may grow the canvas / scroll. */
 export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
   document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1], info: [1.3, 1.15, 1],
-  changelog: [1.3, 1.15, 1],
+  changelog: [1.3, 1.15, 1], error: [1.2, 1.1, 1],
 };
 
 /* Ornament slots. Every line or shape must encode separation, state or a
@@ -321,6 +321,28 @@ export const DIFF_STYLES = {
 } as const;
 type DiffCard = { readonly fill: string; readonly radius: number; readonly shadow: "shadow" | "shadow-md" | "shadow-lg" };
 
+/** Errors and stack traces, set in Peesuto Code. The error type in the error
+ * colour, the message large, then the trace: the reader's own frames bright
+ * and bold with a mark, frames in dependencies, the standard library or the
+ * runtime dimmed, source lines under a frame indented, notes small. */
+export const ERROR_STYLES = {
+  /** Crash report: a warm page, the trace on a tinted panel, a red bar beside each of your own frames. */
+  classic: { background: "#faf7f2", signature: "#6b675e", margin: 88,
+    lead: { size: 32, color: "#6b675e", gap: 8 }, type: { size: 40, color: "#b42318", gap: 12 },
+    message: { sizes: [72, 64, 56, 48, 44, 40], maxLines: 4, color: "#18181b", leading: 1.15 }, headGap: 48,
+    panel: { fill: "#f0ebe2", radius: 24, pad: 36 } as { readonly fill: string; readonly radius: number; readonly pad: number } | null,
+    rail: null as { readonly color: string; readonly width: number; readonly gap: number } | null,
+    mark: { color: "#b42318", width: 6, dot: 0 },
+    trace: { size: 36, leading: 1.3, own: "#18181b", lib: "#5f5a51", code: "#3d3a34", note: "#5f5a51", noteSize: 32, noteGap: 18 } },
+  /** Console: a dark page, the trace along a rail, a red dot on the rail at each of your own frames. */
+  editorial: { background: "#131418", signature: "#8c887f", margin: 88,
+    lead: { size: 32, color: "#8b93a3", gap: 8 }, type: { size: 40, color: "#ff7b72", gap: 12 },
+    message: { sizes: [80, 72, 64, 56, 48, 44, 40], maxLines: 4, color: "#f2f0ea", leading: 1.12 }, headGap: 56,
+    panel: null, rail: { color: "#2c3038", width: 2, gap: 36 },
+    mark: { color: "#ff7b72", width: 0, dot: 14 },
+    trace: { size: 36, leading: 1.3, own: "#f2f0ea", lib: "#8b93a3", code: "#c9ccd3", note: "#8b93a3", noteSize: 32, noteGap: 20 } },
+} as const;
+
 /** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
 const LOCK_PATH = "M20 28 L20 20 C20 13.4 25.4 8 32 8 C38.6 8 44 13.4 44 20 L44 28 L38 28 L38 20 C38 16.7 35.3 14 32 14 C28.7 14 26 16.7 26 20 L26 28 Z "
   + "M14 26 L50 26 C52.2 26 54 27.8 54 30 L54 54 C54 56.2 52.2 58 50 58 L14 58 C11.8 58 10 56.2 10 54 L10 30 C10 27.8 11.8 26 14 26 Z";
@@ -467,9 +489,24 @@ let brokenWords = 0;
 const LETTER = /^[\p{L}\p{N}]$/u;
 const CJK = /[\u2e80-\u9fff\uac00-\ud7a3\uf900-\ufaff\uff00-\uffef]/u;
 
-function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number, measure: TemplateMeasure): StyledGlyph[][] {
+/** Where identifiers, paths and URLs may break besides word starts: after
+ * `.` `/` `\` `:` `(` `,` `;` `=` `@` `_` `-` and the like, never right after an
+ * opening quote or bracket that begins a word (`'1,204'`, `<module>`), nor
+ * between a name and its call or index (`int()`). */
+function identifierBreaks(glyphs: readonly StyledGlyph[], starts: Set<number>): void {
+  for (let i = 1; i < glyphs.length; i++) {
+    const prev = glyphs[i - 1]!.text, here = glyphs[i]!.text;
+    if (/^[./\\:(,;=@#&?_-]$/.test(prev) && /\S/u.test(here) && !/^[./\\:(),;\]'"`>-]$/.test(here)) starts.add(i);
+    if (/^['"`<([{]$/.test(prev) && (i < 2 || /\s/u.test(glyphs[i - 2]!.text))) starts.delete(i);
+    // A call or an index stays with its name: `int()`, `cells[2]`.
+    if (/^[([]$/.test(here) && /^[\w$]$/u.test(prev)) starts.delete(i);
+  }
+}
+
+function wrapStyled(glyphs: readonly StyledGlyph[], width: number, size: number, measure: TemplateMeasure, identifiers = false): StyledGlyph[][] {
   const result: StyledGlyph[][] = [];
   const starts = wordStarts(glyphs);
+  if (identifiers) identifierBreaks(glyphs, starts);
   // One explicit line is glyphs[start, end). Work with indices instead of
   // re-slicing, and measure incrementally: finished same-weight runs keep
   // their width, only the open run is re-measured (identical to styledWidth).
@@ -713,11 +750,13 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   };
   const place = (glyphs: StyledGlyph[], x: number, y: number, width: number, size: number, bold: boolean, color: string, o: BlockOptions = {}): number => {
     const { align = "left", leading = 1.3, groupID = group++, hang = 0 } = o;
-    let lines = wrapStyled(glyphs, width, size, measure);
+    // Monospace cards other than code also break identifiers and paths at their punctuation.
+    const identifiers = Boolean(o.code) && IDENTIFIER_TEMPLATES.includes(plan.template);
+    let lines = wrapStyled(glyphs, width, size, measure, identifiers);
     // A hanging indent: the first line at full width, the rest rewrapped beside the indent.
     if (hang && lines.length > 1) {
       const first = lines[0]!, rest = glyphs.slice(first.length);
-      lines = [first, ...(rest.some((glyph) => glyph.text.trim()) ? wrapStyled(rest, width - hang, size, measure) : [])];
+      lines = [first, ...(rest.some((glyph) => glyph.text.trim()) ? wrapStyled(rest, width - hang, size, measure, identifiers) : [])];
     }
     const height = Math.ceil(measure.lineHeight(size, bold) * leading);
     for (const [index, line] of lines.entries()) {
@@ -1037,6 +1076,59 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           if (file.hunks.length) y += C!.radius;
           panel.height = y - panel.y;
         }
+      }
+      bottom = settle(top, y);
+      break;
+    }
+    case "error": {
+      const s = grown(styleOf(ERROR_STYLES), k);
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
+      let y = margin; const top = y;
+      const head = { leading: 1.2, code: true, markdown: false } as const;
+      if (content.lead) y += block(content.lead, margin, y, innerW(), s.lead.size, false, s.lead.color, { ...head, secondary: true }) + s.lead.gap;
+      if (content.type) y += block(content.type, margin, y, innerW(), s.type.size, true, s.type.color, head) + s.type.gap;
+      if (content.message) {
+        // The largest message size that keeps it to maxLines and the card within its frame.
+        const T = s.trace, P = s.panel, R = s.rail;
+        const traceW = W - 2 * margin - (P ? 2 * P.pad : R ? R.width + R.gap : 0);
+        const traceH = content.trace.length ? s.headGap + (P ? 2 * P.pad : 0) + content.trace.reduce((h, line, i) => h + (line.role === "note"
+          ? (i ? T.noteGap : 0) + count(line.text, traceW, T.noteSize, false) * lh(T.noteSize, 1.3)
+          : count(line.text, traceW - (line.role === "code" ? Math.ceil(measure.width("    ", T.size, false)) : 0), T.size, line.role === "frame" && line.own) * lh(T.size, T.leading)), 0) : 0;
+        const room = view.fit - 2 * margin - footerRoom() - (y - margin) - traceH;
+        const sizes: readonly number[] = s.message.sizes;
+        const linesAt = (sz: number) => wrapStyled(glyphsOf(content.message!, true, { code: true }), innerW(), sz, measure, true).length;
+        const size = sizes.find((sz) => linesAt(sz) <= s.message.maxLines && linesAt(sz) * lh(sz, s.message.leading, true) <= room)
+          // A trace too long for the frame grows the card anyway: a middle size keeps the message leading without adding to it.
+          ?? sizes.find((sz) => sz <= sizes[Math.min(2, sizes.length - 1)]! && linesAt(sz) <= s.message.maxLines) ?? sizes.at(-1)!;
+        y += block(content.message, margin, y, innerW(), size, true, s.message.color, { ...head, leading: s.message.leading });
+      }
+      if (content.trace.length) {
+        y += s.headGap;
+        const P = s.panel, R = s.rail, T = s.trace;
+        const x0 = P ? margin + P.pad : margin + (R ? R.width + R.gap : 0), w = W - margin - x0 - (P ? P.pad : 0);
+        const panel = P ? rect(margin, y, innerW(), 0, P.fill, P.radius) : undefined;
+        // The rail runs beside the whole trace, under the dots (drawn first, its height set at the end).
+        const rail = R ? rect(margin, y, R.width, 0, R.color) : undefined;
+        if (P) y += P.pad;
+        const hang = Math.ceil(measure.width("  ", T.size, false)), indent = Math.ceil(measure.width("    ", T.size, false));
+        for (const [i, line] of content.trace.entries()) {
+          const g = group++;
+          if (line.role === "note") {
+            if (i) y += T.noteGap;
+            y += block(line.text, x0, y, w, T.noteSize, false, T.note, { leading: 1.3, groupID: g, code: true, markdown: false, secondary: true, hang });
+            continue;
+          }
+          const frame = line.role === "frame", x = frame ? x0 : x0 + indent;
+          const h = block(line.text, x, y, w - (x - x0), T.size, frame && line.own, frame ? (line.own ? T.own : T.lib) : (line.own ? T.code : T.lib), { leading: T.leading, groupID: g, code: true, markdown: false, hang });
+          // Your own frames carry a mark: a bar at the panel's edge, or a dot on the rail.
+          if (frame && line.own) {
+            if (s.mark.width && P) rect(margin + P.pad / 2 - s.mark.width / 2, y + 4, s.mark.width, h - 8, s.mark.color, s.mark.width / 2).group = g;
+            if (s.mark.dot && R) rect(margin + R.width / 2 - s.mark.dot / 2, y + mid(T.size) - s.mark.dot / 2, s.mark.dot, s.mark.dot, s.mark.color, s.mark.dot / 2).group = g;
+          }
+          y += h;
+        }
+        if (P && panel) { y += P.pad; panel.height = y - panel.y; }
+        if (rail) rail.height = y - rail.y;
       }
       bottom = settle(top, y);
       break;
@@ -1672,8 +1764,10 @@ const CODE_FONT_STAGE = "compositions/paste/fonts";
 /** Cards are set in Peesuto Code (Maple Mono) when the user chose it (the
  * default) and always for code, unless it lacks a (non-emoji) glyph of the
  * content: then the whole card falls back to Noto Sans SC, without an error. */
+/** Templates whose monospace lines also break at identifier punctuation (identifierBreaks). */
+const IDENTIFIER_TEMPLATES: readonly TemplateId[] = ["terminal", "diff", "error"];
 /** Templates set in Peesuto Code (CJK at two columns, so columns hold), whatever the font choice. */
-export const MONO_TEMPLATES: readonly TemplateId[] = ["code", "terminal", "diff"];
+export const MONO_TEMPLATES: readonly TemplateId[] = ["code", "terminal", "diff", "error"];
 export function wantsMapleFont(template: TemplateId, choice: TemplateFontChoice = DEFAULT_TEMPLATE_FONT): boolean {
   return MONO_TEMPLATES.includes(template) || choice === "maple";
 }
