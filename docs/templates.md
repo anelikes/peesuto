@@ -97,6 +97,20 @@ are `DIAGRAM_STYLES`; size tiers `DIAGRAM_TIERS`, both in
 `core/src/templates/compose.ts`. Arrowheads and diamonds are small SVGs the
 engine bakes; everything else is boxes and text.
 
+### Decoration (all templates)
+
+Every line or shape encodes something: a separation (hairlines between rows,
+cards, panels, bands), a state (before/after, a secret) or a relationship (a
+bullet to its item, a dash to an author, an edge between nodes). Rules, marks
+and bars that only decorate are not drawn: the style tables keep their slots
+(`mark`, `rule`, `band`, `masthead`, `rail`, `gutter`, `bar`, `marker`) as
+`null`, so a style can bring one back as a token change. One accent colour per
+style, with a role (an accented word, a heading level, a bullet). Greys are
+warm; ink is a warm or dark near-black, never pure black. Owner-approved
+exceptions: the code terminal's hue-arc backdrop and window dots, the info
+card's pill and icons, and colour-field grounds (Poster, Big number, the
+comparison panels), which are the style rather than an accent on it.
+
 ### Readability floor (all templates)
 
 Cards are mostly looked at on a phone, where a card of any width is shown

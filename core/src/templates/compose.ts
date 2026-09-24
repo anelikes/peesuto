@@ -70,36 +70,46 @@ export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
   document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1], info: [1.3, 1.15, 1],
 };
 
+/* Ornament slots. Every line or shape must encode separation, state or a
+ * relationship; the slots below drew none, so every style leaves them null.
+ * They stay typed so a style can bring one back as a token change. */
+type RuleSlot = { readonly width: number; readonly height: number; readonly color: string } | null;
+type MarkSlot = { readonly size: number; readonly gap: number; readonly color: string } | null;
+type BandSlot = { readonly height: number; readonly color: string } | null;
+type BarSlot = { readonly width: number; readonly height: number; readonly gap: number; readonly color: string } | null;
+type RailSlot = { readonly width: number; readonly gap: number; readonly color: string } | null;
+type MarkerSlot = { readonly size: number; readonly color: string } | null;
+
 /** The text template: sizes are clamped to SIZES between minSize and maxSize. */
 export const TEXT_STYLES = {
-  /** Paper: warm page, left, regular; a vermilion square marks the top-left. */
+  /** Paper: warm page, left, regular; vermilion only for an accented word. */
   classic: { background: "#f4f1ea", signature: "#6b675e", ink: "#18181b", accent: "#e5482e", accentBold: true, bold: false, align: "left", margin: 104, minSize: 40, maxSize: 96, leading: 1.24,
-    rule: null, mark: { size: 24, gap: 40, color: "#e5482e" }, band: null },
-  /** Ink: night ground, centred bold, a yellow rule under the text. */
+    rule: null as RuleSlot, mark: null as MarkSlot, band: null as BandSlot },
+  /** Ink: night ground, centred bold; yellow only for an accented word. */
   editorial: { background: "#121316", signature: "#8c887f", ink: "#f2f0ea", accent: "#f4c430", accentBold: false, bold: true, align: "center", margin: 112, minSize: 40, maxSize: 128, leading: 1.16,
-    rule: { width: 96, height: 8, color: "#f4c430" }, mark: null, band: null },
-  /** Poster: vermilion field, huge tight type, an ink band pinned to the bottom edge. */
+    rule: null, mark: null, band: null },
+  /** Poster: vermilion field, huge tight type. */
   poster: { background: "#e5482e", signature: "#1c1310", ink: "#fff8ee", accent: "#18181b", accentBold: false, bold: true, align: "left", margin: 88, minSize: 48, maxSize: 160, leading: 1.02,
-    rule: null, mark: null, band: { height: 28, color: "#18181b" } },
+    rule: null, mark: null, band: null },
 } as const;
 
 export const DOCUMENT_STYLES = {
-  /** Reading page: full-bleed white page, a cobalt masthead bar. */
-  classic: { background: "#fbfaf6", signature: "#6b675e", margin: 104, measure: 9999, masthead: { width: 56, height: 10, gap: 56, color: "#2d4fd0" }, rail: null,
+  /** Reading page: full-bleed white page; cobalt marks second-level headings and list items. */
+  classic: { background: "#fbfaf6", signature: "#6b675e", margin: 104, measure: 9999, masthead: null as BarSlot, rail: null as RailSlot,
     h1: { size: 64, color: "#18181b", leading: 1.1 }, h2: { size: 48, color: "#2d4fd0", leading: 1.1 }, h3: { size: 40, color: "#18181b", leading: 1.1 },
     body: { size: 40, bold: false, color: "#26262b", leading: 1.14 }, lede: null, gap: 32, headingGap: 48, afterHeading: 0,
     list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#18191d", ink: "#e9e7e0", size: 36, leading: 1.02, radius: 16, pad: 32 } },
-  /** Editorial column: cobalt rail down the left, narrow measure, bold lede. */
-  editorial: { background: "#efebe2", signature: "#6b675e", margin: 96, measure: 800, masthead: null, rail: { width: 12, gap: 56, color: "#2d4fd0" },
+  /** Editorial column: narrow measure, big title, bold lede. */
+  editorial: { background: "#efebe2", signature: "#6b675e", margin: 96, measure: 800, masthead: null, rail: null,
     h1: { size: 80, color: "#18181b", leading: 1.04 }, h2: { size: 40, color: "#2d4fd0", leading: 1.1 }, h3: { size: 36, color: "#2d4fd0", leading: 1.1 },
     body: { size: 40, bold: false, color: "#2a2a2f", leading: 1.14 }, lede: { size: 52, bold: true, color: "#18181b", leading: 1.1 }, gap: 36, headingGap: 56, afterHeading: 4,
     list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#1b2a6b", ink: "#eef1ff", size: 36, leading: 1.02, radius: 0, pad: 32 } },
 } as const;
 
 export const QUOTE_STYLES = {
-  /** Book excerpt: cream page, side rule, regular text, small sienna mark (an SVG, not a glyph). */
+  /** Book excerpt: cream page, regular text, small sienna mark (an SVG, not a glyph). */
   classic: { background: "#efe6d3", signature: "#7a5230", ink: "#2a2118", bold: false, margin: 112, sizes: [64, 56, 52, 48, 44, 40], leading: 1.2,
-    mark: { size: 64, gap: 36, color: "#b5652a" }, rule: { width: 6, gap: 48, color: "#cdb58f" },
+    mark: { size: 64, gap: 36, color: "#b5652a" }, rule: null as RailSlot,
     author: { size: 36, bold: false, color: "#8a5a2e", gap: 48, ruleWidth: 40, ruleHeight: 4 } },
   /** Statement: espresso ground, big bold text, large amber mark; the author after an amber dash shape. */
   editorial: { background: "#1a1511", signature: "#a8957a", ink: "#fbf3e4", bold: true, margin: 96, sizes: [96, 80, 72, 64, 56, 48, 44], leading: 1.1,
@@ -129,8 +139,8 @@ export const CODE_STYLES = {
     lang: { size: 32, bold: false, color: "#6e7482", gap: 0 },
     syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#7d8494", number: "#f4c430", function: "#f5a45d", type: "#5fd0c5",
       property: "#eaa3c9", literal: "#f4c430", meta: "#ff7b72", punct: "#a7adb9" } },
-  /** Notebook: light page, green gutter bar, zebra rows. */
-  editorial: { background: "#f3f1ea", signature: "#6b675e", backdrop: null, panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
+  /** Notebook: light page, zebra rows, the language in green. */
+  editorial: { background: "#f3f1ea", signature: "#6b675e", backdrop: null, panel: null, outer: 88, gutter: null as RailSlot, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
     lineNumbers: { color: "#a8a397", gap: 28 },
     ink: "#1d1d20", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.1,
     lang: { size: 32, bold: true, color: "#2f9e5f", gap: 28 },
@@ -139,12 +149,12 @@ export const CODE_STYLES = {
 } as const;
 
 export const STAT_STYLES = {
-  /** Big number: yellow field, left-aligned value, ink bar, label. */
+  /** Big number: yellow field, left-aligned value, the label below. */
   classic: { background: "#f4c430", signature: "#4a3f1c", margin: 96, band: null, valueSizes: [160, 144, 128, 112, 96, 80], valueColor: "#18181b", valueLeading: 0.92,
-    bar: { width: 120, height: 12, gap: 48, color: "#18181b" }, labelSize: 56, labelColor: "#18181b", labelLeading: 1.14, labelMeasure: 820 },
+    bar: null as BarSlot, labelGap: 64, labelSize: 56, labelColor: "#18181b", labelLeading: 1.14, labelMeasure: 820 },
   /** Metric strip: night ground crossed by a full-bleed yellow band holding the value. */
   editorial: { background: "#121316", signature: "#8c887f", margin: 96, band: { color: "#f4c430", pad: 56, gap: 56 }, valueSizes: [144, 128, 112, 96, 80, 72], valueColor: "#18181b", valueLeading: 0.92,
-    bar: null, labelSize: 52, labelColor: "#f2f0ea", labelLeading: 1.16, labelMeasure: 860 },
+    bar: null, labelGap: 0, labelSize: 52, labelColor: "#f2f0ea", labelLeading: 1.16, labelMeasure: 860 },
 } as const;
 
 export const LIST_STYLES = {
@@ -158,9 +168,9 @@ export const LIST_STYLES = {
 
 export const CHAT_STYLES = {
   /** Bubbles hug their text (at most maxRatio of the width); name and time sit above the bubble. */
-  classic: { background: "#e8ecf1", signature: "#5c5f66", margin: 72, layout: "bubbles", size: 40, leading: 1.12, maxRatio: 0.78, radius: 32, padX: 32, padY: 22, gap: 36,
+  classic: { background: "#ece8e1", signature: "#6b675e", margin: 72, layout: "bubbles", size: 40, leading: 1.12, maxRatio: 0.78, radius: 32, padX: 32, padY: 22, gap: 36,
     left: { fill: "#ffffff", ink: "#18181b" }, right: { fill: "#0f7a70", ink: "#ffffff" },
-    name: { size: 32, bold: true, color: "#56606e", gap: 10 }, time: { size: 32, color: "#8a919c" } },
+    name: { size: 32, bold: true, color: "#5a554c", gap: 10 }, time: { size: 32, color: "#6b675e" } },
   /** Transcript: speaker column coloured per speaker, hairlines between turns. */
   editorial: { background: "#f6f2ea", signature: "#6b675e", margin: 88, layout: "transcript", size: 40, leading: 1.14, ink: "#18181b", nameCol: 300, gap: 36, rule: "#dcd6ca",
     speakers: ["#0f7a70", "#d23f25", "#2d4fd0", "#9a5a12"], name: { size: 32, bold: true }, time: { size: 32, color: "#8c887f" } },
@@ -172,7 +182,7 @@ export const TABLE_STYLES = {
     card: { fill: "#ffffff", radius: 20 }, head: { fill: "#1f5f47", ink: "#ffffff" }, zebra: "#f2f5f1", ink: "#18181b", divider: "#e1e6df" },
   /** Ledger: one record per row — the first cell as title, the other cells as label/value fields, up to perRow side by side. */
   editorial: { background: "#f2efe6", signature: "#6b675e", margin: 88, layout: "ledger", titleSize: 48, labelSize: 32, valueSize: 40, leading: 1.12, perRow: 3,
-    marker: { size: 16, color: "#1f5f47" }, ink: "#18181b", label: "#7d786d", rule: "#d6cfbf", gap: 40, fieldGap: 16 },
+    marker: null as MarkerSlot, ink: "#18181b", label: "#7d786d", rule: "#d6cfbf", gap: 40, fieldGap: 16 },
 } as const;
 
 export const COMPARISON_STYLES = {
@@ -791,7 +801,8 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           bold: style.bold, color: style.ink, group: group++, boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}) });
       }
       if (style.mark) rect(left, top - style.mark.gap - style.mark.size, style.mark.size, style.mark.size, style.mark.color);
-      if (style.rule) rect(style.align === "center" ? W / 2 - style.rule.width / 2 : left, top + total + Math.round(size * 0.6), style.rule.width, style.rule.height, style.rule.color);
+      const rule: RuleSlot = style.rule;
+      if (rule) rect(style.align === "center" ? W / 2 - rule.width / 2 : left, top + total + Math.round(size * 0.6), rule.width, rule.height, rule.color);
       bottom = top + total + ruleExtra(size) + band;
       if (style.band) { const b = rect(0, 0, W, band, style.band.color); pinned.add(b); pinBottom = b; }
       break;
@@ -944,7 +955,8 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const s = grown(styleOf(DOCUMENT_STYLES), k);
       layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       let x = margin, width = innerW(), y = margin;
-      if (s.rail) { x = margin + s.rail.width + s.rail.gap; width = Math.min(W - margin - x, s.measure); }
+      if (s.rail) x = margin + s.rail.width + s.rail.gap;
+      width = Math.min(W - margin - x, s.measure);
       const top = y;
       if (s.masthead) { rect(x, y, s.masthead.width, s.masthead.height, s.masthead.color); y += s.masthead.height + s.masthead.gap; }
       const blocks = content.blocks ?? content.paragraphs.map((text) => ({ kind: "paragraph" as const, text }));
@@ -1072,6 +1084,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       } else {
         y += block(content.value, margin, y, innerW(), size, true, s.valueColor, { leading: s.valueLeading });
         if (s.bar) { y += s.bar.gap; rect(margin, y, s.bar.width, s.bar.height, s.bar.color); y += s.bar.height + s.bar.gap; }
+        else y += s.labelGap;
       }
       y += block(content.label, margin, y, Math.min(innerW(), s.labelMeasure), s.labelSize, false, s.labelColor, { leading: s.labelLeading });
       bottom = settle(top, y);
@@ -1196,11 +1209,12 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       } else {
         // Ledger: header[0] labels each record's title; every header is drawn with its value, so nothing is dropped.
         const fields = cols - 1, per = Math.min(s.perRow, Math.max(1, fields));
-        const x0 = margin + s.marker.size + 24, fieldW = (W - margin - x0) / per;
+        const marker: MarkerSlot = s.marker;
+        const x0 = margin + (marker ? marker.size + 24 : 0), fieldW = (W - margin - x0) / per;
         for (const [r, row] of content.rows.entries()) {
           if (r) { y += s.gap; rect(margin, y, innerW(), 2, s.rule); y += 2 + s.gap; }
           y += block(content.headers[0]!, x0, y, W - margin - x0, s.labelSize, true, s.label, { leading: 1.2, markdown: false, secondary: true }) + 4;
-          rect(margin, y + mid(s.titleSize) - s.marker.size / 2, s.marker.size, s.marker.size, s.marker.color);
+          if (marker) rect(margin, y + mid(s.titleSize) - marker.size / 2, marker.size, marker.size, marker.color);
           y += block(row[0]!, x0, y, W - margin - x0, s.titleSize, true, s.ink, { leading: s.leading, markdown: false }) + 20;
           let rowMax = 0;
           for (let c = 1; c < cols; c++) {
