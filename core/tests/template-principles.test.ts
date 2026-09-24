@@ -1,7 +1,7 @@
 /** The template design's hard rules: only source text is drawn (ordered-list
  * numbers aside), nothing is truncated, sizes stay on the measurer's baked
  * steps, QR stays scannable, fixed frames grow (PNG) or scroll (GIF/MP4). */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import {
   CHAT_STYLES, COMPARISON_STYLES, DOCUMENT_STYLES, LAYOUT_GLYPHS, LIST_STYLES, SIZES, TABLE_STYLES, TEMPLATE_GROW,
   grown, layoutTemplate, scaledTo, scrolls, syntaxColors, CODE_STYLES, QR_STYLES, effectiveSize, minFontSize, type TemplateLayout, type TemplateMeasure,
@@ -12,6 +12,9 @@ import { templateRegistration } from "../src/templates/registry.ts";
 import { checkLayout } from "../src/templates/checks.ts";
 import { READABILITY, type TemplateAspect, type TemplateContent } from "../src/templates/types.ts";
 import { TEMPLATE_SAMPLES, samplePlan } from "./fixtures/templates.ts";
+
+// Each test lays out every sample in every style, frame and grow step: ~5 s on a CI runner, over bun's 5 s default.
+setDefaultTimeout(30_000);
 
 const metrics: TemplateMeasure = {
   width: (text, size) => [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].reduce((n, { segment }) => n + size * (/^[\x00-\x7f]+$/.test(segment) ? 0.55 : 1), 0),
