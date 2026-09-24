@@ -10,6 +10,7 @@ import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
 import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type ChangeType, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
+import { stageField, type ColourField } from "./backdrop.ts";
 import { FATAL_CHECKS, checkLayout, type CheckViolation } from "./checks.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -125,8 +126,10 @@ export const QUOTE_STYLES = {
  * type (types, classes, built-ins), property (attributes, properties,
  * variables, parameters), literal (true/false/null, symbols), meta (tags,
  * selectors, decorators, headings, diff deletions), punct (operators). */
-/** A full-bleed backdrop layer: one two-stop gradient, or a hue arc drawn as segments (gradient.ts). */
-type BackdropLayer = { readonly dir: "t" | "b" | "l" | "r"; readonly from: string; readonly to: string } | { readonly arc: HueArc; readonly segments: number };
+/** A full-bleed backdrop layer: one two-stop gradient, a hue arc drawn as segments (gradient.ts), or a
+ * blurred colour field drawn as one stretched image (backdrop.ts; CODE_FIELDS holds samples). */
+export type BackdropLayer = { readonly dir: "t" | "b" | "l" | "r"; readonly from: string; readonly to: string } | { readonly arc: HueArc; readonly segments: number }
+  | { readonly field: ColourField };
 
 export const CODE_STYLES = {
   /** Terminal: night panel, three dots, the language (from the fence only) at top right. */
@@ -348,8 +351,9 @@ export interface TemplateRect { x: number; y: number; width: number; height: num
   shadow?: "shadow" | "shadow-md" | "shadow-lg";
   /** Reveal group; shapes without one are drawn from the first frame. */
   group?: number }
-/** A small SVG drawn scaled (arrowheads, diamonds). `src` names a file in `assets`. */
-export interface TemplateImage { x: number; y: number; width: number; height: number; src: string; group?: number }
+/** A small SVG drawn scaled (arrowheads, diamonds). `src` names a file in `assets`.
+ * With `field`, a full-bleed colour-field backdrop instead: drawn under every shape, its PNG rendered at compose time (`src` is empty until then). */
+export interface TemplateImage { x: number; y: number; width: number; height: number; src: string; group?: number; field?: ColourField }
 export interface TemplateLayout {
   width: number; height: number; background: string; lines: TemplateLine[]; shapes: TemplateRect[];
   images: TemplateImage[];
@@ -625,7 +629,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   const pinned = new Set<object>();
   let pinBottom: TemplateRect | undefined;
   /** Full-bleed backdrop layers, stretched to the final canvas height. */
-  let backdropRects: TemplateRect[] = [];
+  let backdropRects: (TemplateRect | TemplateImage)[] = [];
   /** Shapes that run to the canvas bottom (the last comparison band). */
   const stretched: TemplateRect[] = [];
   /** The style's signature colour and alignment; undefined draws no footer (QR). */
@@ -1101,8 +1105,13 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const size = sizes.find((sz) => fits(sz) && source.length * lh(sz, s.leading) <= availH)
         ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
       const codeX = textX + gutterW(size), codeW = textW - gutterW(size);
-      const backdrop: TemplateRect[] = [];
+      const backdrop: (TemplateRect | TemplateImage)[] = [];
       for (const layer of (s.backdrop ?? []) as readonly BackdropLayer[]) {
+        if ("field" in layer) {
+          const image: TemplateImage = { x: 0, y: 0, width: W, height: 0, src: "", field: layer.field };
+          layout.images.push(image); pinned.add(image); backdrop.push(image);
+          continue;
+        }
         if ("arc" in layer) {
           // A hue arc as adjacent left-to-right segments on whole pixels, so the seams meet exactly.
           const colors = sampleArc(layer.arc, layer.segments);
@@ -1565,11 +1574,19 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     const emojiKeys = new Set<string>();
     const nodes: string[] = [];
     let glyphIndex = 0;
+    // Colour-field backdrops first: under every shape. Rendered once per field and canvas size (cached in dist/).
+    const fields: string[] = [];
+    for (const image of layout.images) {
+      if (!image.field) continue;
+      image.src = await stageField(image.field, { width: image.width, height: image.height }, `${work}/dist/.backdrops`, dir);
+      fields.push(image.src);
+      nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]" src="${image.src}" />`);
+    }
     for (const [i, shape] of layout.shapes.entries()) {
       const fill = shape.gradient ? `bg-gradient-to-${shape.gradient.dir} from-[${shape.gradient.from}] to-[${shape.gradient.to}]` : `bg-[${shape.color}]`;
       nodes.push(`<View class="absolute left-[${shape.x}px] top-[${shape.y}px] w-[${shape.width}px] h-[${shape.height}px] ${fill} rounded-[${shape.radius}px]${shape.shadow ? ` ${shape.shadow}` : ""}${shapeAnimation(`s${i}`, shape.group)}" />`);
     }
-    for (const [i, image] of layout.images.entries()) nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]${shapeAnimation(`i${i}`, image.group)}" src="${image.src}" />`);
+    for (const [i, image] of layout.images.entries()) if (!image.field) nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]${shapeAnimation(`i${i}`, image.group)}" src="${image.src}" />`);
     for (const [name, svg] of Object.entries(layout.assets)) await Bun.write(`${dir}/${name}`, svg);
     for (const line of layout.lines) {
       const prefix: StyledGlyph[] = [];
@@ -1600,7 +1617,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       }
     }
     const emoji = await stageEmoji(emojiKeys, options.emojiCache, dir, options.emojiBundle);
-    await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries([...emoji, ...Object.keys(layout.assets)].map((file) => [file, { linear: true }]))) + "\n");
+    await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries([...emoji, ...Object.keys(layout.assets), ...fields].map((file) => [file, { linear: true }]))) + "\n");
     let body = nodes.join("\n");
     if (scroll) {
       const t = timing as ScrollTiming;

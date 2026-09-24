@@ -12,12 +12,22 @@ export interface Oklch { readonly l: number; readonly c: number; readonly h: num
 /** A hue arc: from one OKLCH colour to another, hue moving by `turn` degrees (sign = direction). */
 export interface HueArc { readonly from: Oklch; readonly to: Oklch; readonly turn: number }
 
-const toLinear = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-const toGamma = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+export const toLinear = (v: number) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+export const toGamma = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+
+/** OKLCH → OKLab [L, a, b]. */
+export function oklab({ l, c, h }: Oklch): [number, number, number] {
+  return [l, c * Math.cos((h * Math.PI) / 180), c * Math.sin((h * Math.PI) / 180)];
+}
 
 /** OKLCH → linear sRGB (may be out of gamut). */
-function linearRgb({ l, c, h }: Oklch): [number, number, number] {
-  const a = c * Math.cos((h * Math.PI) / 180), b = c * Math.sin((h * Math.PI) / 180);
+export function linearRgb(color: Oklch): [number, number, number] {
+  const [l, a, b] = oklab(color);
+  return labToLinear(l, a, b);
+}
+
+/** OKLab → linear sRGB (may be out of gamut). */
+export function labToLinear(l: number, a: number, b: number): [number, number, number] {
   const l_ = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3;
   const m_ = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3;
   const s_ = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
@@ -30,17 +40,20 @@ function linearRgb({ l, c, h }: Oklch): [number, number, number] {
 
 const inGamut = (rgb: readonly number[]) => rgb.every((v) => v >= -1e-4 && v <= 1 + 1e-4);
 
+/** The colour with chroma reduced (hue and lightness kept) until it fits sRGB. */
+export function fitGamut(color: Oklch): Oklch {
+  if (inGamut(linearRgb(color))) return color;
+  let lo = 0, hi = color.c;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (inGamut(linearRgb({ ...color, c: mid }))) lo = mid; else hi = mid;
+  }
+  return { ...color, c: lo };
+}
+
 /** The colour as #rrggbb, chroma reduced (hue and lightness kept) until it fits sRGB. */
 export function oklchHex(color: Oklch): string {
-  let rgb = linearRgb(color);
-  if (!inGamut(rgb)) {
-    let lo = 0, hi = color.c;
-    for (let i = 0; i < 24; i++) {
-      const mid = (lo + hi) / 2;
-      if (inGamut(linearRgb({ ...color, c: mid }))) lo = mid; else hi = mid;
-    }
-    rgb = linearRgb({ ...color, c: lo });
-  }
+  const rgb = linearRgb(fitGamut(color));
   return `#${rgb.map((v) => Math.round(toGamma(Math.min(1, Math.max(0, v))) * 255).toString(16).padStart(2, "0")).join("")}`;
 }
 

@@ -224,6 +224,22 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   since the engine only has two-stop gradients. Current arc: indigo, violet,
   magenta, coral, amber (hue 272° to 62°, lightness 0.34 to 0.76). No overlay:
   any tint across different hues (black over orange turns brown) muddies it.
+- Colour-field backdrops (option, not a default yet): a backdrop layer
+  `{ field }` draws a blurred colour field instead: a dark ground, a few large
+  anisotropic Gaussian blobs of two or three neighbouring hues mixed in OKLab,
+  an optional vignette and a fine seeded grain against banding.
+  `core/src/templates/backdrop.ts` renders it to a PNG at compose time (the
+  engine has no blur), which is drawn full-bleed under every shape and
+  stretched to the canvas like the gradient rects. The engine takes only
+  power-of-two textures up to 512 px, so a card's field is a 512 px texture
+  scaled up, with the grain reduced by the scale (magnified noise reads as a
+  crosshatch); `fieldPng` renders full-size fields with the full grain. PNGs
+  are cached in `<work>/dist/.backdrops/` by a hash of the field and canvas
+  size, about 25 ms uncached. Text drawn straight on a field is
+  contrast-checked against the field's colour under it. `CODE_FIELDS` holds
+  three samples for the terminal (Indigo night, Dusk, Aurora); the hue arc
+  stays the terminal's default until one is chosen. In GIFs the 256-colour
+  palette dithers a field visibly.
 
 ### Info card: contacts, accounts and keys
 

@@ -5,7 +5,9 @@
  * - `size`: text below the phone readability floor (READABILITY).
  * - `overflow`: a line outside the canvas.
  * - `overlap`: two text lines drawn over each other.
- * - `contrast`: text against the ground or shape beneath it below WCAG AA.
+ * - `contrast`: text against the ground or shape beneath it below WCAG AA
+ *   (over a colour-field backdrop: the field's colour at the top, middle and
+ *   bottom of the line, so the lightest part under it counts).
  * - `untraceable`: drawn text that is not in the source (generated numbers
  *   and the user's signature aside).
  * - `missing`: a source grapheme that is never drawn (a truncation).
@@ -15,6 +17,7 @@
  */
 import { normalizeText } from "../render/compose.ts";
 import { READABILITY, type TemplateContent, type TemplatePlan } from "./types.ts";
+import { fieldColorAt, type ColourField } from "./backdrop.ts";
 
 /** Every threshold the checks use. */
 export const CHECK_THRESHOLDS = {
@@ -50,9 +53,13 @@ export interface CheckedShape {
   readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly color: string;
   readonly gradient?: { readonly from: string; readonly to: string };
 }
+/** An image; only colour-field backdrops take part (they are ground, never text). */
+export interface CheckedImage { readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly field?: ColourField }
 export interface CheckedLayout {
   readonly width: number; readonly height: number; readonly background: string;
   readonly lines: readonly CheckedLine[]; readonly shapes: readonly CheckedShape[];
+  /** Colour-field backdrops lie under every shape (compose.ts draws them first). */
+  readonly images?: readonly CheckedImage[];
 }
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -133,11 +140,19 @@ export function contrastRatio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** The colours under a point: the topmost shape containing it (both ends of a gradient), else the ground. */
-function groundAt(layout: CheckedLayout, x: number, y: number): string[] {
+/** The colours under a point: the topmost shape containing it (both ends of a gradient), else a
+ * colour-field backdrop (sampled at y and `reach` above and below it), else the ground. */
+function groundAt(layout: CheckedLayout, x: number, y: number, reach = 0): string[] {
   for (let i = layout.shapes.length - 1; i >= 0; i--) {
     const s = layout.shapes[i]!;
     if (x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height && s.height > 0 && s.width > 0) return s.gradient ? [s.gradient.from, s.gradient.to] : [s.color];
+  }
+  const images = layout.images ?? [];
+  for (let i = images.length - 1; i >= 0; i--) {
+    const f = images[i]!;
+    if (!f.field || !(x >= f.x && x <= f.x + f.width && y >= f.y && y <= f.y + f.height && f.height > 0 && f.width > 0)) continue;
+    const canvas = { width: f.width, height: f.height };
+    return [y - reach, y, y + reach].map((py) => fieldColorAt(f.field!, canvas, x - f.x, Math.min(f.height, Math.max(0, py - f.y))));
   }
   return [layout.background];
 }
@@ -158,7 +173,7 @@ export function checkLayout(layout: CheckedLayout, plan?: Pick<TemplatePlan, "co
     const required = line.size * reference / W >= T.contrast.largeSize ? T.contrast.large : T.contrast.body;
     const colors = new Set([line.color, ...(line.colorAt ?? []).filter((c): c is string => Boolean(c))]);
     const mid = line.y + line.height / 2;
-    const grounds = new Set([line.x + 1, line.x + line.width / 2, line.x + line.width - 1].flatMap((x) => groundAt(layout, x, mid)));
+    const grounds = new Set([line.x + 1, line.x + line.width / 2, line.x + line.width - 1].flatMap((x) => groundAt(layout, x, mid, line.height / 2)));
     let worst = Infinity;
     for (const color of colors) for (const ground of grounds) worst = Math.min(worst, contrastRatio(color, ground));
     if (worst < required) out.push({ kind: "contrast", line: index, message: `line ${index} has ${worst.toFixed(2)}:1 against its ground (needs ${required}:1)` });
