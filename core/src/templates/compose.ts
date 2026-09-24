@@ -59,7 +59,7 @@ export const AUTO_FRAME = {
  * fixed frame half empty. The first step whose layout fits the frame (no
  * growth) wins; step 1 is the fallback and may grow the canvas / scroll. */
 export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
-  document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1],
+  document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1], info: [1.3, 1.15, 1],
 };
 
 /** The text template: sizes are clamped to SIZES between minSize and maxSize. */
@@ -199,6 +199,33 @@ export const DIAGRAM_TIERS = [
 
 /** QR styles. Modules stay dark on light whatever the style: scanners expect
  * it. `card` puts the code (quiet zone included) on a light card over a coloured ground. */
+/** Info cards: fields on a card. Labels sit in a left column when the widest fits
+ * `labelMax` of the card, else above their values. Values keep their text; the
+ * type only styles it: phone digits grouped by space, an email's domain and a
+ * URL's scheme muted, secrets in a pill behind a lock. */
+export const INFO_STYLES = {
+  /** Field list: warm page, white card, ink values, blue links, red secrets. */
+  classic: { background: "#efece4", margin: 72, card: { fill: "#ffffff", radius: 28, pad: 56, shadow: "shadow-md" },
+    title: { size: 52, color: "#18181b", gap: 36 }, rule: "#ece8df", label: { size: 28, color: "#8a857a" }, labelMax: 0.34, labelGap: 40,
+    value: { size: 40, color: "#18181b" }, leading: 1.2, rowGap: 26, muted: "#9b968b", link: "#2f5bd3", phoneGap: 14,
+    secret: { fill: "#fdeceb", ink: "#c62828", icon: "#d63b3b", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
+  /** Credentials: night page, graphite card, each label above its value, pale values, coral secrets. */
+  editorial: { background: "#0e1014", margin: 72, card: { fill: "#1b1e24", radius: 28, pad: 56, shadow: "shadow-lg" },
+    title: { size: 52, color: "#f2f0ea", gap: 36 }, rule: "#2a2e36", label: { size: 28, color: "#7d8494" }, labelMax: 0, labelGap: 40,
+    value: { size: 40, color: "#e8e6df" }, leading: 1.2, rowGap: 26, muted: "#7d8494", link: "#7cb7ff", phoneGap: 14,
+    secret: { fill: "#3a1d22", ink: "#ff8a80", icon: "#ff7b72", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
+} as const;
+
+/** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
+const LOCK_PATH = "M20 28 L20 20 C20 13.4 25.4 8 32 8 C38.6 8 44 13.4 44 20 L44 28 L38 28 L38 20 C38 16.7 35.3 14 32 14 C28.7 14 26 16.7 26 20 L26 28 Z "
+  + "M14 26 L50 26 C52.2 26 54 27.8 54 30 L54 54 C54 56.2 52.2 58 50 58 L14 58 C11.8 58 10 56.2 10 54 L10 30 C10 27.8 11.8 26 14 26 Z";
+
+/** Where a phone number splits for display: a Chinese mobile as 3-4-4 (after an optional +86); anything else stays whole. */
+export function phoneGroups(value: string): string[] {
+  const m = value.match(/^(\+86)?(1\d{2})(\d{4})(\d{4})$/);
+  return m ? m.slice(1).filter((g): g is string => Boolean(g)) : [value];
+}
+
 export const QR_STYLES = {
   /** Plain: white page, black modules. */
   classic: { background: "#ffffff", light: "#ffffff", dark: "#111111", card: false, cardRadius: 0, cardPad: 0, caption: "#55595e", captionSize: 28 },
@@ -393,7 +420,7 @@ const snap = (n: number): number => [...SIZES].reverse().find((s) => s <= n) ?? 
 /** Objects whose `size` is a shape's side, not a font size. */
 const SHAPE_KEYS = new Set(["dot", "box", "marker", "dots", "mark", "masthead", "rail", "card", "bar", "band", "gutter", "zebra", "panel", "rule"]);
 /** Ratios and shape details that stay as they are when type grows. */
-const KEEP_KEYS = new Set(["margin", "leading", "maxRatio", "titleCol", "perRow", "maxLines", "border", "radius"]);
+const KEEP_KEYS = new Set(["margin", "leading", "maxRatio", "titleCol", "labelMax", "perRow", "maxLines", "border", "radius"]);
 /** A style `k` type steps larger: font sizes (keys ending in "size", members
  * of "…sizes" arrays) snap to SIZES, spacing scales, ratios stay. */
 export function grown<T>(style: T, k: number, parent = ""): T {
@@ -558,6 +585,59 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   };
   const content = plan.content;
   switch (content.kind) {
+    case "info": {
+      const s = grown(pickStyle(INFO_STYLES, plan.variant), k);
+      layout.background = s.background; margin = s.margin;
+      const C = s.card, cardX = margin, cardW = innerW(), innerX = cardX + C.pad, inner = cardW - 2 * C.pad;
+      let y = margin; const top = y;
+      const card = rect(cardX, y, cardW, 0, C.fill, C.radius); card.shadow = C.shadow;
+      y += C.pad;
+      if (content.title) y += block(content.title, innerX, y, inner, s.title.size, true, s.title.color, { leading: 1.15 }) + s.title.gap;
+      const widest = Math.max(0, ...content.fields.map((f) => f.label ? Math.ceil(measure.width(f.label, s.label.size, false)) : 0));
+      const side = widest > 0 && widest + s.labelGap <= inner * s.labelMax;
+      const valueX = side ? innerX + widest + s.labelGap : innerX, valueW = inner - (valueX - innerX);
+      for (const [index, field] of content.fields.entries()) {
+        if (index || content.title) { rect(innerX, y, inner, 2, s.rule); y += 2 + s.rowGap; }
+        const g = group++;
+        let vy = y;
+        if (field.label) {
+          // Beside the value: the label's baseline on the value's first baseline. Above it: its own line.
+          const ly = side ? y + base(s.value.size) - base(s.label.size) : y;
+          const h = block(field.label, innerX, ly, side ? widest : inner, s.label.size, false, s.label.color, { leading: 1.2, groupID: g });
+          if (!side) vy = y + h + 6;
+        }
+        let end = vy;
+        if (field.type === "secret") {
+          const S = s.secret, textX = valueX + S.padX + S.iconSize + S.iconGap, maxW = valueW - 2 * S.padX - S.iconSize - S.iconGap;
+          const pill = rect(valueX, vy - S.padY, 0, 0, S.fill, S.radius);
+          const first = layout.lines.length;
+          const h = block(field.value, textX, vy, maxW, s.value.size, false, S.ink, { leading: s.leading, groupID: g });
+          const textW = Math.max(...layout.lines.slice(first).map((line) => line.width));
+          pill.width = Math.ceil(textW + 2 * S.padX + S.iconSize + S.iconGap); pill.height = h + 2 * S.padY;
+          layout.images.push({ x: valueX + S.padX, y: vy + mid(s.value.size) - S.iconSize / 2, width: S.iconSize, height: S.iconSize, src: svg("lock", LOCK_PATH, S.icon), group: g });
+          end = vy + h + S.padY;
+        } else if (field.type === "phone" && phoneGroups(field.value).length > 1) {
+          let x = valueX;
+          for (const part of phoneGroups(field.value)) {
+            block(part, x, vy, valueW, s.value.size, false, s.value.color, { leading: s.leading, groupID: g });
+            x += Math.ceil(measure.width(part, s.value.size, false)) + s.phoneGap;
+          }
+          end = vy + lh(s.value.size, s.leading);
+        } else {
+          const chars = graphemes(field.value);
+          const at = field.type === "email" ? chars.indexOf("@") : -1;
+          const scheme = field.type === "url" ? graphemes(field.value.match(/^(?:https?:\/\/)?(?:www\.)?/i)![0]).length : 0;
+          const colors = field.type === "email" ? chars.map((_, i) => (i >= at ? s.muted : undefined))
+            : field.type === "url" ? chars.map((_, i) => (i < scheme ? s.muted : s.link)) : undefined;
+          end = vy + block(field.value, valueX, vy, valueW, s.value.size, false, s.value.color, { leading: s.leading, groupID: g, ...(colors ? { colors } : {}) });
+        }
+        y = end + s.rowGap;
+      }
+      y += C.pad - s.rowGap;
+      card.height = y - card.y;
+      bottom = settle(top, y);
+      break;
+    }
     case "qr": {
       const inner = innerW();
       const style = pickStyle(QR_STYLES, plan.variant);

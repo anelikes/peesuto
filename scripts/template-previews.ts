@@ -38,6 +38,7 @@ const PREVIEW_SAMPLES: Record<TemplateId, string> = {
   table: "| Plan | Price | Seats |\n|---|---|---|\n| Solo | $0 | 1 |\n| Team | $12 | 10 |",
   comparison: "Before:\nCopy, screenshot, crop, paste\nAfter:\nCopy, press a shortcut",
   diagram: "Copy → Decide → Render → Paste",
+  info: "Staging account\nUser: admin\nPassword: P@ssw0rd!2026\nEmail: ops@example.com\nHost: https://staging.example.com",
   qr: "https://peesuto.com",
 };
 

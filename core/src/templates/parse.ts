@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type DocumentBlock, type TemplateContent, type TemplateId } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type DocumentBlock, type InfoField, type InfoFieldType, type TemplateContent, type TemplateId } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -33,7 +33,8 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     const list = parseList(text);
     const chat = parseChat(text) ?? parseTranscript(text);
     const stat = parseStat(text);
-    for (const content of [table, comparison, quote, list, chat, stat]) {
+    const info = parseInfo(text);
+    for (const content of [table, comparison, quote, list, chat, stat, info]) {
       if (content) candidates.set(content.kind, content);
     }
     // The legacy classifier also understands commands, JSON and stack traces.
@@ -55,7 +56,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "code", "table", "comparison", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "code", "table", "comparison", "info", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -156,6 +157,56 @@ function parseList(text: string): TemplateContent | undefined {
   const indents = lines.map((line) => line.match(/^[\t ]*/)?.[0] ?? "");
   if (indents.some((indent) => indent !== indents[0])) return;
   return { kind: "list", ordered, items: parts.map((part) => part![3]!) };
+}
+
+/** Labels that mark a line as a field (contact details, accounts, servers, orders). */
+const INFO_LABELS = /^(?:姓名|名字|名称|name|full name|手机|手机号|手机号码|电话|座机|tel|phone|mobile|cell|邮箱|电子邮件|电子邮箱|e-?mail|mail|地址|address|网址|网站|主页|website|web|url|link|链接|微信|微信号|wechat|qq|telegram|whatsapp|公司|company|organization|org|职位|职务|title|role|部门|department|账号|帐号|账户|用户名|用户|user|username|login|account|id|密码|口令|password|passwd|pwd|pass|密钥|秘钥|key|api key|apikey|secret|secret key|token|access key|access token|host|hostname|主机|服务器|server|ip|端口|port|数据库|database|db|region|区域|环境|env|environment|endpoint|base url|订单号|订单|order|order id|快递单号|单号|tracking|金额|amount|price|日期|date|时间|time|备注|note|notes)$/i;
+const EMAIL_VALUE = /^[\w.+-]+@[\w-]+(?:\.[\w-]+)+$/;
+const URL_VALUE = /^(?:https?:\/\/|www\.)\S+$/i;
+const SECRET_LABEL = /密码|口令|密钥|秘钥|pass|pwd|secret|token|api[ _-]?key|access[ _-]?key|private[ _-]?key/i;
+const SECRET_VALUE = /^(?:sk-[\w-]{16,}|ghp_\w{20,}|github_pat_\w{20,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{30,}|eyJ[\w-]+\.[\w-]+\.[\w-]+)$/;
+
+/** How a field is styled; the value itself is never changed. */
+export function infoFieldType(label: string | undefined, value: string): InfoFieldType {
+  if (EMAIL_VALUE.test(value)) return "email";
+  if (URL_VALUE.test(value)) return "url";
+  const digits = value.replace(/\D/g, "").length;
+  if (/^\+?[\d\s()-]{7,24}$/.test(value) && digits >= 7 && digits <= 15 && !/\d{4}-\d{2}-\d{2}/.test(value)) return label && !/phone|mobile|tel|cell|手机|电话|座机/i.test(label) ? "plain" : "phone";
+  if (SECRET_VALUE.test(value) || (label && SECRET_LABEL.test(label) && !/\s/.test(value))) return "secret";
+  return "plain";
+}
+
+/**
+ * Labelled fields, one per line ("手机：138…", "API Key: sk-…"), optionally
+ * led by a title line; bare emails, URLs, phone numbers and keys count as
+ * fields too. Every other line would be dropped, so any other line means
+ * this is not an info card. At least two fields, labels unique (a returning
+ * label is a conversation), and some label or value must be recognizable.
+ */
+export function parseInfo(text: string): TemplateContent | undefined {
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2 || lines.length > 24) return;
+  const fields: InfoField[] = [];
+  let title: string | undefined;
+  for (const [index, line] of lines.entries()) {
+    const m = line.match(/^([^:：\n]{1,24}?)[\t ]*[:：][\t ]*(\S.*)$/);
+    if (m && !/^(?:https?|ftp|mailto)$/i.test(m[1]!.trim()) && !m[2]!.startsWith("//")) {
+      const label = m[1]!.trim(), value = m[2]!.trim();
+      fields.push({ label, value, type: infoFieldType(label, value) });
+      continue;
+    }
+    const type = infoFieldType(undefined, line);
+    if (type !== "plain") fields.push({ value: line, type });
+    else if (index === 0 && [...line].length <= 40) title = line;
+    else return;
+  }
+  if (fields.length < 2) return;
+  const labels = fields.flatMap((field) => field.label ? [field.label.toLowerCase()] : []);
+  if (new Set(labels).size !== labels.length) return;
+  if (fields.some((field) => [...field.value].length > 200)) return;
+  const known = fields.some((field) => field.type !== "plain" || (field.label && INFO_LABELS.test(field.label.replace(/\s+/g, " "))));
+  if (!known) return;
+  return { kind: "info", ...(title ? { title } : {}), fields };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

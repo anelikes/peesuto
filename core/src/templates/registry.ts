@@ -40,6 +40,9 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
   { id: "diagram", name: "Diagram", nameZh: "流程图", variants: [
     { id: "classic", name: "Flow", nameZh: "流程" }, { id: "editorial", name: "Blueprint", nameZh: "蓝图" },
   ], motions: MOTIONS },
+  { id: "info", name: "Info card", nameZh: "信息卡", variants: [
+    { id: "classic", name: "Field list", nameZh: "信息清单" }, { id: "editorial", name: "Credentials", nameZh: "深色凭证" },
+  ], motions: MOTIONS },
   { id: "qr", name: "QR code", nameZh: "二维码", variants: [
     { id: "classic", name: "Plain", nameZh: "纯净" }, { id: "editorial", name: "Card", nameZh: "卡片" },
   ], motions: ["none", "reveal"] },

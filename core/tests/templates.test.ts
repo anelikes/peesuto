@@ -119,7 +119,7 @@ describe("source-backed content parsing", () => {
     expect(parseTemplates("Name\tScore\nAda\t42\textra").candidates.has("text")).toBe(false);
   });
   const ambiguous = [
-    "Someone said this sentence yesterday.", "Name: Ada\nAge: 32", "Name: Ada\nAge: 32\nName: Bob", "Hello: world\nAnother: field",
+    "Someone said this sentence yesterday.", "Name: Ada\nAge: 32\nName: Bob", "Hello: world\nAnother: field",
     "A: A single speaker line", "Before:\nOnly one side", "Left column\nRight column",
     "Title A:\nSomething\nTitle B:\nSomething else", "| A | B |\n| x | y |", "| A | B |\n| --- | --- |\n| x |",
     "- parent\n  - child", "3. Third\n7. Seventh", "1. First\n- Second", "```js\nunterminated",
@@ -400,4 +400,36 @@ describe("larger type never splits a word", () => {
       }
     });
   }
+});
+
+describe("info cards", () => {
+  test("labelled fields with a title; types style, never rewrite", () => {
+    const source = "测试环境账号\n用户名: admin\n密码: P@ssw0rd!2026\nAPI Key: sk-proj-4f8a2c9e1b7d3a6f0e5c8b2a\nHost: https://staging.example.com\n手机：13800138000\nzhang@example.com";
+    const parsed = parseTemplates(source);
+    expect(parsed.preferred).toBe("info");
+    expect(parsed.candidates.get("info")).toEqual({ kind: "info", title: "测试环境账号", fields: [
+      { label: "用户名", value: "admin", type: "plain" },
+      { label: "密码", value: "P@ssw0rd!2026", type: "secret" },
+      { label: "API Key", value: "sk-proj-4f8a2c9e1b7d3a6f0e5c8b2a", type: "secret" },
+      { label: "Host", value: "https://staging.example.com", type: "url" },
+      { label: "手机", value: "13800138000", type: "phone" },
+      { value: "zhang@example.com", type: "email" },
+    ] });
+    expect(parseTemplates("Name: Ada\nAge: 32").preferred).toBe("info");
+  });
+
+  test("not an info card: prose, conversations, a single field, unknown labels", () => {
+    for (const source of [
+      "Name: Ada\nAge: 32\nName: Bob", "Hello: world\nAnother: field", "Phone: 13800138000",
+      "张三\n今天下午三点开会，记得带电脑。\n邮箱：a@b.co",
+      "Lin: Can this chat become an image?\nAsh: Yes.\nLin: Nice.",
+    ]) expect(parseTemplates(source).preferred).not.toBe("info");
+  });
+
+  test("phone digits group 3-4-4 for Chinese mobiles only; the groups join back to the value", async () => {
+    const { phoneGroups } = await import("../src/templates/compose.ts");
+    expect(phoneGroups("13800138000")).toEqual(["138", "0013", "8000"]);
+    expect(phoneGroups("+8613800138000")).toEqual(["+86", "138", "0013", "8000"]);
+    expect(phoneGroups("+1 415 555 0100")).toEqual(["+1 415 555 0100"]);
+  });
 });

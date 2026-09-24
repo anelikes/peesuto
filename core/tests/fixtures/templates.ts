@@ -11,6 +11,11 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
   { kind: "table", headers: ["项目", "状态", "结果"], rows: [["原生界面", "完成", "更清晰"], ["模板渲染", "验证", "保留结构"]] },
   { kind: "diagram", direction: "TD", nodes: [{ id: "A", label: "复制文字", shape: "pill" }, { id: "B", label: "有结构吗？", shape: "diamond" }, { id: "C", label: "专门模板", shape: "rect" }, { id: "D", label: "Text template", shape: "round" }],
     edges: [{ from: "A", to: "B", line: "solid", arrow: true }, { from: "B", to: "C", label: "有", line: "solid", arrow: true }, { from: "B", to: "D", label: "没有", line: "dotted", arrow: true }] },
+  { kind: "info", title: "测试环境账号", fields: [
+    { label: "手机", value: "13800138000", type: "phone" }, { label: "邮箱", value: "ops@example.com", type: "email" },
+    { label: "Host", value: "https://staging.example.com", type: "url" }, { label: "API Key", value: "sk-proj-4f8a2c9e1b7d3a6f0e5c8b2a", type: "secret" },
+    { label: "备注", value: "只用于联调，别发到群里", type: "plain" },
+  ] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

@@ -49,6 +49,7 @@ function sourceStrings(content: TemplateContent): string[] {
     case "table": return [...content.headers, ...content.rows.flat()].map((s) => clean(s));
     case "comparison": return content.columns.flatMap((c) => [c.title, ...c.items]).map((s) => clean(s));
     case "diagram": return [...content.nodes.map((n) => n.label), ...content.edges.flatMap((e) => e.label ? [e.label] : [])].map((s) => clean(s));
+    case "info": return [...(content.title ? [content.title] : []), ...content.fields.flatMap((f) => [...(f.label ? [f.label] : []), f.value])].map((s) => clean(s));
     case "qr": return [content.data];
   }
 }

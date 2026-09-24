@@ -33,6 +33,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Table | Data grid | Editorial ledger | |
 | Comparison | Side by side | Split panels | |
 | Diagram | Flow | Blueprint | |
+| Info card | Field list | Credentials | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -130,6 +131,24 @@ engine bakes; everything else is boxes and text.
   since the engine only has two-stop gradients. Current arc: indigo, violet,
   magenta, coral, amber (hue 272° to 62°, lightness 0.34 to 0.76). No overlay:
   any tint across different hues (black over orange turns brown) muddies it.
+
+### Info card: contacts, accounts and keys
+
+- Recognized when every line is a field (`label: value` or `label：value`, or a
+  bare email, URL, phone number or key), except an optional short first line,
+  which becomes the title. At least two fields, labels unique (a returning label
+  is a conversation), and at least one known label (phone, email, address,
+  password, API key, host, order number…) or recognizable value. Any other
+  line means document, so nothing is ever dropped. It ranks after comparison,
+  before quote, list and chat.
+- Values are drawn verbatim; the field type (`infoFieldType`) only styles them:
+  a Chinese mobile number is spaced 3-4-4 as separate runs (no characters
+  added), an email's `@domain` and a URL's scheme are muted, the rest of a URL
+  takes the link colour, and a password, token or key (by label, or by value
+  shape: `sk-`, `ghp_`, `AKIA`, JWT…) sits in a pill behind a lock. Secrets are
+  shown in full; the privacy rules are the place to redact them.
+- Field list puts labels in a left column when the widest fits a third of the
+  card, else above the values; Credentials always stacks them.
 
 ### QR code: any text, by shortcut only
 

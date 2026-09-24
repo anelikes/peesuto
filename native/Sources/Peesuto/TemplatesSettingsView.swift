@@ -107,6 +107,7 @@ struct TemplatesSettingsView: View {
         case "table": return model.tr("Markdown and box-drawing tables", "Markdown 与线框表格")
         case "comparison": return model.tr("Before / after, pros / cons", "之前 / 之后、优点 / 缺点")
         case "diagram": return model.tr("Mermaid flowcharts and arrow chains", "Mermaid 流程图与箭头链")
+        case "info": return model.tr("Contacts, accounts and keys, field by field", "联系方式、账号与密钥，逐项排版")
         case "qr": return model.tr("Any text as a QR code", "任意文字转为二维码")
         default: return ""
         }

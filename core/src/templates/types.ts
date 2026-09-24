@@ -1,6 +1,6 @@
 import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "qr"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -54,9 +54,17 @@ export type TemplateContent =
   | { readonly kind: "comparison"; readonly columns: readonly { readonly title: string; readonly items: readonly string[] }[] }
   /** A Mermaid flowchart or plain arrow chains: labels verbatim from the source. */
   | { readonly kind: "diagram"; readonly direction: DiagramDirection; readonly nodes: readonly DiagramNode[]; readonly edges: readonly DiagramEdge[] }
+  /** Labelled fields (contact details, an account, a server): the optional
+   * title line, then each field's label and value verbatim; `type` only picks
+   * the styling (phone digits grouped visually, secrets in a pill). */
+  | { readonly kind: "info"; readonly title?: string; readonly fields: readonly InfoField[] }
   /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };
+
+export const INFO_FIELD_TYPES = ["phone", "email", "url", "secret", "plain"] as const;
+export type InfoFieldType = (typeof INFO_FIELD_TYPES)[number];
+export interface InfoField { readonly label?: string; readonly value: string; readonly type: InfoFieldType }
 
 export interface TemplatePlan {
   readonly version: 1;
