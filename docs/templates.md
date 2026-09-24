@@ -38,6 +38,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Terminal session | Night terminal | Command log | |
 | Diff | Review | Night diff | |
 | Error | Crash report | Console | |
+| Schedule (`timeline`) | Agenda | Milestones | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -397,6 +398,30 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
 - Crash report: warm page, the trace on a tinted panel, a red bar beside
   each own frame. Console: dark, the trace along a rail with a red dot at
   each own frame. Styles are `ERROR_STYLES` in `compose.ts`.
+
+### Schedule (timeline): times and dates on a line
+
+- Recognized when an optional title line (a `#` marker is syntax) is
+  followed by at least two lines that each start with a time or a date and
+  have text after it, and nothing else. Times: `09:00`, `9:30am`, `2pm`,
+  `下午3点`, ranges `14:00–15:00`. Dates and periods: `2026-09-24`,
+  `2026年9月`, `9月24日`, `9/24`, `Sep 24`, `24 Sep`, `Q3 2026`, `H2`, a year,
+  `周一`, `星期三`, `Monday`, `Mon`, `第一周`, `Day 3`, `Week 2`, `today`,
+  a date with a time. A list marker before and a separator after the time
+  (spaces, `-`, `:`, `|`, `→`) are syntax.
+- Not a schedule: a conversation (the chat template takes speaker and time
+  lines, and a chat candidate suppresses this one), logs (a time with
+  seconds, an ISO `T` timestamp, a level such as `INFO`/`WARN`/`错误` after
+  the time, `key=value` text), a label with only a number or percentage
+  after it (a metric), fractions before cooking units (`1/2 cup`). It ranks
+  after info and before quote, list and chat, so a bulleted schedule is a
+  schedule.
+- Agenda: times right-aligned in a column (as wide as the widest time, at
+  most 40% of the card; a wider time stacks above its event), a line with a
+  dot per event, the events beside it. Milestones: dark, the line at the
+  left edge, each date above its event. Styles are `TIMELINE_STYLES` in
+  `compose.ts`. The English name is Schedule, since the release-notes card
+  already has a style called Timeline.
 
 ### QR code: any text, by shortcut only
 

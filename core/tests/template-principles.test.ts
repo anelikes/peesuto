@@ -52,6 +52,10 @@ const EXTRA: readonly TemplateContent[] = [
     { text: 'File "/usr/lib/python3.12/json/__init__.py", line 293, in load_with_a_very_long_function_name_that_wraps', role: "frame", own: false },
   ] },
   { kind: "error", lead: "thread 'main' panicked at src/main.rs:4:5", message: "index out of bounds: the len is 3 but the index is 5 ".repeat(4).trim(), trace: [] },
+  { kind: "timeline", events: [
+    { time: "Wednesday, September 24, 2026 9:30am – 11:00am", text: "A long first event whose text wraps over more than one line of the card, beside or under its date" },
+    { time: "Q1 2027", text: "Windows" }, { time: "第三周", text: "测试与发布" },
+  ] },
   { kind: "info", title: "张三", fields: [{ value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" }] },
 ];
 const ALL = [...TEMPLATE_SAMPLES, ...EXTRA];
@@ -80,6 +84,7 @@ function sourceStrings(content: TemplateContent): string[] {
     case "diff": return content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
       ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((s) => clean(s, true));
     case "error": return [...[content.lead, content.type, content.message].filter((t): t is string => Boolean(t)), ...content.trace.map((l) => l.text)].map((s) => clean(s, true));
+    case "timeline": return [...(content.title ? [content.title] : []), ...content.events.flatMap((e) => [e.time, e.text])].map((s) => clean(s));
     case "qr": return [content.data];
   }
 }

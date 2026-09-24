@@ -34,6 +34,9 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
     { text: "at loadActions (/srv/paste/core/src/actions/load.ts:18:22)", role: "frame", own: true },
     { text: "at async handle (/srv/paste/core/src/daemon/server.ts:77:12)", role: "frame", own: true },
   ] },
+  { kind: "timeline", title: "发布日程", events: [
+    { time: "09:00", text: "冻结代码" }, { time: "10:30–11:00", text: "Regression tests on every template" }, { time: "下午5点", text: "发布 🎉" },
+  ] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

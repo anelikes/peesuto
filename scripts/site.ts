@@ -63,6 +63,7 @@ const JA_NAMES: Record<string, string> = {
   terminal: "ターミナルセッション", "terminal-classic": "夜のターミナル", "terminal-editorial": "コマンドログ",
   diff: "差分", "diff-classic": "レビュー", "diff-editorial": "夜の差分",
   error: "エラー", "error-classic": "クラッシュレポート", "error-editorial": "コンソール",
+  timeline: "スケジュール", "timeline-classic": "アジェンダ", "timeline-editorial": "マイルストーン",
   qr: "QR コード", "qr-classic": "シンプル", "qr-editorial": "カード",
 };
 const templateName = (lang: Lang, id: string, variant: string) => {

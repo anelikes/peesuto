@@ -1,6 +1,6 @@
 import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "diff", "error", "qr"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "diff", "error", "timeline", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -89,6 +89,10 @@ export type TemplateContent =
    * other lines (`note`). `own` marks the reader's own code (not a
    * dependency, the standard library or the runtime), for emphasis only. */
   | { readonly kind: "error"; readonly lead?: string; readonly type?: string; readonly message?: string; readonly trace: readonly ErrorTraceLine[] }
+  /** A schedule or milestones: an optional title line, then events, each a
+   * time or date as written and its text (a list marker and the separator
+   * between them are syntax). */
+  | { readonly kind: "timeline"; readonly title?: string; readonly events: readonly { readonly time: string; readonly text: string }[] }
   /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };

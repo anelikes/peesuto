@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
 import { parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
-import { DIFF_STYLES, ERROR_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
+import { DIFF_STYLES, ERROR_STYLES, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
@@ -657,6 +657,40 @@ describe("error cards", () => {
       expect([line("at mine").bold, line("at mine").color]).toEqual([true, S.trace.own]);
       expect([line("at theirs").bold, line("at theirs").color]).toEqual([false, S.trace.lib]);
       expect(layout.shapes.filter((shape) => shape.color === S.mark.color)).toHaveLength(1);
+    }
+  });
+});
+
+describe("schedule (timeline) cards", () => {
+  test("times, ranges, dates, periods and Chinese times; the title, list markers and separators", () => {
+    expect(parseTemplates("周五发布日程\n09:00 冻结代码\n10:30–11:00 回归测试\n下午5点 发布").candidates.get("timeline")).toEqual({ kind: "timeline", title: "周五发布日程", events: [
+      { time: "09:00", text: "冻结代码" }, { time: "10:30–11:00", text: "回归测试" }, { time: "下午5点", text: "发布" }] });
+    const en = parseTemplates("## Launch day\n- 9:00am - Doors open\n- 9:30 am | Keynote: What's next\n- 2pm Workshops");
+    expect(en.preferred).toBe("timeline"); // a bulleted schedule is not a plain list
+    expect(en.candidates.get("timeline")).toEqual({ kind: "timeline", title: "Launch day", events: [
+      { time: "9:00am", text: "Doors open" }, { time: "9:30 am", text: "Keynote: What's next" }, { time: "2pm", text: "Workshops" }] });
+    for (const source of ["2026-09-24 v0.2.0\nQ1 2027 Windows beta", "第一周 需求\n第二周 开发", "Sep 24 Launch\nOct 1 Holiday", "2019 Founded\n2026 Peesuto", "周一 例会\n周三 评审", "9/24 14:00 Review\n9/25 Ship"]) {
+      expect(parseTemplates(source).preferred).toBe("timeline");
+    }
+  });
+  test("not a schedule: chat transcripts, logs, metrics, recipes, prose and a single event", () => {
+    for (const source of [
+      "nok\n22:10\n你好\n\nshybee\n22:11\n在吗", "Alice 10:21\nhi\nBob 10:22\nhello",
+      "2026-09-21 14:03:12 INFO started\n2026-09-21 14:03:13 WARN slow", "10:21 INFO started\n10:22 WARN slow", "10:21 id=1 status=ok\n10:22 id=2 status=503",
+      "2026-09-21T14:03:12Z started\n2026-09-21T14:03:13Z stopped", "Q3: 12%\nQ4: 15%", "1/2 cup sugar\n3/4 cup milk",
+      "09:00 Standup", "Meeting at 10:00 tomorrow\nThen lunch", "09:00 Standup\nThen we go to lunch together.",
+    ]) expect(parseTemplates(source).candidates.has("timeline")).toBe(false);
+  });
+  test("both styles: a dot per event on one line; Agenda puts times in a right-aligned column, Milestones above the text", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const content = parseTemplates("09:00 Doors open\n10:30 Keynote\n14:00 Workshops").candidates.get("timeline")!;
+    for (const variant of ["classic", "editorial"] as const) {
+      const layout = layoutTemplate({ version: 1, template: "timeline", variant, motion: "none", aspect: "1:1", sourceText: "x", content }, measure);
+      const S = TIMELINE_STYLES[variant];
+      expect(layout.shapes.filter((shape) => shape.color === S.dot.color)).toHaveLength(3);
+      const time = layout.lines.find((l) => l.text === "10:30")!, text = layout.lines.find((l) => l.text === "Keynote")!;
+      if (variant === "classic") { expect(time.x + time.width).toBeLessThan(text.x); expect(Math.abs(time.y - text.y)).toBeLessThan(text.size); }
+      else { expect(time.x).toBe(text.x); expect(time.y).toBeLessThan(text.y); }
     }
   });
 });

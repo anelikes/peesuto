@@ -90,6 +90,7 @@ export function contentStrings(content: TemplateContent): string[] {
     case "diff": return content.files.flatMap((f) => [...(f.path ? [f.path] : []), ...(f.oldPath ? [f.oldPath] : []), ...f.meta,
       ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((text) => normalizeText(text, "code"));
     case "error": return [...[content.lead, content.type, content.message].filter((t): t is string => Boolean(t)), ...content.trace.map((l) => l.text)].map((text) => normalizeText(text, "code"));
+    case "timeline": return [...(content.title ? [content.title] : []), ...content.events.flatMap((e) => [e.time, e.text])].map(plain);
     case "qr": return [plain(content.data)];
   }
 }

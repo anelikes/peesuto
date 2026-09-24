@@ -41,7 +41,9 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     const stat = parseStat(text);
     const info = parseInfo(text);
     const changelog = parseChangelog(text);
-    for (const content of [table, comparison, quote, list, chat, stat, info, changelog]) {
+    // Chat apps copy a time with every message: a conversation is never a schedule.
+    const timeline = chat ? undefined : parseTimeline(text);
+    for (const content of [table, comparison, quote, list, chat, stat, info, changelog, timeline]) {
       if (content) candidates.set(content.kind, content);
     }
     // The legacy classifier also understands commands, JSON and stack traces.
@@ -67,7 +69,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "info", "timeline", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -96,7 +98,7 @@ export function withoutTemplates(parsed: ParsedTemplates, disabled: unknown): Pa
  * specialized template would lose (code, table, list, chat, comparison).
  * Quotes and statistics keep text as an alternative. */
 function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent | undefined {
-  if (["code", "terminal", "diff", "error", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
+  if (["code", "terminal", "diff", "error", "timeline", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
   if (/^(?:graph|flowchart)\b/i.test(text.trim())) return;
   if (exceedsGraphemes(text, TEXT_MAX_GRAPHEMES) !== undefined) return;
   const blocks = documentBlocks(text);
@@ -509,6 +511,55 @@ export function parseError(text: string): TemplateContent | undefined {
   // A Rust panic names its location in the heading; a backtrace is optional.
   if (!frames && !(lead && /panicked at/.test(lead) && message)) return;
   return { kind: "error", ...(lead ? { lead } : {}), ...(type ? { type } : {}), ...(message ? { message } : {}), trace };
+}
+
+const MONTHS = String.raw`(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?`;
+const WEEKDAYS = String.raw`(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun)[a-z]*\.?`;
+/** A clock time without seconds: 09:00, 9:30am, 9 am, 下午3点, 15点半. */
+const SCHEDULE_CLOCK = String.raw`(?:(?:上午|下午|早上|晚上|中午|凌晨|傍晚)\s*)?(?:\d{1,2}:\d{2}(?!:\d)(?:\s*[AaPp]\.?[Mm]\.?)?|\d{1,2}\s*[AaPp]\.?[Mm]\.?|\d{1,2}(?:点(?:半|\d{1,2}分?)?|时))`;
+/** A date or a period: 2026-09-24, 2026年9月, 9月24日, 9/24, Sep 24, 24 Sep, Q3 2026, H2, 周一, 星期三, Monday, 第一周, Day 3, Week 2, 2019, today… */
+const SCHEDULE_DATE = String.raw`(?:(?:${WEEKDAYS},?\s+)?(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{4}年\d{1,2}月(?:\d{1,2}[日号])?|\d{1,2}月\d{1,2}[日号]|\d{1,2}月(?:上旬|中旬|下旬|底|初)?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|${MONTHS}\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?|\d{1,2}\s+${MONTHS}(?:\s+\d{4})?|${MONTHS}\s+\d{4})`
+  + String.raw`|(?:Q[1-4]|H[12])(?:\s*\d{4})?|\d{4}\s*(?:Q[1-4]|H[12])|(?:19|20)\d{2}年?|周[一二三四五六日天末]|星期[一二三四五六日天]|(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\.?(?=[\t ])`
+  + String.raw`|第[一二三四五六七八九十百\d]+(?:周|天|日|月|季度|阶段|期|轮)|(?:Day|Week|Sprint|Phase|Month|Stage)\s+\d+|W\d{1,2}|今天|明天|后天|昨天|Today|Tomorrow|Tonight)`;
+const RANGE = String.raw`\s*(?:-|–|—|~|～|to|至|到)\s*`;
+const SCHEDULE_TIME = String.raw`(?:${SCHEDULE_DATE}(?:${RANGE}${SCHEDULE_DATE})?(?:[\s,]+${SCHEDULE_CLOCK}(?:${RANGE}${SCHEDULE_CLOCK})?)?|${SCHEDULE_CLOCK}(?:${RANGE}${SCHEDULE_CLOCK})?)`;
+/** An event line: an optional list marker, the time, a separator (spaces, a dash, a colon, a bar, an arrow), the text. */
+const EVENT_LINE = new RegExp(String.raw`^(?:[-*•][\t ]+)?(${SCHEDULE_TIME})(?:[\t ]*(?:[-–—:：|｜·•、]|->|→)[\t ]*|[\t ]+)(\S.*)$`, "i");
+/** Log lines (a level after the time) and key=value records are logs, not a schedule. */
+const LOG_TEXT = /^(?:\[?(?:INFO|WARN|WARNING|ERROR|ERR|DEBUG|TRACE|FATAL|NOTICE|CRITICAL|CRIT)\]?|信息|警告|错误|调试)(?:\b|\s|:)/i;
+
+/**
+ * A schedule or milestones: an optional title line (a `#` heading marker is
+ * syntax), then at least two lines that each start with a time or a date and
+ * have text after it. Every other line means it is not a timeline. Times
+ * with seconds, log levels after the time and key=value text are logs; a
+ * number or percentage after a label is a metric; fractions before cooking
+ * units are a recipe.
+ */
+export function parseTimeline(text: string): TemplateContent | undefined {
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2 || lines.length > 40) return;
+  let title: string | undefined;
+  const events: { time: string; text: string }[] = [];
+  for (const [index, line] of lines.entries()) {
+    if (/\d{1,2}:\d{2}:\d{2}|\d{4}-\d{2}-\d{2}T\d/.test(line.slice(0, 40))) return;
+    const m = line.match(EVENT_LINE);
+    if (m) {
+      const time = m[1]!.trim(), body = m[2]!.trim();
+      if (LOG_TEXT.test(body) || (body.match(/\b\w+=\S/g) ?? []).length >= 2) return;
+      if (/^[+-]?[$€£¥￥]?\d[\d,.]*\s*(?:%|％|[kKmMbB万亿]|x|倍)?$/.test(body)) return;
+      if (/^\d{1,2}\/\d{1,2}$/.test(time) && /^(?:cups?|tsp|tbsp|teaspoons?|tablespoons?|oz|lbs?|g|kg|ml|l|inch(?:es)?|in|of)\b/i.test(body)) return;
+      events.push({ time, text: body });
+      continue;
+    }
+    if (index === 0 && !events.length) {
+      const heading = line.replace(/^#{1,3}[\t ]+/, "");
+      if ([...heading].length <= 40) { title = heading; continue; }
+    }
+    return;
+  }
+  if (events.length < 2) return;
+  return { kind: "timeline", ...(title ? { title } : {}), events };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

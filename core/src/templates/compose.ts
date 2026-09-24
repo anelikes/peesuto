@@ -78,7 +78,7 @@ export const AUTO_FRAME = {
  * growth) wins; step 1 is the fallback and may grow the canvas / scroll. */
 export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
   document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1], info: [1.3, 1.15, 1],
-  changelog: [1.3, 1.15, 1], error: [1.2, 1.1, 1],
+  changelog: [1.3, 1.15, 1], error: [1.2, 1.1, 1], timeline: [1.3, 1.15, 1],
 };
 
 /* Ornament slots. Every line or shape must encode separation, state or a
@@ -343,6 +343,19 @@ export const ERROR_STYLES = {
     trace: { size: 36, leading: 1.3, own: "#f2f0ea", lib: "#8b93a3", code: "#c9ccd3", note: "#8b93a3", noteSize: 32, noteGap: 20 } },
 } as const;
 
+/** Schedules and milestones: a vertical line with a dot per event. Times and
+ * dates as written; the text beside or under them. */
+export const TIMELINE_STYLES = {
+  /** Agenda: a warm page, times in a left column, the line and dots between them and the events. */
+  classic: { background: "#f6f4ef", signature: "#6b675e", margin: 96, layout: "columns", title: { size: 52, color: "#18181b", gap: 56 },
+    time: { size: 40, bold: true, color: "#0e6e8c", maxCol: 0.4 }, text: { size: 44, color: "#26262b", leading: 1.2 }, gap: 48, colGap: 36,
+    line: { width: 3, color: "#d9d3c6" }, dot: { size: 18, color: "#0e6e8c", ring: 0, ringColor: "" } },
+  /** Milestones: a dark page, the line at the left edge, each date above its event. */
+  editorial: { background: "#14161b", signature: "#8c887f", margin: 88, layout: "stack", title: { size: 36, color: "#a8a397", gap: 48 },
+    time: { size: 36, bold: true, color: "#f0b95a", maxCol: 0 }, text: { size: 48, color: "#f2f0ea", leading: 1.15 }, gap: 52, colGap: 44,
+    line: { width: 3, color: "#343844" }, dot: { size: 26, color: "#f0b95a", ring: 7, ringColor: "#14161b" } },
+} as const;
+
 /** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
 const LOCK_PATH = "M20 28 L20 20 C20 13.4 25.4 8 32 8 C38.6 8 44 13.4 44 20 L44 28 L38 28 L38 20 C38 16.7 35.3 14 32 14 C28.7 14 26 16.7 26 20 L26 28 Z "
   + "M14 26 L50 26 C52.2 26 54 27.8 54 30 L54 54 C54 56.2 52.2 58 50 58 L14 58 C11.8 58 10 56.2 10 54 L10 30 C10 27.8 11.8 26 14 26 Z";
@@ -594,7 +607,7 @@ const snap = (n: number): number => [...SIZES].reverse().find((s) => s <= n) ?? 
 /** Objects whose `size` is a shape's side, not a font size. */
 const SHAPE_KEYS = new Set(["dot", "box", "marker", "dots", "mark", "masthead", "rail", "card", "bar", "band", "gutter", "zebra", "panel", "rule"]);
 /** Ratios and shape details that stay as they are when type grows. */
-const KEEP_KEYS = new Set(["margin", "leading", "maxRatio", "titleCol", "labelMax", "perRow", "maxLines", "border", "radius"]);
+const KEEP_KEYS = new Set(["margin", "leading", "maxRatio", "titleCol", "labelMax", "maxCol", "perRow", "maxLines", "border", "radius"]);
 /** A style `k` type steps larger: font sizes (keys ending in "size", members
  * of "…sizes" arrays) snap to SIZES, spacing scales, ratios stay. */
 export function grown<T>(style: T, k: number, parent = ""): T {
@@ -611,7 +624,7 @@ export function grown<T>(style: T, k: number, parent = ""): T {
   return out as T;
 }
 /** Numbers a width scale leaves alone: ratios and counts. */
-const RATIO_KEY = /^(?:leading|\w+Leading|maxRatio|titleCol|labelMax|perRow|maxLines|segments)$/;
+const RATIO_KEY = /^(?:leading|\w+Leading|maxRatio|titleCol|labelMax|maxCol|perRow|maxLines|segments)$/;
 /** The baked size nearest n (ties go up, so a floor that scaled exactly stays met). */
 const snapNear = (n: number): number => SIZES.reduce<number>((best, s) => (Math.abs(s - n) <= Math.abs(best - n) ? s : best), SIZES[0]);
 /** A style drawn for READABILITY.referenceWidth, scaled `u` times for a wider
@@ -1130,6 +1143,49 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         if (P && panel) { y += P.pad; panel.height = y - panel.y; }
         if (rail) rail.height = y - rail.y;
       }
+      bottom = settle(top, y);
+      break;
+    }
+    case "timeline": {
+      const s = grown(styleOf(TIMELINE_STYLES), k);
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
+      let y = margin; const top = y;
+      if (content.title) y += block(content.title, margin, y, innerW(), s.title.size, true, s.title.color, { leading: 1.15 }) + s.title.gap;
+      const D = s.dot, columns = s.layout === "columns";
+      // Columns: times right-aligned to a column as wide as the widest (at most maxCol of the card); a wider
+      // one stacks above its text. Stack: the line at the margin, date over text beside it.
+      const widest = Math.max(...content.events.map((e) => Math.ceil(measure.width(e.time, s.time.size, s.time.bold))));
+      const colW = columns ? Math.min(widest, Math.round(innerW() * s.time.maxCol)) : 0;
+      const lineX = columns ? margin + colW + s.colGap : margin + D.size / 2;
+      const textX = lineX + s.colGap;
+      const textW = W - margin - textX;
+      const line = rect(lineX - s.line.width / 2, y, s.line.width, 0, s.line.color);
+      let first = 0, last = 0;
+      for (const [i, event] of content.events.entries()) {
+        if (i) y += s.gap;
+        const g = group++;
+        const eventTop = y;
+        let dotY: number;
+        if (columns) {
+          const fits = measure.width(event.time, s.time.size, s.time.bold) <= colW;
+          if (fits) {
+            // The time's baseline on the text's first baseline.
+            block(event.time, margin, y + base(s.text.size) - base(s.time.size), colW, s.time.size, s.time.bold, s.time.color, { align: "right", leading: 1.2, groupID: g });
+          } else y += block(event.time, textX, y, textW, s.time.size, s.time.bold, s.time.color, { leading: 1.2, groupID: g }) + 4;
+          dotY = eventTop + mid(fits ? s.text.size : s.time.size);
+          y += block(event.text, textX, y, textW, s.text.size, false, s.text.color, { leading: s.text.leading, groupID: g });
+        } else {
+          dotY = y + mid(s.time.size);
+          y += block(event.time, textX, y, textW, s.time.size, s.time.bold, s.time.color, { leading: 1.2, groupID: g }) + 6;
+          y += block(event.text, textX, y, textW, s.text.size, false, s.text.color, { leading: s.text.leading, groupID: g });
+        }
+        if (D.ring) rect(lineX - D.size / 2 - D.ring, dotY - D.size / 2 - D.ring, D.size + 2 * D.ring, D.size + 2 * D.ring, D.ringColor, D.size / 2 + D.ring).group = g;
+        rect(lineX - D.size / 2, dotY - D.size / 2, D.size, D.size, D.color, D.size / 2).group = g;
+        if (!i) first = dotY;
+        last = dotY;
+      }
+      // The line runs from the first dot to the last.
+      line.y = first; line.height = Math.max(0, last - first);
       bottom = settle(top, y);
       break;
     }
