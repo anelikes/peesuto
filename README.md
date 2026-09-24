@@ -18,7 +18,7 @@ Peesuto is a small, open-source clipboard app for the Mac. It sees what you
 copied (code, a chat, a table, a quote) and pastes it as a well-set image
 into whatever you are typing in. GIF and video too.
 
-- **Cards from plain text.** 18 templates, 37 styles. Words, names, numbers
+- **Cards from plain text.** 19 templates, 39 styles. Words, names, numbers
   and order come from your text; nothing is rewritten or made up.
 - **One key to paste.** ⌥V opens a chooser at your caret with the card
   already drawn; Return pastes it.
@@ -59,7 +59,7 @@ never overwritten.
 ## Templates
 
 <p align="center">
-  <img src="docs/images/templates.png" width="100%" alt="All 37 card styles: text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics and QR code.">
+  <img src="docs/images/templates.png" width="100%" alt="All 39 card styles: text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics, lyrics and QR code.">
 </p>
 
 Text · Document · Quote · Code · Statistic · List · Conversation · Table ·

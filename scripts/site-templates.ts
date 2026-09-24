@@ -20,8 +20,8 @@ export interface GroupInfo { readonly id: string; readonly name: Localized; read
 /** The overview's sections, in order. Unknown ids fall into "other". */
 export const GROUPS: readonly GroupInfo[] = [
   { id: "writing", name: { en: "Writing", zh: "写作", ja: "文章" },
-    blurb: { en: "Sentences, notes, quotes and lists.", zh: "句子、笔记、引语和清单。", ja: "文、メモ、引用、リスト。" },
-    ids: ["text", "document", "quote", "list", "comparison"] },
+    blurb: { en: "Sentences, notes, quotes, lists and lyrics.", zh: "句子、笔记、引语、清单和歌词。", ja: "文、メモ、引用、リスト、歌詞。" },
+    ids: ["text", "document", "quote", "list", "comparison", "lyrics"] },
   { id: "developers", name: { en: "Developers", zh: "开发", ja: "開発" },
     blurb: { en: "Code, shells, diffs, stack traces and releases.", zh: "代码、终端、差异、报错和版本发布。", ja: "コード、ターミナル、差分、エラー、リリース。" },
     ids: ["code", "terminal", "diff", "error", "changelog"] },
@@ -54,6 +54,7 @@ export const JA_NAMES: Readonly<Record<string, string>> = {
   error: "エラー", "error-classic": "クラッシュレポート", "error-editorial": "コンソール",
   timeline: "スケジュール", "timeline-classic": "アジェンダ", "timeline-editorial": "マイルストーン",
   stats: "指標", "stats-classic": "ダッシュボード", "stats-editorial": "スコアボード",
+  lyrics: "歌詞", "lyrics-classic": "ステージ", "lyrics-editorial": "紙面",
   qr: "QR コード", "qr-classic": "シンプル", "qr-editorial": "カード",
 };
 
@@ -130,7 +131,7 @@ export const SAMPLES: Readonly<Record<string, Localized>> = {
   },
   diff: {
     en: "--- a/greet.swift\n+++ b/greet.swift\n@@ -1,3 +1,3 @@\n func greet(_ name: String) -> String {\n-    \"Hi, \\(name)\"\n+    \"Hello, \\(name)!\"\n }",
-    zh: "--- a/文档/说明.md\n+++ b/文档/说明.md\n@@ -1,3 +1,4 @@\n ## 安装\n-下载 DMG，拖进应用程序文件夹。\n+用 Homebrew 安装：brew install --cask peesuto\n+或者下载 DMG，拖进应用程序文件夹。\n 首次打开时需要授予辅助功能权限。",
+    zh: "commit 3f2a1c9e8b7d6a5f4e3d2c1b0a99887766554433\nAuthor: 林小雨 <lin@example.com>\nDate:   Wed Sep 24 10:12:03 2026 +0800\n\n    文档：加上 Homebrew 安装方式\n\n--- a/文档/说明.md\n+++ b/文档/说明.md\n@@ -1,3 +1,4 @@\n ## 安装\n-下载 DMG，拖进应用程序文件夹。\n+用 Homebrew 安装：brew install --cask peesuto\n+或者下载 DMG，拖进应用程序文件夹。\n 首次打开时需要授予辅助功能权限。",
     ja: "--- a/docs/はじめに.md\n+++ b/docs/はじめに.md\n@@ -1,3 +1,4 @@\n ## インストール\n-DMG をダウンロードして、アプリケーションフォルダへ。\n+Homebrew なら：brew install --cask peesuto\n+または DMG をダウンロードして、アプリケーションフォルダへ。\n 初回はアクセシビリティの許可が必要です。",
   },
   error: {
@@ -147,6 +148,11 @@ export const SAMPLES: Readonly<Record<string, Localized>> = {
     en: "This week\nDAU: 12,480 (+8%)\nRevenue: $48.2k (−3%)\nRetention: 41%\nNPS: 61",
     zh: "本周数据\n日活：12,480（+8%）\n收入：¥32.5万（-4%）\n转化率：3.2%\n新用户：1,860 人",
     ja: "今週の数字\nDAU：12,480（+8%）\n売上：¥482万（−3%）\n継続率：41%\nNPS：61",
+  },
+  lyrics: {
+    en: "Streetlights hum/a quiet tune\nI walk you home the long way round\nYour *laughter* in my coat\n\nSo stay a little longer\nStay a little longer!",
+    zh: "春晓\n孟浩然\n春眠不觉晓，处处闻啼鸟。\n夜来风雨声，花落知多少。",
+    ja: "改札を抜けて/走りだす\n*まぶしい*朝の光\n君の名前を呼んだ!\n\nまだ眠い町の灯り",
   },
   qr: {
     en: "https://peesuto.com",
@@ -174,6 +180,7 @@ export const BLURBS: Readonly<Record<string, Localized>> = {
   error: { en: "The error message first, your own frames marked.", zh: "报错信息放在最前，你自己的代码帧会被标出。", ja: "エラーメッセージを先頭に。自分のコードのフレームに印を。" },
   timeline: { en: "Times and dates, each with its event.", zh: "时间或日期，各自带着要做的事。", ja: "時刻や日付と、その予定。" },
   stats: { en: "Several numbers in a grid, with their changes.", zh: "几项数字排成网格，涨跌一目了然。", ja: "いくつもの数字をグリッドに。増減も一目で。" },
+  lyrics: { en: "Song lyrics and poems as a poster or a kinetic-type video.", zh: "歌词和诗，排成海报或动态歌词视频。", ja: "歌詞や詩を、ポスターやリリックビデオに。" },
   qr: { en: "Any text as a QR code, by pressing Q.", zh: "任何文字都能变成二维码，按 Q 即可。", ja: "どんなテキストも QR コードに。Q を押すだけ。" },
 };
 
@@ -245,14 +252,14 @@ export const HOW: Readonly<Record<string, Localized>> = {
     ja: "1 行目がプロンプト（$、%、❯、user@host:~$、PS C:\\>）とコマンドで、残りの行はすべてプロンプトかその出力であること。エラーや警告には色を付け、終了コードはバッジで表示します。",
   },
   diff: {
-    en: "A unified diff, as git diff or diff -u prints it: file headers, @@ hunks, and lines starting with +, - or a space. The added and removed lines are counted for the summary.",
-    zh: "统一格式的 diff，就是 git diff 或 diff -u 输出的样子：文件头、@@ 块，以及以 +、- 或空格开头的行。增删的行数会统计在摘要里。",
-    ja: "git diff や diff -u が出力する unified diff です。ファイルのヘッダー、@@ のハンク、+・-・空白で始まる行。追加と削除の行数を数えて要約に表示します。",
+    en: "A unified diff, as git diff or diff -u prints it: file headers, @@ hunks, and lines starting with +, - or a space. The added and removed lines are counted for the summary. A commit header from git show or git format-patch (sha, author, date, message) is drawn above it as written.",
+    zh: "统一格式的 diff，就是 git diff 或 diff -u 输出的样子：文件头、@@ 块，以及以 +、- 或空格开头的行。增删的行数会统计在摘要里。git show 或 git format-patch 带的提交信息（哈希、作者、日期、说明）会原样画在上方。",
+    ja: "git diff や diff -u が出力する unified diff です。ファイルのヘッダー、@@ のハンク、+・-・空白で始まる行。追加と削除の行数を数えて要約に表示します。git show や git format-patch のコミット情報（ハッシュ、作者、日付、メッセージ）は、そのまま上に表示します。",
   },
   error: {
-    en: "An error line (TypeError: …, Exception in thread …, panic: …) followed by its stack trace, or a Python traceback with the error last. Frames from libraries are dimmed and your own are marked.",
-    zh: "一行报错（TypeError: …、Exception in thread …、panic: …）加上调用栈，或错误在最后一行的 Python Traceback。依赖库里的帧会变淡，你自己的代码帧会被标出。",
-    ja: "エラーの行（TypeError: …、Exception in thread …、panic: … など）とスタックトレース、またはエラーが最後に来る Python の Traceback。ライブラリのフレームは薄く、自分のコードのフレームには印を付けます。",
+    en: "An error line (TypeError: …, Exception in thread …, panic: …, PHP Fatal error: Uncaught …, Ruby's file.rb:12:in 'm': … (ErrorClass)) followed by its stack trace, or a Python traceback with the error last. Frames from libraries (node_modules, site-packages, gems, vendor…) are dimmed and your own are marked.",
+    zh: "一行报错（TypeError: …、Exception in thread …、panic: …、PHP Fatal error: Uncaught …、Ruby 的 file.rb:12:in 'm': …（ErrorClass））加上调用栈，或错误在最后一行的 Python Traceback。依赖库里的帧（node_modules、site-packages、gems、vendor 等）会变淡，你自己的代码帧会被标出。",
+    ja: "エラーの行（TypeError: …、Exception in thread …、panic: …、PHP Fatal error: Uncaught …、Ruby の file.rb:12:in 'm': …（ErrorClass） など）とスタックトレース、またはエラーが最後に来る Python の Traceback。ライブラリ（node_modules、site-packages、gems、vendor など）のフレームは薄く、自分のコードのフレームには印を付けます。",
   },
   timeline: {
     en: "An optional title, then two or more lines that each start with a time or a date (09:00, 2pm, Sep 24, Q3 2026, Monday) and say what happens. Logs with seconds or levels such as INFO are not schedules.",
@@ -263,6 +270,11 @@ export const HOW: Readonly<Record<string, Localized>> = {
     en: "An optional title, then two to twelve “label: value” lines where every value is a number, optionally with a change such as +8% or (−3%). Rises are green, falls red.",
     zh: "可选的标题，然后是 2 到 12 行“标签：值”，每个值都是数字，后面可以跟 +8% 或（-4%）这样的变化。上涨显示绿色，下跌显示红色。",
     ja: "任意のタイトルに続いて、値がすべて数字の「ラベル：値」の行が 2〜12 行。+8% や（−3%）のような増減を添えられます。増加は緑、減少は赤で表示します。",
+  },
+  lyrics: {
+    en: "Song lyrics: short lines with few full stops and some sign of a song (stanzas, a repeated line, a lyric voice such as I, you or love), LRC files with timestamps, and classical Chinese poems in equal lines. JIZURA's markup works: / cuts a line, *word* is emphasis, a final ! flashes, lyric|note adds a note.",
+    zh: "歌词：短行、几乎没有句号，并且有歌的迹象（分段、重复的句子、“我”“你”“爱”这样的抒情口吻）；带时间轴的 LRC 文件；每句字数相同的古诗。支持 JIZURA 的记法：/ 切分画面，*词* 强调，行末 ! 闪一下，歌词|注释 加小注。",
+    ja: "歌詞：句点の少ない短い行で、歌らしさ（連、くり返しの行、「君」「僕」「夢」のような語り口）があるもの。タイムスタンプ付きの LRC ファイル、句の長さがそろった漢詩も。JIZURA の記法が使えます：/ でカットを分け、*語* で強調、行末の ! でフラッシュ、歌詞|注釈 で小さな注釈。",
   },
   qr: {
     en: "Never chosen on its own: any text can be a QR code, so press Q in the ⌥V chooser. The code holds your text exactly as copied, and it is never sent to a model.",
