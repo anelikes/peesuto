@@ -1531,7 +1531,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     cache: { charset, dir: `${work}/dist/.measure` },
   });
   // The chosen face first; if it lacks a glyph of the card (emoji aside), the
-  // other one when it has them all (Noto has no ⌥, Maple no 體). Neither: the
+  // other one when it has them all (Noto has no ⌥, Maple no 說). Neither: the
   // chosen face reports what is missing below.
   const preferred = chooseTemplateFont(plan.template, [], plan.font);
   const maple: TemplateFont = plan.template === "code" ? "peesuto-code" : "peesuto-text";

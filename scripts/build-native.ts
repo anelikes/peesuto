@@ -72,6 +72,8 @@ await Bun.write(join(app, "Contents/Info.plist"), `<?xml version="1.0" encoding=
 <plist version="1.0"><dict>
 <key>CFBundleName</key><string>${name}</string>
 <key>CFBundleDisplayName</key><string>${name}</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string><string>ja</string></array>
 <key>CFBundleIdentifier</key><string>com.peesuto.desktop${preview ? ".preview" : ""}</string>
 <key>CFBundleExecutable</key><string>Peesuto</string>
 <key>CFBundlePackageType</key><string>APPL</string>
