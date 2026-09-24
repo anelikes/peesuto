@@ -25,6 +25,7 @@ final class ClipboardPanel: NSPanel {
     private var statusItem: NSStatusItem!
     private var taskPanel: NSPanel?
     private var onboardingWindow: NSWindow?
+    private var chooser: ChooserController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let preview = CommandLine.arguments.contains("--preview") || Bundle.main.object(forInfoDictionaryKey: "PeesutoPreview") as? Bool == true
@@ -63,17 +64,19 @@ final class ClipboardPanel: NSPanel {
         panel.titlebarSeparatorStyle = .none
         panel.contentView = PanelBackground.wrap(hosting)
         panel.center()
+        chooser = ChooserController(model: model, openHistory: { [weak self] in self?.showPanel() })
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "square.on.square", accessibilityDescription: "Peesuto")
         rebuildMenus()
         if !preview {
             do { try registerShortcuts(model.shortcuts) }
             catch {
-                try? registerShortcuts(["panel": model.shortcuts["panel"] ?? ""])
+                registerAvailableShortcuts()
                 model.notice = model.tr("Some shortcuts are unavailable. Check Settings → Shortcuts.", "部分快捷键不可用，请检查「设置 → 快捷键」。")
             }
         }
-        // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id], --pin-sample, --pin-panel.
+        // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id], --pin-sample, --pin-panel,
+        // --chooser-sample (the Paste as… chooser over sample text), --chooser-image (with an image on the clipboard instead).
         let arguments = CommandLine.arguments
         if preview, arguments.contains("--pin-panel") { model.panelPinned = true }
         func argument(_ name: String) -> Int? {
@@ -82,6 +85,11 @@ final class ClipboardPanel: NSPanel {
         }
         if preview, arguments.contains("--pin-sample") {
             pinSamples()
+        } else if preview, arguments.contains("--chooser-sample") {
+            chooser.show(sample: Self.chooserSample)
+        } else if preview, arguments.contains("--chooser-image"),
+                  let url = Bundle.main.url(forResource: "sample-chat", withExtension: "png", subdirectory: "Onboarding") {
+            chooser.show(sample: ChooserSnapshot(clipboard: .image, text: nil, image: PinImage.from(file: url)))
         } else if let section = argument("--settings-section") {
             model.requestedSettingsSection = section
             if let index = arguments.firstIndex(of: "--settings-anchor"), index + 1 < arguments.count {
@@ -167,8 +175,10 @@ final class ClipboardPanel: NSPanel {
 
     func rebuildMenus() {
         let menu = NSMenu()
-        menu.addItem(withTitle: model.tr("Open Peesuto", "打开 Peesuto"), action: #selector(showPanel), keyEquivalent: "")
-        let media = NSMenuItem(title: model.tr("Paste as", "粘贴为"), action: nil, keyEquivalent: "")
+        let shortcuts = model.shortcuts
+        showKey(menu.addItem(withTitle: model.tr("Paste as…", "粘贴为…"), action: #selector(showChooser), keyEquivalent: ""), shortcuts[MediaShortcuts.chooserID])
+        showKey(menu.addItem(withTitle: model.tr("Clipboard History", "剪贴板历史"), action: #selector(showPanel), keyEquivalent: ""), shortcuts["panel"])
+        let media = NSMenuItem(title: model.tr("Paste Directly", "直接粘贴为"), action: nil, keyEquivalent: "")
         let mediaMenu = NSMenu()
         mediaMenu.autoenablesItems = false
         for (id, en, zh) in [("paste-card", "Image", "图片"), ("paste-gif", "GIF", "GIF"), ("paste-video", "Video", "视频"), ("paste-qr", "QR code", "二维码")] {
@@ -176,12 +186,14 @@ final class ClipboardPanel: NSPanel {
             item.representedObject = id
             item.target = self
             item.isEnabled = !model.previewMode
+            showKey(item, shortcuts[id])
         }
         mediaMenu.addItem(.separator())
         let pin = mediaMenu.addItem(withTitle: model.tr("Pin to screen", "贴到屏幕"), action: #selector(runMedia(_:)), keyEquivalent: "")
         pin.representedObject = MediaShortcuts.pinID
         pin.target = self
         pin.isEnabled = !model.previewMode
+        showKey(pin, shortcuts[MediaShortcuts.pinID])
         media.submenu = mediaMenu
         menu.addItem(media)
         menu.addItem(withTitle: model.tr("Settings…", "设置…"), action: #selector(showSettings), keyEquivalent: ",")
@@ -209,7 +221,28 @@ final class ClipboardPanel: NSPanel {
         settingsWindow?.title = model.tr("Settings", "设置")
     }
 
+    /// Shows a global shortcut next to its menu item (a reminder; the global
+    /// shortcut itself does the work).
+    private func showKey(_ item: NSMenuItem, _ accelerator: String?) {
+        guard let key = MediaShortcuts.menuKey(accelerator ?? "") else { return }
+        item.keyEquivalent = key.key
+        var mask: NSEvent.ModifierFlags = []
+        if key.command { mask.insert(.command) }
+        if key.option { mask.insert(.option) }
+        if key.control { mask.insert(.control) }
+        if key.shift { mask.insert(.shift) }
+        item.keyEquivalentModifierMask = mask
+    }
+
+    @objc func showChooser() {
+        if chooser.isOpen { chooser.close(); return }
+        // Preview builds never read the clipboard: the chooser shows sample text.
+        chooser.show(sample: model.previewMode ? Self.chooserSample : nil)
+    }
+    private static let chooserSample = ChooserSnapshot(clipboard: .text, text: "Make room for a clearer thought.", image: nil)
+
     @objc func showPanel() {
+        chooser?.close()
         model.prepareToOpen()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
@@ -227,7 +260,7 @@ final class ClipboardPanel: NSPanel {
                 else {
                     do { try self.registerShortcuts(self.model.shortcuts) }
                     catch {
-                        try? self.registerShortcuts(["panel": self.model.shortcuts["panel"] ?? ""])
+                        self.registerAvailableShortcuts()
                         self.model.error = self.model.tr("Could not restore all shortcuts. Check settings.", "无法恢复全部快捷键，请检查设置。")
                     }
                 }
@@ -249,9 +282,25 @@ final class ClipboardPanel: NSPanel {
         guard !model.previewMode else { return }
         try model.hotkeys.register(shortcuts) { [weak self] id in
             guard let self else { return }
-            if id == "panel" { self.showPanel() }
-            else { self.model.runClipboardAction(id) }
+            switch id {
+            case "panel": self.showPanel()
+            case MediaShortcuts.chooserID: self.showChooser()
+            default: self.chooser.close(); self.model.runClipboardAction(id)
+            }
         }
+    }
+    /// After a failed registration: keep every binding that can be registered,
+    /// the chooser and history first. Unbound shortcuts are simply skipped.
+    private func registerAvailableShortcuts() {
+        let saved = model.shortcuts
+        var kept: [String: String] = [:]
+        for id in [MediaShortcuts.chooserID, "panel"] + MediaShortcuts.actionIDs {
+            guard let accelerator = saved[id], !accelerator.isEmpty else { continue }
+            var next = kept
+            next[id] = accelerator
+            if (try? registerShortcuts(next)) != nil { kept = next }
+        }
+        if kept.isEmpty { try? registerShortcuts([:]) }
     }
     private func showTaskStatus() {
         if taskPanel == nil {

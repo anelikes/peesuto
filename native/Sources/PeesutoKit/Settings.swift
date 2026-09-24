@@ -32,9 +32,25 @@ public final class SettingsStore {
     }
 
     public var language: String { string("language", default: "system") }
-    public var hotkey: String { string("hotkey", default: "CmdOrCtrl+Shift+V") }
+    public var hotkey: String { string("hotkey", default: DefaultShortcuts.panel) }
     public var retentionDays: Int { max(0, integer("retention_days", default: 30)) }
     public var blacklist: [String] { values["blacklist"] as? [String] ?? Self.defaultBlacklist }
+
+    public var shortcutsVersion: Int? { values["shortcuts_version"] as? Int }
+
+    /// Replaces every shortcut binding with the current defaults once, when
+    /// the saved shortcuts predate `DefaultShortcuts.version` (custom bindings
+    /// are not kept). Returns true when an existing setup was reset (not a
+    /// fresh install), so the app can say the keys changed.
+    @discardableResult
+    public func migrateShortcutsIfNeeded() throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard MediaShortcuts.needsReset(savedVersion: shortcutsVersion) else { return false }
+        let existing = values["native_shortcuts"] != nil || values["hotkey"] != nil || shortcutsVersion != nil
+        try setValues(["native_shortcuts": DefaultShortcuts.all, "hotkey": DefaultShortcuts.panel,
+                       "shortcuts_version": DefaultShortcuts.version])
+        return existing
+    }
 
     public func string(_ key: String, default fallback: String = "") -> String {
         lock.lock(); defer { lock.unlock() }
@@ -266,25 +282,73 @@ public enum KeychainSecrets {
     }
 }
 
-/// Global shortcuts: the panel, one direct-paste shortcut per media action,
-/// and pin to screen.
+/// The shortcut defaults, in one place. Change a key here and every screen,
+/// the migration and the tests follow.
+public enum DefaultShortcuts {
+    /// ⌥V opens the "Paste as…" chooser.
+    public static let chooser = "Alt+V"
+    /// ⇧⌥V opens the clipboard history panel. (⌘B was proposed; on hold
+    /// because ⌘B is Bold in nearly every editor.)
+    public static let panel = "Alt+Shift+V"
+    /// Paste as image / GIF / video / QR / pin: bindable, unbound by default
+    /// (the chooser reaches them all).
+    public static let media: [String: String] = [
+        "paste-card": "", "paste-gif": "", "paste-video": "", "paste-qr": "", MediaShortcuts.pinID: ""
+    ]
+    /// Every binding, as saved in `native_shortcuts`.
+    public static var all: [String: String] {
+        media.merging([MediaShortcuts.chooserID: chooser, "panel": panel]) { _, new in new }
+    }
+    /// Bump when the defaults change enough that installed users should be
+    /// reset to them (settings.json `shortcuts_version`).
+    public static let version = 2
+}
+
+/// Global shortcuts: the "Paste as…" chooser, the panel, one direct-paste
+/// shortcut per media action, and pin to screen.
 /// Saved settings that predate an action fall back to its default.
 public enum MediaShortcuts {
-    public static let panelDefault = "CmdOrCtrl+Shift+V"
-    public static let defaults: [(id: String, accelerator: String)] = [
-        ("paste-card", "CmdOrCtrl+Alt+1"), ("paste-gif", "CmdOrCtrl+Alt+2"),
-        ("paste-video", "CmdOrCtrl+Alt+3"), ("paste-qr", "CmdOrCtrl+Alt+4"),
-        (pinID, "CmdOrCtrl+Alt+5")
-    ]
-    /// Pins the clipboard image (or the ⌘⌥1 card of its text) to the screen; never pastes.
+    public static let panelDefault = DefaultShortcuts.panel
+    /// Opens the "Paste as…" chooser.
+    public static let chooserID = "paste-as"
+    /// Pins the clipboard image (or the image card of its text) to the screen; never pastes.
     public static let pinID = "pin-screen"
-    public static var actionIDs: [String] { defaults.map(\.id) }
+    /// The direct media shortcuts, in Settings order.
+    public static let actionIDs = ["paste-card", "paste-gif", "paste-video", "paste-qr", pinID]
+    public static var defaults: [(id: String, accelerator: String)] {
+        ([chooserID] + actionIDs).map { ($0, DefaultShortcuts.all[$0] ?? "") }
+    }
 
     /// `saved` is `native_shortcuts`; `legacyPanel` the older `hotkey` value.
     /// An empty saved string means the user disabled that shortcut.
     public static func resolve(saved: [String: String], legacyPanel: String?) -> [String: String] {
         var result = ["panel": saved["panel"] ?? legacyPanel ?? panelDefault]
         for (id, accelerator) in defaults { result[id] = saved[id] ?? accelerator }
+        return result
+    }
+
+    /// Whether settings saved at `savedVersion` (nil: never migrated) must be
+    /// replaced by the current defaults.
+    public static func needsReset(savedVersion: Int?) -> Bool {
+        (savedVersion ?? 0) < DefaultShortcuts.version
+    }
+
+    /// A key equivalent for a menu item showing `accelerator`: a lowercase
+    /// letter or digit and its modifiers. Nil for a disabled or other key.
+    public static func menuKey(_ accelerator: String) -> (key: String, command: Bool, option: Bool, control: Bool, shift: Bool)? {
+        let parts = accelerator.lowercased().split(separator: "+").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard parts.count >= 2, let key = parts.last, key.count == 1,
+              key.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) && $0.isASCII }) else { return nil }
+        var result = (key: key, command: false, option: false, control: false, shift: false)
+        for part in parts.dropLast() {
+            switch part {
+            case "cmdorctrl", "commandorcontrol", "cmd", "command", "super", "meta": result.command = true
+            case "ctrl", "control": result.control = true
+            case "alt", "option": result.option = true
+            case "shift": result.shift = true
+            default: return nil
+            }
+        }
         return result
     }
 

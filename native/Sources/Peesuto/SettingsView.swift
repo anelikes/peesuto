@@ -226,19 +226,27 @@ struct SettingsView: View {
     }
     private var shortcutSettings: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(model.tr("Copy text, then use a shortcut to create and paste it.", "复制文字后，按快捷键即可生成并粘贴。"))
-                .font(.system(size: 12)).foregroundColor(.secondary)
-            shortcutRow("panel", "Open clipboard", "打开剪贴板")
+            Text(model.tr("Copy text, press \(AppState.keys(shortcuts[MediaShortcuts.chooserID] ?? "")) where it should go, then choose image, GIF, video, QR code or pin.",
+                          "复制文字，在要粘贴的地方按 \(AppState.keys(shortcuts[MediaShortcuts.chooserID] ?? ""))，再选图片、GIF、视频、二维码或贴到屏幕。"))
+                .font(.system(size: 12)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            shortcutRow(MediaShortcuts.chooserID, "Paste as…", "粘贴为…", symbol: "rectangle.stack")
+            shortcutRow("panel", "Open clipboard history", "打开剪贴板历史", symbol: "clock.arrow.circlepath")
             Divider()
-            shortcutRow("paste-card", "Paste as image", "粘贴为图片")
-            shortcutRow("paste-gif", "Paste as GIF", "粘贴为 GIF")
-            shortcutRow("paste-video", "Paste as video", "粘贴为视频")
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.tr("Skip the chooser", "跳过选择器")).font(.system(size: 13, weight: .medium))
+                Text(model.tr("Give an output its own key to go straight to it. Off by default; the chooser reaches them all.",
+                              "给某个输出单独设一个快捷键，按下直接生成。默认不设，选择器里都能找到。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            shortcutRow("paste-card", "Paste as image", "粘贴为图片", symbol: "photo")
+            shortcutRow("paste-gif", "Paste as GIF", "粘贴为 GIF", symbol: "square.stack.3d.forward.dottedline")
+            shortcutRow("paste-video", "Paste as video", "粘贴为视频", symbol: "film")
             VStack(alignment: .leading, spacing: 4) {
                 shortcutRow("paste-qr", "Paste as QR code", "粘贴为二维码", symbol: "qrcode")
-                Text(model.tr("Any content can become a QR code, so it never takes part in automatic template choice. Use this shortcut or the result window's template menu.",
-                              "任何内容都能转成二维码，所以它不参与自动选模板，只用这个快捷键或结果窗的模板菜单。"))
+                Text(model.tr("Any content can become a QR code, so it never takes part in automatic template choice. Use Q in the chooser, this shortcut, or the result window's template menu.",
+                              "任何内容都能转成二维码，所以它不参与自动选模板，只用选择器里的 Q、这个快捷键或结果窗的模板菜单。"))
                     .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-            }.padding(.top, 6)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 shortcutRow(MediaShortcuts.pinID, "Pin to screen", "贴到屏幕", symbol: "pin")
                 Text(model.tr("Pins a copied image, or the image card of copied text, in a floating window. Nothing is pasted and the clipboard is left alone.",
@@ -250,7 +258,7 @@ struct SettingsView: View {
             Divider()
             Text(model.tr("Click a shortcut and press your keys. Clear it to disable. Changes apply after saving.", "点击快捷键后直接按键录入，清除即可停用。保存后生效。"))
                 .font(.system(size: 11)).foregroundColor(.secondary)
-            Text(model.tr("The result is pasted into the app in front and stays on the clipboard. Without Accessibility, or in a password field, it is only copied. Video requires ffmpeg.", "结果会粘贴到当前最前面的应用，并保留在剪贴板中。未授予辅助功能权限或在密码输入框中时只复制。视频需要 ffmpeg。"))
+            Text(model.tr("The result is pasted into the app you were typing in and stays on the clipboard. Without Accessibility, or in a password field, it is only copied. Video requires ffmpeg.", "结果会粘贴到你正在输入的应用，并保留在剪贴板中。未授予辅助功能权限或在密码输入框中时只复制。视频需要 ffmpeg。"))
                 .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.previewMode {
                 Text(model.tr("Preview checks bindings but does not register global shortcuts.", "预览版仅检查配置，不注册全局快捷键。"))
@@ -273,8 +281,8 @@ struct SettingsView: View {
                 prepareToggle("gif", "GIF", "GIF")
                 prepareToggle("video", "Video", "视频")
             }
-            Text(model.tr("Copying renders in the background with local rules, so the shortcut pastes instantly. Pauses in Low Power Mode.",
-                          "复制时用本地规则在后台提前生成，按快捷键即可立即粘贴。低电量模式下暂停。"))
+            Text(model.tr("Copying renders in the background with local rules, so Paste as… shows the card and pastes it at once. Pauses in Low Power Mode.",
+                          "复制时用本地规则在后台提前生成，「粘贴为…」能立刻显示并粘贴卡片。低电量模式下暂停。"))
                 .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -296,7 +304,10 @@ struct SettingsView: View {
     }
     private func shortcutRow(_ id: String, _ en: String, _ zh: String, symbol: String? = nil) -> some View {
         HStack {
-            if let symbol { Label(model.tr(en, zh), systemImage: symbol).font(.system(size: 12, weight: .medium)) }
+            if let symbol {
+                Label { Text(model.tr(en, zh)) } icon: { Image(systemName: symbol).foregroundColor(.secondary).frame(width: 18) }
+                    .font(.system(size: 12, weight: .medium))
+            }
             else { Text(model.tr(en, zh)).font(.system(size: 12, weight: .medium)) }
             Spacer()
             ShortcutRecorder(value: Binding(get: { shortcuts[id] ?? "" }, set: { shortcuts[id] = $0 }),
@@ -463,6 +474,7 @@ struct SettingsView: View {
                 do { try settings.setValues(["native_shortcuts": shortcuts, "hotkey": shortcuts["panel"] ?? ""]) }
                 catch { try? registerShortcuts(previous); throw error }
                 feedback = model.tr("Saved", "已保存"); failed = false
+                model.settingsChanged?()
             } catch {
                 feedback = model.tr("Could not save shortcuts. Check for duplicates or keys used by another app.", "快捷键保存失败，请检查是否重复或被其他应用占用。")
                 failed = true

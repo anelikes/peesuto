@@ -145,7 +145,7 @@ public enum ClipboardShortcutDelivery: Equatable {
         id == MediaShortcuts.pinID ? .pin : .paste
     }
 
-    /// The Core action a shortcut renders text with (pin renders like ⌘⌥1).
+    /// The Core action a shortcut renders text with (pin renders like paste-card).
     public static func renderAction(shortcut id: String) -> String {
         id == MediaShortcuts.pinID ? "paste-card" : id
     }

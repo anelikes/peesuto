@@ -95,7 +95,7 @@ struct TemplatesSettingsView: View {
                 Spacer()
                 switch spec.id {
                 case "qr":
-                    Text(model.tr("By shortcut only", "仅通过快捷键")).font(.system(size: 11)).foregroundColor(.secondary)
+                    Text(model.tr("Only when chosen", "仅手动选择")).font(.system(size: 11)).foregroundColor(.secondary)
                 case "document":
                     Text(model.tr("Always on (fallback)", "始终开启（兜底）")).font(.system(size: 11)).foregroundColor(.secondary)
                 default:

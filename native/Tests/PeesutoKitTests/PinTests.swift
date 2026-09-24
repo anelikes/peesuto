@@ -3,22 +3,21 @@ import XCTest
 @testable import PeesutoKit
 
 final class PinShortcutTests: XCTestCase {
-    @MainActor func testPinDefaultsToCommandOption5AndMigrates() {
-        XCTAssertEqual(MediaShortcuts.resolve(saved: [:], legacyPanel: nil)[MediaShortcuts.pinID], "CmdOrCtrl+Alt+5")
-        // Settings saved before pin existed get the default; other bindings are kept.
-        let older = ["panel": "CmdOrCtrl+Shift+V", "paste-card": "CmdOrCtrl+Alt+1", "paste-gif": "", "paste-video": "CmdOrCtrl+Alt+3", "paste-qr": "CmdOrCtrl+Alt+4"]
-        let resolved = MediaShortcuts.resolve(saved: older, legacyPanel: nil)
+    @MainActor func testPinIsUnboundByDefaultAndKeepsASavedBinding() {
+        XCTAssertEqual(MediaShortcuts.resolve(saved: [:], legacyPanel: nil)[MediaShortcuts.pinID], "")
+        let saved = ["panel": "Alt+Shift+V", "paste-as": "Alt+V", "pin-screen": "CmdOrCtrl+Alt+5"]
+        let resolved = MediaShortcuts.resolve(saved: saved, legacyPanel: nil)
         XCTAssertEqual(resolved["pin-screen"], "CmdOrCtrl+Alt+5")
-        XCTAssertEqual(resolved["paste-gif"], "")
         XCTAssertNoThrow(try HotKeyGroup.validate(resolved))
-        // A cleared pin shortcut stays off.
-        XCTAssertEqual(MediaShortcuts.resolve(saved: ["pin-screen": ""], legacyPanel: nil)["pin-screen"], "")
         XCTAssertEqual(MediaShortcuts.glyphs("CmdOrCtrl+Alt+5"), ["⌥", "⌘", "5"])
     }
 
     @MainActor func testPinConflictsLikeOtherShortcuts() {
         var shortcuts = MediaShortcuts.resolve(saved: [:], legacyPanel: nil)
+        shortcuts["pin-screen"] = DefaultShortcuts.chooser
+        XCTAssertThrowsError(try HotKeyGroup.validate(shortcuts))
         shortcuts["pin-screen"] = "CmdOrCtrl+Alt+1"
+        shortcuts["paste-card"] = "CmdOrCtrl+Alt+1"
         XCTAssertThrowsError(try HotKeyGroup.validate(shortcuts))
     }
 
@@ -28,7 +27,7 @@ final class PinShortcutTests: XCTestCase {
             XCTAssertEqual(ClipboardShortcutDelivery.of(shortcut: id), .paste)
             XCTAssertEqual(ClipboardShortcutDelivery.renderAction(shortcut: id), id)
         }
-        // Pin renders text exactly like ⌘⌥1: the image card action, image frame and timeout.
+        // Pin renders text exactly like Paste as image: the image card action, image frame and timeout.
         let action = ClipboardShortcutDelivery.renderAction(shortcut: MediaShortcuts.pinID)
         XCTAssertEqual(action, "paste-card")
         XCTAssertEqual(OutputFrames.kind(actionID: action), "image")

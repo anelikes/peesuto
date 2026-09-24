@@ -41,7 +41,8 @@ final class ShortcutButton: NSButton {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func refreshTitle() {
-        title = recording ? recordingTitle : value.isEmpty ? emptyTitle : value
+        let glyphs = MediaShortcuts.glyphs(value).joined()
+        title = recording ? recordingTitle : value.isEmpty ? emptyTitle : !glyphs.isEmpty ? glyphs : value
             .replacingOccurrences(of: "CmdOrCtrl", with: "⌘")
             .replacingOccurrences(of: "Command", with: "⌘")
             .replacingOccurrences(of: "Control", with: "⌃")

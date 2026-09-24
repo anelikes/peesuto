@@ -159,8 +159,8 @@ struct PrivacySettingsView: View {
                 outputToggle("gif", "GIF", "GIF")
                 outputToggle("video", "Video", "视频")
             }
-            caption("Renders each copied text in the background so the paste shortcut returns at once. Uses extra CPU and battery; pauses in Low Power Mode and when the Mac is hot.",
-                    "每次复制文字后在后台提前生成，按快捷键即可立即粘贴。会额外占用 CPU 与电量；低电量模式或机器过热时暂停。")
+            caption("Renders each copied text in the background so Paste as… and the paste shortcuts return at once. Uses extra CPU and battery; pauses in Low Power Mode and when the Mac is hot.",
+                    "每次复制文字后在后台提前生成，「粘贴为…」和快捷键都能立即粘贴。会额外占用 CPU 与电量；低电量模式或机器过热时暂停。")
             Toggle(model.tr("Precompose also uses the AI model", "预合成也使用 AI 模型"), isOn: $state.useModel)
                 .disabled(state.outputs.isEmpty)
             if state.useModel {

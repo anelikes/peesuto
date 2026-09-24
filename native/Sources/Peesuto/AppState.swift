@@ -24,6 +24,20 @@ struct OutputPreview {
     var usedFrame: String? { template?.aspect ?? frame }
 }
 
+/// A render the chooser started for its preview, reusable by the shortcut it previews.
+struct PreparedRender {
+    let text: String
+    let actionID: String
+    let task: Task<CoreActionResponse, Error>
+}
+
+/// The clipboard as the chooser found it.
+struct ChooserSnapshot {
+    let clipboard: ChooserClipboard
+    let text: String?
+    let image: PinImage?
+}
+
 @MainActor final class AppState: ObservableObject {
     @Published var items: [ClipRecord] = []
     @Published var selectedID: String?
@@ -92,6 +106,11 @@ struct OutputPreview {
             language = settings.language
             offline = settings.providers["offline"] as? Bool ?? false
             panelPinned = settings.bool("panel_pinned")
+            // Once per shortcut model: every binding goes back to the defaults (⌥V chooser, ⇧⌥V history).
+            if (try? settings.migrateShortcutsIfNeeded()) == true, !preview {
+                notice = tr("Shortcuts changed: \(Self.keys(DefaultShortcuts.chooser)) opens Paste as…, \(Self.keys(DefaultShortcuts.panel)) opens clipboard history.",
+                            "快捷键已更新：\(Self.keys(DefaultShortcuts.chooser)) 打开「粘贴为…」，\(Self.keys(DefaultShortcuts.panel)) 打开剪贴板历史。")
+            }
             if preview {
                 let history = try HistoryStore(directory: directory, key: Data(repeating: 0x42, count: 32))
                 try history.insert(text: "Make room for a clearer thought.", sourceApp: "com.apple.Notes")
@@ -243,6 +262,8 @@ struct OutputPreview {
     func tr(_ english: String, _ chinese: String) -> String { Language.text(english, chinese, preference: language) }
     var selected: ClipRecord? { items.first { $0.id == selectedID } }
     var isChinese: Bool { Language.isChinese(language) }
+    /// An accelerator as glyphs, "⌥V"; empty when unbound.
+    static func keys(_ accelerator: String) -> String { MediaShortcuts.glyphs(accelerator).joined() }
     var shortcuts: [String: String] {
         MediaShortcuts.resolve(saved: settings?.values["native_shortcuts"] as? [String: String] ?? [:], legacyPanel: settings?.hotkey)
     }
@@ -354,7 +375,11 @@ struct OutputPreview {
         execute(actionID: action.id, title: actionName(action), text: text, direct: false)
     }
 
-    func runClipboardAction(_ actionID: String) {
+    /// Runs a media shortcut on the clipboard. `prepared` is the chooser's
+    /// preview render (same action and input as this shortcut would send);
+    /// it is used instead of a second request when it was made for the text
+    /// that is on the clipboard now.
+    func runClipboardAction(_ actionID: String, prepared: PreparedRender? = nil) {
         guard !previewMode else { return }
         let delivery = ClipboardShortcutDelivery.of(shortcut: actionID)
         // An image on the clipboard is pinned as-is: no render, no Core, no status.
@@ -390,10 +415,54 @@ struct OutputPreview {
         case "paste-qr": title = tr("Create QR code", "生成二维码")
         default: title = tr("Create video", "生成视频")
         }
-        // Pin renders exactly like ⌘⌥1 (same action, frame and template
+        // Pin renders exactly like Paste as image (same action, frame and template
         // preferences, so a prepared-on-copy card is a cache hit).
-        execute(actionID: ClipboardShortcutDelivery.renderAction(shortcut: actionID), title: title, text: text, direct: true, delivery: delivery)
+        let renderAction = ClipboardShortcutDelivery.renderAction(shortcut: actionID)
+        let reuse = prepared.flatMap { $0.text == text && $0.actionID == renderAction ? $0.task : nil }
+        execute(actionID: renderAction, title: title, text: text, direct: true, delivery: delivery, prepared: reuse)
         showTaskStatus?()
+    }
+
+    /// What the "Paste as…" chooser can work with right now, read the same
+    /// way the media shortcuts read it: text only when it may be used (not
+    /// concealed, not from an excluded app), an image for pin.
+    func chooserSnapshot() -> ChooserSnapshot {
+        let board = NSPasteboard.general
+        let changeCount = board.changeCount
+        let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        var text: String?
+        if ClipboardMonitor.shouldRecord(types: (board.types ?? []).map(\.rawValue), bundleID: app, excludedApps: monitor.excludedApps),
+           let value = board.string(forType: .string), board.changeCount == changeCount,
+           !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            text = value
+        }
+        let image = PinImage.read(from: board)
+        return ChooserSnapshot(clipboard: text != nil ? .text : image != nil ? .image : .none, text: text, image: image)
+    }
+
+    /// Renders the image card for `text` exactly as Paste as image would
+    /// (same action, frame, template preferences, disabled templates, font
+    /// and signature), so a card prepared on copy comes back at once. Never
+    /// cancelled: cancelling a Core request stops the shared Core.
+    func startCardPreview(text: String) -> PreparedRender? {
+        guard !busy, let core else { return nil }
+        let actionID = "paste-card"
+        let input = mediaInput(actionID: actionID, text: text, frame: nil, options: nil)
+        let task = Task { () throws -> CoreActionResponse in
+            try await self.configureCore()
+            let kind = self.actions.first(where: { $0.id == actionID })?.output
+            let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)
+            return try await core.runAction(action: actionID, input: input, timeout: timeout)
+        }
+        return PreparedRender(text: text, actionID: actionID, task: task)
+    }
+
+    /// The input every media render sends for `actionID`.
+    private func mediaInput(actionID: String, text: String, frame: String?, options: CoreTemplateOptions?) -> CoreActionInput {
+        CoreActionInput(text: text, aspect: frame ?? defaultFrame(actionID: actionID),
+            template: options, templatePreferences: settings?.templatePreferences,
+            disabledTemplates: settings?.disabledTemplates, templateFont: settings?.templateFont,
+            templateSignature: settings?.templateSignature)
     }
 
     func templateName(_ spec: CoreTemplateSpec) -> String { isChinese ? spec.nameZh : spec.name }
@@ -447,7 +516,8 @@ struct OutputPreview {
     private func execute(actionID: String, title: String, text: String, direct: Bool,
                          delivery: ClipboardShortcutDelivery = .paste,
                          options: CoreTemplateOptions? = nil, frame: String? = nil,
-                         keepPreview: Bool = false, rememberVariant: Bool = false) {
+                         keepPreview: Bool = false, rememberVariant: Bool = false,
+                         prepared: Task<CoreActionResponse, Error>? = nil) {
         actionRevision += 1
         let revision = actionRevision
         error = nil; notice = nil; busy = true; needsAccessibility = false
@@ -466,24 +536,28 @@ struct OutputPreview {
                 try await configureCore()
                 try Task.checkCancellation()
                 let requestedFrame = frame ?? defaultFrame(actionID: actionID)
-                let input = CoreActionInput(text: text, aspect: requestedFrame,
-                    template: options, templatePreferences: settings?.templatePreferences,
-                    disabledTemplates: settings?.disabledTemplates, templateFont: settings?.templateFont,
-                    templateSignature: settings?.templateSignature)
+                let input = mediaInput(actionID: actionID, text: text, frame: requestedFrame, options: options)
                 taskStatus = title + "…"
                 let kind = actions.first(where: { $0.id == actionID })?.output
                 let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)
-                guard let response = try await core?.runAction(action: actionID, input: input, timeout: timeout, onState: { [weak self] state in
-                    Task { @MainActor in
-                        guard let self, self.busy, self.actionRevision == revision else { return }
-                        switch state {
-                        case .accepted: self.taskStatus = self.tr("Accepted…", "已接收任务…")
-                        case .running: self.taskStatus = title + "…"
-                        case .completed: self.taskStatus = self.tr("Finishing…", "正在完成…")
-                        case .failed: break
+                let response: CoreActionResponse
+                if let prepared {
+                    // The chooser already asked for this exact render.
+                    response = try await prepared.value
+                } else {
+                    guard let answer = try await core?.runAction(action: actionID, input: input, timeout: timeout, onState: { [weak self] state in
+                        Task { @MainActor in
+                            guard let self, self.busy, self.actionRevision == revision else { return }
+                            switch state {
+                            case .accepted: self.taskStatus = self.tr("Accepted…", "已接收任务…")
+                            case .running: self.taskStatus = title + "…"
+                            case .completed: self.taskStatus = self.tr("Finishing…", "正在完成…")
+                            case .failed: break
+                            }
                         }
-                    }
-                }) else { return }
+                    }) else { return }
+                    response = answer
+                }
                 if !Task.isCancelled {
                     output = OutputPreview(title: title, text: response.result.text,
                                            url: response.result.path.map { URL(fileURLWithPath: $0) },

@@ -3,7 +3,8 @@ import AppKit
 import PeesutoKit
 
 /// First-run welcome (settings.json `onboarding_version`). Three steps:
-/// what it is, the Accessibility permission, the two shortcuts to remember.
+/// what it is, the Accessibility permission, the two shortcuts to remember
+/// (Paste as… and clipboard history).
 /// Return continues, ← / → move between steps. Preferences are left at
 /// their defaults; everything is in Settings.
 struct OnboardingView: View {
@@ -121,7 +122,20 @@ private struct StepTitle: View {
     }
 }
 
-/// Keys as macOS menus and Settings draw them: glyphs on quiet caps.
+/// One key as macOS menus and Settings draw it: a glyph on a quiet cap.
+struct Keycap: View {
+    let label: String
+    var body: some View {
+        Text(label)
+            .font(.system(size: 12, weight: .medium))
+            .frame(minWidth: 22, minHeight: 22)
+            .padding(.horizontal, label.count > 1 ? 6 : 0)
+            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
+    }
+}
+
+/// An accelerator as a row of keycaps.
 struct KeycapRow: View {
     let accelerator: String
     let disabledTitle: String
@@ -131,14 +145,7 @@ struct KeycapRow: View {
             Text(disabledTitle).font(.system(size: 12)).foregroundColor(.secondary)
         } else {
             HStack(spacing: 3) {
-                ForEach(Array(glyphs.enumerated()), id: \.offset) { item in
-                    Text(item.element)
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(minWidth: 22, minHeight: 22)
-                        .padding(.horizontal, item.element.count > 1 ? 6 : 0)
-                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.06)))
-                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
-                }
+                ForEach(Array(glyphs.enumerated()), id: \.offset) { item in Keycap(label: item.element) }
             }
             .accessibilityElement(children: .ignore).accessibilityLabel(glyphs.joined())
         }
@@ -163,15 +170,15 @@ private struct WelcomeStep: View {
     var body: some View {
         VStack(spacing: 36) {
             StepTitle(title: model.tr("Copy text, paste a card", "复制文字，粘贴成卡片"),
-                      subtitle: model.tr("Peesuto keeps your clipboard history.\nOne shortcut turns what you copied into an image, GIF or video.",
-                                         "Peesuto 会记住你复制过的内容。\n按一个快捷键，就能把复制的文字变成图片、GIF 或视频。"))
-            PasteDemo(accelerator: model.shortcuts["paste-card"] ?? "", offTitle: model.tr("Off", "未启用"))
+                      subtitle: model.tr("Peesuto keeps your clipboard history.\nOne shortcut, then one key, turns what you copied into an image, GIF or video.",
+                                         "Peesuto 会记住你复制过的内容。\n按一个快捷键再选一下，就能把复制的文字变成图片、GIF 或视频。"))
+            PasteDemo(accelerator: model.shortcuts[MediaShortcuts.chooserID] ?? "", offTitle: model.tr("Off", "未启用"))
         }
     }
 }
 
-/// A line of copied text, the image shortcut, then the card that replaces
-/// it. Loops quietly; with Reduce Motion it shows only the end state.
+/// A line of copied text, the chooser shortcut and Return (image), then the
+/// card that replaces it. Loops quietly; with Reduce Motion it shows only the end state.
 private struct PasteDemo: View {
     let accelerator: String
     let offTitle: String
@@ -201,11 +208,15 @@ private struct PasteDemo: View {
                 .opacity(phase == 2 ? 1 : 0)
             }
             .frame(width: 320, height: 174)
-            KeycapRow(accelerator: accelerator, disabledTitle: offTitle)
+            HStack(spacing: 8) {
+                KeycapRow(accelerator: accelerator, disabledTitle: offTitle)
+                Image(systemName: "arrow.right").font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
+                Keycap(label: PasteChoice.image.keyLabel)
+            }
                 .opacity(phase >= 1 ? 1 : 0)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("“\(line)” → \(MediaShortcuts.glyphs(accelerator).joined())")
+        .accessibilityLabel("“\(line)” → \(MediaShortcuts.glyphs(accelerator).joined()) \(PasteChoice.image.keyLabel)")
         .task { await loop() }
     }
 
@@ -281,11 +292,11 @@ private struct ReadyStep: View {
         let shortcuts = model.shortcuts
         VStack(spacing: 36) {
             StepTitle(title: model.tr("You’re all set", "准备好了"),
-                      subtitle: model.tr("Copy some text, click where it should go, and press the shortcut.",
-                                         "复制一段文字，点到要粘贴的位置，再按快捷键。"))
+                      subtitle: model.tr("Copy some text, click where it should go, press the shortcut and pick a format.",
+                                         "复制一段文字，点到要粘贴的位置，按快捷键再选格式。"))
             VStack(spacing: 14) {
                 InsetGroup {
-                    row(model.tr("Paste as image", "粘贴为图片"), shortcuts["paste-card"])
+                    row(model.tr("Paste as…", "粘贴为…"), shortcuts[MediaShortcuts.chooserID])
                     Divider().padding(.horizontal, 12)
                     row(model.tr("Open clipboard history", "打开剪贴板历史"), shortcuts["panel"])
                 }
