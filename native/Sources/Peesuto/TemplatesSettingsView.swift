@@ -133,7 +133,7 @@ struct TemplatesSettingsView: View {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, Color.accentColor).font(.system(size: 15)).padding(4)
                     }
                 }
-                Text(model.isChinese ? variant.nameZh : variant.name).font(.system(size: 11)).foregroundColor(selected ? .primary : .secondary).lineLimit(1)
+                Text(model.variantName(variant)).font(.system(size: 11)).foregroundColor(selected ? .primary : .secondary).lineLimit(1)
             }
             .frame(width: 92)
             .contentShape(Rectangle())

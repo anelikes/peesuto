@@ -83,11 +83,11 @@ final class MediaShortcutsTests: XCTestCase {
 
     func testQRTooLongMessage() {
         let failure = CoreError(kind: "compose", message: "too long", code: "qr-too-long")
-        XCTAssertEqual(ComposeFailureText.message(failure, tr: { _, zh in zh }),
+        XCTAssertEqual(ComposeFailureText.message(failure, tr: Localizer(.chinese)),
                        "内容太长，放不进一个二维码（大约 950 个汉字或 2900 个英文字符以内）。")
-        XCTAssertTrue(ComposeFailureText.message(failure, tr: { en, _ in en }).contains("too long for one QR code"))
+        XCTAssertTrue(ComposeFailureText.message(failure, tr: Localizer(.english)).contains("too long for one QR code"))
         let overflow = CoreError(kind: "compose", message: "overflow", code: "overflow")
-        XCTAssertTrue(ComposeFailureText.message(overflow, tr: { en, _ in en }).hasPrefix("This content could not fit safely"))
+        XCTAssertTrue(ComposeFailureText.message(overflow, tr: Localizer(.english)).hasPrefix("This content could not fit safely"))
     }
 }
 

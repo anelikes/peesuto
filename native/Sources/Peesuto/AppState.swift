@@ -104,12 +104,19 @@ struct ChooserSnapshot {
             let settings = try SettingsStore(directory: directory)
             self.settings = settings
             language = settings.language
+            // Preview only, for screenshots: --language en|zh-CN|ja (not saved).
+            if preview, let index = CommandLine.arguments.firstIndex(of: "--language"), index + 1 < CommandLine.arguments.count,
+               UILanguage(rawValue: CommandLine.arguments[index + 1]) != nil {
+                language = CommandLine.arguments[index + 1]
+            }
             offline = settings.providers["offline"] as? Bool ?? false
             panelPinned = settings.bool("panel_pinned")
             // Once per shortcut model: every binding goes back to the defaults (⌥V chooser, ⇧⌥V history).
             if (try? settings.migrateShortcutsIfNeeded()) == true, !preview {
-                notice = tr("Shortcuts changed: \(Self.keys(DefaultShortcuts.chooser)) opens Paste as…, \(Self.keys(DefaultShortcuts.panel)) opens clipboard history.",
-                            "快捷键已更新：\(Self.keys(DefaultShortcuts.chooser)) 打开「粘贴为…」，\(Self.keys(DefaultShortcuts.panel)) 打开剪贴板历史。")
+                let chooser = Self.keys(DefaultShortcuts.chooser), panel = Self.keys(DefaultShortcuts.panel)
+                notice = tr("Shortcuts changed: \(chooser) opens Paste as…, \(panel) opens clipboard history.",
+                            "快捷键已更新：\(chooser) 打开「粘贴为…」，\(panel) 打开剪贴板历史。",
+                            ja: "ショートカットが変わりました：\(chooser) で「形式を選んでペースト…」、\(panel) でクリップボード履歴を開きます。")
             }
             if preview {
                 let history = try HistoryStore(directory: directory, key: Data(repeating: 0x42, count: 32))
@@ -259,9 +266,11 @@ struct ChooserSnapshot {
         return base + "\n" + tr("Core: ", "核心：") + detail
     }
 
-    func tr(_ english: String, _ chinese: String) -> String { Language.text(english, chinese, preference: language) }
+    var localizer: Localizer { Localizer(preference: language) }
+    func tr(_ english: String, _ chinese: String) -> String { localizer(english, chinese) }
+    /// For text built by interpolation, which the Japanese table cannot look up.
+    func tr(_ english: String, _ chinese: String, ja japanese: String) -> String { localizer(english, chinese, ja: japanese) }
     var selected: ClipRecord? { items.first { $0.id == selectedID } }
-    var isChinese: Bool { Language.isChinese(language) }
     /// An accelerator as glyphs, "⌥V"; empty when unbound.
     static func keys(_ accelerator: String) -> String { MediaShortcuts.glyphs(accelerator).joined() }
     var shortcuts: [String: String] {
@@ -465,7 +474,7 @@ struct ChooserSnapshot {
             templateSignature: settings?.templateSignature)
     }
 
-    func templateName(_ spec: CoreTemplateSpec) -> String { isChinese ? spec.nameZh : spec.name }
+    func templateName(_ spec: CoreTemplateSpec) -> String { tr(spec.name, spec.nameZh) }
     /// The template list for Settings, from Core when it has not been fetched yet; false when Core cannot answer.
     @discardableResult func loadTemplates() async -> Bool {
         if !templates.isEmpty { return true }
@@ -475,9 +484,9 @@ struct ChooserSnapshot {
     }
     /// A layout failure, told apart by its reason: characters the font lacks,
     /// nothing to draw, or content that really does not fit.
-    func composeFailureMessage(_ failure: CoreError) -> String { ComposeFailureText.message(failure, tr: tr) }
+    func composeFailureMessage(_ failure: CoreError) -> String { ComposeFailureText.message(failure, tr: localizer) }
 
-    func variantName(_ variant: CoreTemplateVariant) -> String { isChinese ? variant.nameZh : variant.name }
+    func variantName(_ variant: CoreTemplateVariant) -> String { tr(variant.name, variant.nameZh) }
     func motionName(_ motion: String) -> String {
         switch motion {
         case "typewriter": return tr("Typewriter", "打字机")

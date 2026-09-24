@@ -43,8 +43,9 @@ struct SettingsView: View {
                 category(0, "General", "通用", "slider.horizontal.3")
                 category(3, "Shortcuts", "快捷键", "keyboard")
                 category(1, "AI & actions", "AI 与动作", "sparkles")
-                category(2, "History & privacy", "历史与隐私", "lock.shield")
-                category(4, "Privacy & precompose", "隐私与预合成", "eye.slash")
+                // Japanese breaks between any two kana; the sidebar labels break at the phrase.
+                category(2, "History & privacy", "历史与隐私", "lock.shield", ja: "履歴と\nプライバシー")
+                category(4, "Privacy & precompose", "隐私与预合成", "eye.slash", ja: "プライバシーと\n事前生成")
                 category(5, "Templates", "模板", "square.grid.2x2")
                 Spacer()
                 Text(model.tr("Native preview", "原生预览版")).font(.system(size: 10)).foregroundColor(.secondary).padding(12)
@@ -117,9 +118,9 @@ struct SettingsView: View {
             }
     }
 
-    private func category(_ id: Int, _ en: String, _ zh: String, _ symbol: String) -> some View {
+    private func category(_ id: Int, _ en: String, _ zh: String, _ symbol: String, ja: String? = nil) -> some View {
         Button { section = id; feedback = nil } label: {
-            Label(model.tr(en, zh), systemImage: symbol).font(.system(size: 12, weight: .medium))
+            Label(ja.map { model.tr(en, zh, ja: $0) } ?? model.tr(en, zh), systemImage: symbol).font(.system(size: 12, weight: .medium))
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
                 .background(RoundedRectangle(cornerRadius: 7).fill(section == id ? Color.accentColor.opacity(0.12) : .clear))
                 // A plain button only hit-tests what it draws; the whole row must respond.
@@ -131,8 +132,9 @@ struct SettingsView: View {
             field(model.tr("Language", "语言")) {
                 Picker("", selection: Binding(get: { model.language }, set: { model.setLanguage($0) })) {
                     Text(model.tr("Follow system", "跟随系统")).tag("system")
-                    Text("简体中文").tag("zh-CN")
                     Text("English").tag("en")
+                    Text("简体中文").tag("zh-CN")
+                    Text("日本語").tag("ja")
                 }.labelsHidden().accessibilityLabel(model.tr("Language", "语言"))
             }
             Toggle(model.tr("Suggest relevant history", "推荐相关历史记录"), isOn: $smart)
@@ -167,7 +169,7 @@ struct SettingsView: View {
                 Text(model.tr("Accessibility allows Peesuto to restore focus and paste. Copy works without it.", "辅助功能权限用于恢复焦点和粘贴。未授权时仍可复制。"))
                     .font(.system(size: 12)).foregroundColor(.secondary)
                 HStack {
-                    Text(model.tr(model.trusted ? "Access granted" : "Access not granted", model.trusted ? "已授权" : "尚未授权")).font(.system(size: 12)).foregroundColor(.secondary)
+                    Text(model.trusted ? model.tr("Access granted", "已授权") : model.tr("Access not granted", "尚未授权")).font(.system(size: 12)).foregroundColor(.secondary)
                     Spacer()
                     Button(model.tr("Open permissions", "前往授权")) {
                         if !model.previewMode { _ = PasteController.requestAccessibility() }
@@ -231,8 +233,10 @@ struct SettingsView: View {
     }
     private var shortcutSettings: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(model.tr("Copy text, press \(AppState.keys(shortcuts[MediaShortcuts.chooserID] ?? "")) where it should go, then choose image, GIF, video, QR code or pin.",
-                          "复制文字，在要粘贴的地方按 \(AppState.keys(shortcuts[MediaShortcuts.chooserID] ?? ""))，再选图片、GIF、视频、二维码或贴到屏幕。"))
+            let keys = AppState.keys(shortcuts[MediaShortcuts.chooserID] ?? "")
+            Text(model.tr("Copy text, press \(keys) where it should go, then choose image, GIF, video, QR code or pin.",
+                          "复制文字，在要粘贴的地方按 \(keys)，再选图片、GIF、视频、二维码或贴到屏幕。",
+                          ja: "テキストをコピーし、ペーストしたい場所で \(keys) を押してから、画像、GIF、ビデオ、QR コード、ピン留めのいずれかを選びます。"))
                 .font(.system(size: 12)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             shortcutRow(MediaShortcuts.chooserID, "Paste as…", "粘贴为…", symbol: "rectangle.stack")
             shortcutRow("panel", "Open clipboard history", "打开剪贴板历史", symbol: "clock.arrow.circlepath")
@@ -331,7 +335,7 @@ struct SettingsView: View {
             field(model.tr("Text generation", "文本生成")) {
                 Picker("", selection: $generator) {
                     Text(model.tr("Not configured", "暂不配置")).tag("none")
-                    Text("OpenAI compatible / Ollama").tag("openai-compatible")
+                    Text(model.tr("OpenAI compatible / Ollama", "OpenAI 兼容 / Ollama")).tag("openai-compatible")
                     Text("Anthropic").tag("anthropic")
                     ForEach(JevService.allCases.filter(\.hasGenerator)) { Text($0.label).tag($0.rawValue) }
                     if hostedServiceAvailable || generator == "hosted" { Text(model.tr("Hosted", "托管服务")).tag("hosted") }
@@ -365,7 +369,7 @@ struct SettingsView: View {
             if ["laya", "proxy", "hosted"].contains(decider) {
                 TextField(model.tr("Endpoint URL", "服务地址"), text: $deciderURL).textFieldStyle(.roundedBorder)
             }
-            if decider == "cloudflare" { TextField("Account ID", text: $accountID).textFieldStyle(.roundedBorder) }
+            if decider == "cloudflare" { TextField(model.tr("Account ID", "账户 ID"), text: $accountID).textFieldStyle(.roundedBorder) }
             if ["proxy", "hosted", "cloudflare"].contains(decider) {
                 SecureField(model.tr("New token (leave blank to keep existing)", "新令牌（留空保留现有令牌）"), text: $deciderKey).textFieldStyle(.roundedBorder)
             }
@@ -387,8 +391,9 @@ struct SettingsView: View {
     private func serviceKey(_ service: JevService, text: Binding<String>) -> some View {
         let saved = keyRevision >= 0 && KeychainSecrets.has(name: service.keychainName)
         return VStack(alignment: .leading, spacing: 5) {
-            SecureField(saved ? model.tr("\(service.label) key saved (enter a new one to replace it)", "已保存 \(service.label) 密钥（输入新密钥可替换）")
-                              : model.tr("\(service.label) API key", "\(service.label) API 密钥"), text: text).textFieldStyle(.roundedBorder)
+            SecureField(saved ? model.tr("\(service.label) key saved (enter a new one to replace it)", "已保存 \(service.label) 密钥（输入新密钥可替换）",
+                                         ja: "\(service.label) のキーは保存済み（置き換えるには新しいキーを入力）")
+                              : model.tr("\(service.label) API key", "\(service.label) API 密钥", ja: "\(service.label) の API キー"), text: text).textFieldStyle(.roundedBorder)
             HStack(spacing: 4) {
                 Text(service.hasGenerator ? model.tr("The same key serves Jev and text generation.", "同一个密钥可同时用于 Jev 和文本生成。")
                                           : model.tr("Used for Jev only.", "仅用于 Jev。"))

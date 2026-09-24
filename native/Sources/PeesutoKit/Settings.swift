@@ -72,7 +72,7 @@ public final class SettingsStore {
     /// Saves related settings together so shortcut bindings cannot be partially persisted.
     public func setValues(_ updates: [String: Any]) throws {
         lock.lock(); defer { lock.unlock() }
-        if let language = updates["language"], !["system", "en", "zh-CN"].contains(language as? String ?? "") { throw SettingsError.invalidLanguage }
+        if let language = updates["language"], !UILanguage.settingValues.contains(language as? String ?? "") { throw SettingsError.invalidLanguage }
         let url = directory.appendingPathComponent("settings.json")
         var next = try Self.read(url)
         for (key, value) in updates { next[key] = value }
@@ -384,13 +384,14 @@ public enum MediaShortcuts {
 
 /// User-facing text for a Core "compose" failure, told apart by its code.
 public enum ComposeFailureText {
-    public static func message(_ failure: CoreError, tr: (String, String) -> String) -> String {
+    public static func message(_ failure: CoreError, tr: Localizer) -> String {
         switch failure.code {
         case "unsupported-script":
             let list = failure.characterLabels.joined(separator: ", ")
             return list.isEmpty
                 ? tr("The card font cannot draw some characters in this text. Nothing was rendered or removed.", "卡片字体无法显示这段文字中的部分字符，未生成也未删减内容。")
-                : tr("The card font cannot draw: \(list). Remove them and retry; nothing was removed for you.", "卡片字体无法显示：\(list)。请删去后重试；没有自动删减内容。")
+                : tr("The card font cannot draw: \(list). Remove them and retry; nothing was removed for you.", "卡片字体无法显示：\(list)。请删去后重试；没有自动删减内容。",
+                     ja: "カードのフォントでは次の文字を表示できません：\(list)。削除してからもう一度お試しください。自動では何も削除していません。")
         case "empty":
             return tr("There is no text to render.", "没有可生成的文字。")
         case "catalog":

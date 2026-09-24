@@ -70,7 +70,7 @@ struct PanelView: View {
             if model.items.isEmpty {
                 VStack(spacing: 9) {
                     Image(systemName: "doc.on.clipboard").font(.system(size: 25)).foregroundColor(.secondary)
-                    Text(model.tr(model.query.isEmpty ? "Copy something to begin" : "No matches", model.query.isEmpty ? "复制内容，从这里开始" : "没有匹配的内容"))
+                    Text(model.query.isEmpty ? model.tr("Copy something to begin", "复制内容，从这里开始") : model.tr("No matches", "没有匹配的内容"))
                         .font(.system(size: 12)).foregroundColor(.secondary)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -140,7 +140,8 @@ struct PanelView: View {
                 if let selection = output.template { templateControls(selection, format: output.format ?? "png", frame: output.usedFrame) }
                 if let failure = output.template?.decisionError {
                     Label(model.tr("The AI style pick was unavailable (\(failure.kind)), so local rules chose this template.",
-                                   "AI 风格选择暂不可用（\(failure.kind)），已由本地规则选择模板。"), systemImage: "info.circle")
+                                   "AI 风格选择暂不可用（\(failure.kind)），已由本地规则选择模板。",
+                                   ja: "AI によるスタイル選択を利用できなかったため（\(failure.kind)）、ローカルルールでテンプレートを選びました。"), systemImage: "info.circle")
                         .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                         .help(failure.message)
                 }
@@ -273,7 +274,7 @@ struct PanelView: View {
     private var footer: some View {
         HStack(spacing: 8) {
             Circle().fill(model.paused ? Color.orange : Color.secondary.opacity(0.5)).frame(width: 5, height: 5)
-            Text(model.notice ?? (model.previewMode ? model.tr("Preview · sample history", "预览版 · 示例历史") : model.tr(model.paused ? "History paused" : "Stored on this Mac", model.paused ? "已暂停记录" : "历史保存在本机")))
+            Text(model.notice ?? (model.previewMode ? model.tr("Preview · sample history", "预览版 · 示例历史") : (model.paused ? model.tr("History paused", "已暂停记录") : model.tr("Stored on this Mac", "历史保存在本机"))))
                 .lineLimit(1)
             Spacer()
             Text("↑ ↓").font(.system(size: 11, design: .monospaced))

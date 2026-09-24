@@ -31,8 +31,11 @@ final class ClipboardPanel: NSPanel {
         let preview = CommandLine.arguments.contains("--preview") || Bundle.main.object(forInfoDictionaryKey: "PeesutoPreview") as? Bool == true
         if !preview, NSRunningApplication.runningApplications(withBundleIdentifier: "com.peesuto.desktop").contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
             let alert = NSAlert()
-            alert.messageText = "Peesuto is already running / Peesuto 已在运行"
-            alert.informativeText = "Quit the other version before opening this build. 两个版本不能同时使用同一历史记录。"
+            // Before settings are read: the system language decides.
+            let tr = Localizer(preference: "system")
+            alert.messageText = tr("Peesuto is already running", "Peesuto 已在运行")
+            alert.informativeText = tr("Quit the other version before opening this build. Both cannot use the same history at once.",
+                                       "请先退出另一个版本再打开此版本。两个版本不能同时使用同一历史记录。")
             alert.runModal()
             NSApp.terminate(nil)
             return
@@ -76,7 +79,8 @@ final class ClipboardPanel: NSPanel {
             }
         }
         // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id], --pin-sample, --pin-panel,
-        // --chooser-sample (the Paste as… chooser over sample text), --chooser-image (with an image on the clipboard instead).
+        // --chooser-sample (the Paste as… chooser over sample text), --chooser-image (with an image on the clipboard instead),
+        // --language en|zh-CN|ja (read by AppState; not saved).
         let arguments = CommandLine.arguments
         if preview, arguments.contains("--pin-panel") { model.panelPinned = true }
         func argument(_ name: String) -> Int? {

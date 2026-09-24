@@ -208,8 +208,8 @@ struct PrivacySettingsView: View {
             ForEach(state.builtins) { builtin in
                 Toggle(isOn: Binding(get: { state.isEnabled(builtin) }, set: { state.setEnabled(builtin, $0) })) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(model.isChinese ? builtin.nameZh : builtin.name).font(.system(size: 12))
-                        let description = model.isChinese ? builtin.descriptionZh : builtin.description
+                        Text(model.tr(builtin.name, builtin.nameZh)).font(.system(size: 12))
+                        let description = builtin.description.isEmpty ? "" : model.tr(builtin.description, builtin.descriptionZh)
                         if !description.isEmpty { Text(description).font(.system(size: 10)).foregroundColor(.secondary) }
                     }
                 }.toggleStyle(.checkbox)
@@ -304,8 +304,8 @@ private struct RuleEditor: View {
                 Text(model.tr("Keywords (one per line)", "关键词（每行一个）")).tag("keywords")
                 Text(model.tr("Regex", "正则")).tag("regex")
             }
-            Text(model.tr(draft.match == "keywords" ? "Keywords, one per line" : draft.match == "regex" ? "Regular expression" : "Text to match",
-                          draft.match == "keywords" ? "关键词，每行一个" : draft.match == "regex" ? "正则表达式" : "要匹配的文字"))
+            Text(draft.match == "keywords" ? model.tr("Keywords, one per line", "关键词，每行一个")
+                 : draft.match == "regex" ? model.tr("Regular expression", "正则表达式") : model.tr("Text to match", "要匹配的文字"))
                 .font(.system(size: 11, weight: .medium))
             TextEditor(text: $draft.pattern).font(.system(size: 11, design: .monospaced))
                 .frame(height: draft.match == "keywords" ? 80 : 44)
