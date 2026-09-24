@@ -61,7 +61,7 @@ const EXTRA: readonly TemplateContent[] = [
     { label: "留存", value: "41%", delta: "−2pp" }, { label: "NPS", value: "61" }, { label: "Stars", value: "1,204", delta: "0" },
   ] },
   { kind: "lyrics", title: "静夜思", credit: "李白", poem: true, stanzas: [{ lines: [{ text: "床前明月光，疑是地上霜。" }, { text: "举头望明月，低头思故乡。" }] }] },
-  { kind: "lyrics", stanzas: [{ lines: [{ text: "We were running through the night, never looking back" }, { text: "Oh", emphasis: [[0, 2]] }, { text: "我想起花瓣试着掉落", note: "a note under the line" }] },
+  { kind: "lyrics", stanzas: [{ lines: [{ text: "We were counting every bridge back home, one by one" }, { text: "Oh", emphasis: [[0, 2]] }, { text: "我听见心跳慢慢靠近", note: "a note under the line" }] },
     { lines: Array.from({ length: 9 }, (_, i) => ({ text: `第 ${i + 1} 行，一直唱到天亮` })) }] },
   { kind: "info", title: "张三", fields: [{ value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" }] },
 ];

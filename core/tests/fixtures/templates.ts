@@ -40,9 +40,9 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
   { kind: "stats", title: "本周数据", metrics: [
     { label: "日活", value: "12,480", delta: "+8%" }, { label: "Revenue", value: "$48.2k", delta: "−3.1% WoW" }, { label: "转化率", value: "3.2%" },
   ] },
-  { kind: "lyrics", title: "晴天", credit: "Peesuto", stanzas: [
-    { label: "[Verse]", lines: [{ text: "故事的小黄花", at: 12340, until: 15800 }, { text: "I remember the dawn", breaks: [11], at: 15800, until: 19200 }] },
-    { lines: [{ text: "透明な風が吹いて", emphasis: [[0, 2]], note: "とうめい" }, { text: "Hold on to me!", at: 22600 }] },
+  { kind: "lyrics", title: "纸飞机", credit: "Peesuto", stanzas: [
+    { label: "[Verse]", lines: [{ text: "旧站台的白铃兰", at: 12340, until: 15800 }, { text: "I remember the dawn", breaks: [11], at: 15800, until: 19200 }] },
+    { lines: [{ text: "透明な傘をたたんで", emphasis: [[0, 2]], note: "とうめい" }, { text: "Stay awake with me!", at: 22600 }] },
   ] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];

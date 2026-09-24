@@ -10,7 +10,7 @@ final class JizuraHandoffTests: XCTestCase {
 
     func testLyricsAreCopiedAsWrittenWithTheirMarkup() {
         XCTAssertFalse(JizuraHandoff.acceptsLyricsInURL)
-        XCTAssertEqual(JizuraHandoff.lyrics(from: "\n夜明けの色を/覚えてる\n*透明*な風が吹いて!\n\n"), "夜明けの色を/覚えてる\n*透明*な風が吹いて!")
+        XCTAssertEqual(JizuraHandoff.lyrics(from: "\n夜明けの色を/覚えてる\n*透明*な傘をたたんで!\n\n"), "夜明けの色を/覚えてる\n*透明*な傘をたたんで!")
         XCTAssertEqual(JizuraHandoff.templateID, "lyrics")
     }
 }

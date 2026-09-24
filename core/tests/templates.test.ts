@@ -736,17 +736,19 @@ describe("metrics (stats) cards", () => {
 
 describe("lyrics cards", () => {
   const lyricsOf = (text: string) => parseTemplates(text).candidates.get("lyrics");
-  const ZH = "故事的小黄花\n从出生那年就飘着\n童年的荡秋千\n随记忆一直晃到现在\n\n吹着前奏望着天空\n我想起花瓣试着掉落";
-  const JA = "夜明けの色を/覚えてる\n*透明*な風が吹いて\n君の声が聞こえた!\n\nまだ遠い空の向こう";
-  const EN = "I remember the dawn\nThe color of your eyes\nWe were running through the night\n\nOh, *hold on* to me\nHold on to me!";
-  const LRC = "[ti:晴天]\n[ar:周杰伦]\n[00:12.34]故事的小黄花\n[00:15.80]从出生那年就飘着\n[00:19.20]童年的荡秋千\n[00:22.60]随记忆一直晃到现在";
+  // Sample lyrics are written for these tests (never a real song). "夜明けの色を/覚えてる", "*透明*" and
+  // "I remember/the dawn" are the markup examples in JIZURA's README (MIT, https://github.com/852wa/JIZURA).
+  const ZH = "旧站台的白铃兰\n从那年夏天开到现在\n你折好的纸飞机\n还停在我窗前的风里\n\n踩着单车穿过雨巷\n我听见心跳慢慢靠近";
+  const JA = "夜明けの色を/覚えてる\n*透明*な傘をたたんで\n坂道の途中で笑った!\n\nまだ眠い町の灯り";
+  const EN = "I remember the dawn\nPaper lanterns on the river\nWe were counting every bridge back home\n\nOh, *stay awake* with me\nStay awake with me!";
+  const LRC = "[ti:纸飞机]\n[ar:Peesuto]\n[00:12.34]旧站台的白铃兰\n[00:15.80]从那年夏天开到现在\n[00:19.20]你折好的纸飞机\n[00:22.60]还停在我窗前的风里";
   const measure: TemplateMeasure = { width: (t, size) => [...t].reduce((n, c) => n + size * (/[\x00-\x7f]/.test(c) ? 0.6 : 1), 0), lineHeight: (size) => size * 1.45 };
   const plan = (text: string, variant: "classic" | "editorial" = "classic", motion: "none" | "reveal" | "typewriter" = "reveal", aspect: "1:1" | "9:16" | "16:9" = "1:1") =>
     ({ version: 1 as const, template: "lyrics" as const, variant, motion, aspect, sourceText: text, content: lyricsOf(text)! });
 
   test("song lyrics in Chinese, Japanese and English, with stanzas, are lyrics", () => {
     for (const text of [ZH, JA, EN]) expect(parseTemplates(text).preferred).toBe("lyrics");
-    expect(lyricsOf(ZH)).toMatchObject({ kind: "lyrics", stanzas: [{ lines: [{ text: "故事的小黄花" }, {}, {}, {}] }, { lines: [{}, { text: "我想起花瓣试着掉落" }] }] });
+    expect(lyricsOf(ZH)).toMatchObject({ kind: "lyrics", stanzas: [{ lines: [{ text: "旧站台的白铃兰" }, {}, {}, {}] }, { lines: [{}, { text: "我听见心跳慢慢靠近" }] }] });
     // Short prose stays an alternative.
     expect(parseTemplates(EN).candidates.has("text")).toBe(true);
   });
@@ -754,22 +756,22 @@ describe("lyrics cards", () => {
     expect(parseLyricLine("夜明けの色を/覚えてる")).toEqual({ text: "夜明けの色を覚えてる", breaks: [6] });
     expect(parseLyricLine("I remember/the dawn")).toEqual({ text: "I remember the dawn", breaks: [11] });
     expect(parseLyricLine("I remember / the dawn")).toEqual({ text: "I remember the dawn", breaks: [11] });
-    expect(parseLyricLine("*透明*な風が吹いて")).toEqual({ text: "透明な風が吹いて", emphasis: [[0, 2]] });
-    expect(parseLyricLine("Oh, *hold on* to me")).toEqual({ text: "Oh, hold on to me", emphasis: [[4, 11]] });
-    expect(parseLyricLine("君の声が聞こえた!|きみのこえ")).toEqual({ text: "君の声が聞こえた!", note: "きみのこえ" });
+    expect(parseLyricLine("*透明*な傘をたたんで")).toEqual({ text: "透明な傘をたたんで", emphasis: [[0, 2]] });
+    expect(parseLyricLine("Oh, *stay awake* with me")).toEqual({ text: "Oh, stay awake with me", emphasis: [[4, 14]] });
+    expect(parseLyricLine("坂道の途中で笑った!|さかみち")).toEqual({ text: "坂道の途中で笑った!", note: "さかみち" });
     // A date, a fraction or a URL keeps its slash.
     expect(parseLyricLine("9/24 the night we met")).toEqual({ text: "9/24 the night we met" });
     expect(parseLyricLine("a * b")).toEqual({ text: "a * b" });
-    expect(lyricsOf(JA)).toMatchObject({ stanzas: [{ lines: [{ text: "夜明けの色を覚えてる", breaks: [6] }, { emphasis: [[0, 2]] }, { text: "君の声が聞こえた!" }] }, { lines: [{}] }] });
+    expect(lyricsOf(JA)).toMatchObject({ stanzas: [{ lines: [{ text: "夜明けの色を覚えてる", breaks: [6] }, { emphasis: [[0, 2]] }, { text: "坂道の途中で笑った!" }] }, { lines: [{}] }] });
   });
   test("LRC: timestamps give the timing and are syntax; [ti:] and [ar:] are the title and credit; never a chat or a schedule", () => {
     const parsed = parseTemplates(LRC);
     expect(parsed.preferred).toBe("lyrics");
     expect(parsed.candidates.has("chat")).toBe(false);
     expect(parsed.candidates.has("timeline")).toBe(false);
-    expect(parsed.candidates.get("lyrics")).toEqual({ kind: "lyrics", title: "晴天", credit: "周杰伦", stanzas: [{ lines: [
-      { text: "故事的小黄花", at: 12340, until: 15800 }, { text: "从出生那年就飘着", at: 15800, until: 19200 },
-      { text: "童年的荡秋千", at: 19200, until: 22600 }, { text: "随记忆一直晃到现在", at: 22600 }] }] });
+    expect(parsed.candidates.get("lyrics")).toEqual({ kind: "lyrics", title: "纸飞机", credit: "Peesuto", stanzas: [{ lines: [
+      { text: "旧站台的白铃兰", at: 12340, until: 15800 }, { text: "从那年夏天开到现在", at: 15800, until: 19200 },
+      { text: "你折好的纸飞机", at: 19200, until: 22600 }, { text: "还停在我窗前的风里", at: 22600 }] }] });
     // Repeated stamps repeat the line in time order; an empty stamp ends a stanza; word timings are dropped.
     expect(lyricsOf("[00:01.00][00:05.00]La la\n[00:03.00]<00:03.10>Hey <00:03.50>you\n[00:07.00]\n[00:08.00]Bye now")).toMatchObject({ stanzas: [
       { lines: [{ text: "La la", at: 1000 }, { text: "Hey you", at: 3000 }, { text: "La la", at: 5000, until: 7000 }] }, { lines: [{ text: "Bye now", at: 8000 }] }] });
@@ -802,11 +804,11 @@ describe("lyrics cards", () => {
     for (const variant of ["classic", "editorial"] as const) {
       const layout = layoutTemplate(plan(JA, variant, "none"), measure);
       const drawn = layout.lines.map((l) => l.text).join("");
-      expect(drawn.replace(/\s/g, "")).toBe("夜明けの色を覚えてる透明な風が吹いて君の声が聞こえた!まだ遠い空の向こう");
+      expect(drawn.replace(/\s/g, "")).toBe("夜明けの色を覚えてる透明な傘をたたんで坂道の途中で笑った!まだ眠い町の灯り");
       expect(drawn).not.toMatch(/[*/|]/);
       const accent = layout.lines.find((l) => l.text === "透明")!;
       expect(accent.emphasis).toBe(true);
-      expect(accent.color).not.toBe(layout.lines.find((l) => l.text.includes("吹いて"))!.color);
+      expect(accent.color).not.toBe(layout.lines.find((l) => l.text.includes("たたんで"))!.color);
     }
     const poem = layoutTemplate(plan("静夜思\n李白\n床前明月光，疑是地上霜。\n举头望明月，低头思故乡。", "editorial", "none"), measure);
     // One glyph per line, in columns right to left.
