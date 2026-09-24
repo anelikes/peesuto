@@ -21,7 +21,8 @@ public enum OutputFrames {
         switch actionID {
         case "paste-card", "paste-qr": return "image"
         case "paste-gif": return "gif"
-        case "paste-video", "paste-lyric": return "video"
+        case "paste-video": return "video"
+        case "paste-lyric": return LyricOutput.defaultValue.frameKind
         default: return nil
         }
     }
@@ -65,4 +66,24 @@ extension SettingsStore {
         }
         try setValues(updates)
     }
+}
+
+/// Lyric motion's default output (Settings › Templates › Lyric motion; settings
+/// key `lyric_output`), sent to Core as paste-lyric's `input.output`. GIF by
+/// default; the result window's format menu still switches one result.
+public enum LyricOutput: String, CaseIterable, Sendable {
+    case gif, video, image
+
+    public static let settingsKey = "lyric_output"
+    public static let defaultValue = LyricOutput.gif
+
+    /// The frame kind its default frame comes from.
+    public var frameKind: String { rawValue }
+}
+
+extension SettingsStore {
+    public var lyricOutput: LyricOutput {
+        (values[LyricOutput.settingsKey] as? String).flatMap(LyricOutput.init(rawValue:)) ?? LyricOutput.defaultValue
+    }
+    public func setLyricOutput(_ output: LyricOutput) throws { try set(LyricOutput.settingsKey, value: output.rawValue) }
 }

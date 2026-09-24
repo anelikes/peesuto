@@ -113,11 +113,13 @@ public struct CoreActionInput: Codable, Sendable {
     public let templateFont: String?
     /// The card signature footer; nil or empty means none.
     public let templateSignature: String?
+    /// One of the action's `render.outputs` ("image", "gif", "video"): paste-lyric's default output.
+    public let output: String?
 
     public init(text: String, item: CoreClipItem? = nil, context: CoreContext? = nil,
                 aspect: String? = nil, fresh: Bool? = nil, template: CoreTemplateOptions? = nil,
                 templatePreferences: [String: String]? = nil, disabledTemplates: [String]? = nil, templateFont: String? = nil,
-                templateSignature: String? = nil) {
+                templateSignature: String? = nil, output: String? = nil) {
         self.text = text; self.item = item; self.context = context
         self.aspect = aspect; self.fresh = fresh
         self.template = template
@@ -125,6 +127,7 @@ public struct CoreActionInput: Codable, Sendable {
         self.disabledTemplates = disabledTemplates
         self.templateFont = templateFont
         self.templateSignature = templateSignature
+        self.output = output
     }
 }
 
@@ -168,9 +171,11 @@ public struct CoreActionMetadata: Codable, Sendable {
     public let template: CoreTemplateSelection?
     /// True when Core served a result rendered in the background; absent otherwise.
     public let precomposed: Bool?
-    /// Set when the action made another output than it names: paste-lyric's
-    /// GIF when ffmpeg is missing (`from` "video", `to` "gif", `reason` "ffmpeg").
+    /// Set when the action made another output than it was asked for: paste-lyric's
+    /// GIF when no MP4 encoder exists (`from` "video", `to` "gif", `reason` "encoder").
     public let fallback: CoreRenderFallback?
+    /// MP4 only: "native" (PeesutoEncoder, bundled) or "ffmpeg".
+    public let encoder: String?
 }
 
 public struct CoreRenderFallback: Codable, Sendable, Equatable {

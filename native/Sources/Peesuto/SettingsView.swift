@@ -252,8 +252,8 @@ struct SettingsView: View {
             shortcutRow("paste-video", "Paste as video", "粘贴为视频", symbol: "film")
             VStack(alignment: .leading, spacing: 4) {
                 shortcutRow("paste-lyric", "Paste as lyric motion", "粘贴为文字 PV", symbol: "music.note")
-                Text(model.tr("Any text as kinetic type: an MP4, or a GIF when ffmpeg is not installed. Never chosen automatically; L in the chooser, this shortcut, or the result window's template menu.",
-                              "任意文字做成动态文字视频：装了 ffmpeg 出 MP4，否则出 GIF。不参与自动选模板，只用选择器里的 L、这个快捷键或结果窗的模板菜单。"))
+                Text(model.tr("Any text as kinetic type: a GIF, a video or a poster, as set in Settings › Templates. Never chosen automatically; L in the chooser, this shortcut, or the result window's template menu.",
+                              "任意文字做成文字 PV：GIF、视频或海报，在“设置 › 模板”里选。不参与自动选模板，只用选择器里的 L、这个快捷键或结果窗的模板菜单。"))
                     .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 4) {
@@ -273,7 +273,7 @@ struct SettingsView: View {
             Divider()
             Text(model.tr("Click a shortcut and press your keys. Clear it to disable. Changes apply after saving.", "点击快捷键后直接按键录入，清除即可停用。保存后生效。"))
                 .font(.system(size: 11)).foregroundColor(.secondary)
-            Text(model.tr("The result is pasted into the app you were typing in and stays on the clipboard. Without Accessibility, or in a password field, it is only copied. Video requires ffmpeg.", "结果会粘贴到你正在输入的应用，并保留在剪贴板中。未授予辅助功能权限或在密码输入框中时只复制。视频需要 ffmpeg。"))
+            Text(model.tr("The result is pasted into the app you were typing in and stays on the clipboard. Without Accessibility, or in a password field, it is only copied.", "结果会粘贴到你正在输入的应用，并保留在剪贴板中。未授予辅助功能权限或在密码输入框中时只复制。"))
                 .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.previewMode {
                 Text(model.tr("Preview checks bindings but does not register global shortcuts.", "预览版仅检查配置，不注册全局快捷键。"))

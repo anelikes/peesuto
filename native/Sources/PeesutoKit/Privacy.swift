@@ -215,6 +215,7 @@ extension SettingsStore {
         try set("template_signature", value: "")
         try set("templates_disabled", value: [String]())
         try set("template_styles", value: [String: String]())
+        try set(LyricOutput.settingsKey, value: LyricOutput.defaultValue.rawValue)
     }
 }
 

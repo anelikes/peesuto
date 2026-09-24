@@ -403,8 +403,11 @@ public enum ComposeFailureText {
             return tr("Lyric motion is for words; code, tables and links lose their layout that way. Use Image instead.",
                       "文字 PV 适合文字；代码、表格和链接会失去版式。请改用图片。")
         case "lyric-too-long":
-            return tr("Too long for Lyric motion (at most about 30 seconds as MP4, 14 as GIF). Copy a shorter passage, or use Image for a poster of all of it.",
-                      "内容太长，放不进一段文字 PV（MP4 最长约 30 秒，GIF 约 14 秒）。请复制短一些的段落，或改用图片生成完整的海报。")
+            return tr("Too long for a Lyric motion video (about 30 seconds at most). Copy a shorter passage, or use Image for a poster of all of it.",
+                      "内容太长，放不进一段文字 PV 视频（最长约 30 秒）。请复制短一些的段落，或改用图片生成完整的海报。")
+        case "lyric-gif-too-long":
+            return tr("Too long for a Lyric motion GIF (about 14 seconds). Make it a video instead: choose MP4 in the result's format menu, or set Lyric motion's output to Video in Settings › Templates.",
+                      "内容太长，放不进文字 PV 的 GIF（约 14 秒）。请改成视频：在结果窗的格式菜单里选 MP4，或在“设置 › 模板”里把文字 PV 的输出设为视频。")
         case "qr-too-long":
             return tr("This text is too long for one QR code (keep it under about 2,900 English characters or 950 Chinese characters).",
                       "内容太长，放不进一个二维码（大约 950 个汉字或 2900 个英文字符以内）。")

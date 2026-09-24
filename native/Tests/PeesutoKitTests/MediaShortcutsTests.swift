@@ -82,8 +82,9 @@ final class MediaShortcutsTests: XCTestCase {
         XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-qr"), 300)
     }
 
-    func testLyricMotionUsesVideoFrameAndTimeout() {
-        XCTAssertEqual(OutputFrames.kind(actionID: "paste-lyric"), "video")
+    func testLyricMotionDefaultsToGIFFrameWithTheVideoTimeout() {
+        // GIF is Lyric motion's default output; the timeout covers the longest (video).
+        XCTAssertEqual(OutputFrames.kind(actionID: "paste-lyric"), "gif")
         XCTAssertEqual(CoreClient.actionTimeout(actionID: "paste-lyric"), CoreClient.actionTimeout(actionID: "paste-video"))
         XCTAssertEqual(ClipboardShortcutDelivery.of(shortcut: "paste-lyric"), .paste)
         XCTAssertEqual(ClipboardShortcutDelivery.renderAction(shortcut: "paste-lyric"), "paste-lyric")
@@ -94,10 +95,15 @@ final class MediaShortcutsTests: XCTestCase {
         XCTAssertTrue(ComposeFailureText.message(unfit, tr: Localizer(.english)).hasPrefix("Lyric motion is for words"))
         XCTAssertTrue(ComposeFailureText.message(unfit, tr: Localizer(.chinese)).hasPrefix("文字 PV 适合文字"))
         let long = CoreError(kind: "compose", message: "long", code: "lyric-too-long")
-        XCTAssertTrue(ComposeFailureText.message(long, tr: Localizer(.japanese)).hasPrefix("文字PVには長すぎます"))
-        let json = #"{"template":null,"fallback":{"from":"video","to":"gif","reason":"ffmpeg"}}"#
+        XCTAssertTrue(ComposeFailureText.message(long, tr: Localizer(.japanese)).hasPrefix("文字PVのビデオには長すぎます"))
+        // Too long for a GIF: says so and points at video, in every language.
+        let gif = CoreError(kind: "compose", message: "long", code: "lyric-gif-too-long")
+        XCTAssertTrue(ComposeFailureText.message(gif, tr: Localizer(.english)).contains("Make it a video instead"))
+        XCTAssertTrue(ComposeFailureText.message(gif, tr: Localizer(.chinese)).contains("请改成视频"))
+        XCTAssertTrue(ComposeFailureText.message(gif, tr: Localizer(.japanese)).contains("ビデオにしてください"))
+        let json = #"{"template":null,"fallback":{"from":"video","to":"gif","reason":"encoder"}}"#
         let meta = try JSONDecoder().decode(CoreActionMetadata.self, from: Data(json.utf8))
-        XCTAssertEqual(meta.fallback, CoreRenderFallback(from: "video", to: "gif", reason: "ffmpeg"))
+        XCTAssertEqual(meta.fallback, CoreRenderFallback(from: "video", to: "gif", reason: "encoder"))
         XCTAssertNil(try JSONDecoder().decode(CoreActionMetadata.self, from: Data("{}".utf8)).fallback)
     }
 

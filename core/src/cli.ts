@@ -94,7 +94,9 @@ export async function main(argv: readonly string[]): Promise<number> {
     const genCfg = generatorFromEnv(process.env);
     const generator = genCfg.kind === "none" ? null : createGenerator(genCfg);
     const render = spec.needs === "render" ? await renderDeps(str, appData) : null;
-    const result = await runAction(spec, { text, aspect: str("frame") ?? (isAspect(str("aspect")) ? str("aspect") : undefined), fresh: flags.has("fresh") }, { decider, generator, render });
+    const output = str("output");
+    if (output !== undefined && !["image", "gif", "video"].includes(output)) throw new UsageError("--output must be image, gif or video");
+    const result = await runAction(spec, { text, aspect: str("frame") ?? (isAspect(str("aspect")) ? str("aspect") : undefined), fresh: flags.has("fresh"), ...(output ? { output: output as "image" | "gif" | "video" } : {}) }, { decider, generator, render });
     if (json) console.log(JSON.stringify({ ok: true, action: spec.id, result }));
     else if (result.output === "text") console.log(result.text);
     else console.log(`${spec.id}: ${result.format} → ${result.path} (${result.ms} ms)`);
@@ -189,6 +191,7 @@ export class InputError extends Error {}
 
 const USAGE = `paste "text" [--aspect chat|doc|social] [--out file] [--json] [--fresh]
 paste --action paste-card "text" [--frame auto|1:1|4:5|16:9|9:16]   # render actions take a frame
+paste --action paste-lyric "text" [--output gif|video|image]       # MP4: the app's encoder, else ffmpeg (PEESUTO_VIDEO_ENCODER=ffmpeg forces it)
 paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY,
                                            #   PASTE_GEN_REASONING (none|low|medium|high, default learn), PASTE_GEN_TIMEOUT_MS
       [--provider rules|none|laya|proxy|cloudflare|typesafe|vercel|openrouter|hosted] [--laya-url URL] [--proxy-url URL] [--account-id ID] [--token T] [--jev-model ID] [--hosted-url URL]

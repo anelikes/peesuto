@@ -473,7 +473,23 @@ struct ChooserSnapshot {
         CoreActionInput(text: text, aspect: frame ?? defaultFrame(actionID: actionID),
             template: options, templatePreferences: settings?.templatePreferences,
             disabledTemplates: settings?.disabledTemplates, templateFont: settings?.templateFont,
-            templateSignature: settings?.templateSignature)
+            templateSignature: settings?.templateSignature,
+            output: actionID == "paste-lyric" ? lyricOutput.rawValue : nil)
+    }
+
+    /// Lyric motion's default output (Settings › Templates).
+    var lyricOutput: LyricOutput { settings?.lyricOutput ?? LyricOutput.defaultValue }
+    func lyricOutputName(_ output: LyricOutput) -> String {
+        switch output {
+        case .gif: return "GIF"
+        case .video: return tr("Video", "视频")
+        case .image: return tr("Poster", "海报")
+        }
+    }
+
+    /// What a render action will make: its declared output, or for paste-lyric the chosen one.
+    func requestOutput(actionID: String) -> String? {
+        actionID == "paste-lyric" ? lyricOutput.rawValue : actions.first(where: { $0.id == actionID })?.output
     }
 
     func templateName(_ spec: CoreTemplateSpec) -> String { tr(spec.name, spec.nameZh) }
@@ -500,7 +516,7 @@ struct ChooserSnapshot {
 
     /// The saved default frame for an action, by its output kind.
     func defaultFrame(actionID: String) -> String? {
-        let kind = OutputFrames.kind(output: actions.first(where: { $0.id == actionID })?.output) ?? OutputFrames.kind(actionID: actionID)
+        let kind = OutputFrames.kind(output: requestOutput(actionID: actionID)) ?? OutputFrames.kind(actionID: actionID)
         guard let kind else { return nil }
         return settings?.frame(kind: kind) ?? OutputFrames.defaultFrame(kind: kind)
     }
@@ -549,7 +565,7 @@ struct ChooserSnapshot {
                 let requestedFrame = frame ?? defaultFrame(actionID: actionID)
                 let input = mediaInput(actionID: actionID, text: text, frame: requestedFrame, options: options)
                 taskStatus = title + "…"
-                let kind = actions.first(where: { $0.id == actionID })?.output
+                let kind = requestOutput(actionID: actionID)
                 let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)
                 let response: CoreActionResponse
                 if let prepared {
@@ -589,16 +605,16 @@ struct ChooserSnapshot {
                             if pinOutput(output) { notice = tr("Pinned to screen", "已贴到屏幕"); hideTaskStatus?() }
                         }
                     }
-                    // Lyric motion without ffmpeg: say that it is a GIF, and why.
-                    if response.result.meta?.fallback?.reason == "ffmpeg" {
-                        let why = tr("A GIF instead of an MP4: ffmpeg is not installed (brew install ffmpeg).", "已改为 GIF：未安装 ffmpeg（brew install ffmpeg）。")
+                    // Lyric motion as video with no MP4 encoder at all (not in a normal install): say that it is a GIF.
+                    if response.result.meta?.fallback?.to == "gif" {
+                        let why = tr("A GIF instead of a video: the video encoder is unavailable.", "已改为 GIF：视频编码器不可用。")
                         notice = [notice, why].compactMap { $0 }.joined(separator: " ")
                     }
                 }
             } catch {
                 if Task.isCancelled { notice = tr("Cancelled", "已取消") }
-                else if let failure = error as? CoreError, failure.message.localizedCaseInsensitiveContains("ffmpeg") {
-                    self.error = tr("Video needs ffmpeg. Install it with Homebrew (brew install ffmpeg), then retry.", "视频需要 ffmpeg。通过 Homebrew 安装（brew install ffmpeg）后重试。")
+                else if let failure = error as? CoreError, failure.kind == "action:needs", failure.message.contains("MP4") || failure.message.contains("video encoder") {
+                    self.error = tr("Video could not be made: Peesuto's video encoder is missing. Reinstall Peesuto; PNG and GIF still work.", "无法生成视频：Peesuto 的视频编码器缺失。请重新安装 Peesuto；图片和 GIF 仍可使用。")
                 } else if let failure = error as? CoreError, failure.kind == "compose" {
                     self.error = composeFailureMessage(failure)
                 } else if let failure = error as? CoreError, failure.kind == "engine", failure.message.localizedCaseInsensitiveContains("timed out") {

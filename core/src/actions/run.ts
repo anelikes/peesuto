@@ -11,7 +11,7 @@ import type { ClipItem, Context, PickResult } from "../pick/types.ts";
 import { summarizeContext } from "../pick/summarize.ts";
 import type { RenderOptions } from "../render/card.ts";
 import type { CardDecider } from "../render/pipeline.ts";
-import { resolveFFmpeg, VideoUnavailableError } from "../render/video.ts";
+import { videoEncoderFor, VideoUnavailableError } from "../render/video.ts";
 import { decideTemplate } from "../templates/decide.ts";
 import { renderTemplate } from "../templates/render.ts";
 import { TemplateInputError } from "../templates/types.ts";
@@ -81,17 +81,22 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   if (!input.text?.trim()) throw new ActionError("input", `${spec.id}: nothing to work on`);
   if (!deps.render) throw new ActionError("needs", `${spec.id} needs the render engine; it is not available`);
   if (spec.output !== "image" && spec.output !== "gif" && spec.output !== "video") throw new ActionError("spec", `${spec.id}: a render action outputs image, gif or video`);
-  let ffmpeg: string | undefined;
-  // What this render makes: the action's output, or a GIF when a video action allows it and ffmpeg is missing.
+  // What this render makes: the action's output, the input's choice among the
+  // outputs the action allows (paste-lyric: Settings › Templates › Lyric motion),
+  // or a GIF when a video action allows it and no MP4 encoder exists at all.
   let output: "image" | "gif" | "video" = spec.output;
+  if (input.output !== undefined) {
+    if (!spec.render?.outputs?.includes(input.output)) throw new ActionError("input", `${spec.id}: output ${JSON.stringify(input.output)} is not one of ${(spec.render?.outputs ?? [spec.output]).join(", ")}`);
+    output = input.output;
+  }
   let fallback: { from: "video"; to: "gif"; reason: string } | undefined;
-  if (spec.output === "video") {
-    try { ffmpeg = resolveFFmpeg({ executable: deps.render.ffmpeg }); }
+  if (output === "video") {
+    try { videoEncoderFor(deps.render); }
     catch (error) {
       if (!(error instanceof VideoUnavailableError)) throw error;
       if (spec.render?.fallback !== "gif") throw new ActionError("needs", error.message);
       output = "gif";
-      fallback = { from: "video", to: "gif", reason: "ffmpeg" };
+      fallback = { from: "video", to: "gif", reason: "encoder" };
     }
   }
   // Absent means the output's default: images fit their content, GIF/MP4 are 1:1.
@@ -102,7 +107,7 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   try {
     decision = await decideTemplate(text, { aspect, decider: deps.decider, output,
       // A fixed-template action (paste-qr) keeps its template unless the user picks another.
-      override: input.template ?? (spec.render?.template ? { id: spec.render.template } : undefined), preferences: input.templatePreferences, disabled: input.disabledTemplates, font: input.templateFont, signature: input.templateSignature, animate: spec.render?.animate });
+      override: input.template ?? (spec.render?.template ? { id: spec.render.template } : undefined), preferences: input.templatePreferences, disabled: input.disabledTemplates, font: input.templateFont, signature: input.templateSignature, animate: output === "image" && spec.output !== "image" ? "never" : spec.render?.animate });
   } catch (error) {
     if (error instanceof TemplateInputError) throw new ActionError("input", error.message);
     throw error;
@@ -110,7 +115,7 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   const { plan, decisionSource, availableTemplates, decisionError } = decision;
   const format = output === "video" ? "mp4" : output === "gif" ? "gif" : "png";
   const render = deps.renderTemplate ?? renderTemplate;
-  const r = await render(plan, { ...deps.render, catalog: deps.catalog, format, ffmpeg, signal: control.signal, lowPriority: control.lowPriority });
+  const r = await render(plan, { ...deps.render, catalog: deps.catalog, format, signal: control.signal, lowPriority: control.lowPriority });
   // GIF/MP4 must animate unless the action is explicitly static ("never").
   if (format !== "png" && spec.render?.animate !== "never" && (r.format !== format || plan.motion === "none" || r.frames <= 1)) {
     await rm(r.path, { force: true });
@@ -118,6 +123,7 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   }
   return { output, path: r.path, format: r.format, ms: ms(), meta: {
     ...(fallback ? { fallback } : {}),
+    ...(r.encoder ? { encoder: r.encoder } : {}),
     template: { id: plan.template, variant: plan.variant, motion: plan.motion, aspect: plan.aspect, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
     lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
   } };

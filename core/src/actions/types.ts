@@ -27,7 +27,9 @@ export interface ActionSpec {
   readonly render?: { readonly aspect?: string; readonly animate?: "auto" | "always" | "never";
     /** Always this template (e.g. "qr"); no model is asked. */
     readonly template?: TemplateId;
-    /** A video action: render a GIF instead when ffmpeg is missing (the result says so in `meta.fallback`). */
+    /** Outputs `input.output` may choose instead of `output` (paste-lyric: GIF, video or a poster). */
+    readonly outputs?: readonly ("image" | "gif" | "video")[];
+    /** Video: render a GIF instead when no MP4 encoder exists — neither the app's own nor ffmpeg (the result says so in `meta.fallback`). */
     readonly fallback?: "gif" };
   /** Set on shipped actions; user files cannot claim it. */
   readonly builtin?: boolean;
@@ -52,6 +54,8 @@ export interface ActionInput {
   readonly templateSignature?: string;
   /** Templates turned off for automatic choice (Settings › Templates). */
   readonly disabledTemplates?: readonly string[];
+  /** One of the action's `render.outputs` (paste-lyric's default output, Settings › Templates › Lyric motion). */
+  readonly output?: "image" | "gif" | "video";
 }
 
 export type ActionResult =

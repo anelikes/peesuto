@@ -178,6 +178,27 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(json?["disabledTemplates"] as? [String], ["table"])
     }
 
+    func testLyricOutputIsGIFByDefaultAndReachesCore() throws {
+        let settings = try SettingsStore(directory: directory)
+        XCTAssertEqual(settings.lyricOutput, .gif, "GIF by default")
+        try settings.setLyricOutput(.video)
+        XCTAssertEqual(try SettingsStore(directory: directory).lyricOutput, .video)
+        XCTAssertEqual(LyricOutput.video.frameKind, "video")
+        XCTAssertEqual(LyricOutput.image.frameKind, "image")
+        // An unknown stored value reads as the default.
+        try settings.set(LyricOutput.settingsKey, value: "webm")
+        XCTAssertEqual(settings.lyricOutput, .gif)
+        try settings.setLyricOutput(.image)
+        try settings.resetTemplates()
+        XCTAssertEqual(try SettingsStore(directory: directory).lyricOutput, .gif)
+        // Sent as paste-lyric's input.output; absent for other actions.
+        let input = CoreActionInput(text: "x", output: "video")
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any]
+        XCTAssertEqual(json?["output"] as? String, "video")
+        let none = try JSONSerialization.jsonObject(with: JSONEncoder().encode(CoreActionInput(text: "x"))) as? [String: Any]
+        XCTAssertNil(none?["output"])
+    }
+
     func testTemplateSignatureIsOneShortLineOffByDefaultAndReachesCore() throws {
         let settings = try SettingsStore(directory: directory)
         XCTAssertEqual(settings.templateSignature, "", "off by default")

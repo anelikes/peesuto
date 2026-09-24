@@ -1074,7 +1074,9 @@ export function video(ctx: LyricsContext): LyricsResult {
   if (!fitted) { specs = pairCuts(specs, Boolean(content.prose)); transitions = planTransitions(specs); fitted = fit(specs, transitions); }
   if (!fitted) {
     const screens = specs.length, most = Math.floor((cap - T.introMs - T.finalHoldMs) / (T.minCutMs + V.transitionMs / 2));
-    throw new ComposeError("lyric-too-long", `This text needs ${screens} screens even two cuts at a time; a ${(cap / 1000).toFixed(1)} s lyric-motion ${ctx.format === "gif" ? "GIF" : "video"} holds about ${most}${content.prose ? " at a readable pace" : ""}. Copy a shorter passage, or use PNG for a poster of all of it. No content was dropped.`);
+    // A GIF is capped shorter than a video: say so and point at Video, never switch silently.
+    if (ctx.format === "gif") throw new ComposeError("lyric-gif-too-long", `This text needs ${screens} screens even two cuts at a time; a ${(cap / 1000).toFixed(1)} s lyric-motion GIF holds about ${most}${content.prose ? " at a readable pace" : ""}. Make it a video instead (up to ${(T.maxMs / 1000).toFixed(0)} s), copy a shorter passage, or use PNG for a poster of all of it. No content was dropped.`);
+    throw new ComposeError("lyric-too-long", `This text needs ${screens} screens even two cuts at a time; a ${(cap / 1000).toFixed(1)} s lyric-motion video holds about ${most}${content.prose ? " at a readable pace" : ""}. Copy a shorter passage, or use PNG for a poster of all of it. No content was dropped.`);
   }
   const { durations, tail } = fitted;
   const margin = M.margin;

@@ -283,7 +283,8 @@ struct ChooserView: View {
         case .image: return model.tr("Image", "图片")
         case .gif: return "GIF"
         case .video: return model.tr("Video", "视频")
-        case .lyric: return model.tr("Lyric motion", "文字 PV")
+        // Shows the output L makes (Settings › Templates › Lyric motion): "Lyric motion · GIF".
+        case .lyric: return model.tr("Lyric motion", "文字 PV") + " · " + model.lyricOutputName(model.lyricOutput)
         case .qr: return model.tr("QR code", "二维码")
         case .pin: return model.tr("Pin to screen", "贴到屏幕")
         case .history: return model.tr("Clipboard history", "剪贴板历史")

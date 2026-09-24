@@ -9,6 +9,7 @@ struct TemplatesSettingsView: View {
     @State private var disabled: Set<String> = []
     @State private var styles: [String: String] = [:]
     @State private var font = "maple"
+    @State private var lyricOutput = LyricOutput.defaultValue
     /// The signature as typed; saved on Return and when the field loses focus
     /// (saving each keystroke would trim a space the user is still typing).
     @State private var signature = ""
@@ -47,7 +48,7 @@ struct TemplatesSettingsView: View {
                 if let problem { Text(problem).font(.system(size: 11)).foregroundColor(.orange) }
                 Spacer()
                 Button(model.tr("Restore defaults", "恢复默认"), action: reset)
-                    .disabled(disabled.isEmpty && styles.isEmpty && font == "maple" && signature.isEmpty)
+                    .disabled(disabled.isEmpty && styles.isEmpty && font == "maple" && signature.isEmpty && lyricOutput == LyricOutput.defaultValue)
             }
         }
         .onAppear(perform: load)
@@ -110,9 +111,28 @@ struct TemplatesSettingsView: View {
                 }
             }
             .opacity(on ? 1 : 0.45)
+            if spec.id == "lyrics" { lyricOutputRow }
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
+    }
+
+    /// What L in the chooser (and the Lyric motion shortcut) makes. One result can
+    /// still switch format in the result window.
+    private var lyricOutputRow: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.tr("Default output", "默认输出")).font(.system(size: 12, weight: .medium))
+                Text(model.tr("A GIF holds about 14 seconds, a video about 30.", "GIF 最长约 14 秒，视频约 30 秒。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+            }
+            Spacer()
+            Picker("", selection: Binding(get: { lyricOutput }, set: { value in apply { try $0.setLyricOutput(value) } })) {
+                Text("GIF").tag(LyricOutput.gif)
+                Text(model.tr("Video", "视频")).tag(LyricOutput.video)
+                Text(model.tr("Poster (PNG)", "海报（PNG）")).tag(LyricOutput.image)
+            }.labelsHidden().pickerStyle(.segmented).fixedSize()
+        }
     }
 
     private func styleTile(_ spec: CoreTemplateSpec, _ variant: CoreTemplateVariant) -> some View {
@@ -184,6 +204,7 @@ struct TemplatesSettingsView: View {
         disabled = Set(settings.disabledTemplates)
         styles = settings.templatePreferences ?? [:]
         font = settings.templateFont
+        lyricOutput = settings.lyricOutput
         signature = settings.templateSignature
     }
 

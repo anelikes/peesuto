@@ -57,10 +57,14 @@ jobs:
           mkdir -p .work
           cp -R engine .work/template-engine
           PEESUTO_TEMPLATE_ENGINE=.work/template-engine bun test core/tests/template-engine.test.ts
+      # Builds PeesutoEncoder first; the bundle's render probe encodes MP4 through it.
       - name: native app bundle
         run: bun scripts/build-native.ts --engine engine
-      - name: standalone native bundle smoke (PNG and GIF)
-        run: native/.build/release/PeesutoSmoke native/dist/Peesuto.app
+      - name: MP4 encoder (AVFoundation) encodes a real clip
+        run: PEESUTO_TEST_ENCODER=1 bun test core/tests/video.test.ts
+      # MP4 through the bundled encoder, with ffmpeg kept off PATH.
+      - name: standalone native bundle smoke (PNG, GIF, MP4, Lyric motion video)
+        run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin native/.build/release/PeesutoSmoke native/dist/Peesuto.app --video
 
   native:
     name: native Swift desktop (macOS)

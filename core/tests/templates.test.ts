@@ -975,6 +975,13 @@ describe("lyrics cards", () => {
     expect(() => layoutTemplate(plan(essay), measure, { format: "mp4" })).toThrow(expect.objectContaining({ code: "lyric-too-long" }));
     // The poster holds it.
     expect(layoutTemplate(plan(essay, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("第12句");
+    // Too long for the 14.4 s GIF but not for a video: its own code, and the message points at Video.
+    const lengths = Array.from({ length: 11 }, (_, n) => n + 2);
+    const sentences = (n: number) => Array.from({ length: n }, (_, i) => `这是第${i + 1}句比较完整的叙述，它会占用一个画面。`).join("");
+    const fitsVideo = (n: number) => { try { layoutTemplate(plan(sentences(n)), measure, { format: "mp4" }); return true; } catch { return false; } };
+    const middle = lengths.find((n) => fitsVideo(n) && (() => { try { layoutTemplate(plan(sentences(n)), measure, { format: "gif" }); return false; } catch { return true; } })());
+    expect(middle).toBeDefined();
+    expect(() => layoutTemplate(plan(sentences(middle!)), measure, { format: "gif" })).toThrow(expect.objectContaining({ code: "lyric-gif-too-long", message: expect.stringContaining("Make it a video instead") }));
     const tweet = "我们今天发布了新版本，感谢每一位参与测试、提交问题、在周五加班到深夜的朋友。没有你们，就没有这一版。";
     for (const variant of LYRICS_VARIANTS) {
       const layout = layoutTemplate(plan(tweet, variant), measure, { format: "mp4" }), program = layout.lyrics!;

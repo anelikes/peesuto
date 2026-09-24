@@ -22,7 +22,7 @@ export const BUILTIN_ACTIONS: readonly ActionSpec[] = [
   },
   {
     id: "paste-video", name: "Paste as video", builtin: true,
-    description: "Render the text as a short animated video (MP4). Requires ffmpeg.",
+    description: "Render the text as a short animated video (MP4, H.264).",
     trigger: { menu: true },
     input: "clipboard", needs: "render", output: "video", render: { animate: "always" },
   },
@@ -34,9 +34,9 @@ export const BUILTIN_ACTIONS: readonly ActionSpec[] = [
   },
   {
     id: "paste-lyric", name: "Paste as lyric motion", builtin: true,
-    description: "Kinetic type (文字 PV) from any text: lyrics keep their lines, prose is cut at its punctuation. MP4 when ffmpeg is installed, else a GIF. Never decided automatically.",
+    description: "Kinetic type (文字 PV) from any text: lyrics keep their lines, prose is cut at its punctuation. A GIF by default; the input may ask for a video (MP4) or a poster (PNG). Never decided automatically.",
     trigger: { menu: true },
-    input: "clipboard", needs: "render", output: "video", render: { animate: "always", template: "lyrics", fallback: "gif" },
+    input: "clipboard", needs: "render", output: "gif", render: { animate: "always", template: "lyrics", outputs: ["gif", "video", "image"], fallback: "gif" },
   },
   {
     id: "paste-translate", name: "Paste translation", builtin: true,
