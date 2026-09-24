@@ -1,8 +1,9 @@
 /**
  * Colour-field backdrops: a few large colour blobs, heavily blurred, like
- * light through frosted glass. The engine has no blur and only two-stop
- * linear gradients, but it draws images, so the field is rendered here into
- * a PNG and drawn as one full-bleed image under everything else.
+ * light through frosted glass. Rendered here into a PNG at the canvas's own
+ * size and drawn as one full-bleed image under everything else: mixing in
+ * OKLab and a seeded grain are beyond the engine's gradients, and one image
+ * costs a frame nothing, where a blurred layer would be paid on every frame.
  *
  * - Each blob is an anisotropic Gaussian (no edge anywhere), mixed over the
  *   ground in OKLab, so two neighbouring hues meet without going grey or
@@ -48,17 +49,19 @@ export interface ColourField {
 
 export interface Size { readonly width: number; readonly height: number }
 
-/** Largest texture side the engine accepts (Pocket Motion TEX_MAX_DIM); sides must be powers of two. */
-export const FIELD_TEXTURE_MAX = 512;
+/** Largest image side the engine accepts (Pocket Motion v0.4.0: any size, 1 to 2048 px per side). */
+export const FIELD_TEXTURE_MAX = 2048;
 /** Bumped when the rendering changes, so cached files are not reused. */
-const FIELD_VERSION = 1;
+const FIELD_VERSION = 2;
 
-/** The texture a canvas is drawn from: power-of-two sides, the long side
- * FIELD_TEXTURE_MAX, the short side the next power of two up from its share. */
+/** The raster a canvas is drawn from: the canvas itself, pixel for pixel,
+ * unless its long side is past FIELD_TEXTURE_MAX; then scaled down to it,
+ * keeping the aspect (a tall scrolling card is the only case). */
 export function fieldTexture(canvas: Size): Size {
-  const long = Math.max(canvas.width, canvas.height), short = Math.min(canvas.width, canvas.height);
-  const side = Math.min(FIELD_TEXTURE_MAX, Math.max(64, 2 ** Math.ceil(Math.log2(FIELD_TEXTURE_MAX * short / long))));
-  return canvas.width >= canvas.height ? { width: FIELD_TEXTURE_MAX, height: side } : { width: side, height: FIELD_TEXTURE_MAX };
+  const long = Math.max(canvas.width, canvas.height);
+  if (long <= FIELD_TEXTURE_MAX) return { width: Math.max(1, Math.round(canvas.width)), height: Math.max(1, Math.round(canvas.height)) };
+  const k = FIELD_TEXTURE_MAX / long;
+  return { width: Math.max(1, Math.min(FIELD_TEXTURE_MAX, Math.round(canvas.width * k))), height: Math.max(1, Math.min(FIELD_TEXTURE_MAX, Math.round(canvas.height * k))) };
 }
 
 interface Prepared {
@@ -213,10 +216,10 @@ export function fieldKey(field: ColourField, canvas: Size, raster: Size = canvas
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex").slice(0, 16);
 }
 
-/** The field as the engine draws it from a texture stretched `stretch` times: the
+/** The field as the engine draws it from a raster stretched `stretch` times: the
  * grain shrinks by the stretch (never below one 8-bit level), since noise
- * magnified by bilinear sampling reads as a woven crosshatch, not grain. It
- * still dithers the long dark ramps; full-size exports keep the full grain. */
+ * magnified by bilinear sampling reads as a woven crosshatch, not grain. A
+ * raster at canvas size (every canvas up to 2048 px) keeps the full grain. */
 export function textureField(field: ColourField, canvas: Size, raster: Size): ColourField {
   const stretch = Math.max(canvas.width / raster.width, canvas.height / raster.height, 1);
   const grain = field.grain ?? 0.012;
@@ -225,7 +228,7 @@ export function textureField(field: ColourField, canvas: Size, raster: Size): Co
 
 /**
  * Writes the field for `canvas` into the composition directory as
- * `bg_<key>.png` (a texture the engine accepts, see fieldTexture) and returns
+ * `bg_<key>.png` (at canvas size up to 2048 px, see fieldTexture) and returns
  * the file name. Rendered once per key into `cacheDir`, copied after that.
  */
 export async function stageField(field: ColourField, canvas: Size, cacheDir: string, compositionDir: string): Promise<string> {

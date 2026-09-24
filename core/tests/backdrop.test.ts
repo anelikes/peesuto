@@ -87,12 +87,14 @@ describe("colour-field PNG", () => {
     expect(Math.max(...diff)).toBeLessThanOrEqual(1);
   });
 
-  test("textures are powers of two the engine accepts; the grain shrinks with the stretch", () => {
-    for (const [w, h, tw, th] of [[1080, 1080, 512, 512], [1920, 1080, 512, 512], [1080, 4096, 256, 512], [1080, 1350, 512, 512], [4096, 200, 512, 64]]) {
+  test("the raster is the canvas itself up to 2048 px, scaled down past it; the grain shrinks only with a stretch", () => {
+    for (const [w, h, tw, th] of [[1080, 1080, 1080, 1080], [1920, 1080, 1920, 1080], [1080, 1350, 1080, 1350], [2048, 2048, 2048, 2048],
+      [1080, 4096, 540, 2048], [4096, 200, 2048, 100]]) {
       expect(fieldTexture({ width: w!, height: h! })).toEqual({ width: tw!, height: th! });
     }
-    const t = textureField(field, { width: 1024, height: 1024 }, { width: 512, height: 512 });
-    expect(t.grain).toBeCloseTo(0.012 / 2, 6);
+    // At canvas size nothing is stretched: the full grain.
+    expect(textureField(field, { width: 1080, height: 1080 }, { width: 1080, height: 1080 }).grain).toBe(0.012);
+    expect(textureField(field, { width: 4096, height: 1080 }, { width: 2048, height: 540 }).grain).toBeCloseTo(0.012 / 2, 6);
     expect(textureField(field, { width: 4096, height: 4096 }, { width: 512, height: 512 }).grain).toBeCloseTo(1 / 255, 6); // never below one level
     expect(textureField({ ...field, grain: 0 }, { width: 2048, height: 2048 }, { width: 512, height: 512 }).grain).toBe(0);
   });
@@ -109,14 +111,14 @@ describe("colour-field PNG", () => {
     expect(fieldKey({ ...field, blobs: field.blobs.slice(1) }, size)).not.toBe(key);
   });
 
-  test("an uncached texture renders fast", () => {
+  test("an uncached full-size field renders in reasonable time", () => {
     fieldPng(field, { width: 64, height: 64 }); // warm the gamma table and JIT
     const started = performance.now();
     for (const f of Object.values(CODE_FIELDS)) {
       const canvas = { width: 1920, height: 1080 }, raster = fieldTexture(canvas);
       fieldPng(textureField(f as ColourField, canvas, raster), canvas, raster);
     }
-    expect((performance.now() - started) / 3).toBeLessThan(60 * 3); // 60 ms target; loose bound for slow CI machines
+    expect((performance.now() - started) / 3).toBeLessThan(400 * 3); // ~270 ms on an M-series Mac; loose bound for slow CI machines, and cached after the first render
   });
 
   test("stageField renders once per key and copies after that", async () => {

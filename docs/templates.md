@@ -249,14 +249,15 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   `{ field }` draws a blurred colour field instead: a dark ground, a few large
   anisotropic Gaussian blobs of two or three neighbouring hues mixed in OKLab,
   an optional vignette and a fine seeded grain against banding.
-  `core/src/templates/backdrop.ts` renders it to a PNG at compose time (the
-  engine has no blur), which is drawn full-bleed under every shape and
-  stretched to the canvas like the gradient rects. The engine takes only
-  power-of-two textures up to 512 px, so a card's field is a 512 px texture
-  scaled up, with the grain reduced by the scale (magnified noise reads as a
-  crosshatch); `fieldPng` renders full-size fields with the full grain. PNGs
+  `core/src/templates/backdrop.ts` renders it to a PNG at compose time, at
+  the canvas's own size (Pocket Motion v0.4.0 takes images of any size up to
+  2048 px a side; only a longer canvas gets a raster scaled down to 2048, its
+  grain reduced by the stretch so magnified noise does not read as a
+  crosshatch), and it is drawn full-bleed under every shape. Mixing in OKLab
+  and the seeded grain are beyond the engine's gradients, and one image costs
+  a frame nothing where a blurred layer would be paid on every frame. PNGs
   are cached in `<work>/dist/.backdrops/` by a hash of the field and canvas
-  size, about 25 ms uncached. Text drawn straight on a field is
+  size, about 0.2–0.3 s uncached at 1080p. Text drawn straight on a field is
   contrast-checked against the field's colour under it. `CODE_FIELDS` holds
   three fields for the terminal: Indigo night (the PNG/MP4 default), Dusk and
   Aurora (samples). In GIFs the 256-colour palette dithers a field visibly,

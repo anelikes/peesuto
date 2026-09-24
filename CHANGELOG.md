@@ -7,6 +7,9 @@ section here becomes one.
 
 ## Unreleased
 
+### Improved
+- **Finer code and terminal backdrops** — the Indigo night colour field behind code and terminal cards is now drawn at the card's full resolution with its full grain, instead of a small texture stretched to fit; the faint diagonal weave in its gradients is gone.
+
 ## 0.2.1 — 2026-09-24
 
 Six new templates, and a lighter app.
