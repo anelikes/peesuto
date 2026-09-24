@@ -339,6 +339,40 @@ public enum ContextCapture {
         return result
     }
 
+    /// The text caret (or selection) of the focused element in the frontmost
+    /// app, in Accessibility's global coordinates (top-left origin); nil
+    /// without Accessibility, in a secure field, or when the app does not
+    /// report one. Reads positions only, never the text.
+    @MainActor
+    public static func caretBounds() -> CGRect? {
+        guard AXIsProcessTrusted(), let front = NSWorkspace.shared.frontmostApplication,
+              front.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        let app = AXUIElementCreateApplication(front.processIdentifier)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        guard let focused = element(app, kAXFocusedUIElementAttribute) else { return nil }
+        AXUIElementSetMessagingTimeout(focused, 0.25)
+        let role = string(focused, kAXRoleAttribute), subrole = string(focused, kAXSubroleAttribute)
+        guard role != "AXSecureTextField", subrole != "AXSecureTextField",
+              let rawRange = attribute(focused, kAXSelectedTextRangeAttribute), CFGetTypeID(rawRange) == AXValueGetTypeID() else { return nil }
+        var range = CFRange()
+        guard AXValueGetValue(unsafeBitCast(rawRange, to: AXValue.self), .cfRange, &range), range.location >= 0 else { return nil }
+        // An empty selection has no bounds in some apps; the character before
+        // the caret stands in for it.
+        var candidates = [CFRange(location: range.location, length: max(0, range.length))]
+        if range.length == 0, range.location > 0 { candidates.append(CFRange(location: range.location - 1, length: 1)) }
+        for var candidate in candidates {
+            guard let parameter = AXValueCreate(.cfRange, &candidate) else { continue }
+            var value: CFTypeRef?
+            guard AXUIElementCopyParameterizedAttributeValue(focused, kAXBoundsForRangeParameterizedAttribute as CFString, parameter, &value) == .success,
+                  let value, CFGetTypeID(value) == AXValueGetTypeID() else { continue }
+            var rect = CGRect.zero
+            guard AXValueGetValue(unsafeBitCast(value, to: AXValue.self), .cgRect, &rect) else { continue }
+            if candidate.length == 1, candidates.count > 1 { rect = CGRect(x: rect.maxX, y: rect.minY, width: 0, height: rect.height) }
+            if ChooserPlacement.isUsableCaret(rect) { return rect }
+        }
+        return nil
+    }
+
     fileprivate static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
