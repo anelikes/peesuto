@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
-import { parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
+import { parseLyricLine, parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
-import { DIFF_STYLES, ERROR_STYLES, STATS_STYLES, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
+import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, STATS_STYLES, TEMPLATE_LIMITS, TEMPLATE_SCROLL, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
+import { lyricsComposition, lyricsMaxMs, lyricsViolations } from "../src/templates/lyrics.ts";
+import { TEMPLATE_GIF_FRAME_BUDGET } from "../src/templates/render.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
@@ -729,5 +731,134 @@ describe("metrics (stats) cards", () => {
       expect([color("+8%"), color("−3%"), color("(5)")]).toEqual([S.delta.up, S.delta.down, S.delta.flat]);
       expect(four.lines.find((line) => line.text === "1")!.size).toBeGreaterThan(four.lines.find((line) => line.text === "a")!.size);
     }
+  });
+});
+
+describe("lyrics cards", () => {
+  const lyricsOf = (text: string) => parseTemplates(text).candidates.get("lyrics");
+  const ZH = "故事的小黄花\n从出生那年就飘着\n童年的荡秋千\n随记忆一直晃到现在\n\n吹着前奏望着天空\n我想起花瓣试着掉落";
+  const JA = "夜明けの色を/覚えてる\n*透明*な風が吹いて\n君の声が聞こえた!\n\nまだ遠い空の向こう";
+  const EN = "I remember the dawn\nThe color of your eyes\nWe were running through the night\n\nOh, *hold on* to me\nHold on to me!";
+  const LRC = "[ti:晴天]\n[ar:周杰伦]\n[00:12.34]故事的小黄花\n[00:15.80]从出生那年就飘着\n[00:19.20]童年的荡秋千\n[00:22.60]随记忆一直晃到现在";
+  const measure: TemplateMeasure = { width: (t, size) => [...t].reduce((n, c) => n + size * (/[\x00-\x7f]/.test(c) ? 0.6 : 1), 0), lineHeight: (size) => size * 1.45 };
+  const plan = (text: string, variant: "classic" | "editorial" = "classic", motion: "none" | "reveal" | "typewriter" = "reveal", aspect: "1:1" | "9:16" | "16:9" = "1:1") =>
+    ({ version: 1 as const, template: "lyrics" as const, variant, motion, aspect, sourceText: text, content: lyricsOf(text)! });
+
+  test("song lyrics in Chinese, Japanese and English, with stanzas, are lyrics", () => {
+    for (const text of [ZH, JA, EN]) expect(parseTemplates(text).preferred).toBe("lyrics");
+    expect(lyricsOf(ZH)).toMatchObject({ kind: "lyrics", stanzas: [{ lines: [{ text: "故事的小黄花" }, {}, {}, {}] }, { lines: [{}, { text: "我想起花瓣试着掉落" }] }] });
+    // Short prose stays an alternative.
+    expect(parseTemplates(EN).candidates.has("text")).toBe(true);
+  });
+  test("JIZURA markup is syntax: / cuts, *emphasis*, a note after |, a trailing ! stays", () => {
+    expect(parseLyricLine("夜明けの色を/覚えてる")).toEqual({ text: "夜明けの色を覚えてる", breaks: [6] });
+    expect(parseLyricLine("I remember/the dawn")).toEqual({ text: "I remember the dawn", breaks: [11] });
+    expect(parseLyricLine("I remember / the dawn")).toEqual({ text: "I remember the dawn", breaks: [11] });
+    expect(parseLyricLine("*透明*な風が吹いて")).toEqual({ text: "透明な風が吹いて", emphasis: [[0, 2]] });
+    expect(parseLyricLine("Oh, *hold on* to me")).toEqual({ text: "Oh, hold on to me", emphasis: [[4, 11]] });
+    expect(parseLyricLine("君の声が聞こえた!|きみのこえ")).toEqual({ text: "君の声が聞こえた!", note: "きみのこえ" });
+    // A date, a fraction or a URL keeps its slash.
+    expect(parseLyricLine("9/24 the night we met")).toEqual({ text: "9/24 the night we met" });
+    expect(parseLyricLine("a * b")).toEqual({ text: "a * b" });
+    expect(lyricsOf(JA)).toMatchObject({ stanzas: [{ lines: [{ text: "夜明けの色を覚えてる", breaks: [6] }, { emphasis: [[0, 2]] }, { text: "君の声が聞こえた!" }] }, { lines: [{}] }] });
+  });
+  test("LRC: timestamps give the timing and are syntax; [ti:] and [ar:] are the title and credit; never a chat or a schedule", () => {
+    const parsed = parseTemplates(LRC);
+    expect(parsed.preferred).toBe("lyrics");
+    expect(parsed.candidates.has("chat")).toBe(false);
+    expect(parsed.candidates.has("timeline")).toBe(false);
+    expect(parsed.candidates.get("lyrics")).toEqual({ kind: "lyrics", title: "晴天", credit: "周杰伦", stanzas: [{ lines: [
+      { text: "故事的小黄花", at: 12340, until: 15800 }, { text: "从出生那年就飘着", at: 15800, until: 19200 },
+      { text: "童年的荡秋千", at: 19200, until: 22600 }, { text: "随记忆一直晃到现在", at: 22600 }] }] });
+    // Repeated stamps repeat the line in time order; an empty stamp ends a stanza; word timings are dropped.
+    expect(lyricsOf("[00:01.00][00:05.00]La la\n[00:03.00]<00:03.10>Hey <00:03.50>you\n[00:07.00]\n[00:08.00]Bye now")).toMatchObject({ stanzas: [
+      { lines: [{ text: "La la", at: 1000 }, { text: "Hey you", at: 3000 }, { text: "La la", at: 5000, until: 7000 }] }, { lines: [{ text: "Bye now", at: 8000 }] }] });
+    // A line that is not LRC in an LRC block: not lyrics at all.
+    expect(lyricsOf("[00:01.00]one\n[00:02.00]two\nthree")).toBeUndefined();
+  });
+  test("a classical poem is a poem card, with its title and author or an attribution", () => {
+    expect(parseTemplates("床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。").preferred).toBe("lyrics");
+    expect(lyricsOf("静夜思\n李白\n床前明月光，疑是地上霜。\n举头望明月，低头思故乡。")).toEqual({ kind: "lyrics", title: "静夜思", credit: "李白", poem: true,
+      stanzas: [{ lines: [{ text: "床前明月光，疑是地上霜。" }, { text: "举头望明月，低头思故乡。" }] }] });
+    expect(lyricsOf("白日依山尽，黄河入海流。\n欲穷千里目，更上一层楼。\n—— 王之涣")).toMatchObject({ credit: "王之涣", poem: true });
+    // A quoted poem with an attribution is a poem, not a quote.
+    expect(parseTemplates("春眠不觉晓，处处闻啼鸟。\n夜来风雨声，花落知多少。\n—— 孟浩然").preferred).toBe("lyrics");
+  });
+  test("negatives: lists, chat, schedules, code, fields and short prose are not lyrics", () => {
+    for (const text of [
+      "Buy milk\nCall mom\nFix bike\nPay rent", "- one\n- two\n- three\n- four", "1. one\n2. two\n3. three",
+      "Alice: hi\nBob: hello\nAlice: how are you\nBob: fine", "09:00 Doors open\n10:30 Keynote\n14:00 Workshops\n18:00 Party",
+      "const a = 1;\nconst b = 2;\nconsole.log(a + b);\nexport default a;", "Name: Lin\nPhone: 13800138000\nEmail: lin@example.com",
+      "Make room for a clearer thought.", "明天下午三点，老地方见。\n记得带上那本书。",
+      "We shipped the release today. Thanks everyone.\nThe notes are in the wiki. Ping me with questions.\nNext week we plan the roadmap. See you then.\nIt was a long week. Rest well.",
+      "https://peesuto.com\nhttps://example.com\nhttps://github.com\nhttps://x.com",
+      "这是第一段比较长的说明文字，它显然不是歌词而是一段普通的文章内容，读起来像散文。\n第二段也很长，同样是普通的叙述文字。",
+      "| a | b |\n|---|---|\n| 1 | 2 |",
+    ]) expect(lyricsOf(text)).toBeUndefined();
+  });
+  test("the poster: every lyric drawn once, markup never drawn, emphasis in the accent; Paper sets CJK verse in columns", () => {
+    for (const variant of ["classic", "editorial"] as const) {
+      const layout = layoutTemplate(plan(JA, variant, "none"), measure);
+      const drawn = layout.lines.map((l) => l.text).join("");
+      expect(drawn.replace(/\s/g, "")).toBe("夜明けの色を覚えてる透明な風が吹いて君の声が聞こえた!まだ遠い空の向こう");
+      expect(drawn).not.toMatch(/[*/|]/);
+      const accent = layout.lines.find((l) => l.text === "透明")!;
+      expect(accent.emphasis).toBe(true);
+      expect(accent.color).not.toBe(layout.lines.find((l) => l.text.includes("吹いて"))!.color);
+    }
+    const poem = layoutTemplate(plan("静夜思\n李白\n床前明月光，疑是地上霜。\n举头望明月，低头思故乡。", "editorial", "none"), measure);
+    // One glyph per line, in columns right to left.
+    expect(poem.lines.every((l) => [...l.text].length === 1)).toBe(true);
+    const x = (c: string) => poem.lines.find((l) => l.text === c)!.x;
+    expect(x("床")).toBeGreaterThan(x("疑"));
+    expect(x("静")).toBeGreaterThan(x("床"));
+    // The comma sits in the corner of its cell, drawn offset from its box.
+    expect(poem.lines.find((l) => l.text === "，")!.offset).toBeDefined();
+  });
+  test("the video: a cut per line and per / piece, a title card, timing within the cap, deterministic, each cut passing the checks", () => {
+    for (const variant of ["classic", "editorial"] as const) {
+      const p = plan(JA, variant);
+      const layout = layoutTemplate(p, measure, { format: "mp4" });
+      const program = layout.lyrics!;
+      expect(program.cuts.length).toBe(5);
+      expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
+      expect(program.cuts.map((c) => c.start)).toEqual([...program.cuts.map((c) => c.start)].sort((a, b) => a - b));
+      expect(program.cuts.at(-1)!.bang || program.cuts.some((c) => c.bang)).toBe(true);
+      expect(lyricsViolations(layout, program, p)).toEqual([]);
+      // The same lyrics give the same video.
+      expect(JSON.stringify(layoutTemplate(p, measure, { format: "mp4" }))).toBe(JSON.stringify(layout));
+      // Every cut but the first changes colour.
+      for (let i = 1; i < program.cuts.length; i++) expect(program.cuts[i]!.palette.bg).not.toBe(program.cuts[i - 1]!.palette.bg);
+      const composition = lyricsComposition(layout, program, measure, variant);
+      expect(composition.frames).toBe(Math.ceil(program.durationMs / 1000 * 30) + 1);
+      expect(composition.body).not.toMatch(/\{"[*/|]"\}/);
+    }
+    const titled = layoutTemplate(plan(LRC), measure, { format: "mp4" }).lyrics!;
+    expect(titled.cuts.length).toBe(5); // the title card and four lines
+    // LRC timing: each line holds until the next timestamp (when the whole fits the cap).
+    const timed = layoutTemplate(plan("[00:10.00]one line here\n[00:12.50]and the second\n[00:16.00]the third one"), measure, { format: "mp4" }).lyrics!;
+    expect(timed.cuts[1]!.start - timed.cuts[0]!.start).toBe(2500 + LYRICS_MOTION.classic.transitionMs);
+    expect(timed.cuts[2]!.start - timed.cuts[1]!.start).toBe(3500 + LYRICS_MOTION.classic.transitionMs);
+    // Typewriter types every cut.
+    expect(layoutTemplate(plan(EN, "classic", "typewriter"), measure, { format: "gif" }).lyrics!.cuts.every((c) => c.entrance === "type")).toBe(true);
+  });
+  test("long lyrics share screens, a GIF is capped by its frame budget, and what cannot fit is an explicit error", () => {
+    const long = Array.from({ length: 14 }, (_, i) => `我唱第${i + 1}句到天亮`).join("\n");
+    const program = layoutTemplate(plan(long), measure, { format: "mp4" }).lyrics!;
+    expect(program.cuts.length).toBe(7);
+    expect(program.durationMs).toBeLessThanOrEqual(LYRICS_TIMING.maxMs);
+    expect(lyricsMaxMs(1080, 1920, "gif")).toBeLessThan(lyricsMaxMs(1080, 1080, "gif"));
+    expect<number>(lyricsMaxMs(1080, 1080, "mp4")).toBe(LYRICS_TIMING.maxMs);
+    const tall = layoutTemplate(plan(ZH, "classic", "reveal", "9:16"), measure, { format: "gif" }).lyrics!;
+    expect(tall.durationMs).toBeLessThanOrEqual(lyricsMaxMs(1080, 1920, "gif"));
+    const huge = Array.from({ length: 40 }, (_, i) => `我唱第${i + 1}句到天亮`).join("\n");
+    expect(() => layoutTemplate(plan(huge), measure, { format: "mp4" })).toThrow(/No content was dropped/);
+    // The PNG poster holds all of it (the canvas grows).
+    expect(layoutTemplate(plan(huge, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("我唱第40句到天亮");
+  });
+  test("the caps match the limits they stand for", () => {
+    expect<number>(LYRICS_TIMING.maxMs).toBe(TEMPLATE_SCROLL.startMs + TEMPLATE_SCROLL.maxMs + TEMPLATE_SCROLL.endMs);
+    expect<number>(LYRICS_TIMING.gifFrameBudget).toBe(TEMPLATE_GIF_FRAME_BUDGET);
+    expect<number>(LYRICS_TIMING.fps).toBe(TEMPLATE_LIMITS.fps);
   });
 });

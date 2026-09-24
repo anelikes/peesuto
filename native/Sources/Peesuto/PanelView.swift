@@ -252,6 +252,11 @@ struct PanelView: View {
                     .help(model.tr("Motion", "动效"))
             }
             Spacer(minLength: 0)
+            if selection.id == JizuraHandoff.templateID {
+                Button { model.openInJizura() } label: { Label(model.tr("Open in JIZURA", "在 JIZURA 中打开"), systemImage: "arrow.up.forward.square") }
+                    .buttonStyle(.borderless).fixedSize()
+                    .help(model.tr("Copy the lyrics and open JIZURA, a free lyric-video maker, for a full video", "复制歌词并打开免费的歌词视频工具 JIZURA，做完整的歌词视频"))
+            }
             Menu {
                 ForEach(OutputFrames.options(kind: kind), id: \.self) { option in
                     Button { model.rerender(frame: option) } label: {

@@ -8,6 +8,7 @@ section here becomes one.
 ## Unreleased
 
 ### New
+- **Lyrics cards** — song lyrics, LRC files and classical poems become a lyric poster (PNG) or a short kinetic-type lyric video (GIF/MP4): a cut per line with staggered letters, colour changes, moving decor, emphasis that punches; JIZURA's `/`, `*emphasis*`, `|note` and `!` markup works. "Open in JIZURA" hands the lyrics to [JIZURA](https://github.com/852wa/JIZURA) for a full lyric video.
 - **Metrics cards** — several `label: number` lines, with changes such as (+8%), become a grid of big numbers; rises are green, falls red.
 - **Schedule cards** — agendas, itineraries and roadmaps (lines that start with a time or a date) become a timeline with a dot per event.
 - **Error cards** — a copied error with its stack trace (JavaScript, Python, Java, C#, Go, Rust) leads with the message; your own frames stand out, library frames are dimmed.

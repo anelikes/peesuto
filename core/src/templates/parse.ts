@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type ErrorTraceLine, type StatsMetric, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type ErrorTraceLine, type LyricLine, type LyricStanza, type StatsMetric, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -37,14 +37,17 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     const comparison = parseComparison(text);
     const quote = isRawCode(text) ? undefined : parseQuote(text);
     const list = parseList(text);
-    const chat = parseChat(text) ?? parseTranscript(text);
+    // LRC timestamps are lyrics, never a conversation (`[00:12.34]` reads as a speaker) or a schedule.
+    const lyrics = parseLyrics(text);
+    const lrc = lyrics?.kind === "lyrics" && lyrics.stanzas.some((stanza) => stanza.lines.some((line) => line.at !== undefined));
+    const chat = lrc ? undefined : parseChat(text) ?? parseTranscript(text);
     const stat = parseStat(text);
     const info = parseInfo(text);
     const changelog = parseChangelog(text);
     // Chat apps copy a time with every message: a conversation is never a schedule.
-    const timeline = chat ? undefined : parseTimeline(text);
+    const timeline = chat || lrc ? undefined : parseTimeline(text);
     const stats = parseStats(text);
-    for (const content of [table, comparison, quote, list, chat, stat, info, changelog, timeline, stats]) {
+    for (const content of [table, comparison, quote, list, chat, stat, info, changelog, timeline, stats, lyrics]) {
       if (content) candidates.set(content.kind, content);
     }
     // The legacy classifier also understands commands, JSON and stack traces.
@@ -70,7 +73,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "stats", "info", "timeline", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "stats", "info", "lyrics", "timeline", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -604,6 +607,194 @@ export function parseStats(text: string): TemplateContent | undefined {
   const labels = metrics.map((metric) => metric.label.toLowerCase());
   if (new Set(labels).size !== labels.length) return;
   return { kind: "stats", ...(title ? { title } : {}), metrics };
+}
+
+/** An LRC timestamp: `[mm:ss]`, `[mm:ss.xx]`, `[mm:ss:xx]`. */
+const LRC_STAMP = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+const LRC_LINE = /^((?:\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\][\t ]*)+)(.*)$/;
+/** LRC header tags: file metadata, syntax like the timestamps (the title and artist are drawn). */
+const LRC_TAG = /^\[(ti|ar|al|au|by|offset|length|re|ve|tool|la|#):([^\]\n]*)\]$/i;
+/** Enhanced LRC word timings inside a line. */
+const LRC_WORD = /<\d{1,3}:\d{2}(?:[.:]\d{1,3})?>/g;
+/** A section label on its own line: `[Chorus]`, `[Verse 1]`, `【副歌】`. */
+const SECTION_LABEL = /^(?:\[[^\]\n\d:][^\]\n]{0,29}\]|【[^】\n]{1,20}】)$/;
+/** Characters one lyric line may hold, counting a CJK character as one and anything else as a half. */
+export const LYRIC_LINE_UNITS = 20;
+const WIDE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}　-〿＀-￯]/u;
+const lineUnits = (text: string) => [...text].reduce((n, c) => n + (WIDE.test(c) ? 1 : 0.5), 0);
+/** Words that give a line a lyric voice: people, feelings, night and sky. */
+const LYRIC_VOICE = /\b(?:i|i'm|i'll|i've|i'd|me|my|mine|you|you're|you'll|your|yours|we|we're|us|our|love|heart|baby|night|tonight|dream|dreams|forever|oh|ooh|yeah|sky|stars?|rain|fire|soul|dance|alone|remember)\b|[我你她爱心梦夜风雨月星泪]|回忆|永远|世界|天空|君|僕|私|あなた|夢|恋|涙|空|愛|心|夜/i;
+/** Classical verse: phrases of Han characters between these marks. */
+const POEM_MARKS = /[，。？！、；：,.?!;:]/u;
+
+/** Grapheme offsets and text of one lyric line with its markup read and removed. */
+export function parseLyricLine(raw: string): LyricLine | undefined {
+  let body = raw.replace(LRC_WORD, "").trim();
+  let note: string | undefined;
+  // `lyric|note`: one bar with text on both sides.
+  const bar = body.match(/^([^|]*\S)[\t ]*\|[\t ]*(\S[^|]*)$/);
+  if (bar) { body = bar[1]!.trim(); note = bar[2]!.trim(); }
+  // `/` cuts the line where it stands between letters (never between digits, in `//` or a URL).
+  const pieces = body.split(/(?<![\d/:])[\t ]*\/[\t ]*(?![\d/])/).map((piece) => piece.trim()).filter(Boolean);
+  const out: string[] = [], breaks: number[] = [], emphasis: [number, number][] = [];
+  let length = 0;
+  const count = (text: string) => [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].length;
+  for (const [index, piece] of pieces.entries()) {
+    if (index) {
+      // Two Latin words either side of a bare `/` keep a space between them.
+      const space = /[\p{Script=Latin}\d'’,.!?)]$/u.test(out.at(-1)!) && /^[\p{Script=Latin}\d'‘(]/u.test(piece) ? " " : "";
+      out.push(space); length += count(space); breaks.push(length);
+    }
+    let cursor = 0;
+    for (const m of piece.matchAll(/\*([^*\s](?:[^*]*[^*\s])?)\*/g)) {
+      const before = piece.slice(cursor, m.index);
+      out.push(before); length += count(before);
+      const start = length;
+      out.push(m[1]!); length += count(m[1]!);
+      emphasis.push([start, length]);
+      cursor = m.index! + m[0].length;
+    }
+    const rest = piece.slice(cursor);
+    out.push(rest); length += count(rest);
+  }
+  const text = out.join("");
+  if (!text.trim()) return;
+  return { text, ...(breaks.length ? { breaks } : {}), ...(emphasis.length ? { emphasis } : {}), ...(note ? { note } : {}) };
+}
+
+/** Classical Chinese verse: every line one or two phrases of 4–7 Han characters, all phrases the same length, an even number of them. */
+function poemLines(lines: readonly string[]): boolean {
+  const phrases: number[] = [];
+  for (const line of lines) {
+    if (!/^[\p{Script=Han}，。？！、；：,.?!;:]+$/u.test(line) || !/\p{Script=Han}/u.test(line)) return false;
+    const parts = line.split(POEM_MARKS).filter(Boolean);
+    if (parts.length < 1 || parts.length > 2) return false;
+    phrases.push(...parts.map((part) => [...part].length));
+  }
+  return phrases.length >= 4 && phrases.length <= 32 && phrases.length % 2 === 0 && phrases.every((n) => n === phrases[0]) && phrases[0]! >= 4 && phrases[0]! <= 7;
+}
+
+/**
+ * Song lyrics and poems. Three ways in:
+ * - LRC: every non-blank line is a timestamped line or a header tag, at least
+ *   two with text. Timestamps give the timing and are syntax.
+ * - A classical poem: equal phrases of 4–7 Han characters (床前明月光，…), an
+ *   even number, optionally under a title line and an author line, or with a
+ *   `—— author` line at the end.
+ * - Lyrics: at least three lines (four without markup), each short (at most
+ *   LYRIC_LINE_UNITS: 20 CJK or 40 Latin characters), almost no sentence
+ *   punctuation, nothing that marks another structure (list markers, `key:
+ *   value` fields, times, URLs, code), and some evidence of a song: JIZURA
+ *   markup (`/` cuts, `*emphasis*`, `lyric|note`), stanzas between blank
+ *   lines, a repeated line, or a lyric voice (I, you, love, night; 我, 你, 夢…)
+ *   in at least half the lines. `[Chorus]` lines label their stanza; a first
+ *   `# ` line is the title.
+ */
+export function parseLyrics(text: string): TemplateContent | undefined {
+  const raw = text.split("\n").map((line) => line.trim());
+  const filled = raw.filter(Boolean);
+  if (filled.length < 2 || filled.length > 160) return;
+  const lrc = filled.filter((line) => LRC_LINE.test(line)).length;
+  if (lrc) return lrc >= 2 && filled.every((line) => LRC_LINE.test(line) || LRC_TAG.test(line)) ? parseLrc(filled) : undefined;
+  // A classical poem, with its title and author lines or an attribution.
+  let body = filled, credit: string | undefined, title: string | undefined;
+  const attribution = body.at(-1)!.match(/^(?:——|—|--)[\t ]*(\S.{0,39})$/);
+  if (attribution) { credit = attribution[1]!.trim(); body = body.slice(0, -1); }
+  for (let head = 0; head <= 2 && head < body.length; head++) {
+    const verse = body.slice(head);
+    if (!poemLines(verse)) continue;
+    const header = body.slice(0, head);
+    if (header.some((line) => [...line].length > 16 || POEM_MARKS.test(line.slice(-1)))) break;
+    if (head === 2 && credit) break;
+    const poemTitle = header[0], author = header[1] ?? credit;
+    const stanzas: LyricStanza[] = [];
+    let current: LyricLine[] = [];
+    // Blank lines inside the verse split stanzas.
+    let seen = 0;
+    for (const line of raw) {
+      if (!line) { if (current.length) { stanzas.push({ lines: current }); current = []; } continue; }
+      if (seen++ < head || !verse.includes(line)) continue;
+      current.push({ text: line });
+    }
+    if (current.length) stanzas.push({ lines: current });
+    return { kind: "lyrics", ...(poemTitle ? { title: poemTitle } : {}), ...(author ? { credit: author } : {}), poem: true, stanzas };
+  }
+  credit = undefined;
+  // Lyrics.
+  const stanzas: { label?: string; lines: LyricLine[] }[] = [];
+  let current: { label?: string; lines: LyricLine[] } | undefined;
+  let markup = false, prose = 0, lines = 0, voice = 0;
+  const seenLines = new Map<string, number>();
+  let fields = 0;
+  for (const [index, line] of raw.entries()) {
+    if (!line) { current = undefined; continue; }
+    if (index === raw.findIndex(Boolean) && /^#[\t ]+\S/.test(line)) { title = line.replace(/^#[\t ]+/, ""); continue; }
+    if (SECTION_LABEL.test(line)) {
+      if (current?.lines.length) current = undefined;
+      current ??= (stanzas.push({ lines: [] }), stanzas.at(-1)!);
+      if (current.label) return;
+      current.label = line; continue;
+    }
+    // Other structures and prose.
+    if (/^(?:[-*•+]|\d+[.)、])[\t ]|^>|^#|^(?:`{3,}|~{3,})|^\||\|$|\t/.test(line)) return;
+    if (/https?:\/\/|www\.|\S+@\S+\.\w|[{};=<>`]|=>|->|→|\$\s/.test(line)) return;
+    if (/^[^:：]{1,24}[:：][\t ]*\S/.test(line) && ++fields >= 2) return;
+    if (EVENT_LINE.test(line) && /^\d|^(?:上午|下午|早上|晚上|周|星期|Q[1-4])/.test(line)) return;
+    const parsed = parseLyricLine(line);
+    if (!parsed) return;
+    if (parsed.text.length > 0 && (parsed.text.match(/\d/g)?.length ?? 0) / [...parsed.text].length > 0.3) return;
+    if (lineUnits(parsed.text) > LYRIC_LINE_UNITS || (parsed.note && lineUnits(parsed.note) > LYRIC_LINE_UNITS)) return;
+    if (parsed.breaks || parsed.emphasis || parsed.note) markup = true;
+    // Sentence punctuation: a line ending in a full stop, or a sentence ending inside it.
+    if (/(?<![.…])[.。．;；:：]$/.test(parsed.text) || /(?<!\.)[.。;；](?!\.)[\t ]*\S/.test(parsed.text.replace(/\d\.\d/g, ""))) prose++;
+    if (LYRIC_VOICE.test(parsed.text)) voice++;
+    const key = parsed.text.toLowerCase().replace(/[\s\p{P}]+/gu, "");
+    seenLines.set(key, (seenLines.get(key) ?? 0) + 1);
+    current ??= (stanzas.push({ lines: [] }), stanzas.at(-1)!);
+    current.lines.push(parsed); lines++;
+  }
+  if (lines < (markup ? 3 : 4) || lines > 120) return;
+  if (stanzas.some((stanza) => !stanza.lines.length)) return;
+  if (prose > Math.max(1, Math.floor(lines * 0.2))) return;
+  const repeated = [...seenLines.values()].some((n) => n >= 2);
+  const verses = stanzas.filter((stanza) => stanza.lines.length >= 2).length >= 2;
+  if (!markup && !verses && !repeated && voice < lines / 2) return;
+  return { kind: "lyrics", ...(title ? { title } : {}), stanzas: stanzas.map((stanza) => ({ ...(stanza.label ? { label: stanza.label } : {}), lines: stanza.lines })) };
+}
+
+/** LRC: timestamped lines (one per timestamp, in time order), `[ti:]` the title and `[ar:]` the artist. A timestamp with no text ends the line before it and starts a new stanza. */
+function parseLrc(lines: readonly string[]): TemplateContent | undefined {
+  let title: string | undefined, credit: string | undefined;
+  const entries: { at: number; text: string; order: number }[] = [];
+  for (const line of lines) {
+    const tag = line.match(LRC_TAG);
+    if (tag) {
+      const key = tag[1]!.toLowerCase(), value = tag[2]!.trim();
+      if (key === "ti" && value) title = value;
+      if (key === "ar" && value) credit = value;
+      continue;
+    }
+    const m = line.match(LRC_LINE)!;
+    const words = m[2]!.trim();
+    for (const stamp of m[1]!.matchAll(LRC_STAMP)) {
+      const fraction = stamp[3] ? Number(stamp[3].padEnd(3, "0")) : 0;
+      entries.push({ at: Number(stamp[1]) * 60000 + Number(stamp[2]) * 1000 + fraction, text: words, order: entries.length });
+    }
+  }
+  entries.sort((a, b) => a.at - b.at || a.order - b.order);
+  const stanzas: { lines: LyricLine[] }[] = [];
+  let current: LyricLine[] = [];
+  for (const [index, entry] of entries.entries()) {
+    if (!entry.text) { if (current.length) { stanzas.push({ lines: current }); current = []; } continue; }
+    const parsed = parseLyricLine(entry.text);
+    if (!parsed) continue;
+    if (lineUnits(parsed.text) > LYRIC_LINE_UNITS * 2) return;
+    const next = entries[index + 1];
+    current.push({ ...parsed, at: entry.at, ...(next ? { until: next.at } : {}) });
+  }
+  if (current.length) stanzas.push({ lines: current });
+  if (stanzas.reduce((n, stanza) => n + stanza.lines.length, 0) < 2) return;
+  return { kind: "lyrics", ...(title ? { title } : {}), ...(credit ? { credit } : {}), stanzas };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

@@ -45,6 +45,7 @@ const PREVIEW_SAMPLES: Record<TemplateId, string> = {
   error: "TypeError: Cannot read properties of undefined (reading 'name')\n    at greet (/app/src/greet.ts:3:18)\n    at main (/app/src/main.ts:9:3)\n    at node:internal/main/run_main_module:28:49",
   timeline: "Launch day\n09:00 Doors open\n10:30 Keynote\n14:00 Workshops\n18:00 Party",
   stats: "This week\nDAU: 12,480 (+8%)\nRevenue: $48.2k (−3%)\nRetention: 41%\nNPS: 61",
+  lyrics: "静夜思\n李白\n床前明月光，疑是地上霜。\n举头望明月，低头思故乡。",
   qr: "https://peesuto.com",
 };
 

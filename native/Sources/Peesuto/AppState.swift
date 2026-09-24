@@ -662,6 +662,17 @@ struct ChooserSnapshot {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
+    /// Lyric results: hand the lyrics to JIZURA for a full lyric video. Its web
+    /// app takes no lyrics in the URL, so they are copied (as written, markup
+    /// included) and the app opens for the user to paste.
+    func openInJizura() {
+        guard !busy, let source = output?.sourceText ?? selected?.text else { return }
+        let lyrics = JizuraHandoff.lyrics(from: source)
+        guard !lyrics.isEmpty, paste.copyText(lyrics) else { error = tr("Could not copy this item.", "无法复制此项。"); return }
+        NSWorkspace.shared.open(JizuraHandoff.url(for: localizer.language))
+        notice = tr("Lyrics copied — paste them in JIZURA", "歌词已复制——在 JIZURA 中粘贴")
+    }
+
     func copySelection() {
         guard !busy else { return }
         let success: Bool

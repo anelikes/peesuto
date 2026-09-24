@@ -30,5 +30,9 @@ own license:
 - qrcode-generator (https://github.com/kazuhikoarase/qrcode-generator),
   Copyright 2011 Kazuhiko Arase, MIT License.
 
+The lyrics template is inspired by JIZURA (https://github.com/852wa/JIZURA),
+a browser lyric-video maker by 852wa, MIT License: its cut vocabulary and its
+lyric markup. No JIZURA code or assets are included.
+
 Emoji images are downloaded at runtime from Noto Emoji
 (https://github.com/googlefonts/noto-emoji), Apache License 2.0.

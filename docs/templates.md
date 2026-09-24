@@ -40,6 +40,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Error | Crash report | Console | |
 | Schedule (`timeline`) | Agenda | Milestones | |
 | Metrics (`stats`) | Dashboard | Scoreboard | |
+| Lyrics | Stage | Paper | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -449,6 +450,112 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   white tiles on a warm page. Scoreboard: night, hairlines between the
   cells, values in yellow. Styles are `STATS_STYLES` in `compose.ts`.
 
+### Lyrics: song lyrics and poems as kinetic type
+
+Inspired by [JIZURA](https://github.com/852wa/JIZURA) (MIT), a browser
+lyric-video maker by 852wa: its vocabulary (a cut = layout + entrance + hold +
+exit + decor) and its lyric markup are what this template speaks. No JIZURA
+code or assets are used. Peesuto makes the quick version; the result panel's
+**Open in JIZURA** hands the lyrics over for a full video (below).
+
+- **Recognized** three ways; everything else stays text, a list, a chat or a
+  schedule:
+  - **LRC**: every non-blank line is a timestamped line (`[mm:ss.xx]`, several
+    stamps repeat the line) or a header tag, at least two with text.
+    Timestamps and enhanced word timings (`<mm:ss.xx>`) are syntax; `[ti:]`
+    is drawn as the title and `[ar:]` as the credit, other tags (`[al:]`,
+    `[by:]`, `[offset:]`…) are file metadata and not drawn. A stamp with no
+    text ends the line before it and starts a new stanza. LRC ranks before
+    chat and schedule, which also never parse an LRC block (`[00:12.34]`
+    looks like a speaker, and like a time).
+  - **A classical poem**: every line one or two phrases of 4 to 7 Han
+    characters (床前明月光，…), all phrases the same length, an even number of
+    them, optionally under a title line and an author line, or with a
+    `—— author` line at the end (a poem, not a quote).
+  - **Lyrics**: at least four short lines (three with markup), each at most
+    `LYRIC_LINE_UNITS` (20 CJK or 40 Latin characters), at most one in five
+    ending in or containing a sentence stop, nothing that marks another
+    structure (list markers, `key: value` fields on two lines, lines starting
+    with a time or date, URLs, emails, code characters, table pipes, more
+    than 30% digits), and some evidence of a song: JIZURA markup, two stanzas
+    between blank lines, a repeated line, or a lyric voice (I, you, love,
+    night, 我, 你, 夢, 君…) in at least half the lines. A first `# ` line is the
+    title; `[Chorus]` / `【副歌】` lines label their stanza. It ranks after info
+    and before schedule, quote, list and chat; short prose keeps the text
+    template as its alternative. Four short lines with no such evidence (a
+    to-do list without markers) stay text.
+- **Markup** (JIZURA's): `/` cuts a line into separate screens (a slash
+  between digits, in `//` or a URL is text; two Latin words either side of a
+  bare `/` keep a space); `*word*` emphasises; `lyric|note` adds a small note;
+  a trailing `!` stays text and adds a flash and a shake.
+- **PNG, a lyric poster.** Stage: a slab of bold type on one colour of the
+  palette (chosen by the lyrics, so the same lyrics give the same poster),
+  every line at the largest size that fits the measure (a much longer line
+  may break in two, sizes within `stackRatio` of each other), emphasis in the
+  accent, a quiet disc in the emptiest corner when the poster keeps its
+  frame. Paper: a calm centred column in regular type, emphasis a size larger
+  in vermilion; CJK verse (no Latin, brackets or ー) is set vertically, right
+  to left, title and author first, a comma or full stop in the top-right
+  corner of its cell (the line's box is where the mark lands, `offset` says
+  how far it is drawn from it). A poem's lines are set phrase by phrase.
+- **GIF/MP4, a lyric video.** Each line, or each `/` piece, is a cut on its
+  own screen, a title card first when there is a title or credit. A cut:
+  - an **arrangement** (Stage: centre, low left, a stack of short rows
+    stepping across; Paper: centre, low left, vertical for CJK verse) at the
+    largest size that fits in at most four balanced rows, never leaving a
+    scrap (a lone word) on a row; Japanese breaks between phrases (where the
+    kana tail meets the next kanji), Chinese keeps one-character words and
+    particles (的, 了…) together;
+  - a per-glyph staggered **entrance**, varied per cut: rise, drop (Stage),
+    slide, scale (the line's glyphs gather in), rotate (the line swings down
+    into place), typewriter (with a caret that follows and then blinks);
+    the typewriter motion types every cut;
+  - a gentle **hold** (a slow drift), an **exit** (Stage lifts and fades,
+    Paper fades) and the next cut's ground coming in: Stage wipes from a side
+    in the next palette colour, Paper crossfades between paper tints;
+  - **decor** that moves, kept clear of the text: bars sliding in, a big
+    quiet disc growing in a corner, a frame drawing itself, a row of popping
+    dots (Stage); hairline rules drawing in above and below the text, a small
+    vermilion sun rising, a hairline frame (Paper);
+  - **emphasis** punches after the entrance (the word lifts and spreads,
+    turns from ink to the accent, an underline grows under it; vertical cuts
+    only colour it); a trailing `!` flashes the screen and shakes the line.
+  Choices (colours, arrangements, entrances, decor, wipe directions) are
+  seeded by the source text: the same lyrics give the same video.
+- **Timing** (`LYRICS_TIMING`): about 0.35 s per CJK character and 0.18 s per
+  other character, at least 1.1 s and at most 3.6 s per cut; LRC timestamps
+  when present (a line lasts until the next stamp, a `/` piece its share).
+  The whole is capped by the longest animation other templates make (a
+  scroll: 0.9 + 12 + 1.5 = 14.4 s) and, for GIF, by the frame-memory budget
+  at the narrowest 360 px width (about 9.6 s at 9:16); a longer excerpt is
+  played faster in proportion. When the cuts cannot fit even at the minimum,
+  two lines of a stanza share a screen; if that is still too long the render
+  stops with an explicit overflow error (use PNG for a poster of all of it,
+  or copy fewer lines). No text is ever dropped. The last cut holds.
+- **Checks**: a video's cuts share the canvas but never the screen, so the
+  quality checks run per cut against that cut's own ground, and the source
+  ledger over the whole layout (`lyricsViolations` in `lyrics.ts`).
+- **Tokens**: `LYRICS_STYLES` (layout, palette, sizes; drawn for 1080 and
+  scaled) and `LYRICS_MOTION` (timing and distances in em; not scaled) in
+  `core/src/templates/lyrics.ts`.
+- **Engine hooks.** Pocket Motion as pinned draws one font pair per
+  composition, keyframes on translate/rotate/scale/opacity/colour, fill-only
+  shapes, two-stop gradients, no blur or text stroke; `scale` and `rotate`
+  move glyphs without resizing or turning them, which is why "scale" and
+  "rotate" move a whole line's glyphs (the gather, the swing). Each style has
+  an `engine` slot table, all `null` today: `faces` (a display face for lyric
+  lines, a text face for notes), `stroke` (outlined emphasis), `gradientText`
+  (two-stop lyric ink) and `blur` (entrance motion blur, soft decor); the
+  layout already computes every box they need, so switching one on is a
+  token change plus the marked `TODO(engine: …)` spots in `lyrics.ts`.
+- **Open in JIZURA** (native result panel, lyrics results only):
+  JIZURA's web app takes no lyrics in its URL (it starts from what it saved
+  in the browser; checked in its `src/12_ui.js`), so the button copies the
+  lyrics exactly as written (markup included: JIZURA reads the same syntax)
+  and opens the app, the Japanese edition for a Japanese interface and the
+  English one otherwise, with the note "Lyrics copied — paste them in
+  JIZURA". `JizuraHandoff` in `native/Sources/PeesutoKit`.
+
 ### QR code: any text, by shortcut only
 
 Every text can become a QR code, so QR is never chosen automatically: it is
@@ -591,3 +698,6 @@ Native bundle and interface acceptance is recorded in
   files may not be sold on their own.
 - [highlight.js](https://highlightjs.org/) 11.12.0, © 2006 Ivan Sagalaev and contributors,
   BSD 3-Clause License (shipped with its package in the sidecar's `core/node_modules/highlight.js/LICENSE`).
+- The lyrics template is inspired by [JIZURA](https://github.com/852wa/JIZURA) by 852wa (MIT
+  License): its cut vocabulary and lyric markup. No JIZURA code or assets are included; the
+  "Open in JIZURA" action only opens its public web app.

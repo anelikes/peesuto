@@ -1,6 +1,6 @@
 import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "diff", "error", "timeline", "stats", "qr"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "diff", "error", "timeline", "stats", "lyrics", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -98,6 +98,12 @@ export type TemplateContent =
    * signed change (`+8%`, `↓2`); parentheses around the change and the colon
    * are syntax. The change's sign only picks its colour. */
   | { readonly kind: "stats"; readonly title?: string; readonly metrics: readonly StatsMetric[] }
+  /** Song lyrics or a poem: an optional title and credit (an LRC `[ti:]` and
+   * `[ar:]` tag, a Markdown `# ` title, or a poem's title and author lines),
+   * then stanzas of lines. Lyric markup is syntax and not drawn: `/` cut marks,
+   * `*` around an emphasised word, `|` before a note, LRC timestamps. `poem`
+   * marks classical verse (equal phrases of four to seven Han characters). */
+  | { readonly kind: "lyrics"; readonly title?: string; readonly credit?: string; readonly poem?: boolean; readonly stanzas: readonly LyricStanza[] }
   /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };
@@ -122,6 +128,22 @@ export interface DiffHunk { readonly header: string; readonly lines: readonly Di
 export interface DiffFile { readonly path?: string; readonly oldPath?: string; readonly meta: readonly string[]; readonly hunks: readonly DiffHunk[] }
 
 export interface ErrorTraceLine { readonly text: string; readonly role: "frame" | "code" | "note"; readonly own: boolean }
+
+/** One lyric line as drawn (markup removed). `breaks` are grapheme offsets
+ * where a `/` started a new cut; `emphasis` grapheme ranges [start, end) that
+ * were `*marked*`; `note` the text after `|`; `at` and `until` the LRC times
+ * in ms (`until` is the next timestamp). A trailing `!` stays text and adds a
+ * flash. */
+export interface LyricLine {
+  readonly text: string;
+  readonly breaks?: readonly number[];
+  readonly emphasis?: readonly (readonly [number, number])[];
+  readonly note?: string;
+  readonly at?: number;
+  readonly until?: number;
+}
+/** A stanza: lines between blank lines, with an optional section label (`[Chorus]`). */
+export interface LyricStanza { readonly label?: string; readonly lines: readonly LyricLine[] }
 
 export interface StatsMetric { readonly label: string; readonly value: string; readonly delta?: string }
 

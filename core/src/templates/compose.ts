@@ -12,6 +12,8 @@ import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, typ
 import { sampleArc, type HueArc } from "./gradient.ts";
 import { CODE_FIELDS, stageField, type ColourField } from "./backdrop.ts";
 import { FATAL_CHECKS, checkLayout, diffCount, type CheckViolation } from "./checks.ts";
+import { LYRICS_STYLES, layoutLyrics, lyricsComposition, lyricsViolations, type LyricsProgram } from "./lyrics.ts";
+export { LYRICS_MOTION, LYRICS_STYLES, LYRICS_TIMING } from "./lyrics.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
 /** GIF/MP4 content taller than the frame scrolls through it (the frame never
@@ -69,7 +71,7 @@ export const AUTO_FRAME = {
    * holds no more text per line (READABILITY), only a bigger image. */
   widths: [1080, 1440, 1920],
   /** Minimum height / width, so a short text is not a thin strip. */
-  minRatio: { text: 0.75, stat: 0.75, quote: 0.75, qr: 1, comparison: 0.6, stats: 0.6 } as Partial<Record<TemplateId, number>>,
+  minRatio: { text: 0.75, stat: 0.75, quote: 0.75, qr: 1, comparison: 0.6, stats: 0.6, lyrics: 0.75 } as Partial<Record<TemplateId, number>>,
   defaultMinRatio: 0.5,
 } as const;
 
@@ -455,6 +457,10 @@ export interface TemplateLine {
   signature?: boolean;
   /** Drawn by the layout, not the source: ordered-list and code line numbers (digits only). */
   generated?: boolean;
+  /** A lyric's `*emphasised*` run (lyrics only; it punches in a video). */
+  emphasis?: boolean;
+  /** Drawn this far from its box: vertical punctuation set in the corner of its cell (the box is where the mark lands). */
+  offset?: { x: number; y: number };
 }
 export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number;
   /** A two-stop linear gradient instead of the flat colour (the engine draws 4 directions; colours may carry alpha). */
@@ -471,6 +477,8 @@ export interface TemplateLayout {
   images: TemplateImage[];
   /** SVG sources by file name, written beside the composition. */
   assets: Record<string, string>;
+  /** A lyric video: its cuts and timing (lyrics with motion only). */
+  lyrics?: LyricsProgram;
 }
 export interface TemplateComposeResult extends ComposeResult {
   readonly width: number;
@@ -1295,6 +1303,17 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       bottom = top + total;
       break;
     }
+    case "lyrics": {
+      const r = layoutLyrics({ plan, content, measure, width: W, height: view.height, fit: view.fit, format: view.format, sizes: SIZES,
+        minBody: minFontSize(W), minSecondary: minFontSize(W, "secondary"), footerRoom, style: styleOf(LYRICS_STYLES), variant: plan.variant === "editorial" ? "editorial" : "classic" });
+      layout.background = r.background; margin = r.margin; signatureColor = r.signatureColor; signatureAlign = r.signatureAlign;
+      layout.lines.push(...r.lines); layout.shapes.push(...r.shapes);
+      for (const shape of r.pinned) pinned.add(shape);
+      backdropRects = r.backdrop;
+      if (r.program) layout.lyrics = r.program;
+      bottom = r.bottom;
+      break;
+    }
     case "text": {
       const style = styleOf(TEXT_STYLES);
       layout.background = style.background; margin = style.margin; signatureColor = style.signature;
@@ -1837,7 +1856,8 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
  * (generated numbers and the signature aside; QR's caption is optional).
  * Size, overlap and contrast findings are logged (kinds and counts only). */
 export function guardLayout(layout: TemplateLayout, plan: TemplatePlan, log: (line: string) => void = (line) => console.error(line)): CheckViolation[] {
-  const violations = checkLayout(layout, plan);
+  // A lyric video's cuts share the canvas but never the screen: checked cut by cut.
+  const violations = layout.lyrics ? lyricsViolations(layout, layout.lyrics, plan) : checkLayout(layout, plan);
   const fatal = violations.find((v) => FATAL_CHECKS.includes(v.kind));
   if (fatal) {
     throw fatal.kind === "overflow"
@@ -1992,6 +2012,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     };
     const layout = layoutTemplate(plan, metrics, { format: options.format ?? defaultTemplateFormat(plan) });
     guardLayout(layout, plan);
+    if (layout.lyrics) return await composeLyrics(plan, layout, layout.lyrics, metrics, font, dir, options);
     // The signature is drawn from the first frame and takes no part in reveal or typing.
     const count = layout.lines.reduce((total, line) => total + (line.signature ? 0 : graphemes(line.text).length), 0);
     // GIF/MP4 keep their frame strictly: taller content scrolls through it.
@@ -2035,7 +2056,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       const prefix: StyledGlyph[] = [];
       for (const [glyphPosition, glyph] of graphemes(line.text).entries()) {
         const bold = line.boldAt[glyphPosition] ?? line.bold;
-        const x = line.x + styledWidth(prefix, line.size, metrics);
+        const x = line.x + (line.offset?.x ?? 0) + styledWidth(prefix, line.size, metrics);
         prefix.push({ text: glyph, bold });
         const index = line.signature ? -1 : glyphIndex++;
         if (!glyph.trim()) continue;
@@ -2055,7 +2076,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
           nodes.push(`<Image class="absolute left-[${x}px] top-[${line.y + (line.height - line.size) / 2}px] w-[${line.size}px] h-[${line.size}px]${animation}" src="e_${emoji.key}.png" />`);
         } else {
           const color = line.colorAt?.[glyphPosition] ?? line.color;
-          nodes.push(`<Text class="absolute left-[${x}px] top-[${line.y}px] text-[${line.size}px] ${bold ? "font-bold" : ""} text-[${color}] h-[${line.height}px]${animation}">{${JSON.stringify(glyph)}}</Text>`);
+          nodes.push(`<Text class="absolute left-[${x}px] top-[${line.y + (line.offset?.y ?? 0)}px] text-[${line.size}px] ${bold ? "font-bold" : ""} text-[${color}] h-[${line.height}px]${animation}">{${JSON.stringify(glyph)}}</Text>`);
         }
       }
     }
@@ -2082,4 +2103,23 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     return { dir, lines: layout.lines.length, size: Math.max(...layout.lines.map((line) => line.size)), frames: timing.frames,
       emoji: emoji.length, truncated: false, width: layout.width, height: frameHeight, template: plan.template, variant: plan.variant, motion: plan.motion, scroll };
   } finally { await m.close(); }
+}
+
+/** A lyric video's composition: its own node tree (cuts gated in time) and timing. */
+async function composeLyrics(plan: TemplatePlan, layout: TemplateLayout, program: LyricsProgram, metrics: TemplateMeasure, font: TemplateFont, dir: string, options: ComposeOptions): Promise<TemplateComposeResult> {
+  const out = lyricsComposition(layout, program, metrics, plan.variant === "editorial" ? "editorial" : "classic");
+  const emoji = await stageEmoji(out.emojiKeys, options.emojiCache, dir, options.emojiBundle);
+  await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries(emoji.map((file) => [file, { linear: true }]))) + "\n");
+  await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}: a lyric video of ${program.cuts.length} cuts.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${out.body}\n</View>));\n`);
+  await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(out.keyframes)},animation:${JSON.stringify(out.animations)}}});\n`);
+  await stageFont(font, dir);
+  await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: out.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1, fonts: fontFaces(font, options.engine).composition }, null, 2));
+  await Bun.write(`${dir}/pocket.json`, JSON.stringify({ $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
+    id: "dev.pocket-stack.motion-paste", name: "pocketjs-motion-paste", title: `${plan.template} ${plan.variant}`, version: "0.0.0",
+    engine: { capabilities: { requires: ["text.glyphs.baked"] } },
+    app: { entry: "compositions/paste/main.tsx", output: "motion-paste", framework: "solid", viewport: { fixed: { logical: [layout.width, program.frameHeight], presentation: "native" } } } }, null, 2));
+  await Bun.write(`${dir}/template-layout.json`, JSON.stringify({ template: plan.template, variant: plan.variant, font, width: layout.width, height: program.frameHeight, frameHeight: program.frameHeight, scroll: false,
+    lines: layout.lines.map(({ text: _text, ...geometry }) => geometry), timing: { frames: out.frames, durationMs: program.durationMs, starts: program.cuts.map((c) => c.start) } }, null, 2));
+  return { dir, lines: layout.lines.length, size: Math.max(...layout.lines.map((line) => line.size)), frames: out.frames,
+    emoji: emoji.length, truncated: false, width: layout.width, height: program.frameHeight, template: plan.template, variant: plan.variant, motion: plan.motion, scroll: false };
 }
