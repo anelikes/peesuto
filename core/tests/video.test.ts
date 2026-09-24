@@ -4,9 +4,10 @@ import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { BUILTIN_ACTIONS, parseActionSpec, runAction } from "../src/actions/index.ts";
-import { engineMissing } from "../src/engine.ts";
+import { EngineError, engineMissing } from "../src/engine.ts";
+import { mp4Boxes } from "./helpers/mp4.ts";
 import { renderCard } from "../src/render/card.ts";
-import { resolveFFmpeg, videoEnvironment, VideoUnavailableError } from "../src/render/video.ts";
+import { pipeFramesToEncoder, resolveFFmpeg, resolveVideoEncoder, videoEnvironment, VideoUnavailableError } from "../src/render/video.ts";
 import { fallbackDsl } from "../src/questions.ts";
 
 const temporary: string[] = [];
@@ -43,6 +44,23 @@ describe("video encoder discovery", () => {
   test("missing encoder gives actionable error while preserving PNG/GIF availability", () => {
     expect(() => resolveFFmpeg({ env: { PATH: "/unavailable" }, fallbackPaths: [] })).toThrow("PNG and GIF export are still available");
   });
+  test("the native encoder wins over ffmpeg; ffmpeg is the fallback, or forced for debugging", async () => {
+    const root = await makeRoot();
+    const native = await executable(root, "PeesutoEncoder");
+    const ffmpeg = await executable(root, "ffmpeg");
+    const none = { nativePaths: [], ffmpegFallbackPaths: [] };
+    expect(resolveVideoEncoder({ env: { PATH: root }, nativePaths: [join(root, "missing"), native] })).toEqual({ kind: "native", path: native });
+    expect(resolveVideoEncoder({ env: { PATH: root }, ...none })).toEqual({ kind: "ffmpeg", path: ffmpeg });
+    expect(resolveVideoEncoder({ env: { PATH: root, PEESUTO_VIDEO_ENCODER: "ffmpeg" }, nativePaths: [native] })).toEqual({ kind: "ffmpeg", path: ffmpeg });
+    expect(resolveVideoEncoder({ prefer: "ffmpeg", env: { PATH: root }, nativePaths: [native] })).toEqual({ kind: "ffmpeg", path: ffmpeg });
+    expect(resolveVideoEncoder({ env: { PATH: "", PEESUTO_ENCODER_PATH: native }, ...none })).toEqual({ kind: "native", path: native });
+    expect(() => resolveVideoEncoder({ prefer: "native", env: { PATH: root }, ...none })).toThrow(VideoUnavailableError);
+    expect(() => resolveVideoEncoder({ env: { PATH: root, PEESUTO_VIDEO_ENCODER: "x264" }, ...none })).toThrow("auto, native or ffmpeg");
+    // A configured path that is wrong fails instead of silently using another encoder.
+    expect(() => resolveVideoEncoder({ native: join(root, "missing"), env: { PATH: root }, nativePaths: [native] })).toThrow(VideoUnavailableError);
+    // Neither: one error that says what to do, never "needs ffmpeg" inside the app.
+    expect(() => resolveVideoEncoder({ env: { PATH: "/unavailable" }, ...none })).toThrow("The Peesuto app includes one");
+  });
   test("work-local aliases expose both ffmpeg and Bun without changing process PATH", async () => {
     const root = await makeRoot();
     const selected = await executable(root, "encoder-custom");
@@ -54,28 +72,116 @@ describe("video encoder discovery", () => {
   });
 });
 
+/** A stand-in for PeesutoEncoder: counts stdin bytes, writes --out, reports like the real one. */
+async function mockEncoder(root: string, body = ""): Promise<string> {
+  const file = join(root, "mock-encoder");
+  await writeFile(file, `#!/bin/sh
+while [ $# -gt 0 ]; do case "$1" in --width) W=$2;; --height) H=$2;; --fps) F=$2;; --out) O=$2;; esac; shift 2; done
+echo "$W $H $F" > "$O.args"
+${body}
+BYTES=$(wc -c | tr -d ' ')
+printf 'mp4' > "$O"
+printf '{"ok":true,"frames":%d,"width":%d,"height":%d,"fps":%d}\\n' $((BYTES / (W * H * 4))) $W $H $F
+`);
+  await chmod(file, 0o755);
+  return file;
+}
+
+describe("native encoder pipe (mock encoder)", () => {
+  const frames = (w: number, h: number) => (i: number) => new Uint8Array(w * h * 4).fill(i);
+  test("streams every frame as raw RGBA and passes size and rate", async () => {
+    const root = await makeRoot();
+    const out = join(root, "out/card.mp4");
+    const r = await pipeFramesToEncoder({ encoder: await mockEncoder(root), out, width: 8, height: 6, fps: 30, frames: 12, frame: frames(8, 6) });
+    expect(r).toMatchObject({ frames: 12, width: 8, height: 6, fps: 30 });
+    expect(await Bun.file(`${out}.args`).text()).toBe("8 6 30\n");
+    expect(await Bun.file(out).text()).toBe("mp4");
+  });
+  test("an encoder failure surfaces its stderr; a short count is an error", async () => {
+    const root = await makeRoot();
+    const failing = await mockEncoder(root, `cat >/dev/null; echo "PeesutoEncoder: the H.264 encoder rejected 8×6" >&2; exit 1`);
+    await expect(pipeFramesToEncoder({ encoder: failing, out: join(root, "a.mp4"), width: 8, height: 6, fps: 30, frames: 3, frame: frames(8, 6) }))
+      .rejects.toThrow("the H.264 encoder rejected");
+    const short = join(root, "short");
+    await writeFile(short, `#!/bin/sh
+cat >/dev/null
+echo '{"ok":true,"frames":1}'
+`);
+    await chmod(short, 0o755);
+    await expect(pipeFramesToEncoder({ encoder: short, out: join(root, "b.mp4"), width: 8, height: 6, fps: 30, frames: 3, frame: frames(8, 6) }))
+      .rejects.toThrow("wrote 1 of 3 frames");
+  });
+  test("a frame of the wrong size, a deadline or an abort stops the encoder", async () => {
+    const root = await makeRoot();
+    const encoder = await mockEncoder(root);
+    await expect(pipeFramesToEncoder({ encoder, out: join(root, "a.mp4"), width: 8, height: 6, fps: 30, frames: 2, frame: () => new Uint8Array(5) })).rejects.toBeInstanceOf(EngineError);
+    await expect(pipeFramesToEncoder({ encoder, out: join(root, "b.mp4"), width: 8, height: 6, fps: 30, frames: 2, frame: frames(8, 6), deadline: performance.now() - 1 })).rejects.toThrow("timed out");
+    const control = new AbortController();
+    control.abort();
+    await expect(pipeFramesToEncoder({ encoder, out: join(root, "c.mp4"), width: 8, height: 6, fps: 30, frames: 2, frame: frames(8, 6), signal: control.signal })).rejects.toBeInstanceOf(EngineError);
+  });
+});
+
+// The real PeesutoEncoder (macOS): `swift build --package-path native -c release` first.
+// CI's render job builds it and sets PEESUTO_TEST_ENCODER=1, so a missing build fails there.
+const builtEncoder = join(import.meta.dir, "../../native/.build/release/PeesutoEncoder");
+const requireEncoder = process.env.PEESUTO_TEST_ENCODER === "1";
+describe.skipIf(process.platform !== "darwin" || (!requireEncoder && !existsSync(builtEncoder)))("PeesutoEncoder (AVFoundation)", () => {
+  test("encodes a real clip: H.264 High, 4:2:0, faststart, exact frame count and rate, colour tagged", async () => {
+    const root = await makeRoot();
+    const out = join(root, "clip.mp4");
+    const W = 320, H = 240, colours = [[230, 40, 40], [40, 180, 70], [40, 70, 220], [128, 128, 128]];
+    const r = await pipeFramesToEncoder({ encoder: builtEncoder, out, width: W, height: H, fps: 30, frames: 45, frame: (i) => {
+      const rgba = new Uint8Array(W * H * 4);
+      for (let p = 0; p < W * H; p++) { const c = colours[(Math.floor((p % W) / 80) + (i >> 3)) % 4]!; rgba.set([c[0]!, c[1]!, c[2]!, 255], p * 4); }
+      return rgba;
+    } });
+    expect(r).toMatchObject({ frames: 45, width: W, height: H, fps: 30 });
+    const boxes = mp4Boxes(await Bun.file(out).bytes());
+    expect(boxes.top.indexOf("moov")).toBeGreaterThan(-1);
+    expect(boxes.top.indexOf("moov")).toBeLessThan(boxes.top.indexOf("mdat")); // faststart
+    expect(boxes.codec).toBe("avc1");
+    expect(boxes.profile).toBe(100); // High
+    expect(boxes.chroma).toBe(1); // 4:2:0 (avcC chroma_format_idc for High)
+    expect(boxes.size).toEqual([W, H]);
+    expect(boxes.samples).toBe(45);
+    expect(boxes.durationSeconds).toBeCloseTo(1.5, 3);
+    // BT.709 primaries and matrix, limited range; transfer sRGB (13), or BT.709 (1) where the writer refuses sRGB.
+    expect(boxes.colour).toMatchObject({ primaries: 1, matrix: 1, fullRange: false });
+    expect([13, 1]).toContain(boxes.colour!.transfer);
+    expect((await Array.fromAsync(new Bun.Glob("*").scan(root))).sort()).toEqual(["clip.mp4"]);
+  }, 60_000);
+  test("fails cleanly on a truncated frame and leaves no file", async () => {
+    const root = await makeRoot();
+    const p = Bun.spawn([builtEncoder, "--width", "16", "--height", "16", "--fps", "30", "--out", join(root, "x.mp4")], { stdin: new Uint8Array(100), stdout: "pipe", stderr: "pipe" });
+    expect(await p.exited).toBe(1);
+    expect(await new Response(p.stderr).text()).toContain("stdin ended inside a frame");
+    expect(await Array.fromAsync(new Bun.Glob("*").scan(root))).toEqual([]);
+  });
+});
+
 describe("video action", () => {
   test("is shipped and validates as an animated MP4 action", () => {
     const action = BUILTIN_ACTIONS.find((action) => action.id === "paste-video")!;
     expect(action).toMatchObject({ builtin: true, needs: "render", output: "video", render: { animate: "always" } });
     expect(parseActionSpec(action).output).toBe("video");
   });
-  test("missing ffmpeg fails before contacting a provider or preparing an engine", async () => {
+  test("no MP4 encoder fails before contacting a provider or preparing an engine", async () => {
     const root = await makeRoot();
     let asked = false;
     const spec = BUILTIN_ACTIONS.find((action) => action.id === "paste-video")!;
     await expect(runAction(spec, { text: "fixture" }, {
       decider: { name: "fixture", ask: async () => { asked = true; return {}; } }, generator: null,
-      render: { engine: join(root, "missing-engine"), work: join(root, "work"), emojiCache: join(root, "emoji"), ffmpeg: join(root, "missing-ffmpeg") },
-    })).rejects.toMatchObject({ kind: "needs", message: expect.stringContaining("Video export needs ffmpeg") });
+      render: { engine: join(root, "missing-engine"), work: join(root, "work"), emojiCache: join(root, "emoji"), videoEncoder: "ffmpeg", ffmpeg: join(root, "missing-ffmpeg") },
+    })).rejects.toMatchObject({ kind: "needs", message: expect.stringContaining("PNG and GIF export are still available") });
     expect(asked).toBe(false);
     expect(existsSync(join(root, "work"))).toBe(false);
   });
-  test("direct MP4 rendering also checks ffmpeg before building", async () => {
+  test("direct MP4 rendering also checks the encoder before building", async () => {
     const root = await makeRoot();
     await expect(renderCard(fallbackDsl("fixture", "chat"), {
       engine: join(root, "missing-engine"), work: join(root, "work"), emojiCache: join(root, "emoji"),
-      format: "mp4", ffmpeg: join(root, "missing-ffmpeg"),
+      format: "mp4", nativeEncoder: join(root, "missing-encoder"),
     })).rejects.toBeInstanceOf(VideoUnavailableError);
     expect(existsSync(join(root, "work"))).toBe(false);
   });
@@ -89,13 +195,13 @@ describe.skipIf(!runIntegration)("Pocket Motion MP4 integration", () => {
   test("renders playable H.264, retains prior outputs, and still produces PNG/GIF", async () => {
     expect(engine).toBeTruthy();
     expect(engineMissing(engine!)).toEqual([]);
-    const ffmpeg = resolveFFmpeg();
-    const ffprobe = Bun.which("ffprobe") ?? join(dirname(ffmpeg), "ffprobe");
+    const encoder = resolveVideoEncoder();
+    const ffprobe = Bun.which("ffprobe") ?? join(dirname(encoder.path), "ffprobe");
     const root = await makeRoot();
-    const render = { engine: engine!, work: join(root, "work"), emojiCache: join(root, "emoji"), outDir: join(root, "cards"), ffmpeg };
+    const render = { engine: engine!, work: join(root, "work"), emojiCache: join(root, "emoji"), outDir: join(root, "cards") };
     const deps = { decider: null, generator: null, render };
     const result = await runAction(BUILTIN_ACTIONS.find((a) => a.id === "paste-video")!, { text: "Peesuto native video" }, deps);
-    expect(result).toMatchObject({ output: "video", format: "mp4" });
+    expect(result).toMatchObject({ output: "video", format: "mp4", meta: { encoder: encoder.kind } });
     if (result.output === "text") throw new Error("Expected video output");
     const probe = Bun.spawn([ffprobe, "-v", "error", "-show_streams", "-show_format", "-of", "json", result.path], { stdout: "pipe", stderr: "pipe" });
     const [output, errors, code] = await Promise.all([new Response(probe.stdout).text(), new Response(probe.stderr).text(), probe.exited]);

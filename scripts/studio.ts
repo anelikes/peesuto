@@ -13,6 +13,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { startStudio } from "./studio/server.ts";
 
+import { resolveVideoEncoder, videoAvailable } from "../core/src/render/video.ts";
 const argv = process.argv.slice(2);
 const flag = (name: string, fallback?: string) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : fallback; };
 const REPO = resolve(import.meta.dir, "..");
@@ -20,6 +21,8 @@ const root = join(REPO, ".work/studio");
 const sourceEngine = resolve(flag("engine", join(REPO, ".work/native-engine"))!);
 const port = Number(flag("port", "4455"));
 const ffmpeg = flag("ffmpeg") ?? Bun.which("ffmpeg") ?? undefined;
+// MP4: the native PeesutoEncoder (swift build) when built, else ffmpeg.
+const mp4 = videoAvailable({ ffmpeg });
 
 if (!existsSync(join(sourceEngine, "package.json"))) {
   console.error(`studio: no prepared engine at ${sourceEngine} (pass --engine <prepared pocket-motion checkout>)`);
@@ -43,7 +46,7 @@ async function prepareEngine(): Promise<string> {
   return engine;
 }
 
-const studio = await startStudio({ repo: REPO, root, engine: await prepareEngine(), ffmpeg, port });
-console.log(`studio: ${studio.url}  (code ${studio.version()}, ${ffmpeg ? "ffmpeg found" : "no ffmpeg: MP4 off"}, Jev ${process.env.PASTE_CF_TOKEN && process.env.PASTE_CF_ACCOUNT_ID ? "available" : "off"})`);
+const studio = await startStudio({ repo: REPO, root, engine: await prepareEngine(), ffmpeg, video: mp4, port });
+console.log(`studio: ${studio.url}  (code ${studio.version()}, ${mp4 ? `MP4 via ${resolveVideoEncoder({ ffmpeg }).kind}` : "no video encoder: MP4 off"}, Jev ${process.env.PASTE_CF_TOKEN && process.env.PASTE_CF_ACCOUNT_ID ? "available" : "off"})`);
 if (!argv.includes("--no-open")) Bun.spawn(["open", studio.url]);
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => { studio.stop(); process.exit(0); });

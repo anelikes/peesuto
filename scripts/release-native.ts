@@ -95,6 +95,9 @@ console.log(`Signing ${nested.length} Mach-O file(s) inside Contents/Resources.`
 for (const path of nested) await sign(path);
 await sign(join(macos, "paste"), ["--identifier", "com.peesuto.desktop.paste", "--entitlements", bunEntitlements]);
 await sign(join(macos, "PeesutoCoreHost"), ["--identifier", "com.peesuto.desktop.corehost"]);
+// The MP4 encoder Core spawns (AVFoundation/VideoToolbox; no entitlements needed).
+if (!existsSync(join(macos, "PeesutoEncoder"))) fail("PeesutoEncoder is missing from Contents/MacOS; rebuild the app.");
+await sign(join(macos, "PeesutoEncoder"), ["--identifier", "com.peesuto.desktop.encoder"]);
 // Sparkle, inside-out as its "Sandboxing and code signing" guide lists: the helpers, then the
 // framework. build-native.ts removed the XPC services (the app is not sandboxed).
 const sparkle = join(app, "Contents/Frameworks/Sparkle.framework");

@@ -6,7 +6,7 @@
  * Application Support directory (the build writes into the vendored tree),
  * and every render happens there — never inside the app bundle.
  *
- *   bun scripts/bundle-sidecar.ts [--engine <root>] [--out native/.bundle] [--target aarch64-apple-darwin]
+ *   bun scripts/bundle-sidecar.ts [--engine <root>] [--out native/.bundle] [--target aarch64-apple-darwin] [--encoder <PeesutoEncoder>]
  *
  * Layout produced under --out:
  *   binaries/paste-<target>     the Bun executable staged for the native app bundle
@@ -245,9 +245,11 @@ await chmod(bin, 0o755);
     await cp(join(resources, "core"), join(probe, "core"), { recursive: true });
     await cp(engineOut, join(probe, "engine"), { recursive: true });
     const emoji = join(resources, "emoji");
-    const ffmpeg = [Bun.which("ffmpeg"), "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].find((f): f is string => !!f && existsSync(f));
+    // MP4 goes through the app's own encoder (PeesutoEncoder, built by build-native.ts first), never ffmpeg.
+    const encoder = flag("encoder") ? resolve(flag("encoder")!) : undefined;
+    if (encoder && !existsSync(encoder)) throw new Error(`--encoder ${encoder} does not exist; build it with swift build --package-path native -c release`);
     const args = ["--core", join(probe, "core"), "--engine", join(probe, "engine"), "--out", join(probe, "out"),
-      ...(existsSync(emoji) ? ["--emoji", emoji] : []), ...(ffmpeg ? ["--mp4", ffmpeg] : [])];
+      ...(existsSync(emoji) ? ["--emoji", emoji] : []), ...(encoder ? ["--encoder", encoder] : [])];
     const p = Bun.spawn([bin, "--no-install", join(REPO_ROOT, "scripts/bundle-render-probe.ts"), ...args], {
       cwd: join(probe, "core"), stdout: "pipe", stderr: "pipe", env: { ...process.env, BUN_INSTALL_CACHE_DIR: join(probe, "cache") },
     });
@@ -255,7 +257,7 @@ await chmod(bin, 0o755);
     const result = stdout.trim().split("\n").at(-1) ?? "";
     if (code !== 0 || !result.startsWith("ok ")) throw new Error(`bundled Core and engine cannot render every template from the pruned bundle:\n${stderr.trim().split("\n").filter((l) => !l.startsWith("templates:")).slice(-30).join("\n")}`);
     for (const line of stderr.split("\n")) if (line.startsWith("bundle-render-probe:")) console.warn(line);
-    console.log(`render probe: ${result.slice(3)} (every template, PNG and GIF${ffmpeg ? ", MP4" : ""}; offline, from the bundle)`);
+    console.log(`render probe: ${result.slice(3)} (every template, PNG and GIF${encoder ? ", MP4 through PeesutoEncoder" : ""}; offline, from the bundle)`);
   } finally { await rm(probe, { recursive: true, force: true }); }
 }
 

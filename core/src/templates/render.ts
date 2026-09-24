@@ -6,7 +6,7 @@ import { EngineError, ensureWorkTree, renderDeadline, runEngine, throwIfAborted 
 import type { RenderOptions, RenderResult } from "../render/card.ts";
 import { encodeCardGif } from "../render/gif.ts";
 import { pruneOutputs, writeOutput } from "../render/outputs.ts";
-import { resolveFFmpeg, videoEnvironment } from "../render/video.ts";
+import { encodeMp4, videoEncoderFor } from "../render/video.ts";
 import { ComposeError } from "../render/compose.ts";
 import { composeTemplate, type TemplateComposeResult } from "./compose.ts";
 import type { TemplatePlan } from "./types.ts";
@@ -38,7 +38,8 @@ export async function prepareTemplate(plan: TemplatePlan, options: RenderOptions
 
 export async function renderTemplate(plan: TemplatePlan, options: RenderOptions): Promise<RenderResult & TemplateComposeResult> {
   const format = options.format ?? (plan.motion === "none" ? "png" : "gif");
-  const ffmpeg = format === "mp4" ? resolveFFmpeg({ executable: options.ffmpeg }) : undefined;
+  // Refuse a missing encoder before composition/build work begins.
+  const encoder = format === "mp4" ? videoEncoderFor(options) : undefined;
   // One deadline for the whole render: build, frames and encoding together.
   const deadline = renderDeadline(format);
   const prepared = await prepareTemplate(plan, { ...options, format }, deadline);
@@ -49,12 +50,12 @@ export async function renderTemplate(plan: TemplatePlan, options: RenderOptions)
   // deletes a file the caller already had at `out`.
   const run = { deadline, signal: options.signal, lowPriority: options.lowPriority };
   await writeOutput(path, async (temp) => {
-    if (format === "mp4") await runEngine(options.work, ["render", "compositions/paste", "--format", "mp4", "--out", temp], await videoEnvironment(options.work, ffmpeg!), run);
+    if (format === "mp4") await encodeMp4(encoder!, { engine: options.engine, work: options.work, out: temp, ...run });
     else if (format === "gif") await encodeCardGif({ engine: options.engine, work: options.work, out: temp, width: templateGifWidth(prepared.width, prepared.height, prepared.frames), deadline, signal: options.signal });
     else await runEngine(options.work, ["frame", "compositions/paste", "--at", "0", "--out", temp], {}, run);
     throwIfAborted(options.signal);
     if ((await stat(temp)).size === 0) throw new EngineError("Template output is empty.");
   });
   if (!options.out) await pruneOutputs(dirname(path), path);
-  return { ...prepared, path, format, ms: { ...prepared.ms, frame: Math.round(performance.now() - started) } };
+  return { ...prepared, path, format, ms: { ...prepared.ms, frame: Math.round(performance.now() - started) }, ...(encoder ? { encoder: encoder.kind } : {}) };
 }

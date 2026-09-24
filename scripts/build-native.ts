@@ -22,18 +22,20 @@ async function run(command: string[], cwd = REPO_ROOT): Promise<void> {
   const p = Bun.spawn(command, { cwd, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
   if (await p.exited !== 0) throw new Error(`Native build failed: ${command[0]}`);
 }
+// Swift first: the bundle's render probe encodes an MP4 through the PeesutoEncoder it builds.
+await run(["swift", "build", "--package-path", native, "-c", "release"]);
+const encoder = join(native, ".build/release/PeesutoEncoder");
 if (!args.includes("--skip-resources")) {
   const engine = resolve(flag("--engine") ?? engineRoot());
   const pin = await Bun.file(join(REPO_ROOT, "engine.json")).json();
   const p = Bun.spawn(["git", "-C", engine, "rev-parse", "HEAD"], { stdout: "pipe", stderr: "pipe" });
   const sha = (await new Response(p.stdout).text()).trim();
   if (await p.exited !== 0 || sha !== pin.sha) throw new Error("Prepare the engine.json pinned checkout and pass --engine <path>. Refusing to bundle a different engine.");
-  await run([process.execPath, "scripts/bundle-sidecar.ts", "--engine", engine, "--out", stage, "--target", target]);
+  await run([process.execPath, "scripts/bundle-sidecar.ts", "--engine", engine, "--out", stage, "--target", target, "--encoder", encoder]);
 } else {
   if (!existsSync(join(stage, "resources/core/daemon.ts")) || !existsSync(join(stage, "binaries", `paste-${target}`))) throw new Error("No staged resources. Build once without --skip-resources.");
   console.log("Reusing staged Core/engine resources (--skip-resources).");
 }
-await run(["swift", "build", "--package-path", native, "-c", "release"]);
 const name = preview ? "Peesuto Preview" : "Peesuto";
 const app = join(native, "dist", `${name}.app`);
 await rm(app, { recursive: true, force: true });
@@ -41,7 +43,8 @@ const macos = join(app, "Contents/MacOS");
 const resources = join(app, "Contents/Resources");
 await mkdir(macos, { recursive: true });
 await mkdir(resources, { recursive: true });
-for (const binary of ["Peesuto", "PeesutoCoreHost"]) {
+// PeesutoEncoder sits next to the bundled Bun (Contents/MacOS/paste): Core finds it there for MP4.
+for (const binary of ["Peesuto", "PeesutoCoreHost", "PeesutoEncoder"]) {
   await cp(join(native, ".build/release", binary), join(macos, binary));
   await chmod(join(macos, binary), 0o755);
 }
@@ -93,6 +96,7 @@ ${preview ? "" : `<key>SUFeedURL</key><string>${SPARKLE_FEED_URL}</string>
 // Local development signature only. Developer ID/notarization remains N5 work.
 await run(["codesign", "--force", "--sign", "-", "--entitlements", join(native, "Resources/Bun.entitlements.plist"), join(macos, "paste")]);
 await run(["codesign", "--force", "--sign", "-", join(macos, "PeesutoCoreHost")]);
+await run(["codesign", "--force", "--sign", "-", join(macos, "PeesutoEncoder")]);
 await run(["codesign", "--force", "--sign", "-", sparkle]);
 await run(["codesign", "--force", "--sign", "-", app]);
 await run(["codesign", "--verify", "--deep", "--strict", app]);

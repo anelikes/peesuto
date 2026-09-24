@@ -9,7 +9,7 @@ import { EngineError } from "../engine.ts";
 import { deciderForModel } from "../privacy/decider.ts";
 import { applyOutputRules, compilePrivacy, containsSecret, describeBuiltins, parsePrivacyConfig, previewPrivacy, PrivacyConfigError, type CompiledPrivacy } from "../privacy/rules.ts";
 import { rulesDecider } from "../provider/decider/rules.ts";
-import { resolveFFmpeg } from "../render/video.ts";
+import { videoEncoderFor } from "../render/video.ts";
 import { renderTemplate } from "../templates/render.ts";
 import { templateAspect } from "../templates/types.ts";
 import { coreVersion, DEFAULT_PRECOMPOSE, parsePrecomposeConfig, precomposeKey, PrecomposeConfigError, Precomposer, PRECOMPOSE_OUTPUTS, renderKeyParts, visibleChars, type PrecomposeConfig, type PrecomposeOutput, type PrecomposeTask } from "./precompose.ts";
@@ -169,7 +169,7 @@ export class Daemon {
           if (skipped) return { id, ok: true, cmd: "precompose", queued: false, skipped };
           const tasks: PrecomposeTask[] = [];
           for (const output of this.precompose.outputs) {
-            if (output === "video") { try { resolveFFmpeg({ executable: this.render()?.ffmpeg }); } catch { continue; } }
+            if (output === "video") { try { videoEncoderFor(this.render() ?? {}); } catch { continue; } }
             const spec = PRECOMPOSE_SPECS[output];
             const input = { text: req.text, ...(frames[output] ? { aspect: frames[output] } : {}), ...(req.templatePreferences ? { templatePreferences: req.templatePreferences } : {}), ...(req.disabledTemplates ? { disabledTemplates: req.disabledTemplates } : {}), ...(typeof req.templateFont === "string" ? { templateFont: req.templateFont } : {}), ...(typeof req.templateSignature === "string" ? { templateSignature: req.templateSignature } : {}) };
             tasks.push({ key: this.keyOf(spec, input)!, text: req.text, spec, input });

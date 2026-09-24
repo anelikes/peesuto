@@ -35,7 +35,7 @@ import { applyPalette, GIFEncoder, quantize } from "gifenc";
 import { EngineError, EngineTimeoutError, throwIfAborted } from "../engine.ts";
 
 /* ---- the engine surface this encoder uses -------------------------------- */
-interface ResolvedComposition {
+export interface ResolvedComposition {
   readonly compositionId: string;
   readonly bundlePath: string;
   readonly pakPath: string;
@@ -58,7 +58,7 @@ type ResolveResult =
 interface ResolveApi {
   resolveComposition(o: { dir: string; flags: { json: boolean }; requireBundle?: boolean }): Promise<ResolveResult>;
 }
-interface FrameSource {
+export interface FrameSource {
   audit(): unknown;
   seekFrame(frame: number): Promise<void>;
   /** RGBA at physical size. Treated as valid only until the next seek. */
@@ -107,41 +107,52 @@ export interface CardGifResult {
   readonly bytes: number;
 }
 
+/** The prepared composition at `<work>/compositions/paste`, opened for frame
+ * reads in this process. Shared by the GIF encoder and the native MP4 path
+ * (video.ts); `label` prefixes errors. The caller disposes `source`. */
+export async function openPreparedFrames(engine: string, work: string, label: string): Promise<{ readonly composition: ResolvedComposition; readonly source: FrameSource }> {
+  const { resolveComposition } = (await import(`${engine}/src/cli/resolve.ts`)) as ResolveApi;
+  const { WasmFrameSource } = (await import(`${engine}/src/runtime/frame-source.ts`)) as FrameSourceApi;
+  const resolved = await resolveComposition({ dir: join(work, "compositions/paste"), flags: { json: false }, requireBundle: true });
+  if (!resolved.ok) {
+    const detail = (resolved.diagnostics ?? []).map((d) => `\n  ${d.path || "/"}: ${d.code}: ${d.message}`).join("");
+    throw new EngineError(`${label}: ${resolved.message}${detail}`);
+  }
+  const c = resolved.value;
+  if ((c.sidecar.footage?.length ?? 0) > 0) throw new EngineError(`${label}: the card composition declares footage; this path renders none`);
+  const source = await WasmFrameSource.create({
+    compositionId: c.compositionId,
+    bundlePath: c.bundlePath,
+    pakPath: existsSync(c.pakPath) ? c.pakPath : undefined,
+    width: c.width,
+    height: c.height,
+    hz: c.fps,
+    durationFrames: c.durationFrames,
+    renderScale: c.supersample,
+    buildCommand: c.buildCommand,
+  });
+  try { source.audit(); }
+  catch (e) { await source.dispose(); throw e; }
+  return { composition: c, source };
+}
+
 /** The prepared composition at `<work>/compositions/paste` → an animated GIF at `out`. */
 export async function encodeCardGif(o: CardGifOptions): Promise<CardGifResult> {
   const fps = o.fps ?? GIF_DEFAULTS.fps;
   const width = o.width ?? GIF_DEFAULTS.width;
-  const { resolveComposition } = (await import(`${o.engine}/src/cli/resolve.ts`)) as ResolveApi;
-  const { WasmFrameSource } = (await import(`${o.engine}/src/runtime/frame-source.ts`)) as FrameSourceApi;
-
-  const resolved = await resolveComposition({ dir: join(o.work, "compositions/paste"), flags: { json: false }, requireBundle: true });
-  if (!resolved.ok) {
-    const detail = (resolved.diagnostics ?? []).map((d) => `\n  ${d.path || "/"}: ${d.code}: ${d.message}`).join("");
-    throw new EngineError(`gif: ${resolved.message}${detail}`);
-  }
-  const c = resolved.value;
-  if ((c.sidecar.footage?.length ?? 0) > 0) throw new EngineError("gif: the card composition declares footage; the GIF path renders none");
-
-  const step = Math.max(1, Math.round(c.fps / fps));
-  const physW = c.width * c.supersample;
-  const physH = c.height * c.supersample;
-
   const frames: Uint8Array[] = [];
   let size = { width: 0, height: 0 };
   let source: FrameSource | undefined;
+  let step = 1;
+  let compositionFps = 30;
   try {
-    source = await WasmFrameSource.create({
-      compositionId: c.compositionId,
-      bundlePath: c.bundlePath,
-      pakPath: existsSync(c.pakPath) ? c.pakPath : undefined,
-      width: c.width,
-      height: c.height,
-      hz: c.fps,
-      durationFrames: c.durationFrames,
-      renderScale: c.supersample,
-      buildCommand: c.buildCommand,
-    });
-    source.audit();
+    const opened = await openPreparedFrames(o.engine, o.work, "gif");
+    source = opened.source;
+    const c = opened.composition;
+    compositionFps = c.fps;
+    step = Math.max(1, Math.round(c.fps / fps));
+    const physW = c.width * c.supersample;
+    const physH = c.height * c.supersample;
     for (let f = 0; f < c.durationFrames; f += step) {
       // Frames render in-process; the deadline is checked between frames.
       if (o.deadline !== undefined && performance.now() > o.deadline) throw new EngineTimeoutError("gif encoding timed out and was stopped. Try a shorter text, PNG, or set PASTE_RENDER_TIMEOUT_MS.");
@@ -161,7 +172,7 @@ export async function encodeCardGif(o: CardGifOptions): Promise<CardGifResult> {
   }
 
   throwIfAborted(o.signal);
-  const gif = encodeGif(frames, size.width, size.height, { fps: c.fps / step, colors: o.colors, delta: o.delta });
+  const gif = encodeGif(frames, size.width, size.height, { fps: compositionFps / step, colors: o.colors, delta: o.delta });
   await mkdir(dirname(o.out), { recursive: true });
   await Bun.write(o.out, gif);
   return { frames: frames.length, bytes: gif.byteLength };

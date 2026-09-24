@@ -23,6 +23,8 @@ export interface StudioOptions {
   readonly root: string;
   readonly engine: string;
   readonly ffmpeg?: string;
+  /** Whether MP4 can be made (native encoder or ffmpeg); defaults to whether ffmpeg was given. */
+  readonly video?: boolean;
   readonly port: number;
 }
 
@@ -234,7 +236,7 @@ export async function startStudio(o: StudioOptions) {
   };
   const plan = (text: string, frames: Frames, decider: string, formats: Formats, autoOnly = false) => {
     const [kind, modelContent] = decider.split(":");
-    return planner.call<PlanResult>(version, { op: "plan", text, ...frames, decider: kind, modelContent, formats, video: Boolean(o.ffmpeg), answersDir, autoOnly });
+    return planner.call<PlanResult>(version, { op: "plan", text, ...frames, decider: kind, modelContent, formats, video: o.video ?? Boolean(o.ffmpeg), answersDir, autoOnly });
   };
   const failure = (error: unknown, status = 422) => { const e = error as WorkerError; return Response.json({ error: { kind: e.kind ?? "Error", message: e.message } }, { status }); };
 
@@ -252,7 +254,7 @@ export async function startStudio(o: StudioOptions) {
         await refreshVersion();
         let registry: unknown = [];
         try { registry = await planner.call(version, { op: "registry" }); } catch (error) { return failure(error, 500); }
-        return Response.json({ version, jev, ffmpeg: Boolean(o.ffmpeg), queue: queueState(), registry,
+        return Response.json({ version, jev, ffmpeg: o.video ?? Boolean(o.ffmpeg), queue: queueState(), registry,
           scenarios: SCENARIOS.map((s) => ({ id: s.id, title: s.title, group: s.group ?? "其他", text: s.text })) });
       }
 

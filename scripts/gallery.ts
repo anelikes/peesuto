@@ -12,12 +12,14 @@
  * GIF/MP4 the fixed animated frame (default 1:1).
  *
  * The engine checkout is copied first: its build tools write vendor caches.
- * MP4 needs ffmpeg (PATH or --ffmpeg). Open <out>/index.html in a browser.
+ * MP4 uses the native PeesutoEncoder when built (swift build --package-path native -c release),
+ * else ffmpeg (PATH or --ffmpeg). Open <out>/index.html in a browser.
  */
 import { cp, mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ALL_FORMATS, errorOf, frameName, IMAGE_FRAMES, MOTION_FRAMES, planText, privacyView, renderJob, type ImageFrame, type JobGroup, type MotionFrame } from "./studio/pipeline.ts";
 import { SCENARIOS, type Scenario } from "./studio/scenarios.ts";
+import { videoAvailable } from "../core/src/render/video.ts";
 
 const argv = process.argv.slice(2);
 const flag = (name: string, fallback?: string) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : fallback; };
@@ -49,7 +51,7 @@ for (const scenario of SCENARIOS.filter((s) => !only || only.includes(s.id))) {
   const section: Section = { scenario, chosen: "", candidates: [], shots: [], ...(view.segments.some((x) => x.ruleId) ? { model: view.modelText } : {}) };
   sections.push(section);
   try {
-    const { decision, jobs } = await planText(scenario.text, { imageFrame, motionFrame, decider: "rules", answersDir: join(out, ".answers"), formats: ALL_FORMATS, video: video && Boolean(ffmpeg) });
+    const { decision, jobs } = await planText(scenario.text, { imageFrame, motionFrame, decider: "rules", answersDir: join(out, ".answers"), formats: ALL_FORMATS, video: video && videoAvailable({ ffmpeg }) });
     section.chosen = decision.templateName;
     section.candidates = decision.candidates.map((c) => c.name);
     console.log(`${scenario.id}: ${decision.template} [${decision.candidates.map((c) => c.id).join(", ")}]`);

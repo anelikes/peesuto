@@ -6,13 +6,15 @@
  * against a scratch copy of its output (the engine copy stands in for the one
  * the app installs into Application Support; renders write into it).
  *
- *   paste --no-install scripts/bundle-render-probe.ts --core <core> --engine <engine> --out <dir> [--emoji <dir>] [--mp4 <ffmpeg>]
+ *   paste --no-install scripts/bundle-render-probe.ts --core <core> --engine <engine> --out <dir> [--emoji <dir>] [--encoder <PeesutoEncoder>]
  *
  * Covers: every registered template × variant as PNG and as GIF (samples from
  * core/tests/fixtures/templates.ts, plus QR), the Noto card font, a character
  * only Noto Sans SC has, emoji, the DSL card path (PNG and GIF) and, with
- * --mp4, one video. This script imports nothing but Core's own modules by
- * absolute path, so every package resolves from the bundled node_modules.
+ * --encoder, MP4 through the app's own encoder with ffmpeg ruled out (a text
+ * card and a Lyric motion video, each checked for H.264 and moov-before-mdat).
+ * This script imports nothing but Core's own modules by absolute path, so
+ * every package resolves from the bundled node_modules.
  * It never uses the network: fetch throws, and without --emoji (no bundled
  * emoji set) samples containing emoji are left out rather than fetched.
  */
@@ -25,7 +27,7 @@ const flag = (n: string) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? 
 const need = (n: string) => { const v = flag(n); if (!v) throw new Error(`bundle-render-probe: --${n} is required`); return resolve(v); };
 const core = need("core"), engine = need("engine"), out = need("out");
 const emoji = flag("emoji") ? resolve(flag("emoji")!) : undefined;
-const ffmpeg = flag("mp4");
+const encoder = flag("encoder") ? resolve(flag("encoder")!) : undefined;
 globalThis.fetch = (async (input: unknown) => { throw new Error(`bundle-render-probe: no network (${String(input)})`); }) as unknown as typeof fetch;
 const hasEmoji = (x: unknown) => /\p{Extended_Pictographic}/u.test(JSON.stringify(x));
 
@@ -42,9 +44,16 @@ const t0 = performance.now();
 async function one(name: string, plan: TemplatePlan, format: "png" | "gif" | "mp4"): Promise<void> {
   if (!emoji && hasEmoji(plan.content)) { console.warn(`bundle-render-probe: ${name}.${format} skipped (no bundled emoji set)`); return; }
   const path = join(out, `${name}.${format}`);
-  const r = await renderTemplate(plan, { ...options, format, out: path, ...(format === "mp4" ? { ffmpeg } : {}) });
+  // MP4: the native encoder only; "native" makes a missing one an error instead of an ffmpeg fallback.
+  const r = await renderTemplate(plan, { ...options, format, out: path, ...(format === "mp4" ? { videoEncoder: "native" as const, nativeEncoder: encoder } : {}) });
   if (r.frames < 1 || (await Bun.file(path).size) < 100) throw new Error(`bundle-render-probe: ${name}.${format} is empty`);
   if (format !== "png" && r.frames < 2) throw new Error(`bundle-render-probe: ${name}.${format} did not animate`);
+  if (format === "mp4") {
+    const bytes = await Bun.file(path).bytes();
+    const at = (box: string) => Buffer.from(bytes).indexOf(box);
+    if (r.encoder !== "native") throw new Error(`bundle-render-probe: ${name}.mp4 was not made by PeesutoEncoder`);
+    if (at("avc1") < 0 || at("moov") < 0 || at("moov") > at("mdat")) throw new Error(`bundle-render-probe: ${name}.mp4 is not faststart H.264`);
+  }
   done.push(`${name}.${format}`);
 }
 
@@ -67,7 +76,11 @@ await one("text-noto", noto(samplePlan(text("好的设计 Noto 🎉"))), "png");
 await one("text-noto", noto(samplePlan(text("好的设计 Noto 🎉"), "classic", "reveal")), "gif");
 await one("text-fallback", samplePlan(text("他說：嗎？✨")), "png");
 await one("text-fallback", samplePlan(text("他說：嗎？✨"), "classic", "reveal"), "gif");
-if (ffmpeg) await one("text-video", samplePlan(text("Peesuto 视频 🎬"), "classic", "reveal"), "mp4");
+if (encoder) {
+  await one("text-video", samplePlan(text("Peesuto 视频 🎬"), "classic", "reveal"), "mp4");
+  const lyric = TEMPLATE_SAMPLES.find((c) => c.kind === "lyrics");
+  if (lyric && TEMPLATE_REGISTRY.some((r) => r.id === "lyrics")) await one("lyrics-video", samplePlan(lyric, "classic", "reveal"), "mp4");
+}
 // The DSL card (CLI and fallback path).
 for (const format of ["png", "gif"] as const) {
   const dsl = fallbackDsl(`把复杂留给自己，把简单留给别人。\nKeep it simple.${emoji ? " 🙂" : ""}`, "chat");
