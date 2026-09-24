@@ -4,7 +4,7 @@ import { parseTemplates, withoutTemplates, type ParsedTemplates } from "./parse.
 import { MANUAL_TEMPLATES, templateHasVariant, templateRegistration } from "./registry.ts";
 import { ProviderError } from "../provider/types.ts";
 import { modelContentOf, type ModelContentInfo } from "../privacy/decider.ts";
-import { DEFAULT_ASPECT, MOTIONS, TEMPLATE_FONTS, TEMPLATE_IDS, VARIANT_IDS, type TemplateFontChoice, TemplateInputError, templateAspect, type TemplateAspect, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
+import { DEFAULT_ASPECT, MOTIONS, TEMPLATE_FONTS, templateSignature, TEMPLATE_IDS, VARIANT_IDS, type TemplateFontChoice, TemplateInputError, templateAspect, type TemplateAspect, type TemplateDecision, type TemplateId, type TemplateMotion, type TemplateOverride, type VariantId } from "./types.ts";
 
 export const TEMPLATE_CONFIDENCE = 0.65;
 
@@ -17,6 +17,8 @@ export interface TemplateDecisionOptions {
   readonly preferences?: Readonly<Record<string, string>>;
   /** The card typeface the user chose (Settings › Templates); unknown values mean the default. */
   readonly font?: string;
+  /** The user's card signature (Settings › Templates); normalized, empty means none. */
+  readonly signature?: string;
   /** Templates the user turned off for automatic choice; still available by hand. */
   readonly disabled?: readonly string[];
   /** Custom actions can opt out of motion independently from their container. */
@@ -186,9 +188,11 @@ export async function decideTemplate(text: string, options: TemplateDecisionOpti
   if (requireMotion && motion === "none") motion = DEFAULT_MOTION;
   // A template that registers fewer motions takes its closest one.
   if (!templateRegistration(template).motions.includes(motion)) motion = allowMotion ? DEFAULT_MOTION : "none";
+  const signature = templateSignature(options.signature);
   return {
     plan: { version: 1, template, variant, motion, sourceText: parsed.sourceText, content: parsed.candidates.get(template)!, aspect, ...(emphasis ? { emphasis } : {}),
-      ...((TEMPLATE_FONTS as readonly unknown[]).includes(options.font) ? { font: options.font as TemplateFontChoice } : {}) },
+      ...((TEMPLATE_FONTS as readonly unknown[]).includes(options.font) ? { font: options.font as TemplateFontChoice } : {}),
+      ...(signature && template !== "qr" ? { signature } : {}) },
     decisionSource,
     availableTemplates,
     ...(decisionError ? { decisionError } : {}),

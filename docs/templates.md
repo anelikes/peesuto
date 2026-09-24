@@ -135,6 +135,24 @@ the other one when that has them all (Noto lacks ⌥, Maple lacks 體); when
 neither does, an explicit `unsupported-script` error names what is missing. One
 font pair per composition.
 
+### Signature footer
+
+Settings › Templates › Signature takes one short line of the user's own
+("@nya · peesuto.com"; at most 40 characters, empty by default, which means
+none). It is saved as `template_signature`, sent as `templateSignature` with
+every render and precompose request, part of the precompose key, and carried
+in the plan as `signature` (one line, whitespace collapsed, trimmed, cut at 40
+graphemes by `templateSignature()`). Every card but QR draws it at the foot in
+the secondary size (32 px on 1080), in the style's `signature` colour (a muted
+tone of the ground, at least 4.5:1), left-aligned with the content (centred on
+Ink): 56 px above the bottom edge or above a pinned band, and at least 40 px
+below everything else. Content is centred and fitted leaving it that room, so
+a card that fits its frame still does; one that does not grows (PNG) or
+scrolls (GIF/MP4). It is not source text: its lines are marked `signature` and
+exempt from the source rules (and from reveal and typing: it is there from the
+first frame). A signature the card's font cannot draw is dropped without an
+error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
+
 ### Code: monospace type and syntax colour
 
 - Font: the whole code card (both styles, the language label included) is set

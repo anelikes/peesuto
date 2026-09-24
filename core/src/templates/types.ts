@@ -94,6 +94,22 @@ export interface TemplatePlan {
   readonly emphasis?: string;
   /** The card typeface; absent means DEFAULT_TEMPLATE_FONT. */
   readonly font?: TemplateFontChoice;
+  /** The user's signature, drawn small at the foot of every card but QR. Not
+   * source text: exempt from the source-fidelity rules. Normalized by
+   * templateSignature(); dropped silently when the card font cannot draw it. */
+  readonly signature?: string;
+}
+
+/** Longest signature, in graphemes (the settings field enforces it too). */
+export const SIGNATURE_MAX_GRAPHEMES = 40;
+/** A signature as it is drawn: one line (whitespace runs become one space),
+ * trimmed, at most SIGNATURE_MAX_GRAPHEMES; undefined when empty or not a string. */
+export function templateSignature(value: unknown): string | undefined {
+  if (typeof value !== "string") return;
+  const line = value.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\u200d" || /\s/u.test(c) ? c : "")).replace(/\s+/gu, " ").trim();
+  if (!line) return;
+  const glyphs = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(line)].map((part) => part.segment);
+  return glyphs.slice(0, SIGNATURE_MAX_GRAPHEMES).join("").trim();
 }
 
 export interface TemplateOverride {

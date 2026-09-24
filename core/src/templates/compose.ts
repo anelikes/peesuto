@@ -46,6 +46,12 @@ interface View { width: number; height: number; fit: number }
  *   table forest #1f5f47 · comparison rose #c93d6a
  */
 
+/** The signature footer (Settings › Templates): secondary-size type at the
+ * foot of every card but QR, `inset` above the bottom edge (above a pinned
+ * band), at least `gap` below the content; the card grows to hold it. Its
+ * colour is each style's `signature`. At the reference width; scaled like styles. */
+export const SIGNATURE_STYLE = { size: 32, leading: 1.2, gap: 40, inset: 56 } as const;
+
 /** The automatic image frame, as tokens. */
 export const AUTO_FRAME = {
   /** Every card starts at the first width. Wider ones are only retried on
@@ -67,24 +73,24 @@ export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
 /** The text template: sizes are clamped to SIZES between minSize and maxSize. */
 export const TEXT_STYLES = {
   /** Paper: warm page, left, regular; a vermilion square marks the top-left. */
-  classic: { background: "#f4f1ea", ink: "#18181b", accent: "#e5482e", accentBold: true, bold: false, align: "left", margin: 104, minSize: 40, maxSize: 96, leading: 1.24,
+  classic: { background: "#f4f1ea", signature: "#6b675e", ink: "#18181b", accent: "#e5482e", accentBold: true, bold: false, align: "left", margin: 104, minSize: 40, maxSize: 96, leading: 1.24,
     rule: null, mark: { size: 24, gap: 40, color: "#e5482e" }, band: null },
   /** Ink: night ground, centred bold, a yellow rule under the text. */
-  editorial: { background: "#121316", ink: "#f2f0ea", accent: "#f4c430", accentBold: false, bold: true, align: "center", margin: 112, minSize: 40, maxSize: 128, leading: 1.16,
+  editorial: { background: "#121316", signature: "#8c887f", ink: "#f2f0ea", accent: "#f4c430", accentBold: false, bold: true, align: "center", margin: 112, minSize: 40, maxSize: 128, leading: 1.16,
     rule: { width: 96, height: 8, color: "#f4c430" }, mark: null, band: null },
   /** Poster: vermilion field, huge tight type, an ink band pinned to the bottom edge. */
-  poster: { background: "#e5482e", ink: "#fff8ee", accent: "#18181b", accentBold: false, bold: true, align: "left", margin: 88, minSize: 48, maxSize: 160, leading: 1.02,
+  poster: { background: "#e5482e", signature: "#1c1310", ink: "#fff8ee", accent: "#18181b", accentBold: false, bold: true, align: "left", margin: 88, minSize: 48, maxSize: 160, leading: 1.02,
     rule: null, mark: null, band: { height: 28, color: "#18181b" } },
 } as const;
 
 export const DOCUMENT_STYLES = {
   /** Reading page: full-bleed white page, a cobalt masthead bar. */
-  classic: { background: "#fbfaf6", margin: 104, measure: 9999, masthead: { width: 56, height: 10, gap: 56, color: "#2d4fd0" }, rail: null,
+  classic: { background: "#fbfaf6", signature: "#6b675e", margin: 104, measure: 9999, masthead: { width: 56, height: 10, gap: 56, color: "#2d4fd0" }, rail: null,
     h1: { size: 64, color: "#18181b", leading: 1.1 }, h2: { size: 48, color: "#2d4fd0", leading: 1.1 }, h3: { size: 40, color: "#18181b", leading: 1.1 },
     body: { size: 40, bold: false, color: "#26262b", leading: 1.14 }, lede: null, gap: 32, headingGap: 48, afterHeading: 0,
     list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#18191d", ink: "#e9e7e0", size: 36, leading: 1.02, radius: 16, pad: 32 } },
   /** Editorial column: cobalt rail down the left, narrow measure, bold lede. */
-  editorial: { background: "#efebe2", margin: 96, measure: 800, masthead: null, rail: { width: 12, gap: 56, color: "#2d4fd0" },
+  editorial: { background: "#efebe2", signature: "#6b675e", margin: 96, measure: 800, masthead: null, rail: { width: 12, gap: 56, color: "#2d4fd0" },
     h1: { size: 80, color: "#18181b", leading: 1.04 }, h2: { size: 40, color: "#2d4fd0", leading: 1.1 }, h3: { size: 36, color: "#2d4fd0", leading: 1.1 },
     body: { size: 40, bold: false, color: "#2a2a2f", leading: 1.14 }, lede: { size: 52, bold: true, color: "#18181b", leading: 1.1 }, gap: 36, headingGap: 56, afterHeading: 4,
     list: { indent: 56, gap: 16, dot: 12, color: "#2d4fd0" }, code: { fill: "#1b2a6b", ink: "#eef1ff", size: 36, leading: 1.02, radius: 0, pad: 32 } },
@@ -92,11 +98,11 @@ export const DOCUMENT_STYLES = {
 
 export const QUOTE_STYLES = {
   /** Book excerpt: cream page, side rule, regular text, small sienna mark (an SVG, not a glyph). */
-  classic: { background: "#efe6d3", ink: "#2a2118", bold: false, margin: 112, sizes: [64, 56, 52, 48, 44, 40], leading: 1.2,
+  classic: { background: "#efe6d3", signature: "#7a5230", ink: "#2a2118", bold: false, margin: 112, sizes: [64, 56, 52, 48, 44, 40], leading: 1.2,
     mark: { size: 64, gap: 36, color: "#b5652a" }, rule: { width: 6, gap: 48, color: "#cdb58f" },
     author: { size: 36, bold: false, color: "#8a5a2e", gap: 48, ruleWidth: 40, ruleHeight: 4 } },
   /** Statement: espresso ground, big bold text, large amber mark; the author after an amber dash shape. */
-  editorial: { background: "#1a1511", ink: "#fbf3e4", bold: true, margin: 96, sizes: [96, 80, 72, 64, 56, 48, 44], leading: 1.1,
+  editorial: { background: "#1a1511", signature: "#a8957a", ink: "#fbf3e4", bold: true, margin: 96, sizes: [96, 80, 72, 64, 56, 48, 44], leading: 1.1,
     mark: { size: 128, gap: 40, color: "#f0a53a" }, rule: null,
     author: { size: 36, bold: true, color: "#f0a53a", gap: 64, ruleWidth: 64, ruleHeight: 6 } },
 } as const;
@@ -112,7 +118,7 @@ type BackdropLayer = { readonly dir: "t" | "b" | "l" | "r"; readonly from: strin
 
 export const CODE_STYLES = {
   /** Terminal: night panel, three dots, the language (from the fence only) at top right. */
-  classic: { background: "#312e81",
+  classic: { background: "#312e81", signature: "#ffffff",
     /** Full-bleed layers behind the window: one hue arc left to right (indigo, violet, magenta,
      * coral, amber), saturated all the way, never grey in the middle. No overlay: any tint laid
      * across different hues (even black over orange, which turns brown) muddies them again. */
@@ -124,7 +130,7 @@ export const CODE_STYLES = {
     syntax: { keyword: "#7cb7ff", string: "#9fdc8a", comment: "#7d8494", number: "#f4c430", function: "#f5a45d", type: "#5fd0c5",
       property: "#eaa3c9", literal: "#f4c430", meta: "#ff7b72", punct: "#a7adb9" } },
   /** Notebook: light page, green gutter bar, zebra rows. */
-  editorial: { background: "#f3f1ea", backdrop: null, panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
+  editorial: { background: "#f3f1ea", signature: "#6b675e", backdrop: null, panel: null, outer: 88, gutter: { width: 6, gap: 40, color: "#2f9e5f" }, zebra: { color: "#e9e6dc", pad: 16, radius: 6 },
     lineNumbers: { color: "#a8a397", gap: 28 },
     ink: "#1d1d20", sizes: [52, 48, 44, 40, 36], floor: 36, leading: 1.1,
     lang: { size: 32, bold: true, color: "#2f9e5f", gap: 28 },
@@ -134,58 +140,58 @@ export const CODE_STYLES = {
 
 export const STAT_STYLES = {
   /** Big number: yellow field, left-aligned value, ink bar, label. */
-  classic: { background: "#f4c430", margin: 96, band: null, valueSizes: [160, 144, 128, 112, 96, 80], valueColor: "#18181b", valueLeading: 0.92,
+  classic: { background: "#f4c430", signature: "#4a3f1c", margin: 96, band: null, valueSizes: [160, 144, 128, 112, 96, 80], valueColor: "#18181b", valueLeading: 0.92,
     bar: { width: 120, height: 12, gap: 48, color: "#18181b" }, labelSize: 56, labelColor: "#18181b", labelLeading: 1.14, labelMeasure: 820 },
   /** Metric strip: night ground crossed by a full-bleed yellow band holding the value. */
-  editorial: { background: "#121316", margin: 96, band: { color: "#f4c430", pad: 56, gap: 56 }, valueSizes: [144, 128, 112, 96, 80, 72], valueColor: "#18181b", valueLeading: 0.92,
+  editorial: { background: "#121316", signature: "#8c887f", margin: 96, band: { color: "#f4c430", pad: 56, gap: 56 }, valueSizes: [144, 128, 112, 96, 80, 72], valueColor: "#18181b", valueLeading: 0.92,
     bar: null, labelSize: 52, labelColor: "#f2f0ea", labelLeading: 1.16, labelMeasure: 860 },
 } as const;
 
 export const LIST_STYLES = {
   /** Checklist: page, violet numbers (ordered) or outlined boxes (unordered), hairlines. */
-  classic: { background: "#fbfaf6", margin: 96, card: null, size: 44, leading: 1.14, ink: "#18181b", indent: 88, gap: 30,
+  classic: { background: "#fbfaf6", signature: "#6b675e", margin: 96, card: null, size: 44, leading: 1.14, ink: "#18181b", indent: 88, gap: 30,
     rule: "#e4dfd4", number: { size: 44, color: "#6a4fd6" }, box: { size: 36, border: 5, radius: 9, color: "#6a4fd6" }, dot: null },
   /** Stacked steps: lavender ground, white cards, big violet numbers or a dot. */
-  editorial: { background: "#e9e5f6", margin: 80, card: { fill: "#ffffff", radius: 24, pad: 36, gap: 20 }, size: 44, leading: 1.14, ink: "#18181b", indent: 128, gap: 0,
+  editorial: { background: "#e9e5f6", signature: "#5e5872", margin: 80, card: { fill: "#ffffff", radius: 24, pad: 36, gap: 20 }, size: 44, leading: 1.14, ink: "#18181b", indent: 128, gap: 0,
     rule: null, number: { size: 64, color: "#6a4fd6" }, box: null, dot: { size: 20, color: "#6a4fd6" } },
 } as const;
 
 export const CHAT_STYLES = {
   /** Bubbles hug their text (at most maxRatio of the width); name and time sit above the bubble. */
-  classic: { background: "#e8ecf1", margin: 72, layout: "bubbles", size: 40, leading: 1.12, maxRatio: 0.78, radius: 32, padX: 32, padY: 22, gap: 36,
+  classic: { background: "#e8ecf1", signature: "#5c5f66", margin: 72, layout: "bubbles", size: 40, leading: 1.12, maxRatio: 0.78, radius: 32, padX: 32, padY: 22, gap: 36,
     left: { fill: "#ffffff", ink: "#18181b" }, right: { fill: "#0f7a70", ink: "#ffffff" },
     name: { size: 32, bold: true, color: "#56606e", gap: 10 }, time: { size: 32, color: "#8a919c" } },
   /** Transcript: speaker column coloured per speaker, hairlines between turns. */
-  editorial: { background: "#f6f2ea", margin: 88, layout: "transcript", size: 40, leading: 1.14, ink: "#18181b", nameCol: 300, gap: 36, rule: "#dcd6ca",
+  editorial: { background: "#f6f2ea", signature: "#6b675e", margin: 88, layout: "transcript", size: 40, leading: 1.14, ink: "#18181b", nameCol: 300, gap: 36, rule: "#dcd6ca",
     speakers: ["#0f7a70", "#d23f25", "#2d4fd0", "#9a5a12"], name: { size: 32, bold: true }, time: { size: 32, color: "#8c887f" } },
 } as const;
 
 export const TABLE_STYLES = {
   /** Data grid: white card, forest header, content-proportional columns, the largest size with ≤ maxLines lines per cell. */
-  classic: { background: "#eef0ec", margin: 72, layout: "grid", sizes: [56, 52, 48, 44, 40, 36], maxLines: 2, leading: 1.1, padX: 28, padY: 24,
+  classic: { background: "#eef0ec", signature: "#65685f", margin: 72, layout: "grid", sizes: [56, 52, 48, 44, 40, 36], maxLines: 2, leading: 1.1, padX: 28, padY: 24,
     card: { fill: "#ffffff", radius: 20 }, head: { fill: "#1f5f47", ink: "#ffffff" }, zebra: "#f2f5f1", ink: "#18181b", divider: "#e1e6df" },
   /** Ledger: one record per row — the first cell as title, the other cells as label/value fields, up to perRow side by side. */
-  editorial: { background: "#f2efe6", margin: 88, layout: "ledger", titleSize: 48, labelSize: 32, valueSize: 40, leading: 1.12, perRow: 3,
+  editorial: { background: "#f2efe6", signature: "#6b675e", margin: 88, layout: "ledger", titleSize: 48, labelSize: 32, valueSize: 40, leading: 1.12, perRow: 3,
     marker: { size: 16, color: "#1f5f47" }, ink: "#18181b", label: "#7d786d", rule: "#d6cfbf", gap: 40, fieldGap: 16 },
 } as const;
 
 export const COMPARISON_STYLES = {
   /** Side by side: muted "before" panel, rose "after" panel, both stretched to the frame. */
-  classic: { background: "#f4f1ea", margin: 72, layout: "columns", gap: 24, radius: 28, pad: 44, titleSize: 52, itemSize: 40, leading: 1.14, titleGap: 36, itemGap: 24, bullet: 12, titleCol: 0,
+  classic: { background: "#f4f1ea", signature: "#6b675e", margin: 72, layout: "columns", gap: 24, radius: 28, pad: 44, titleSize: 52, itemSize: 40, leading: 1.14, titleGap: 36, itemGap: 24, bullet: 12, titleCol: 0,
     panels: [{ fill: "#e4dfd3", title: "#4a4740", ink: "#4a4740", bullet: "#9a958a" }, { fill: "#c93d6a", title: "#ffffff", ink: "#ffffff", bullet: "#ffd3e0" }] },
   /** Split bands: two full-bleed horizontal bands (ink / rose), a title column + items. */
-  editorial: { background: "#18181b", margin: 88, layout: "bands", gap: 0, radius: 0, pad: 0, titleSize: 56, itemSize: 40, leading: 1.14, titleGap: 0, itemGap: 22, bullet: 12, titleCol: 0.3,
+  editorial: { background: "#18181b", signature: "#ffffff", margin: 88, layout: "bands", gap: 0, radius: 0, pad: 0, titleSize: 56, itemSize: 40, leading: 1.14, titleGap: 0, itemGap: 22, bullet: 12, titleCol: 0.3,
     panels: [{ fill: "#18181b", title: "#ff8fb0", ink: "#f2f0ea", bullet: "#ff8fb0" }, { fill: "#c93d6a", title: "#ffffff", ink: "#ffffff", bullet: "#ffffff" }] },
 } as const;
 
 /** Diagram styles. Pills (Mermaid `([ ])`, `(( ))`) take the accent; diamonds are decisions. */
 export const DIAGRAM_STYLES = {
   /** Flow: paper, white boxes with ink borders, ink pills, amber decisions. */
-  classic: { background: "#f4f1ea", nodeFill: "#ffffff", border: "#18181b", borderWidth: 3, radius: 16, text: "#18181b",
+  classic: { background: "#f4f1ea", signature: "#6b675e", nodeFill: "#ffffff", border: "#18181b", borderWidth: 3, radius: 16, text: "#18181b",
     decisionFill: "#fff1c7", decisionBorder: "#c98a12", accentFill: "#18181b", accentText: "#ffffff",
     line: "#55534e", lineWidth: 3, labelFill: "#f4f1ea", labelText: "#18181b", pad: 1, square: false },
   /** Blueprint: cobalt ground, pale-blue lines, white pills, yellow labels. */
-  editorial: { background: "#14307f", nodeFill: "#1b3c96", border: "#bcd0ff", borderWidth: 3, radius: 16, text: "#ffffff",
+  editorial: { background: "#14307f", signature: "#bcd0ff", nodeFill: "#1b3c96", border: "#bcd0ff", borderWidth: 3, radius: 16, text: "#ffffff",
     decisionFill: "#20449f", decisionBorder: "#ffd166", accentFill: "#ffffff", accentText: "#14307f",
     line: "#bcd0ff", lineWidth: 3, labelFill: "#14307f", labelText: "#ffd166", pad: 1.35, square: true },
 } as const;
@@ -211,12 +217,12 @@ export const DIAGRAM_TIERS = [
  * URL's scheme muted, secrets in a pill behind a lock. */
 export const INFO_STYLES = {
   /** Field list: warm page, white card, ink values, blue links, red secrets. */
-  classic: { background: "#efece4", margin: 72, card: { fill: "#ffffff", radius: 28, pad: 56, shadow: "shadow-md" },
+  classic: { background: "#efece4", signature: "#6b675e", margin: 72, card: { fill: "#ffffff", radius: 28, pad: 56, shadow: "shadow-md" },
     title: { size: 52, color: "#18181b", gap: 36 }, rule: "#ece8df", label: { size: 32, color: "#8a857a" }, labelMax: 0.34, labelGap: 40,
     value: { size: 40, color: "#18181b" }, leading: 1.2, rowGap: 26, muted: "#9b968b", link: "#2f5bd3", phoneGap: 14, icon: { size: 36, gap: 24, color: "#8a857a" },
     secret: { fill: "#fdeceb", ink: "#c62828", icon: "#d63b3b", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
   /** Credentials: night page, graphite card, each label above its value, pale values, coral secrets. */
-  editorial: { background: "#0e1014", margin: 72, card: { fill: "#1b1e24", radius: 28, pad: 56, shadow: "shadow-lg" },
+  editorial: { background: "#0e1014", signature: "#8c887f", margin: 72, card: { fill: "#1b1e24", radius: 28, pad: 56, shadow: "shadow-lg" },
     title: { size: 52, color: "#f2f0ea", gap: 36 }, rule: "#2a2e36", label: { size: 32, color: "#7d8494" }, labelMax: 0, labelGap: 40,
     value: { size: 40, color: "#e8e6df" }, leading: 1.2, rowGap: 26, muted: "#7d8494", link: "#7cb7ff", phoneGap: 14, icon: { size: 36, gap: 24, color: "#7d8494" },
     secret: { fill: "#3a1d22", ink: "#ff8a80", icon: "#ff7b72", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
@@ -297,6 +303,8 @@ export interface TemplateLine {
   colorAt?: (string | undefined)[];
   /** Labels, times, captions and line numbers: held to READABILITY.secondary instead of body. */
   secondary?: boolean;
+  /** The user's signature footer: not source text, exempt from the fidelity rules. */
+  signature?: boolean;
 }
 export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number;
   /** A two-stop linear gradient instead of the flat colour (the engine draws 4 directions; colours may carry alpha). */
@@ -565,7 +573,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure): Te
   throw last;
 }
 
-interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[]; secondary?: boolean }
+interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[]; secondary?: boolean; signature?: boolean }
 
 /** One layout at type step `k` (TEMPLATE_GROW). */
 function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 1): TemplateLayout {
@@ -583,6 +591,19 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   let pinBottom: TemplateRect | undefined;
   /** Full-bleed backdrop layers, stretched to the final canvas height. */
   let backdropRects: TemplateRect[] = [];
+  /** Shapes that run to the canvas bottom (the last comparison band). */
+  const stretched: TemplateRect[] = [];
+  /** The style's signature colour and alignment; undefined draws no footer (QR). */
+  let signatureColor: string | undefined, signatureAlign: "left" | "center" = "left";
+  const footer = plan.signature ? scaledTo(SIGNATURE_STYLE, u) : undefined;
+  /** Height the footer needs beyond the bottom margin (0 without a signature),
+   * for layouts that stretch to the frame. */
+  const footerRoom = () => {
+    if (!footer || !plan.signature) return 0;
+    let lines = 1;
+    try { lines = wrapStyled(styledGlyphs(normalizeText(plan.signature, "plain"), false, false), innerW(), footer.size, measure).length; } catch { return 0; }
+    return Math.max(0, lines * lh(footer.size, footer.leading) + footer.gap + footer.inset - margin);
+  };
   const rect = (x: number, y: number, width: number, height: number, color: string, radius = 0): TemplateRect => {
     const value = { x, y, width, height, color, radius }; layout.shapes.push(value); return value;
   };
@@ -599,7 +620,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const advance = styledWidth(line, size, measure);
       const dx = align === "center" ? (width - advance) / 2 : align === "right" ? width - advance : 0;
       layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + dx, y: y + index * height, width: advance, size, height, bold, color, group: groupID,
-        boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}), ...(o.secondary ? { secondary: true } : {}) });
+        boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}), ...(o.secondary ? { secondary: true } : {}), ...(o.signature ? { signature: true } : {}) });
     }
     bottom = Math.max(bottom, y + lines.length * height);
     return lines.length * height;
@@ -623,9 +644,9 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     layout.assets[file] ??= `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}" viewBox="0 0 ${box} ${box}"><path d="${path}" fill="${color}"/></svg>`;
     return file;
   };
-  /** Centre everything unpinned when the content is shorter than the frame. */
+  /** Centre everything unpinned when the content is shorter than the frame (less the footer's room). */
   const settle = (top: number, end: number): number => {
-    const dy = Math.round((view.height - (end - top)) / 2) - top;
+    const dy = Math.round((view.height - footerRoom() - (end - top)) / 2) - top;
     if (dy <= 0) return end;
     for (const item of [...layout.lines, ...layout.shapes, ...layout.images]) if (!pinned.has(item)) item.y += dy;
     return end + dy;
@@ -634,7 +655,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
   switch (content.kind) {
     case "info": {
       const s = grown(styleOf(INFO_STYLES), k);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       const C = s.card, cardX = margin, cardW = innerW(), innerX = cardX + C.pad, inner = cardW - 2 * C.pad;
       let y = margin; const top = y;
       const card = rect(cardX, y, cardW, 0, C.fill, C.radius); card.shadow = C.shadow;
@@ -734,13 +755,14 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "text": {
       const style = styleOf(TEXT_STYLES);
-      layout.background = style.background; margin = style.margin;
+      layout.background = style.background; margin = style.margin; signatureColor = style.signature;
+      signatureAlign = style.align === "center" ? "center" : "left";
       const source = content.paragraphs.join("\n\n");
       const accentAt = accentMask(source, plan.emphasis);
       const glyphs = graphemes(normalizeText(source, "plain")).map((text, i) => ({ text, bold: style.bold || (accentAt[i] === true && style.accentBold), ...(accentAt[i] ? { color: style.accent } : {}) }));
       const band = style.band?.height ?? 0;
       const markRoom = style.mark ? style.mark.size + style.mark.gap : 0;
-      const boxW = W - margin * 2, boxH = view.fit - margin * 2 - band - markRoom;
+      const boxW = W - margin * 2, boxH = view.fit - margin * 2 - band - markRoom - footerRoom();
       const lineH = (size: number) => Math.ceil(measure.lineHeight(size, style.bold) * style.leading);
       const heightAt = (lines: StyledGlyph[][], size: number) => lines.length * lineH(size) - (lineH(size) - measure.lineHeight(size, style.bold));
       const ruleExtra = (size: number) => style.rule ? Math.round(size * 0.6) + style.rule.height : 0;
@@ -783,7 +805,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const bodyMin = minFontSize(W, "body"), labelMin = minFontSize(W, "secondary");
       const readable = (tier: (typeof tiers)[number]) => tier.size >= bodyMin && tier.labelSize >= labelMin;
       const lastReadable = tiers.filter(readable).at(-1);
-      layout.background = style.background;
+      layout.background = style.background; signatureColor = style.signature;
       const avail = W - margin * 2;
       type Pick = { geometry: ReturnType<typeof layoutDiagram>; tier: (typeof tiers)[number]; boxes: Map<string, { width: number; height: number; lines: StyledGlyph[][] }> };
       const choose = (diagram: typeof content): Pick => {
@@ -814,7 +836,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           // The largest tier that fits the whole card. Height alone never pushes
           // text below the readability floor: from there the card grows
           // (animations scroll). Only width may go below it, as a last resort.
-          const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.fit - margin * 2;
+          const fitsWidth = geometry.width <= avail, fitsCard = fitsWidth && geometry.height <= view.fit - margin * 2 - footerRoom();
           chosen = { geometry, tier, boxes };
           if (fitsCard || (fitsWidth && (tier === lastReadable || !readable(tier)))) break;
           if (fitsWidth && !widest) widest = chosen;
@@ -920,7 +942,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "document": {
       const s = grown(styleOf(DOCUMENT_STYLES), k);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       let x = margin, width = innerW(), y = margin;
       if (s.rail) { x = margin + s.rail.width + s.rail.gap; width = Math.min(W - margin - x, s.measure); }
       const top = y;
@@ -957,10 +979,10 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "quote": {
       const s = styleOf(QUOTE_STYLES);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       const x0 = margin + (s.rule ? s.rule.width + s.rule.gap : 0), width = W - margin - x0;
       const authorH = content.author ? s.author.gap + lh(s.author.size, 1.2, s.author.bold) : 0;
-      const avail = view.fit - margin * 2 - s.mark.size - s.mark.gap - authorH;
+      const avail = view.fit - margin * 2 - s.mark.size - s.mark.gap - authorH - footerRoom();
       const sizes: readonly number[] = s.sizes;
       const size = sizes.find((sz) => count(content.text, width, sz, s.bold) * lh(sz, s.leading, s.bold) <= avail) ?? sizes[sizes.length - 1]!;
       let y = margin; const top = y;
@@ -979,7 +1001,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "code": {
       const s = styleOf(CODE_STYLES);
-      layout.background = s.background; margin = s.outer;
+      layout.background = s.background; margin = s.outer; signatureColor = s.signature;
       const source = normalizeText(content.code, "code").split("\n");
       const P = s.panel, G = s.gutter, LN = s.lineNumbers;
       // Line numbers count from 1 (a clipboard does not carry the original ones).
@@ -988,7 +1010,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const textX = P ? margin + P.pad : margin + (G?.width ?? 0) + (G?.gap ?? 0);
       const textW = P ? W - 2 * margin - 2 * P.pad : W - margin - textX - (s.zebra?.pad ?? 0);
       const langH = content.language && !P ? lh(s.lang.size, 1.2, s.lang.bold) + s.lang.gap : 0;
-      const availH = view.fit - 2 * margin - (P ? 2 * P.pad + P.header : langH);
+      const availH = view.fit - 2 * margin - (P ? 2 * P.pad + P.header : langH) - footerRoom();
       const fits = (sz: number) => source.every((line) => measure.width(line, sz, false) <= textW - gutterW(sz));
       // The largest size that fits without wrapping and within the frame; else
       // the largest unwrapped size at or below the floor (the canvas grows / scrolls).
@@ -1037,7 +1059,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "stat": {
       const s = styleOf(STAT_STYLES);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       const sizes: readonly number[] = s.valueSizes;
       const size = sizes.find((sz) => measure.width(content.value, sz, true) <= innerW()) ?? sizes[sizes.length - 1]!;
       let y = margin; const top = y;
@@ -1057,7 +1079,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "list": {
       const s = grown(styleOf(LIST_STYLES), k);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       let y = margin; const top = y;
       for (const [index, item] of content.items.entries()) {
         if (s.card) {
@@ -1084,7 +1106,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     }
     case "chat": {
       const s = grown(styleOf(CHAT_STYLES), k);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       const speakers = [...new Set(content.turns.map((turn) => turn.speaker))];
       let y = margin; const top = y;
       for (const [index, turn] of content.turns.entries()) {
@@ -1128,7 +1150,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         throw new ComposeError("overflow", "A table needs 1–6 columns and the same number of cells in every row.");
       }
       const s = grown(styleOf(TABLE_STYLES), k);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       const cols = content.headers.length, all = [content.headers, ...content.rows];
       let y = margin; const top = y;
       if ("sizes" in s) {
@@ -1148,7 +1170,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           const lines = all.map((row, r) => Math.max(...row.map((cell, c) => count(cell, widths[c]! - 2 * s.padX, size, r === 0))));
           const height = lines.reduce((a, n) => a + n * lh(size, s.leading) + 2 * s.padY, 0);
           pick = { size, widths };
-          if (leastSum <= inner && Math.max(...lines) <= s.maxLines && height <= view.fit - 2 * margin) break;
+          if (leastSum <= inner && Math.max(...lines) <= s.maxLines && height <= view.fit - 2 * margin - footerRoom()) break;
         }
         const { size, widths } = pick!;
         const card = rect(margin, y, inner, 0, s.card.fill, s.card.radius);
@@ -1198,7 +1220,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     case "comparison": {
       if (content.columns.length !== 2) throw new ComposeError("catalog", "Comparison templates require exactly two columns.");
       const s = grown(styleOf(COMPARISON_STYLES), k);
-      layout.background = s.background; margin = s.margin;
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
       const items = (x: number, y: number, width: number, column: { items: readonly string[] }, p: { ink: string; bullet: string }) => {
         for (const [j, item] of column.items.entries()) {
           if (j) y += s.itemGap;
@@ -1217,8 +1239,8 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           y = items(x + s.pad, y, cw - 2 * s.pad, column, p);
           panel.height = y + s.pad - margin;
         }
-        // Both panels fill the frame height (never less than their content).
-        const h = Math.max(view.height - 2 * margin, ...panels.map((p) => p.height));
+        // Both panels fill the frame height (never less than their content), leaving the footer its room.
+        const h = Math.max(view.height - 2 * margin - footerRoom(), ...panels.map((p) => p.height));
         for (const p of panels) p.height = h;
         bottom = margin + h;
       } else {
@@ -1238,19 +1260,40 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
           for (const line of layout.lines.slice(firstLine)) line.y += dy;
           for (const shape of layout.shapes.slice(firstShape)) shape.y += dy;
           band.height = target; y += target;
+          if (i === content.columns.length - 1) stretched.push(band);
         }
         bottom = y - margin;
       }
       break;
     }
   }
-  const glyphCount = layout.lines.reduce((total, line) => total + graphemes(line.text).length, 0);
+  if (footer && plan.signature && signatureColor) {
+    // The footer sits `inset` above the bottom edge (above a pinned band) and
+    // at least `gap` below every line, image and unpinned shape; the canvas
+    // grows when the content leaves no room. A glyph too wide for the column
+    // drops it: the signature never fails a card.
+    const glyphs = styledGlyphs(normalizeText(plan.signature, "plain"), false, false);
+    let lines: StyledGlyph[][] = [];
+    try { lines = wrapStyled(glyphs, innerW(), footer.size, measure); } catch { lines = []; }
+    if (lines.length) {
+      const reserve = pinBottom?.height ?? 0, h = lines.length * lh(footer.size, footer.leading);
+      const contentBottom = Math.max(0, ...layout.lines.map((l) => l.y + l.height), ...layout.images.map((i) => i.y + i.height),
+        ...layout.shapes.filter((r) => !pinned.has(r)).map((r) => r.y + r.height));
+      const y = Math.max(Math.max(view.height, bottom + margin) - reserve - footer.inset - h, contentBottom + footer.gap);
+      const before = bottom;
+      place(glyphs, margin, y, innerW(), footer.size, false, signatureColor, { align: signatureAlign, leading: footer.leading, secondary: true, signature: true });
+      // The canvas ends `inset` below the footer (plus a pinned band), not a margin below it.
+      bottom = Math.max(before, y + h + footer.inset + reserve - margin);
+    }
+  }
+  const glyphCount = layout.lines.reduce((total, line) => total + (line.signature ? 0 : graphemes(line.text).length), 0);
   if ((!glyphCount && plan.content.kind !== "qr") || !plan.sourceText.trim()) throw new ComposeError("empty", "There is no text to render.");
   if (glyphCount > TEMPLATE_LIMITS.maxGraphemes) throw new ComposeError("overflow", `This template contains ${glyphCount} characters; the supported maximum is ${TEMPLATE_LIMITS.maxGraphemes}. Split the source into smaller cards. No content was truncated.`);
   layout.height = Math.ceil(Math.max(view.height, bottom + margin) / 2) * 2;
   if (layout.height > TEMPLATE_LIMITS.maxHeight) throw new ComposeError("overflow", `The complete content needs ${layout.height}px of height (maximum ${TEMPLATE_LIMITS.maxHeight}px). Choose a wider aspect or split the source. No content was truncated.`);
   if (pinBottom) pinBottom.y = layout.height - pinBottom.height;
   for (const r of backdropRects) r.height = layout.height;
+  for (const r of stretched) r.height = layout.height - r.y;
   return layout;
 }
 
@@ -1347,13 +1390,15 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   const serialized = JSON.stringify(plan.content);
   const caption = qr ? qrCaption(qr) : undefined;
   const texts = qr ? ["0", ...(caption && !unsupportedScript(caption) ? [stripEmoji(caption)] : [])] : [stripEmoji(serialized), LAYOUT_GLYPHS];
+  // The signature is measured but never chooses the font or fails the card.
+  const signatureText = !qr && plan.signature ? stripEmoji(plan.signature) : undefined;
   if (qr && caption && unsupportedScript(caption)) plan = { ...plan, content: { ...qr, caption: false } };
   const charset = await Bun.file(new URL("../render/charset.txt", import.meta.url)).text();
   // The measure cache is keyed by the face files' content (and charset, sizes),
   // so Noto and Peesuto Code metrics live in separate cache directories.
   const open = (font: TemplateFont) => api.openMeasurer({
     face: fontFaces(font, options.engine).measure,
-    sizes: SIZES.flatMap((px) => [{ px, bold: false }, { px, bold: true }]), texts, density: 1,
+    sizes: SIZES.flatMap((px) => [{ px, bold: false }, { px, bold: true }]), texts: signatureText ? [...texts, signatureText] : texts, density: 1,
     cache: { charset, dir: `${work}/dist/.measure` },
   });
   // The chosen face first; if it lacks a glyph of the card (emoji aside), the
@@ -1380,22 +1425,25 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
         throw new ComposeError("unsupported-script", `The font cannot draw ${names.join(", ")}. No content was truncated.`, shown);
       }
     }
+    // A signature the chosen face cannot draw is dropped without a word.
+    if (plan.signature && (signatureText === undefined || (signatureText && m.unmapped(signatureText, 40, false).length) || unsupportedScript(plan.signature))) plan = { ...plan, signature: undefined };
     const metrics: TemplateMeasure = {
       width: (text, size, bold) => splitEmoji(text).reduce((width, run) => width + ("emoji" in run ? size : m.measure(size, bold)(run.text)), 0),
       lineHeight: (size, bold) => m.lineHeight(size, bold),
     };
     const layout = layoutTemplate(plan, metrics);
-    const count = layout.lines.reduce((total, line) => total + graphemes(line.text).length, 0);
+    // The signature is drawn from the first frame and takes no part in reveal or typing.
+    const count = layout.lines.reduce((total, line) => total + (line.signature ? 0 : graphemes(line.text).length), 0);
     // GIF/MP4 keep their frame strictly: taller content scrolls through it.
     const frame = plan.aspect === "auto" ? undefined : FRAMES[plan.aspect];
     const scroll = frame !== undefined && scrolls(plan.motion, layout.height, frame.height);
     const frameHeight = scroll ? frame!.height : layout.height;
     const timing = scroll ? scrollTiming(layout.height - frame!.height) : templateTiming(plan.motion, count);
-    const groups = Math.max(1, ...layout.lines.map((line) => line.group + 1), ...layout.shapes.map((shape) => (shape.group ?? -1) + 1), ...layout.images.map((image) => (image.group ?? -1) + 1));
+    const groups = Math.max(1, ...layout.lines.filter((line) => !line.signature).map((line) => line.group + 1), ...layout.shapes.map((shape) => (shape.group ?? -1) + 1), ...layout.images.map((image) => (image.group ?? -1) + 1));
     // Grouped shapes and images appear with their group: in reading order, or
     // when the typewriter reaches the group's first character.
     const glyphStart = new Map<number, number>();
-    { let at = 0; for (const line of layout.lines) { if (!glyphStart.has(line.group)) glyphStart.set(line.group, at); at += graphemes(line.text).length; } }
+    { let at = 0; for (const line of layout.lines) { if (line.signature) continue; if (!glyphStart.has(line.group)) glyphStart.set(line.group, at); at += graphemes(line.text).length; } }
     const startOf = (g: number) => { for (let k = g; k < groups; k++) if (glyphStart.has(k)) return glyphStart.get(k)!; return Math.max(0, count - 1); };
     const shapeAnimation = (name: string, g: number | undefined): string => {
       if (g === undefined || plan.motion === "none" || scroll) return "";
@@ -1421,10 +1469,10 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
         const bold = line.boldAt[glyphPosition] ?? line.bold;
         const x = line.x + styledWidth(prefix, line.size, metrics);
         prefix.push({ text: glyph, bold });
-        const index = glyphIndex++;
+        const index = line.signature ? -1 : glyphIndex++;
         if (!glyph.trim()) continue;
         let animation = "";
-        if (plan.motion !== "none" && !scroll) {
+        if (plan.motion !== "none" && !scroll && !line.signature) {
           const name = `t${index}`;
           const typewriter = plan.motion === "typewriter";
           keyframes[typewriter ? "appear" : "reveal"] ??= typewriter

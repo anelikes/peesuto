@@ -17,7 +17,7 @@ import { join } from "node:path";
 import type { ActionInput, ActionResult, ActionSpec } from "../actions/types.ts";
 import { REPO_ROOT } from "../engine.ts";
 import { canonicalJson } from "../provider/cache.ts";
-import { DEFAULT_ASPECT, templateAspect } from "../templates/types.ts";
+import { DEFAULT_ASPECT, templateAspect, templateSignature } from "../templates/types.ts";
 import { templateIdList } from "../templates/parse.ts";
 
 export const PRECOMPOSE_OUTPUTS = ["image", "gif", "video"] as const;
@@ -78,6 +78,8 @@ export interface KeyParts {
   readonly preferences: Readonly<Record<string, string>>;
   readonly disabled: readonly string[];
   readonly font: string;
+  /** The card signature as templateSignature() normalizes it; "" when none. */
+  readonly signature: string;
   readonly privacy: string;
   readonly precompose: PrecomposeConfig;
   /** The decider precompose used: "rules", or the configured one when useModel. */
@@ -90,10 +92,10 @@ export function precomposeKey(p: KeyParts): string {
 }
 
 /** The key parts of a render request, from the action spec and its input. */
-export function renderKeyParts(spec: ActionSpec, input: ActionInput): Pick<KeyParts, "text" | "output" | "frame" | "animate" | "preferences" | "disabled" | "font"> | null {
+export function renderKeyParts(spec: ActionSpec, input: ActionInput): Pick<KeyParts, "text" | "output" | "frame" | "animate" | "preferences" | "disabled" | "font" | "signature"> | null {
   if (spec.needs !== "render" || !(PRECOMPOSE_OUTPUTS as readonly string[]).includes(spec.output)) return null;
   const output = spec.output as PrecomposeOutput;
-  return { text: input.text, output, frame: normalizedFrame(output, input.aspect ?? spec.render?.aspect), animate: spec.render?.animate ?? "auto", preferences: { ...(input.templatePreferences ?? {}) }, disabled: templateIdList(input.disabledTemplates), font: typeof input.templateFont === "string" ? input.templateFont : "" };
+  return { text: input.text, output, frame: normalizedFrame(output, input.aspect ?? spec.render?.aspect), animate: spec.render?.animate ?? "auto", preferences: { ...(input.templatePreferences ?? {}) }, disabled: templateIdList(input.disabledTemplates), font: typeof input.templateFont === "string" ? input.templateFont : "", signature: templateSignature(input.templateSignature) ?? "" };
 }
 
 /** A version of the code that renders: the bundle's VERSION, else a hash of core/src, else the daemon version. */

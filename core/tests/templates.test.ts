@@ -4,7 +4,7 @@ import { parseTemplates, templateIdList, withoutTemplates } from "../src/templat
 import { renderKeyParts } from "../src/daemon/precompose.ts";
 import { layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
-import { MOTIONS, TEMPLATE_IDS, TemplateInputError } from "../src/templates/types.ts";
+import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
 
 const base = { aspect: "chat" as const, output: "gif" as const, decider: null };
@@ -457,5 +457,31 @@ describe("card font", () => {
     const spec = { id: "paste-card", name: "x", needs: "render", output: "image" } as unknown as Parameters<typeof renderKeyParts>[0];
     expect(renderKeyParts(spec, { text: "x", templateFont: "noto" })?.font).toBe("noto");
     expect(renderKeyParts(spec, { text: "x" })?.font).toBe("");
+  });
+});
+
+describe("card signature", () => {
+  test("the signature is one trimmed line of at most 40 graphemes; empty means none; QR never gets one; it keys precompose", async () => {
+    expect(templateSignature("  @nya ·\n peesuto.com  ")).toBe("@nya · peesuto.com");
+    expect(templateSignature("   ")).toBeUndefined();
+    expect(templateSignature(42)).toBeUndefined();
+    expect(templateSignature("签".repeat(50))).toBe("签".repeat(SIGNATURE_MAX_GRAPHEMES));
+    expect((await decideTemplate("Short and sweet.", { ...base, signature: " @nya " })).plan.signature).toBe("@nya");
+    expect((await decideTemplate("Short and sweet.", { ...base, signature: "" })).plan.signature).toBeUndefined();
+    expect((await decideTemplate("Short and sweet.", base)).plan.signature).toBeUndefined();
+    expect((await decideTemplate("https://peesuto.com", { ...base, signature: "@nya", override: { id: "qr" } })).plan.signature).toBeUndefined();
+    const spec = { id: "paste-card", name: "x", needs: "render", output: "image" } as unknown as Parameters<typeof renderKeyParts>[0];
+    expect(renderKeyParts(spec, { text: "x", templateSignature: " @nya " })?.signature).toBe("@nya");
+    expect(renderKeyParts(spec, { text: "x" })?.signature).toBe("");
+  });
+  test("the footer is drawn once, small, below the content, and it never counts as content", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const plan = { version: 1 as const, template: "list" as const, variant: "classic" as const, motion: "none" as const, sourceText: "- a\n- b", content: { kind: "list" as const, items: ["a", "b"], ordered: false }, aspect: "1:1" as const };
+    const signed = layoutTemplate({ ...plan, signature: "@nya" }, measure);
+    const footer = signed.lines.filter((line) => line.signature);
+    expect(footer.map((line) => line.text)).toEqual(["@nya"]);
+    expect(footer[0]!.size).toBe(32);
+    expect(footer[0]!.y).toBeGreaterThan(Math.max(...signed.lines.filter((line) => !line.signature).map((line) => line.y + line.height)));
+    expect(layoutTemplate(plan, measure).lines.some((line) => line.signature)).toBe(false);
   });
 });

@@ -178,6 +178,25 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(json?["disabledTemplates"] as? [String], ["table"])
     }
 
+    func testTemplateSignatureIsOneShortLineOffByDefaultAndReachesCore() throws {
+        let settings = try SettingsStore(directory: directory)
+        XCTAssertEqual(settings.templateSignature, "", "off by default")
+        try settings.setTemplateSignature("  @nya ·\n  peesuto.com  ")
+        XCTAssertEqual(try SettingsStore(directory: directory).templateSignature, "@nya · peesuto.com")
+        try settings.setTemplateSignature(String(repeating: "签", count: 60))
+        XCTAssertEqual(settings.templateSignature.count, SettingsStore.templateSignatureMaxLength)
+        XCTAssertEqual(SettingsStore.normalizedTemplateSignature("   "), "")
+        // A hand-edited settings file is normalized on read too.
+        try settings.set("template_signature", value: " a\tb ")
+        XCTAssertEqual(settings.templateSignature, "a b")
+        try settings.resetTemplates()
+        XCTAssertEqual(try SettingsStore(directory: directory).templateSignature, "")
+        // It reaches Core with each request.
+        let input = CoreActionInput(text: "x", templateSignature: "@nya")
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(input)) as? [String: Any]
+        XCTAssertEqual(json?["templateSignature"] as? String, "@nya")
+    }
+
     func testJevServicesShareOneKeyBetweenDeciderAndGenerator() throws {
         let settings = try SettingsStore(directory: directory)
         try settings.setProvider(track: "decider", fields: ["kind": "openrouter", "tokenRef": "pocket-paste/openrouter"])

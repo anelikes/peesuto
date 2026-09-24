@@ -9,6 +9,10 @@ struct TemplatesSettingsView: View {
     @State private var disabled: Set<String> = []
     @State private var styles: [String: String] = [:]
     @State private var font = "maple"
+    /// The signature as typed; saved on Return and when the field loses focus
+    /// (saving each keystroke would trim a space the user is still typing).
+    @State private var signature = ""
+    @FocusState private var signatureFocused: Bool
     @State private var problem: String?
     @State private var unavailable = false
 
@@ -30,6 +34,7 @@ struct TemplatesSettingsView: View {
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
+            signatureRow
             if model.templates.isEmpty && unavailable {
                 Text(model.tr("Templates are unavailable until Peesuto's engine starts.", "Peesuto 引擎启动后才能显示模板。"))
                     .font(.system(size: 12)).foregroundColor(.secondary)
@@ -42,11 +47,41 @@ struct TemplatesSettingsView: View {
                 if let problem { Text(problem).font(.system(size: 11)).foregroundColor(.orange) }
                 Spacer()
                 Button(model.tr("Restore defaults", "恢复默认"), action: reset)
-                    .disabled(disabled.isEmpty && styles.isEmpty && font == "maple")
+                    .disabled(disabled.isEmpty && styles.isEmpty && font == "maple" && signature.isEmpty)
             }
         }
         .onAppear(perform: load)
+        .onDisappear(perform: saveSignature)
         .task { unavailable = !(await model.loadTemplates()) }
+    }
+
+    private var signatureRow: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.tr("Signature", "签名")).font(.system(size: 13, weight: .semibold))
+                Text(model.tr("A small line at the foot of every card except QR codes. Leave it empty for none.",
+                              "显示在每张卡片底部的一行小字（二维码除外）。留空则不显示。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            TextField("@you · example.com", text: $signature)
+                .textFieldStyle(.roundedBorder).frame(width: 220)
+                .focused($signatureFocused)
+                .onSubmit(saveSignature)
+                .onChange(of: signature) { value in
+                    if value.count > SettingsStore.templateSignatureMaxLength { signature = String(value.prefix(SettingsStore.templateSignatureMaxLength)) }
+                }
+                .onChange(of: signatureFocused) { focused in if !focused { saveSignature() } }
+                .help(model.tr("Up to 40 characters", "最多 40 个字符"))
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
+    }
+
+    private func saveSignature() {
+        guard let settings = model.settings,
+              SettingsStore.normalizedTemplateSignature(signature) != settings.templateSignature else { return }
+        apply { try $0.setTemplateSignature(signature) }
     }
 
     private func row(_ spec: CoreTemplateSpec) -> some View {
@@ -142,6 +177,7 @@ struct TemplatesSettingsView: View {
         disabled = Set(settings.disabledTemplates)
         styles = settings.templatePreferences ?? [:]
         font = settings.templateFont
+        signature = settings.templateSignature
     }
 
     private func setEnabled(_ id: String, _ enabled: Bool) {

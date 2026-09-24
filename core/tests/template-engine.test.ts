@@ -116,3 +116,20 @@ integration("fonts: code in Peesuto Code, other cards in Peesuto Text or the cho
   const both = "繁體 ⌥";
   await expect(renderTemplate({ ...samplePlan({ kind: "text", paragraphs: [both] }), sourceText: both }, { ...options, format: "png", out: join(output, "both.png") })).rejects.toThrow(/U\+9AD4/);
 }, 240_000);
+
+integration("a signature is drawn at the foot, and one the font cannot draw is dropped without failing the card", async () => {
+  const signed = async () => (JSON.parse(await Bun.file(join(options.work, "compositions/paste/template-layout.json")).text()) as { lines: { signature?: boolean }[] }).lines.filter((line) => line.signature).length;
+  const text = "好的设计，是把复杂留给自己。";
+  const plan = { ...samplePlan({ kind: "text", paragraphs: [text] }), sourceText: text };
+  await renderTemplate({ ...plan, signature: "@nya · peesuto.com 🐱" }, { ...options, format: "png", out: join(output, "signature.png") });
+  expect(await signed()).toBe(1);
+  // Arabic is in neither face; 體 is not in Peesuto Text (the card's face here): no footer, no error.
+  for (const signature of ["مرحبا", "繁體簽名"]) {
+    const rendered = await renderTemplate({ ...plan, signature }, { ...options, format: "png", out: join(output, "signature-dropped.png") });
+    expect(rendered.truncated).toBe(false);
+    expect(await signed()).toBe(0);
+  }
+  // Animated: the footer is there from the first frame and the card still ends with a full hold.
+  const gif = await renderTemplate({ ...plan, motion: "typewriter", signature: "@nya" }, { ...options, format: "gif", out: join(output, "signature.gif") });
+  expect(gif.frames).toBeGreaterThan(1);
+}, 240_000);

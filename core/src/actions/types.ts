@@ -46,6 +46,8 @@ export interface ActionInput {
   readonly templatePreferences?: Readonly<Record<string, string>>;
   /** The card typeface, "maple" or "noto" (Settings › Templates). */
   readonly templateFont?: string;
+  /** A short line drawn at the foot of every card but QR (Settings › Templates › Signature); empty or absent means none. */
+  readonly templateSignature?: string;
   /** Templates turned off for automatic choice (Settings › Templates). */
   readonly disabledTemplates?: readonly string[];
 }

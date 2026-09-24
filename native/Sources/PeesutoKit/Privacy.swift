@@ -180,6 +180,21 @@ extension SettingsStore {
         return value == "noto" ? "noto" : "maple"
     }
     public func setTemplateFont(_ font: String) throws { try set("template_font", value: font == "noto" ? "noto" : "maple") }
+    /// The longest card signature, in characters (Core enforces the same, in graphemes).
+    public static let templateSignatureMaxLength = 40
+    /// A signature as it is stored and sent: one line (whitespace runs become
+    /// one space), trimmed, at most `templateSignatureMaxLength` characters.
+    public static func normalizedTemplateSignature(_ value: String) -> String {
+        let line = value.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).joined(separator: " ")
+        return String(line.prefix(templateSignatureMaxLength)).trimmingCharacters(in: .whitespaces)
+    }
+    /// The line drawn at the foot of every card but QR ("@nya · peesuto.com"); empty means none (the default).
+    public var templateSignature: String {
+        Self.normalizedTemplateSignature(values["template_signature"] as? String ?? "")
+    }
+    public func setTemplateSignature(_ signature: String) throws {
+        try set("template_signature", value: Self.normalizedTemplateSignature(signature))
+    }
     /// Templates the user turned off for automatic choice, sorted; empty when none.
     public var disabledTemplates: [String] {
         Set(values["templates_disabled"] as? [String] ?? []).sorted()
@@ -194,9 +209,10 @@ extension SettingsStore {
         styles[id] = variant
         try set("template_styles", value: styles)
     }
-    /// Every template on, no remembered styles.
+    /// Every template on, no remembered styles, the default font, no signature.
     public func resetTemplates() throws {
         try set("template_font", value: "maple")
+        try set("template_signature", value: "")
         try set("templates_disabled", value: [String]())
         try set("template_styles", value: [String: String]())
     }

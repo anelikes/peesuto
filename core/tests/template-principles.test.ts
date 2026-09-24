@@ -64,19 +64,23 @@ function orderedCount(content: TemplateContent): number {
 }
 const isNumber = (text: string, max: number) => /^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= max;
 
+/** A signature footer (Settings › Templates): not source text. */
+const SIGNATURE = "@nya · peesuto.com 签名";
 function eachLayout(visit: (layout: TemplateLayout, content: TemplateContent, label: string) => void) {
-  for (const content of ALL) for (const variant of templateRegistration(content.kind).variants.map((v) => v.id)) for (const aspect of FRAMES) {
-    visit(layoutTemplate({ ...samplePlan(content, variant), aspect }, metrics), content, `${content.kind}/${variant}/${aspect}`);
+  for (const content of ALL) for (const variant of templateRegistration(content.kind).variants.map((v) => v.id)) for (const aspect of FRAMES) for (const signature of [undefined, SIGNATURE]) {
+    visit(layoutTemplate({ ...samplePlan(content, variant), aspect, ...(signature ? { signature } : {}) }, metrics), content, `${content.kind}/${variant}/${aspect}${signature ? "/signed" : ""}`);
   }
 }
 
 describe("template principles", () => {
-  test("every drawn character comes from the source, except ordered-list numbers and code line numbers", () => {
+  test("every drawn character comes from the source, except ordered-list numbers, code line numbers and the signature", () => {
     eachLayout((layout, content, label) => {
       const sources = sourceStrings(content), max = orderedCount(content);
       for (const line of layout.lines) {
         const text = line.text.trim();
         if (!text) continue;
+        // The user's signature is the one exemption, and it is marked as such.
+        if (line.signature) { expect(SIGNATURE).toContain(text); continue; }
         if (isNumber(text, max)) {
           for (const glyph of graphemes(text)) expect(LAYOUT_GLYPHS).toContain(glyph);
           continue;
@@ -94,6 +98,7 @@ describe("template principles", () => {
     eachLayout((layout, content, label) => {
       const drawn = new Map<string, number>();
       for (const line of layout.lines) {
+        if (line.signature) continue;
         if (content.kind === "code" && /^\d+$/.test(line.text.trim()) && line.color !== undefined && [CODE_STYLES.classic.lineNumbers.color, CODE_STYLES.editorial.lineNumbers.color].includes(line.color as never)) continue;
         for (const glyph of graphemes(line.text)) if (glyph.trim()) drawn.set(glyph, (drawn.get(glyph) ?? 0) + 1);
       }
@@ -177,6 +182,35 @@ describe("template principles", () => {
       for (const line of layout.lines) expect(line.y + line.height).toBeLessThanOrEqual(layout.height);
       expect(scrolls("reveal", layout.height, 1080)).toBe(true);
       expect(scrolls("none", layout.height, 1080)).toBe(false);
+    }
+  });
+  test("the signature footer: every card but QR, below everything, inside the canvas, and a fitting card keeps its frame", () => {
+    const boxes = (layout: TemplateLayout) => [...layout.lines.filter((l) => !l.signature).map((l) => ({ y: l.y, bottom: l.y + l.height })),
+      ...layout.images.map((i) => ({ y: i.y, bottom: i.y + i.height }))];
+    eachLayout((layout, content, label) => {
+      const footer = layout.lines.filter((l) => l.signature);
+      if (!label.endsWith("/signed") || content.kind === "qr") { expect(footer).toEqual([]); return; }
+      if (!footer.length) throw new Error(`${label}: no signature`);
+      expect(footer.map((l) => l.text.trim()).join(" ").replace(/\s+/g, " ")).toBe(SIGNATURE);
+      const top = Math.min(...footer.map((l) => l.y));
+      for (const box of boxes(layout)) if (box.bottom > top) throw new Error(`${label}: content at ${box.bottom} runs into the signature at ${top}`);
+      for (const l of footer) {
+        expect(l.y + l.height).toBeLessThanOrEqual(layout.height);
+        expect(l.x).toBeGreaterThanOrEqual(0);
+        expect(l.x + l.width).toBeLessThanOrEqual(layout.width + 0.1);
+        expect(l.secondary).toBe(true);
+      }
+    });
+    // Short content in a fixed frame: the footer fits in the frame, no growth (so a GIF does not scroll).
+    for (const content of TEMPLATE_SAMPLES) for (const variant of templateRegistration(content.kind).variants.map((v) => v.id)) {
+      const plain = layoutTemplate(samplePlan(content, variant), metrics);
+      const contentBottom = Math.max(...plain.lines.map((l) => l.y + l.height), ...plain.images.map((i) => i.y + i.height),
+        ...plain.shapes.filter((r) => r.height < plain.height / 2).map((r) => r.y + r.height));
+      // Room for the footer (gap 40, one 32 px line at leading 1.2, inset 56) in the frame.
+      const top = Math.min(...plain.lines.map((l) => l.y), ...plain.shapes.filter((r) => r.height < plain.height / 2).map((r) => r.y));
+      if (plain.height > 1080 || contentBottom - top + 72 + 40 + Math.ceil(32 * 1.2 * 1.2) + 56 > 1080) continue;
+      const signed = layoutTemplate({ ...samplePlan(content, variant), signature: SIGNATURE }, metrics);
+      if (signed.height !== 1080) throw new Error(`${content.kind}/${variant}: the signature grew the frame to ${signed.height}`);
     }
   });
   test("syntax colour changes colour only, never the text", () => {
