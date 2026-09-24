@@ -200,10 +200,11 @@ Do not distribute that DMG.
 
 - 0.1.0 and 0.1.1 have no updater: anyone who installed them downloads the
   first Sparkle-enabled DMG once by hand; from then on updates arrive in the app.
-- While `anelikes/peesuto` is private, GitHub Release assets are **not publicly
-  downloadable**: only collaborators signed in to GitHub can fetch them. Host the
-  DMG elsewhere (for example peesuto.com) or make the repository public before
-  pointing users or a Homebrew cask at it.
+- `anelikes/peesuto` is public, so GitHub Release assets download without a
+  GitHub account: peesuto.com's Download button
+  (`releases/latest/download/Peesuto.dmg`), the appcast enclosures and the
+  Homebrew cask all point at them. Keep the stable `Peesuto.dmg` asset name on
+  every release, or the site's download link breaks.
 
 ## Automatic updates (Sparkle)
 
