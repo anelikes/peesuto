@@ -203,7 +203,7 @@ Host: https://staging.example.com</pre></div>
 <section class="gallery pad" id="templates" data-theme="light" aria-labelledby="templates-title">
 <div class="wrap">
 <div class="gallery-head">
-<h2 class="h2" id="templates-title">13 种模板，<br>27 种样式。</h2>
+<h2 class="h2" id="templates-title">14 种模板，<br>29 种样式。</h2>
 <p>模板由本地规则挑选；粘贴后可以换样式，也可以在设置里为每个模板选默认样式或关掉它。每种样式都是一张公开的字体与配色表：<a href="https://github.com/anelikes/peesuto/blob/main/docs/templates.md">模板说明</a>。</p>
 </div>
 <ul class="grid">
@@ -232,6 +232,8 @@ Host: https://staging.example.com</pre></div>
 <li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="信息卡, 深色凭证"><p>信息卡 <span>深色凭证</span></p></li>
 <li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="更新日志, 发布卡片"><p>更新日志 <span>发布卡片</span></p></li>
 <li><img src="/cards/changelog-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="更新日志, 时间线"><p>更新日志 <span>时间线</span></p></li>
+<li><img src="/cards/terminal-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="终端会话, 夜色终端"><p>终端会话 <span>夜色终端</span></p></li>
+<li><img src="/cards/terminal-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="终端会话, 命令记录"><p>终端会话 <span>命令记录</span></p></li>
 <li><img src="/cards/qr-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="二维码, 纯净"><p>二维码 <span>纯净</span></p></li>
 <li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="二维码, 卡片"><p>二维码 <span>卡片</span></p></li>
 </ul>
@@ -298,6 +300,7 @@ Host: https://staging.example.com</pre></div>
 <details><summary>必须用 AI 吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>不必。本地规则就能为所有内容选好模板。如果愿意，也可以填入自己的密钥，让小模型 Jev 来挑模板和样式，支持 TypeSafe、Vercel AI Gateway、OpenRouter 或你自己的 Cloudflare 账号。它只负责选择呈现方式，从不改写你的文字。</p></details>
 <details><summary>需要安装 ffmpeg 吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>只有生成 MP4 视频时需要。Peesuto 使用你 Mac 上已有的 ffmpeg（<code>brew install ffmpeg</code>），不会自带或自动安装。图片、GIF 和二维码不需要任何额外组件。</p></details>
 <details><summary>支持哪些 Mac？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>搭载 Apple 芯片、运行 macOS 13 Ventura 或更高版本的 Mac。</p></details>
+<details><summary>可以用 Homebrew 安装吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>可以：<code>brew install --cask anelikes/tap/peesuto</code>。之后应用会自己更新。</p></details>
 <details><summary>收费吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>免费。Peesuto 以 MIT 许可证开源，开源版本没有任何功能保留。</p></details>
 <details><summary>怎么更新？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Peesuto 每天检查一次 <code>peesuto.com/appcast.xml</code>，有新版本时提示安装经过签名的更新（Sparkle）；可以在“设置 › 通用”里关闭自动检查。0.1.0 和 0.1.1 早于更新器，需要手动更新一次。改动见<a href="/changelog/">更新日志</a>。</p></details>
 </div>

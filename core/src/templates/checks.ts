@@ -86,6 +86,7 @@ export function contentStrings(content: TemplateContent): string[] {
     case "info": return [...(content.title ? [content.title] : []), ...content.fields.flatMap((f) => [...(f.label ? [f.label] : []), f.value])].map(plain);
     case "changelog": return [...(content.title ? [content.title] : []), ...content.releases.flatMap((r) => [r.version, ...(r.date ? [r.date] : []),
       ...r.sections.flatMap((s) => [...(s.title ? [s.title] : []), ...s.items.map((i) => stripBold(i))])])].map(plain);
+    case "terminal": return content.lines.map((line) => normalizeText(line.kind === "prompt" ? line.prompt + line.command : line.text, "code"));
     case "qr": return [plain(content.data)];
   }
 }

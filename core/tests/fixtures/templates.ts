@@ -19,6 +19,12 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
   { kind: "changelog", releases: [{ version: "v1.2.0", date: "2026-09-24", sections: [
     { title: "新增", type: "added", items: ["卡片签名", "Release notes become **cards**"] }, { title: "Fixed", type: "fixed", items: ["长代码行自动换行"] },
   ] }] },
+  { kind: "terminal", lines: [
+    { kind: "prompt", prompt: "nya@mbp:~/peesuto$ ", command: "bun test core/tests" },
+    { kind: "output", text: " 512 pass" }, { kind: "output", text: " 0 fail" },
+    { kind: "prompt", prompt: "nya@mbp:~/peesuto$ ", command: "git push 推送" },
+    { kind: "output", text: "error: failed to push some refs", tone: "error" }, { kind: "exit", text: "[exit 1]", ok: false },
+  ] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

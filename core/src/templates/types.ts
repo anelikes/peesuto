@@ -1,6 +1,6 @@
 import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "qr"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "terminal", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -73,6 +73,10 @@ export type TemplateContent =
    * separators dropped as syntax) with its sections and bullet items. Section
    * titles are the source's own ("Added", "修复"); `type` only picks a colour. */
   | { readonly kind: "changelog"; readonly title?: string; readonly releases: readonly ChangelogRelease[] }
+  /** A shell session: prompt lines (the prompt and the command as written)
+   * and the output under them, every line verbatim. `error` and `warning`
+   * only pick a colour; `exit` is a final exit-status line. */
+  | { readonly kind: "terminal"; readonly lines: readonly TerminalLine[] }
   /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };
@@ -86,6 +90,11 @@ export const CHANGE_TYPES = ["added", "changed", "fixed", "removed", "security",
 export type ChangeType = (typeof CHANGE_TYPES)[number];
 export interface ChangelogSection { readonly title?: string; readonly type: ChangeType; readonly items: readonly string[] }
 export interface ChangelogRelease { readonly version: string; readonly date?: string; readonly sections: readonly ChangelogSection[] }
+
+export type TerminalLine =
+  | { readonly kind: "prompt"; readonly prompt: string; readonly command: string }
+  | { readonly kind: "output"; readonly text: string; readonly tone?: "error" | "warning" }
+  | { readonly kind: "exit"; readonly text: string; readonly ok: boolean };
 
 /** The card typeface: Maple Mono (Peesuto Code, the default) or Noto Sans SC. Code cards are always Maple Mono. */
 export const TEMPLATE_FONTS = ["maple", "noto"] as const;

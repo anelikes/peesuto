@@ -524,3 +524,50 @@ describe("changelog cards", () => {
     expect(card.shapes.some((shape) => shape.color === "#dcefe2")).toBe(true); // the Added tint
   });
 });
+
+describe("terminal sessions", () => {
+  test("prompts, commands, output, error tones and the exit line, verbatim; code stays the alternative", () => {
+    const session = parseTemplates("$ npm test\n> jest\nnpm ERR! Test failed.\nwarning: 2 skipped\n$ echo done\ndone\n[exit 1]");
+    expect(session.preferred).toBe("terminal");
+    expect(session.candidates.has("code")).toBe(true);
+    expect(session.candidates.get("terminal")).toEqual({ kind: "terminal", lines: [
+      { kind: "prompt", prompt: "$ ", command: "npm test" }, { kind: "output", text: "> jest" },
+      { kind: "output", text: "npm ERR! Test failed.", tone: "error" }, { kind: "output", text: "warning: 2 skipped", tone: "warning" },
+      { kind: "prompt", prompt: "$ ", command: "echo done" }, { kind: "output", text: "done" }, { kind: "exit", text: "[exit 1]", ok: false },
+    ] });
+    // user@host, PowerShell, a venv prefix, zsh ❯ and a fenced console block.
+    for (const [source, prompt] of [
+      ["nya@mbp:~/项目$ ls\n部署.sh", "nya@mbp:~/项目$ "], ["PS C:\\Users\\nya> dir\n\n    Directory: C:\\Users\\nya", "PS C:\\Users\\nya> "],
+      ["(venv) ~/app $ python run.py\nok", "(venv) ~/app $ "], ["❯ cargo build\nerror[E0425]: cannot find value `x`", "❯ "],
+      ["```console\n$ git status\nOn branch main\n```", "$ "],
+    ] as const) {
+      const parsed = parseTemplates(source);
+      expect(parsed.preferred).toBe("terminal");
+      const content = parsed.candidates.get("terminal");
+      expect(content?.kind === "terminal" && content.lines[0]).toMatchObject({ kind: "prompt", prompt });
+    }
+    const denied = parseTemplates("$ ./deploy.sh\nbash: ./deploy.sh: Permission denied").candidates.get("terminal");
+    expect(denied?.kind === "terminal" && denied.lines[1]).toEqual({ kind: "output", text: "bash: ./deploy.sh: Permission denied", tone: "error" });
+  });
+  test("not a session: a lone command, code, prose with $ or %, output before any prompt, unknown bare commands", () => {
+    for (const source of [
+      "git log --oneline -5", "$ npm install peesuto", "const a = 1;\nconst b = 2;", "$ 100 off today\nonly this week", "% of users grew\nlast quarter",
+      "Output first\n$ ls", "$ Hello there\nhow are you", "```ts\n$ foo\nbar\n```", "价格 $ 5\n很便宜",
+    ]) expect(parseTemplates(source).candidates.has("terminal")).toBe(false);
+  });
+  test("both styles: the command bold after its prompt, output dimmed, errors coloured, wraps hang", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const content = { kind: "terminal" as const, lines: [{ kind: "prompt" as const, prompt: "$ ", command: "git push" },
+      { kind: "output" as const, text: "error: failed to push some refs to github.com:example/repository-with-a-long-name", tone: "error" as const }] };
+    for (const variant of ["classic", "editorial"] as const) {
+      const layout = layoutTemplate({ version: 1, template: "terminal", variant, motion: "none", aspect: "1:1", sourceText: "x", content }, measure);
+      const command = layout.lines.find((line) => line.text === "$ git push")!;
+      expect(command.boldAt).toEqual([false, false, true, true, true, true, true, true, true, true]);
+      const error = layout.lines.filter((line) => line.text.includes("push some") || line.text.includes("github"));
+      expect(error.length).toBeGreaterThan(1);
+      expect(error[1]!.x).toBeGreaterThan(error[0]!.x); // the hanging indent
+      expect(new Set(error.map((line) => line.color)).size).toBe(1);
+      expect(error[0]!.color).not.toBe(command.color);
+    }
+  });
+});

@@ -60,6 +60,7 @@ const JA_NAMES: Record<string, string> = {
   diagram: "図", "diagram-classic": "フロー", "diagram-editorial": "ブループリント",
   info: "情報カード", "info-classic": "項目リスト", "info-editorial": "認証情報",
   changelog: "リリースノート", "changelog-classic": "リリースカード", "changelog-editorial": "タイムライン",
+  terminal: "ターミナルセッション", "terminal-classic": "夜のターミナル", "terminal-editorial": "コマンドログ",
   qr: "QR コード", "qr-classic": "シンプル", "qr-editorial": "カード",
 };
 const templateName = (lang: Lang, id: string, variant: string) => {

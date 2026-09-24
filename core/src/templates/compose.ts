@@ -276,6 +276,28 @@ export const CHANGELOG_STYLES = {
       removed: { fill: "", ink: "#b3ada2" }, security: { fill: "", ink: "#ff8a7a" }, other: { fill: "", ink: "#b3ada2" } } as Record<ChangeType, { fill: string; ink: string }> },
 } as const;
 
+/** Shell sessions, set in Peesuto Code. A prompt line is the prompt (dim
+ * accent) then the command (bold, bright); output is dimmed; output that reads
+ * as an error or a warning takes that colour; a final exit-status line sits in
+ * a pill, green for 0, red otherwise. Colour only: every line is drawn as written. */
+export const TERMINAL_STYLES = {
+  /** Night terminal: a window on the Indigo night field (the code card's backdrop), three dots in its header. */
+  classic: { background: "#312e81", signature: "#ffffff", backdrop: [{ field: CODE_FIELDS.indigo }] as readonly BackdropLayer[] | null,
+    gifBackdrop: CODE_STYLES.classic.gifBackdrop as readonly BackdropLayer[] | null,
+    panel: { fill: "#15171c", radius: 24, pad: 48, header: 80, shadow: "shadow-lg", dots: { size: 22, gap: 14, colors: ["#ff5f57", "#febc2e", "#28c840"] } } as TerminalPanel | null,
+    outer: 88, sizes: [48, 44, 40, 36], floor: 36, leading: 1.3, band: null as TerminalBand | null, blockGap: 18,
+    prompt: "#7ee787", command: "#f5f3ee", output: "#a3aab6", error: "#ff7b72", warning: "#f2c46b",
+    exit: { size: 32, padX: 16, padY: 6, radius: 10, gap: 28, ok: { fill: "#173a26", ink: "#7ee787" }, fail: { fill: "#3d1a1d", ink: "#ff8a80" } } },
+  /** Log: a light page, each command on a tinted band, output beneath it in grey. */
+  editorial: { background: "#f5f3ee", signature: "#6b675e", backdrop: null, gifBackdrop: null, panel: null,
+    outer: 88, sizes: [44, 40, 36], floor: 36, leading: 1.25, band: { fill: "#e6e1d5", padX: 20, padY: 10, radius: 12, gap: 14 }, blockGap: 36,
+    prompt: "#1d6b3f", command: "#18181b", output: "#57534b", error: "#b3261e", warning: "#8a5300",
+    exit: { size: 32, padX: 16, padY: 6, radius: 10, gap: 32, ok: { fill: "#dcefe2", ink: "#1d6b3f" }, fail: { fill: "#f9e0dc", ink: "#a8331f" } } },
+} as const;
+type TerminalPanel = { readonly fill: string; readonly radius: number; readonly pad: number; readonly header: number; readonly shadow: "shadow" | "shadow-md" | "shadow-lg";
+  readonly dots: { readonly size: number; readonly gap: number; readonly colors: readonly string[] } };
+type TerminalBand = { readonly fill: string; readonly padX: number; readonly padY: number; readonly radius: number; readonly gap: number };
+
 /** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
 const LOCK_PATH = "M20 28 L20 20 C20 13.4 25.4 8 32 8 C38.6 8 44 13.4 44 20 L44 28 L38 28 L38 20 C38 16.7 35.3 14 32 14 C28.7 14 26 16.7 26 20 L26 28 Z "
   + "M14 26 L50 26 C52.2 26 54 27.8 54 30 L54 54 C54 56.2 52.2 58 50 58 L14 58 C11.8 58 10 56.2 10 54 L10 30 C10 27.8 11.8 26 14 26 Z";
@@ -625,7 +647,9 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure, opt
   throw last;
 }
 
-interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[]; secondary?: boolean; signature?: boolean; generated?: boolean }
+interface BlockOptions { align?: "left" | "center" | "right"; leading?: number; groupID?: number; markdown?: boolean; code?: boolean; colors?: readonly (string | undefined)[]; secondary?: boolean; signature?: boolean; generated?: boolean;
+  /** Continuation lines of a wrapped line start this much further right (a hanging indent), so a wrap never reads as a new line. */
+  hang?: number }
 
 /** One layout at type step `k` (TEMPLATE_GROW). */
 function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 1): TemplateLayout {
@@ -665,12 +689,17 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     return glyphs;
   };
   const place = (glyphs: StyledGlyph[], x: number, y: number, width: number, size: number, bold: boolean, color: string, o: BlockOptions = {}): number => {
-    const { align = "left", leading = 1.3, groupID = group++ } = o;
-    const lines = wrapStyled(glyphs, width, size, measure);
+    const { align = "left", leading = 1.3, groupID = group++, hang = 0 } = o;
+    let lines = wrapStyled(glyphs, width, size, measure);
+    // A hanging indent: the first line at full width, the rest rewrapped beside the indent.
+    if (hang && lines.length > 1) {
+      const first = lines[0]!, rest = glyphs.slice(first.length);
+      lines = [first, ...(rest.some((glyph) => glyph.text.trim()) ? wrapStyled(rest, width - hang, size, measure) : [])];
+    }
     const height = Math.ceil(measure.lineHeight(size, bold) * leading);
     for (const [index, line] of lines.entries()) {
       const advance = styledWidth(line, size, measure);
-      const dx = align === "center" ? (width - advance) / 2 : align === "right" ? width - advance : 0;
+      const dx = (align === "center" ? (width - advance) / 2 : align === "right" ? width - advance : 0) + (index ? hang : 0);
       layout.lines.push({ text: line.map((g) => g.text).join(""), x: x + dx, y: y + index * height, width: advance, size, height, bold, color, group: groupID,
         boldAt: line.map((g) => g.bold), ...(line.some((g) => g.color) ? { colorAt: line.map((g) => g.color) } : {}), ...(o.secondary ? { secondary: true } : {}), ...(o.signature ? { signature: true } : {}), ...(o.generated ? { generated: true } : {}) });
     }
@@ -702,6 +731,29 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
     if (dy <= 0) return end;
     for (const item of [...layout.lines, ...layout.shapes, ...layout.images]) if (!pinned.has(item)) item.y += dy;
     return end + dy;
+  };
+  /** Full-bleed backdrop layers for this format (a style's `gifBackdrop` replaces `backdrop` in GIF), pinned, stretched at the end. */
+  const drawBackdrop = (s: { readonly backdrop: readonly BackdropLayer[] | null; readonly gifBackdrop: readonly BackdropLayer[] | null }) => {
+    const backdrop: (TemplateRect | TemplateImage)[] = [];
+    for (const layer of ((view.format === "gif" ? s.gifBackdrop ?? s.backdrop : s.backdrop) ?? []) as readonly BackdropLayer[]) {
+      if ("field" in layer) {
+        const image: TemplateImage = { x: 0, y: 0, width: W, height: 0, src: "", field: layer.field };
+        layout.images.push(image); pinned.add(image); backdrop.push(image);
+        continue;
+      }
+      if ("arc" in layer) {
+        // A hue arc as adjacent left-to-right segments on whole pixels, so the seams meet exactly.
+        const colors = sampleArc(layer.arc, layer.segments);
+        for (let i = 0; i < layer.segments; i++) {
+          const x0 = Math.round((W * i) / layer.segments), x1 = Math.round((W * (i + 1)) / layer.segments);
+          const r = rect(x0, 0, x1 - x0, 0, colors[i + 1]!); r.gradient = { dir: "r", from: colors[i]!, to: colors[i + 1]! };
+          pinned.add(r); backdrop.push(r);
+        }
+        continue;
+      }
+      const r = rect(0, 0, W, 0, layer.to); r.gradient = layer; pinned.add(r); backdrop.push(r);
+    }
+    return backdrop;
   };
   const content = plan.content;
   switch (content.kind) {
@@ -810,6 +862,63 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
         }
         if (side) y = Math.max(y, headTop + head);
       }
+      bottom = settle(top, y);
+      break;
+    }
+    case "terminal": {
+      const s = styleOf(TERMINAL_STYLES);
+      layout.background = s.background; margin = s.outer; signatureColor = s.signature;
+      const P: TerminalPanel | null = s.panel, B: TerminalBand | null = s.band;
+      const text = (line: (typeof content.lines)[number]) => normalizeText(line.kind === "prompt" ? line.prompt + line.command : line.text, "code");
+      const rows = content.lines.map(text);
+      const textX = P ? margin + P.pad : margin + (B?.padX ?? 0);
+      const textW = W - 2 * margin - (P ? 2 * P.pad : 2 * (B?.padX ?? 0));
+      const exit = content.lines.at(-1)?.kind === "exit" ? s.exit : undefined;
+      // Room the chrome takes: the window's header and padding, the bands' padding, the exit pill.
+      const prompts = content.lines.filter((line) => line.kind === "prompt").length;
+      const chrome = (P ? 2 * P.pad + P.header : 0) + (B ? prompts * (2 * B.padY + B.gap) : 0) + (exit ? exit.gap + 2 * exit.padY : 0) + prompts * s.blockGap;
+      const availH = view.fit - 2 * margin - chrome - footerRoom();
+      const fits = (sz: number) => rows.every((row, i) => measure.width(row, sz, content.lines[i]!.kind === "prompt") <= textW - (content.lines[i]!.kind === "exit" && exit ? 2 * exit.padX : 0));
+      const sizes: readonly number[] = s.sizes;
+      const size = sizes.find((sz) => fits(sz) && rows.length * lh(sz, s.leading) <= availH) ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
+      let y = margin; const top = y;
+      const backdrop = drawBackdrop(s);
+      let panel: TemplateRect | undefined;
+      if (P) {
+        panel = rect(margin, y, W - 2 * margin, 0, P.fill, P.radius); panel.shadow = P.shadow;
+        const dotY = y + (P.header - P.dots.size) / 2 + P.pad / 4;
+        P.dots.colors.forEach((color, i) => rect(margin + P.pad + i * (P.dots.size + P.dots.gap), dotY, P.dots.size, P.dots.size, color, P.dots.size / 2));
+        y += P.pad / 2 + P.header;
+      }
+      let g = group;
+      const hang = Math.ceil(measure.width("  ", size, false));
+      for (const [index, line] of content.lines.entries()) {
+        const row = rows[index]!;
+        if (line.kind === "prompt") {
+          // A new command starts a block: a little air above it (not above the first line).
+          if (index) y += s.blockGap;
+          g = group++;
+          const prompt = graphemes(normalizeText(`${line.prompt}x`, "code")).length - 1;
+          const glyphs = glyphsOf(row, false, { code: true, markdown: false }).map((glyph, i) => (i < prompt ? { ...glyph, color: s.prompt } : { ...glyph, bold: true }));
+          if (B) {
+            const band = rect(margin, y, W - 2 * margin, 0, B.fill, B.radius); band.group = g;
+            band.height = place(glyphs, textX, y + B.padY, textW, size, false, s.command, { leading: s.leading, groupID: g, hang }) + 2 * B.padY;
+            y += band.height + B.gap;
+          } else y += place(glyphs, textX, y, textW, size, false, s.command, { leading: s.leading, groupID: g, hang });
+        } else if (line.kind === "exit" && exit) {
+          y += exit.gap;
+          const tone = line.ok ? exit.ok : exit.fail, first = layout.lines.length;
+          const pill = rect(textX - (P ? 0 : B?.padX ?? 0), y, 0, 0, tone.fill, exit.radius); pill.group = g;
+          const h = block(row, pill.x + exit.padX, y + exit.padY, textW - 2 * exit.padX, exit.size, true, tone.ink, { leading: 1.2, groupID: g, code: true, markdown: false, secondary: true });
+          pill.width = Math.ceil(Math.max(...layout.lines.slice(first).map((l) => l.width))) + 2 * exit.padX; pill.height = h + 2 * exit.padY;
+          y += pill.height;
+        } else {
+          const color = line.kind === "output" && line.tone ? s[line.tone] : s.output;
+          y += block(row, textX, y, textW, size, false, color, { leading: s.leading, groupID: g, code: true, markdown: false, hang });
+        }
+      }
+      backdropRects = backdrop;
+      if (panel && P) { y += P.pad; panel.height = y - panel.y; }
       bottom = settle(top, y);
       break;
     }
@@ -1118,25 +1227,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const size = sizes.find((sz) => fits(sz) && source.length * lh(sz, s.leading) <= availH)
         ?? sizes.find((sz) => sz <= s.floor && fits(sz)) ?? sizes[sizes.length - 1]!;
       const codeX = textX + gutterW(size), codeW = textW - gutterW(size);
-      const backdrop: (TemplateRect | TemplateImage)[] = [];
-      for (const layer of ((view.format === "gif" ? s.gifBackdrop ?? s.backdrop : s.backdrop) ?? []) as readonly BackdropLayer[]) {
-        if ("field" in layer) {
-          const image: TemplateImage = { x: 0, y: 0, width: W, height: 0, src: "", field: layer.field };
-          layout.images.push(image); pinned.add(image); backdrop.push(image);
-          continue;
-        }
-        if ("arc" in layer) {
-          // A hue arc as adjacent left-to-right segments on whole pixels, so the seams meet exactly.
-          const colors = sampleArc(layer.arc, layer.segments);
-          for (let i = 0; i < layer.segments; i++) {
-            const x0 = Math.round((W * i) / layer.segments), x1 = Math.round((W * (i + 1)) / layer.segments);
-            const r = rect(x0, 0, x1 - x0, 0, colors[i + 1]!); r.gradient = { dir: "r", from: colors[i]!, to: colors[i + 1]! };
-            pinned.add(r); backdrop.push(r);
-          }
-          continue;
-        }
-        const r = rect(0, 0, W, 0, layer.to); r.gradient = layer; pinned.add(r); backdrop.push(r);
-      }
+      const backdrop = drawBackdrop(s);
       let y = margin; const top = y;
       let panel: TemplateRect | undefined;
       if (P) {
@@ -1462,12 +1553,14 @@ const CODE_FONT_STAGE = "compositions/paste/fonts";
 /** Cards are set in Peesuto Code (Maple Mono) when the user chose it (the
  * default) and always for code, unless it lacks a (non-emoji) glyph of the
  * content: then the whole card falls back to Noto Sans SC, without an error. */
+/** Templates set in Peesuto Code (CJK at two columns, so columns hold), whatever the font choice. */
+export const MONO_TEMPLATES: readonly TemplateId[] = ["code", "terminal"];
 export function wantsMapleFont(template: TemplateId, choice: TemplateFontChoice = DEFAULT_TEMPLATE_FONT): boolean {
-  return template === "code" || choice === "maple";
+  return MONO_TEMPLATES.includes(template) || choice === "maple";
 }
 export function chooseTemplateFont(template: TemplateId, missingInCodeFont: readonly string[], choice: TemplateFontChoice = DEFAULT_TEMPLATE_FONT): TemplateFont {
   if (!wantsMapleFont(template, choice) || missingInCodeFont.length) return "noto-sans-sc";
-  return template === "code" ? "peesuto-code" : "peesuto-text";
+  return MONO_TEMPLATES.includes(template) ? "peesuto-code" : "peesuto-text";
 }
 
 /** Face files for the measurer (absolute) and the composition (work-tree relative, no ".."). */
@@ -1534,7 +1627,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   // other one when it has them all (Noto has no ⌥, Maple no 說). Neither: the
   // chosen face reports what is missing below.
   const preferred = chooseTemplateFont(plan.template, [], plan.font);
-  const maple: TemplateFont = plan.template === "code" ? "peesuto-code" : "peesuto-text";
+  const maple: TemplateFont = MONO_TEMPLATES.includes(plan.template) ? "peesuto-code" : "peesuto-text";
   let font: TemplateFont = preferred;
   let m = await open(font);
   const lacks = () => texts.some((text) => m.unmapped(text, 40, false).length > 0);

@@ -7,6 +7,9 @@ section here becomes one.
 
 ## Unreleased
 
+### New
+- **Terminal session cards** — a copied shell session becomes a terminal window: prompts and commands stand out, output is dimmed, errors are red and a final exit status sits in a pill.
+
 ## 0.2.0 — 2026-09-24
 
 The first public release.

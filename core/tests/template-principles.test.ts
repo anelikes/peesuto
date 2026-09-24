@@ -35,6 +35,11 @@ const EXTRA: readonly TemplateContent[] = [
     { version: "v2.0.0-beta.12", date: "2026年9月24日", sections: [{ title: "Breaking changes", type: "security", items: ["Settings file moved"] }] },
     { version: "1.1.0", sections: [{ type: "other", items: ["feat: warmer greys", "fix: 换行"] }] },
   ] },
+  { kind: "terminal", lines: [
+    { kind: "prompt", prompt: "PS C:\\Users\\nya> ", command: "npm run build -- --verbose --filter=@peesuto/core --workspace packages/core --no-cache" },
+    { kind: "output", text: "npm WARN config production Use `--omit=dev` instead.", tone: "warning" }, { kind: "output", text: "" },
+    { kind: "output", text: "  构建完成，用时 3.2 秒" }, { kind: "prompt", prompt: "$ ", command: "" }, { kind: "exit", text: "exit status 0", ok: true },
+  ] },
   { kind: "info", title: "张三", fields: [{ value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" }] },
 ];
 const ALL = [...TEMPLATE_SAMPLES, ...EXTRA];
@@ -59,6 +64,7 @@ function sourceStrings(content: TemplateContent): string[] {
     case "info": return [...(content.title ? [content.title] : []), ...content.fields.flatMap((f) => [...(f.label ? [f.label] : []), f.value])].map((s) => clean(s));
     case "changelog": return [...(content.title ? [content.title] : []), ...content.releases.flatMap((r) => [r.version, ...(r.date ? [r.date] : []),
       ...r.sections.flatMap((s) => [...(s.title ? [s.title] : []), ...s.items])])].map((s) => clean(s));
+    case "terminal": return content.lines.map((l) => clean(l.kind === "prompt" ? l.prompt + l.command : l.text, true));
     case "qr": return [content.data];
   }
 }

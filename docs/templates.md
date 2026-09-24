@@ -35,6 +35,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Diagram | Flow | Blueprint | |
 | Info card | Field list | Credentials | |
 | Release notes | Release card | Timeline | |
+| Terminal session | Night terminal | Command log | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -159,7 +160,8 @@ use the same checks as its publish gate: [template-spec.md](template-spec.md).
 Cards are set in Maple Mono by default, with a choice of Noto Sans SC in
 Settings › Templates (`template_font`, sent as `templateFont` with every
 render and precompose request, part of the precompose key, carried in the
-plan as `font`). Code is always Maple Mono. Maple comes in two cuts under
+plan as `font`). Code and the other monospace templates (`MONO_TEMPLATES`:
+code, terminal) are always Peesuto Code. Maple comes in two cuts under
 `core/src/render/fonts/`: Peesuto Code, Chinese at two Latin columns so code
 aligns, and Peesuto Text, Chinese at 1em for everything else (the two-column
 width reads as letter-spacing in prose; `scripts/fonts/peesuto-text.py`).
@@ -305,6 +307,32 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   version and date in a left column beside the sections, titles in colour;
   a version or date too wide for the column stacks above the sections.
   Styles are `CHANGELOG_STYLES` in `compose.ts`.
+
+### Terminal session: commands, output and errors
+
+- Recognized when the first line is a prompt and every other line is a
+  prompt or output (blank lines kept): `$ `, `% `, `❯ `, `➜  dir`,
+  `user@host:~/path$ `, `[user@host dir]$ `, `~/path $ `, `bash-5.2$ `,
+  `PS C:\> `, `C:\Users> `, each optionally after a `(venv) `. It needs a
+  prompt with a command and an output line, or two prompts with commands.
+  A bare `$`, `%` or `❯` prompt counts only when some command starts with a
+  well-known one (`git`, `npm`, `ls`, `docker`… in `KNOWN_COMMANDS`) or a
+  path; a command that starts with a number (`$ 100 off`) is prose. A fence
+  whose language is a shell (```` ```console ````, `sh`, `powershell`…) or
+  none is read the same way. It ranks before code, which stays the
+  alternative in the template menu.
+- Drawn verbatim, line by line, in Peesuto Code: the prompt in a dim accent,
+  the command bold and bright, output dimmed. Output that starts with
+  `error`, `fatal`, `npm ERR!`, `E:`… or says `command not found`,
+  `Permission denied`, `No such file or directory` takes the error colour;
+  `warning`, `npm WARN`, `W:` the warning colour; colour only. A last line
+  such as `[exit 1]`, `exit status 2` or `Process exited with code 0` is the
+  exit status, in a pill: green for 0, red otherwise. A wrapped line
+  continues two columns in (a hanging indent), so a wrap never reads as a new
+  line.
+- Night terminal: a window with three dots on the code card's Indigo night
+  field (the hue arc in GIFs). Command log: a light page, each command on a
+  tinted band, output beneath. Styles are `TERMINAL_STYLES` in `compose.ts`.
 
 ### QR code: any text, by shortcut only
 

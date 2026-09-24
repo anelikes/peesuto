@@ -2,7 +2,7 @@
  * fallback to the regex colouring, and the code font chooser. */
 import { describe, expect, test } from "bun:test";
 import { HIGHLIGHT_LANGUAGES, graphemeKeys, highlight } from "../src/templates/highlight.ts";
-import { CODE_FONT, CODE_FONT_DIR, CODE_STYLES, chooseTemplateFont, codeColors, fontFaces, layoutTemplate, syntaxColors, type TemplateMeasure } from "../src/templates/compose.ts";
+import { CODE_FONT, CODE_FONT_DIR, CODE_STYLES, MONO_TEMPLATES, chooseTemplateFont, codeColors, fontFaces, layoutTemplate, syntaxColors, type TemplateMeasure } from "../src/templates/compose.ts";
 import { normalizeText } from "../src/render/compose.ts";
 import { TEMPLATE_IDS } from "../src/templates/types.ts";
 import { samplePlan } from "./fixtures/templates.ts";
@@ -117,12 +117,14 @@ describe("highlight.js colouring", () => {
 });
 
 describe("code font", () => {
-  test("Maple Mono by default for every template, Noto Sans SC when chosen (never for code) or a glyph is missing", () => {
+  test("Maple Mono by default for every template, Noto Sans SC when chosen (never for code and shell sessions) or a glyph is missing", () => {
+    expect(MONO_TEMPLATES).toEqual(["code", "terminal"]);
     for (const id of TEMPLATE_IDS) {
-      // Code keeps Chinese at two columns; every other card uses Peesuto Text (Chinese at 1em).
-      expect(chooseTemplateFont(id, [])).toBe(id === "code" ? "peesuto-code" : "peesuto-text");
+      // Code and shell sessions keep Chinese at two columns; every other card uses Peesuto Text (Chinese at 1em).
+      const mono = MONO_TEMPLATES.includes(id);
+      expect(chooseTemplateFont(id, [])).toBe(mono ? "peesuto-code" : "peesuto-text");
       expect(chooseTemplateFont(id, ["한"])).toBe("noto-sans-sc");
-      expect(chooseTemplateFont(id, [], "noto")).toBe(id === "code" ? "peesuto-code" : "noto-sans-sc");
+      expect(chooseTemplateFont(id, [], "noto")).toBe(mono ? "peesuto-code" : "noto-sans-sc");
     }
   });
 

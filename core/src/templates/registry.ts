@@ -46,6 +46,9 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
   { id: "changelog", name: "Release notes", nameZh: "更新日志", variants: [
     { id: "classic", name: "Release card", nameZh: "发布卡片" }, { id: "editorial", name: "Timeline", nameZh: "时间线" },
   ], motions: MOTIONS },
+  { id: "terminal", name: "Terminal session", nameZh: "终端会话", variants: [
+    { id: "classic", name: "Night terminal", nameZh: "夜色终端" }, { id: "editorial", name: "Command log", nameZh: "命令记录" },
+  ], motions: MOTIONS },
   { id: "qr", name: "QR code", nameZh: "二维码", variants: [
     { id: "classic", name: "Plain", nameZh: "纯净" }, { id: "editorial", name: "Card", nameZh: "卡片" },
   ], motions: ["none", "reveal"] },

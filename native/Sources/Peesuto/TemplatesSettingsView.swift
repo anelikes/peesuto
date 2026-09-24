@@ -158,6 +158,7 @@ struct TemplatesSettingsView: View {
         case "diagram": return model.tr("Mermaid flowcharts and arrow chains", "Mermaid 流程图与箭头链")
         case "info": return model.tr("Contacts, accounts and keys, field by field", "联系方式、账号与密钥，逐项排版")
         case "changelog": return model.tr("Release notes: versions, dates and tagged changes", "更新日志：版本、日期与分类标签")
+        case "terminal": return model.tr("Shell sessions: commands, output and errors", "终端会话：命令、输出与报错")
         case "qr": return model.tr("Any text as a QR code", "任意文字转为二维码")
         default: return ""
         }

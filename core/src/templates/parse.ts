@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type TemplateContent, type TemplateId } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -21,6 +21,10 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
   candidates.set("document", { kind: "document", paragraphs: normalized.split(/\n[\t ]*\n+/), blocks: documentBlocks(normalized) });
   // A fenced block must consume the entire input, including its closing fence.
   const code = parseCode(text);
+  // Shell sessions are read from the raw text, or from a fence whose language
+  // allows one (```console, ```sh…); the fenced source stays available as code.
+  const inner = code?.kind === "code" ? code : undefined;
+  const terminal = inner ? (!inner.language || SESSION_FENCES.test(inner.language) ? parseTerminal(inner.code) : undefined) : parseTerminal(text);
   // A Mermaid flowchart, fenced as ```mermaid or bare, is a diagram; the
   // fenced source stays available as code.
   const mermaid = code?.kind === "code" && (!code.language || /^mermaid$/i.test(code.language)) ? parseMermaid(code.code) : parseMermaid(text.trim());
@@ -41,13 +45,15 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     // The legacy classifier also understands commands, JSON and stack traces.
     // Keep those capabilities without treating malformed tables or mixed
     // Markdown containing a fence as one large code block.
-    if (candidates.size === 1 && isRawCode(text.trim())) candidates.set("code", { kind: "code", code: normalized });
+    // A shell session keeps code as its alternative.
+    if (candidates.size === 1 && (terminal || isRawCode(text.trim()))) candidates.set("code", { kind: "code", code: normalized });
     // Arrow chains: every line "A → B → C". Code (JS `=>`) never qualifies.
     if (!candidates.has("code")) {
       const chains = parseArrowChains(text);
       if (chains) candidates.set("diagram", chains);
     }
   }
+  if (terminal) candidates.set("terminal", terminal);
   const prose = parseText(text, candidates);
   if (prose) candidates.set("text", prose);
   // Anything can be a QR code: the exact source (surrounding whitespace aside),
@@ -57,7 +63,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -86,7 +92,7 @@ export function withoutTemplates(parsed: ParsedTemplates, disabled: unknown): Pa
  * specialized template would lose (code, table, list, chat, comparison).
  * Quotes and statistics keep text as an alternative. */
 function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent | undefined {
-  if (["code", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
+  if (["code", "terminal", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
   if (/^(?:graph|flowchart)\b/i.test(text.trim())) return;
   if (exceedsGraphemes(text, TEXT_MAX_GRAPHEMES) !== undefined) return;
   const blocks = documentBlocks(text);
@@ -306,6 +312,67 @@ export function parseChangelog(text: string): TemplateContent | undefined {
     version: r.version, ...(r.date ? { date: r.date } : {}),
     sections: r.sections.map((s): ChangelogSection => ({ ...(s.title ? { title: s.title } : {}), type: s.type, items: s.items })),
   })) };
+}
+
+/** Fence languages a shell session may be written under. */
+const SESSION_FENCES = /^(?:console|shell-session|shellsession|terminal|term|sh|bash|zsh|fish|shell|powershell|pwsh|ps1?|cmd|bat|text|txt|plaintext)$/i;
+/** A prompt as shells print it, then the command: `$ `, `% `, `# ` only after
+ * a user@host or path, `❯ `, `➜  dir`, `user@host:~/p$ `, `[user@host dir]$ `,
+ * `bash-5.2$ `, `PS C:\> `, `C:\Users> `, an optional `(venv) ` in front. */
+const PROMPT = new RegExp("^((?:\\([\\w.@-]{1,40}\\)[\\t ]+)?(?:"
+  + String.raw`\[?[\w.-]+@[\w.-]+(?:[: ][^\s$#%>]*)?\]?[\t ]?[$#%>]`
+  + String.raw`|(?:~|\/)[^\s$#%]*[\t ]?[$#%❯]`
+  + String.raw`|(?:ba|z|fi|k)?sh-\d+(?:\.\d+)*[$#]`
+  + String.raw`|PS [A-Za-z]:\\[^>\n]*>|[A-Za-z]:\\[^>\n]*>`
+  + String.raw`|➜[\t ]+[^\s]+(?:[\t ]+git:\([^)\n]*\))?(?:[\t ]+✗)?`
+  + String.raw`|❯+|[$%]` + ")[\\t ]+)(\\S.*)?$");
+/** Commands a bare `$ ` / `% ` / `❯ ` session must start one of (a user@host,
+ * path or PowerShell prompt is evidence enough on its own). */
+const KNOWN_COMMANDS = new Set(("git gh npm npx pnpm yarn bun bunx deno node tsc vite python python3 pip pip3 uv poetry pytest ruff cargo rustc rustup go "
+  + "make cmake gcc clang swift xcodebuild xcrun brew apt apt-get yum dnf pacman docker podman kubectl helm terraform aws gcloud az ssh scp rsync "
+  + "curl wget ls ll cd pwd cat echo printf grep rg find fd sed awk head tail less wc sort uniq xargs mkdir rm cp mv chmod chown touch ln ps kill "
+  + "top df du tar zip unzip gzip ping dig nslookup ifconfig ip netstat lsof which whoami sudo su export source env java javac mvn gradle ruby "
+  + "gem bundle rails php composer dotnet psql mysql sqlite3 redis-cli open code vim nano man tree diff file stat date uname hostname systemctl "
+  + "journalctl launchctl defaults codesign security openssl ssh-keygen nvm pyenv conda flutter dart adb time watch jq yq bat eza exa history clear").split(" "));
+
+/** Output lines drawn in the error or warning colour. Colour only. */
+const ERROR_OUTPUT = /^\s*(?:error\b|fatal\b|panic:|npm ERR!|ERR!|E:|✖|✗|FAILED\b|FAIL\b)|command not found|Permission denied|No such file or directory|cannot find|not recognized as/i;
+const WARNING_OUTPUT = /^\s*(?:warning\b|warn\b|npm WARN|W:|⚠)/i;
+/** A final exit status line: `[exit 1]`, `exit status 2`, `Process exited with code 0`… */
+const EXIT_LINE = /^\[?(?:process (?:exited|completed|finished)(?: with)?(?: exit)?(?: code| status)|exit(?:ed)?(?: with)?(?: code| status)?|exit code|return code|status)[:=]?[\t ]*(-?\d{1,3})\]?\.?$/i;
+
+/**
+ * A shell session: the first line is a prompt, and every other line is a
+ * prompt or output (blank lines kept). It needs a prompt with a command and
+ * an output line, or two prompts with commands; a command's first word must
+ * look like one (`$ 100 off` is prose). A last line like `exit status 1` is
+ * the exit status.
+ */
+export function parseTerminal(text: string): TemplateContent | undefined {
+  const lines = trimBlankLines(text).split("\n");
+  if (lines.length < 2 || lines.length > 200) return;
+  const out: TerminalLine[] = [];
+  let commands = 0, outputs = 0, evidence = false;
+  for (const [index, raw] of lines.entries()) {
+    const line = raw.replace(/\s+$/, "");
+    const prompt = line.match(PROMPT);
+    const command = prompt?.[2]?.trimEnd() ?? "";
+    if (prompt && (!command || /^[\w./~@:+\\-]/.test(command) && !/^[\d,.]+(?:\s|$)/.test(command))) {
+      out.push({ kind: "prompt", prompt: prompt[1]!, command });
+      if (command) commands++;
+      const bare = /^[$%❯]+[\t ]+$/.test(prompt[1]!);
+      if (!bare || KNOWN_COMMANDS.has(command.split(/\s/)[0]!) || /^(?:\.{0,2}\/|~\/)/.test(command)) evidence = true;
+      continue;
+    }
+    if (!index) return;
+    const exit = index === lines.length - 1 ? line.trim().match(EXIT_LINE) : null;
+    if (exit) { out.push({ kind: "exit", text: line.trim(), ok: Number(exit[1]) === 0 }); continue; }
+    const tone = ERROR_OUTPUT.test(line) ? "error" as const : WARNING_OUTPUT.test(line) ? "warning" as const : undefined;
+    out.push({ kind: "output", text: line, ...(tone ? { tone } : {}) });
+    if (line.trim()) outputs++;
+  }
+  if (!evidence || !(commands >= 2 || (commands >= 1 && outputs >= 1))) return;
+  return { kind: "terminal", lines: out };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

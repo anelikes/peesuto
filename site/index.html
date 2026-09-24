@@ -203,7 +203,7 @@ Host: https://staging.example.com</pre></div>
 <section class="gallery pad" id="templates" data-theme="light" aria-labelledby="templates-title">
 <div class="wrap">
 <div class="gallery-head">
-<h2 class="h2" id="templates-title">13 templates,<br>27 styles.</h2>
+<h2 class="h2" id="templates-title">14 templates,<br>29 styles.</h2>
 <p>Local rules pick the template; you can switch the style after pasting, choose a default per template, or turn one off in Settings. Each style is an open table of type and colour: <a href="https://github.com/anelikes/peesuto/blob/main/docs/templates.md">how templates work</a>.</p>
 </div>
 <ul class="grid">
@@ -232,6 +232,8 @@ Host: https://staging.example.com</pre></div>
 <li><img src="/cards/info-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Info card, Credentials"><p>Info card <span>Credentials</span></p></li>
 <li><img src="/cards/changelog-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Release notes, Release card"><p>Release notes <span>Release card</span></p></li>
 <li><img src="/cards/changelog-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Release notes, Timeline"><p>Release notes <span>Timeline</span></p></li>
+<li><img src="/cards/terminal-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="Terminal session, Night terminal"><p>Terminal session <span>Night terminal</span></p></li>
+<li><img src="/cards/terminal-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="Terminal session, Command log"><p>Terminal session <span>Command log</span></p></li>
 <li><img src="/cards/qr-classic.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR code, Plain"><p>QR code <span>Plain</span></p></li>
 <li><img src="/cards/qr-editorial.webp" width="320" height="320" loading="lazy" decoding="async" alt="QR code, Card"><p>QR code <span>Card</span></p></li>
 </ul>
@@ -298,6 +300,7 @@ Host: https://staging.example.com</pre></div>
 <details><summary>Is AI required?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>No. Local rules choose a template for everything. If you like, bring your own key and let Jev, a small model, choose the template and style, through TypeSafe, Vercel AI Gateway, OpenRouter or your own Cloudflare account. It picks presentation only; it never rewrites your text.</p></details>
 <details><summary>Do I need ffmpeg?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Only for MP4 video. Peesuto uses the ffmpeg already on your Mac (<code>brew install ffmpeg</code>) and does not bundle or install it. Images, GIFs and QR codes need nothing extra.</p></details>
 <details><summary>Which Macs does it run on?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Macs with Apple silicon, on macOS 13 Ventura or later.</p></details>
+<details><summary>Can I install it with Homebrew?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Yes: <code>brew install --cask anelikes/tap/peesuto</code>. The app keeps itself up to date from then on.</p></details>
 <details><summary>What does it cost?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Nothing. Peesuto is free and MIT-licensed, and no feature is held back from the open-source build.</p></details>
 <details><summary>How do updates work?<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Peesuto checks <code>peesuto.com/appcast.xml</code> once a day and offers signed updates (Sparkle); you can turn the check off in Settings › General. Versions 0.1.0 and 0.1.1 came before the updater, so update those once by hand. The <a href="/changelog/">changelog</a> lists what changed.</p></details>
 </div>
