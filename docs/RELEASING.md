@@ -29,6 +29,16 @@ currently uses a local ad-hoc signature. This is not a notarized distribution.
 See [native development](../native/README.md) for preview isolation and resource
 rebuild rules. A bare Swift build is not a complete application bundle.
 
+`scripts/bundle-sidecar.ts` prunes what no render reads from its copies of the
+node_modules closures (source maps, type declarations, docs, Vue's browser
+builds, unreached packages, all but Core's highlight.js languages; the rules
+and how they were measured are in the script). It then renders every template
+and variant as PNG and GIF (and one MP4 when ffmpeg is installed) with the
+bundled Bun, offline, from a copy of the pruned tree
+(`scripts/bundle-render-probe.ts`, about a minute), and fails the build if any
+render fails. After an engine or dependency bump, a rule that no longer
+matches also fails the build and should be revisited.
+
 MP4 additionally needs a locally installed ffmpeg. Where available, run:
 
 ```sh
