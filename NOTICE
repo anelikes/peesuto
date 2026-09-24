@@ -1,11 +1,11 @@
 Peesuto
 Copyright 2026 The Peesuto Authors
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+This product is licensed under the MIT License (see LICENSE).
 
 "Peesuto" and the Peesuto logo are trademarks of the Peesuto project. The
-Apache License does not grant permission to use them (section 6); see the
-"Trademarks" section of CONTRIBUTING.md.
+license does not grant permission to use them; see the "Trademarks" section
+of CONTRIBUTING.md.
 
 This product bundles the following third-party components, each under its
 own license:

@@ -119,15 +119,16 @@ template's checklist is what reviewers go through.
 
 Code: TypeScript strict, `.ts` extensions on imports, no new dependency
 without a sentence in the PR on why the standard library is not enough.
-A new dependency must have a license compatible with Apache 2.0 (MIT, BSD,
-ISC, Apache, OFL for fonts); anything bundled into the app gets a line in
+A new dependency must have a license compatible with MIT (MIT, BSD,
+ISC, Apache 2.0, OFL for fonts); anything bundled into the app gets a line in
 `NOTICE`.
 
 ## License and sign-off
 
-Peesuto is licensed under the [Apache License 2.0](LICENSE). By its
-section 5, a contribution you submit is licensed under the same terms; there
-is no separate contributor agreement.
+Peesuto is licensed under the [MIT License](LICENSE). Contributions are
+accepted under the same license (inbound = outbound): by submitting a change
+you license it to the project and everyone else under MIT, as confirmed by
+the sign-off below. There is no separate contributor agreement.
 
 Every commit in a pull request carries a `Signed-off-by` line: your
 statement, under the [Developer Certificate of Origin](https://developercertificate.org/),
@@ -145,9 +146,9 @@ read it and taken responsibility for it.
 
 ## Trademarks
 
-The code is yours to use, change and redistribute under Apache 2.0; the name
-is not. "Peesuto" and the Peesuto logo identify the official project and its
-builds, and the license does not grant them (section 6).
+The code is yours to use, change and redistribute under MIT; the name is
+not. "Peesuto" and the Peesuto logo identify the official project and its
+builds, and the license does not grant them.
 
 - Fine without asking: saying your fork, template, style pack or plugin is
   "for Peesuto", "compatible with Peesuto" or "based on Peesuto", and using

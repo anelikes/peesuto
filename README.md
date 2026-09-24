@@ -27,7 +27,7 @@ already do a hundred times a day: copy, paste.
   on. Advanced thinking parameters remain available in provider configuration;
   the native settings UI does not yet expose all of them.
 
-Everything here is open source under the Apache License 2.0: the app, Core,
+Everything here is open source under the MIT License: the app, Core,
 the template and pack formats and the proxy. Peesuto runs on your machine
 with the keys you bring (or none: rules and the heuristic need no model); no
 feature is held back from the open build. A hosted service may come later
@@ -196,6 +196,6 @@ The old desktop is removed. Remaining v1 features and release acceptance are tra
 
 ## License
 
-[Apache License 2.0](LICENSE); third-party components are listed in
+[MIT](LICENSE); third-party components are listed in
 [NOTICE](NOTICE). "Peesuto" and its logo are trademarks and are not covered
 by the license; see [Trademarks](CONTRIBUTING.md#trademarks).

@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "private": true,
   "type": "module",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "scripts": {
     "paste": "bun core/src/cli.ts",
     "setup": "bun scripts/engine.ts",
