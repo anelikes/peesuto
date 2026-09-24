@@ -78,3 +78,82 @@ is written beside and renamed into place, since compositions hard-link them.
 The OFL permits bundling the font with software, including commercial
 software; the font files may not be sold on their own, and this notice and
 `OFL.txt` must travel with them.
+
+# Display faces (Lyric motion)
+
+Lyric motion sets the lyric in a display face chosen by style and script
+(compose.ts `TEMPLATE_FACES`, lyrics.ts `LYRICS_STYLES[…].engine.faces`):
+a text with kana takes the `ja` face, with Han the `zh` face, anything else
+the `latin` face. Notes, labels, credits and the signature stay in the
+card's pair (Peesuto Text or Noto Sans SC). A face that cannot draw every
+character of the text it sets (the lyric lines and title) is left out for
+that card, which is then set in the card's pair as before.
+
+| File | Upstream | Used by | Characters | Size |
+|---|---|---|---|---|
+| PeesutoGrin-Oblique.ttf | Smiley Sans (得意黑) v2.0.1, atelierAnchor | Stage and Night, Chinese | GB 2312 | 1.98 MB |
+| DelaGothicOne-Subset.ttf | Dela Gothic One, The Dela Gothic Project Authors | Stage, Japanese | JIS X 0208 level 1 | 0.87 MB |
+| Anton-Subset.ttf | Anton, The Anton Project Authors | Stage, Latin | Latin | 0.04 MB |
+| LXGWWenKai-Medium-Subset.ttf | LXGW WenKai (霞鹜文楷) Medium v1.522, LXGW | Paper, Chinese | GB 2312 | 3.66 MB |
+| KaiseiTokumin-ExtraBold-Subset.ttf | Kaisei Tokumin ExtraBold, The Kaisei Project Authors | Paper, Japanese | JIS X 0208 level 1 | 2.25 MB |
+| InstrumentSerif-Italic-Subset.ttf | Instrument Serif Italic, The Instrument Serif Project Authors | Paper, Latin | Latin | 0.05 MB |
+| ZCOOLKuaiLe-Subset.ttf | ZCOOL KuaiLe (站酷快乐体), The ZCOOL KuaiLe Project Authors | Pop, Chinese | GB 2312 | 1.44 MB |
+| ZenMaruGothic-Black-Subset.ttf | Zen Maru Gothic Black, The Zen Maru Gothic Project Authors | Pop, Japanese and Latin | JIS X 0208 level 1 | 1.50 MB |
+| DotGothic16-Subset.ttf | DotGothic16, The DotGothic16 Project Authors | Night, Japanese and Latin | JIS X 0208 level 1 | 0.95 MB |
+
+12.7 MB in all. Every face is under the SIL Open Font License 1.1; each
+licence travels beside it as `OFL-<Family>.txt`. Only Smiley Sans declares
+Reserved Font Names ("Smiley" and "得意黑"): its subset is a Modified Version
+and is renamed **Peesuto Grin** in every name record (the copyright record
+stays atelierAnchor's). The other faces declare none and keep their names.
+
+Sources and SHA-256 (downloads go to `.work/fonts/display`, never committed):
+
+- https://github.com/atelier-anchor/smiley-sans/releases/download/v2.0.1/smiley-sans-v2.0.1.zip
+  `299c0be6c960ae37361762eca76f7d0cd516615435bb96c0d4b98a1e70178a07`
+  (SmileySans-Oblique.ttf inside: `b447d7e781f08bc95c4c9f23ba71ed2b8ebb639aa7184485c71c4ca5afcd25c4`)
+- https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Medium.ttf
+  `d4bdeb38a39151d74d084cba5090f8cb7d20bf83eedb78c35939ae70b9f4e3f6`
+- Google Fonts, https://github.com/google/fonts at commit
+  `23e54b51ddffbc7713c583748e3bd86f62b1fa4a`, `ofl/<family>/`:
+  DelaGothicOne-Regular.ttf `4ff87a0965f1b0505e5a2c58424bc6ad3cff27e56a82f21c2fc9d6b0e3857ee2`,
+  Anton-Regular.ttf `a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab`,
+  KaiseiTokumin-ExtraBold.ttf `bf44bb3e23cc703bfb19111833f78e651998d0a2b1863eff9e88cecb38a8bc53`,
+  InstrumentSerif-Italic.ttf `08939b8bdf534afec24ae0ef5e03f948940cd9a8fe08e7fecbad040e62327385`,
+  ZCOOLKuaiLe-Regular.ttf `812a6fc1fe54b6d73a419245c32dfeba8aa33104d5be90d1cf6af082007cb71d`,
+  ZenMaruGothic-Black.ttf `6bd74fe76cd39ee0ec18775c3661d845343fb3f6f8fa09a3076638417baf741f`,
+  DotGothic16-Regular.ttf `3ad9af88726d42b40f7f365f0dcac785af73cf20ea6f1d5b44e57cc21150b8f1`
+
+Subsets (fontTools, `scripts/fonts/subset-display.py`): Chinese faces keep
+GB 2312; Japanese faces the JIS X 0208 non-kanji rows, level 1 kanji
+(2,965), both kana blocks and 塡剝頰 where the face has them; every face
+printable ASCII, Latin-1, Latin Extended-A, general punctuation, CJK
+symbols and punctuation, half/full-width forms and ♪♫♬★☆※‥―〒. Hinting,
+glyph names and `meta`/`DSIG` are dropped, layout features kept. Rebuild:
+
+    sh scripts/fonts/build-display.sh
+
+The same inputs give byte-identical files (`head.modified` stays upstream's).
+Lyric motion also draws large type itself from these files (type plates,
+templates/type-raster.ts), so every display face must keep TrueType (`glyf`)
+outlines.
+
+## Considered and not bundled
+
+The Alimama faces the owner asked about (阿里妈妈数黑体 ShuHeiTi, 东方大楷
+DongFangDaKai, 刀隶体 DaoLiTi, 方圆体 FangYuanTi) are free for commercial use
+but are not open-licensed, and their legal statements (read 2026-09-24 from
+the links on fonts.alibabagroup.com, yuque.com/alimama_ai-font) forbid what
+bundling needs:
+
+- 数黑体 and 东方大楷, clause 3: the licence covers "下载、安装和使用"
+  (download, install and use) only; clause 4.1 forbids "仿制、转换、翻译、反编译、
+  反向工程、拆分、破解" (conversion and splitting, which subsetting is) and
+  clause 4.3 "单独定价出售、出租、出借、转让、转授权" (transfer and sublicensing,
+  which a public repository and a DMG amount to).
+- 刀隶体 and 方圆体 add "以及嵌入式使用" (embedded use) to clause 3, but clause
+  4.1 and 4.2 still forbid "拆分" and "新增、拆分、修改或以其他方式进行二次创作"
+  (splitting, modifying or any derivative), so they could at most ship
+  whole and unmodified (方圆体 is a variable font, which the engine and the
+  plate rasteriser would need instanced, a conversion), and whether a public
+  MIT repository counts as "embedded use" is not stated.

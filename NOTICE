@@ -21,6 +21,20 @@ own license:
 - Peesuto Text, the same subset with full-width glyphs narrowed to 1em
   (scripts/fonts/peesuto-text.py), SIL Open Font License 1.1.
 - Noto Sans SC, Copyright Google LLC and Adobe, SIL Open Font License 1.1.
+- Lyric motion's display faces, subsets (core/src/render/fonts/README.md,
+  "Display faces"), each SIL Open Font License 1.1 with its licence beside it
+  (core/src/render/fonts/OFL-<Family>.txt):
+  Peesuto Grin, a renamed subset of Smiley Sans (得意黑) v2.0.1, Copyright
+  2022–2024 atelierAnchor (https://github.com/atelier-anchor/smiley-sans);
+  Dela Gothic One, Copyright 2020 The Dela Gothic Project Authors;
+  Anton, Copyright 2020 The Anton Project Authors;
+  LXGW WenKai (霞鹜文楷), Copyright 2021–2026 LXGW and 2020 The Klee Project
+  Authors (https://github.com/lxgw/LxgwWenKai);
+  Kaisei Tokumin, Copyright 2020 The Kaisei Project Authors;
+  Instrument Serif, Copyright 2022 The Instrument Serif Project Authors;
+  ZCOOL KuaiLe (站酷快乐体), Copyright 2018 The ZCOOL KuaiLe Project Authors;
+  Zen Maru Gothic, Copyright 2021 The Zen Maru Gothic Project Authors;
+  DotGothic16, Copyright 2020 The DotGothic16 Project Authors.
 - Sparkle 2 (https://sparkle-project.org), Copyright Andy Matuschak and
   the Sparkle Project contributors, MIT License.
 - highlight.js 11.12.0 (https://highlightjs.org/), Copyright 2006 Ivan
