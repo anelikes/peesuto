@@ -8,7 +8,7 @@ import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
-import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
+import { DEFAULT_TEMPLATE_FONT, FRAMES, READABILITY, TEMPLATE_MAX_GRAPHEMES, type ChangeType, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
 import { FATAL_CHECKS, checkLayout, type CheckViolation } from "./checks.ts";
 
@@ -69,6 +69,7 @@ export const AUTO_FRAME = {
  * growth) wins; step 1 is the fallback and may grow the canvas / scroll. */
 export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
   document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1], info: [1.3, 1.15, 1],
+  changelog: [1.3, 1.15, 1],
 };
 
 /* Ornament slots. Every line or shape must encode separation, state or a
@@ -237,6 +238,27 @@ export const INFO_STYLES = {
     title: { size: 52, color: "#f2f0ea", gap: 36 }, rule: "#2a2e36", label: { size: 32, color: "#7d8494" }, labelMax: 0, labelGap: 40,
     value: { size: 40, color: "#e8e6df" }, leading: 1.2, rowGap: 26, muted: "#7d8494", link: "#7cb7ff", phoneGap: 14, icon: { size: 36, gap: 24, color: "#7d8494" },
     secret: { fill: "#3a1d22", ink: "#ff8a80", icon: "#ff7b72", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
+} as const;
+
+/** Release notes. Section titles are tags: the source's words on a tint (Release
+ * card) or in colour (Timeline); the colour says what kind of change it is
+ * (`changeType`), nothing more. Versions lead, dates follow in the secondary
+ * size; hairlines separate releases. */
+export const CHANGELOG_STYLES = {
+  /** Release card: warm page, version large on top, date under it, tinted tags over bullet items. */
+  classic: { background: "#fbfaf6", signature: "#6b675e", margin: 96, layout: "stack", title: { size: 32, color: "#6b675e", gap: 24 },
+    version: { size: 80, laterSize: 56, color: "#18181b", leading: 1.05 }, date: { size: 36, color: "#6b675e", gap: 8 }, nameCol: 0,
+    tag: { size: 32, padX: 16, padY: 6, radius: 10, gap: 18, pill: true }, sectionGap: 40, releaseGap: 56, rule: "#e4dfd4",
+    item: { size: 40, color: "#26262b", leading: 1.2, indent: 36, gap: 14, dot: 10, dotColor: "#8a857a" },
+    tags: { added: { fill: "#dcefe2", ink: "#1d6b3f" }, changed: { fill: "#f6e8cc", ink: "#7a4f10" }, fixed: { fill: "#dfe6f8", ink: "#2447a8" },
+      removed: { fill: "#ece8e1", ink: "#5a554c" }, security: { fill: "#f9e0dc", ink: "#a8331f" }, other: { fill: "#ece8e1", ink: "#5a554c" } } as Record<ChangeType, { fill: string; ink: string }> },
+  /** Timeline: warm night, each release a row: version and date in a left column, sections to the right with coloured titles. */
+  editorial: { background: "#1a1814", signature: "#8c887f", margin: 88, layout: "timeline", title: { size: 32, color: "#a8a397", gap: 32 },
+    version: { size: 52, laterSize: 52, color: "#f2f0ea", leading: 1.1 }, date: { size: 32, color: "#a8a397", gap: 6 }, nameCol: 300,
+    tag: { size: 32, padX: 0, padY: 0, radius: 0, gap: 10, pill: false }, sectionGap: 32, releaseGap: 48, rule: "#34312b",
+    item: { size: 40, color: "#e8e6df", leading: 1.2, indent: 32, gap: 12, dot: 10, dotColor: "#6b675e" },
+    tags: { added: { fill: "", ink: "#7fd19b" }, changed: { fill: "", ink: "#f0b95a" }, fixed: { fill: "", ink: "#8fb4ff" },
+      removed: { fill: "", ink: "#b3ada2" }, security: { fill: "", ink: "#ff8a7a" }, other: { fill: "", ink: "#b3ada2" } } as Record<ChangeType, { fill: string; ink: string }> },
 } as const;
 
 /** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
@@ -725,6 +747,52 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       }
       y += C.pad - s.rowGap;
       card.height = y - card.y;
+      bottom = settle(top, y);
+      break;
+    }
+    case "changelog": {
+      const s = grown(styleOf(CHANGELOG_STYLES), k);
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
+      let y = margin; const top = y;
+      const timeline = s.layout === "timeline";
+      if (content.title) y += block(content.title, margin, y, innerW(), s.title.size, true, s.title.color, { leading: 1.2, secondary: true }) + s.title.gap;
+      // Stack: everything in one column. Timeline: version and date left, sections right.
+      const lead = Math.max(0, content.releases.findIndex((release) => release.sections.length > 0));
+      for (const [r, release] of content.releases.entries()) {
+        if (r) { y += s.releaseGap; rect(margin, y, innerW(), 2, s.rule); y += 2 + s.releaseGap; }
+        const g = group++;
+        // The first release with items leads; an empty "Unreleased" above it does not.
+        const versionSize = r === lead ? s.version.size : s.version.laterSize;
+        // Timeline: a version or date too wide for the left column (never split
+        // mid-word) stacks above its sections instead.
+        const colW = s.nameCol - 32;
+        const side = timeline && release.sections.length > 0 && measure.width(release.version, versionSize, true) <= colW
+          && (!release.date || measure.width(release.date, s.date.size, false) <= colW);
+        const headW = side ? colW : innerW();
+        const bodyX = margin + (side ? s.nameCol : 0), bodyW = W - margin - bodyX;
+        const headTop = y;
+        let head = block(release.version, margin, y, headW, versionSize, true, s.version.color, { leading: s.version.leading, groupID: g, markdown: false });
+        if (release.date) head += s.date.gap + block(release.date, margin, headTop + head + s.date.gap, headW, s.date.size, false, s.date.color, { leading: 1.2, groupID: g, secondary: true, markdown: false });
+        y = side ? headTop : headTop + head;
+        for (const [i, section] of release.sections.entries()) {
+          if (i || !side) y += s.sectionGap;
+          const gs = group++;
+          if (section.title) {
+            const t = s.tags[section.type], first = layout.lines.length;
+            const h = block(section.title, bodyX + s.tag.padX, y + s.tag.padY, bodyW - 2 * s.tag.padX, s.tag.size, true, t.ink, { leading: 1.2, groupID: gs, secondary: true, markdown: false });
+            // The tint hugs the title (a wrapped one too).
+            if (s.tag.pill) rect(bodyX, y, Math.ceil(Math.max(...layout.lines.slice(first).map((line) => line.width))) + 2 * s.tag.padX, h + 2 * s.tag.padY, t.fill, s.tag.radius).group = gs;
+            y += h + 2 * s.tag.padY + s.tag.gap;
+          }
+          for (const [j, entry] of section.items.entries()) {
+            if (j) y += s.item.gap;
+            const gi = group++;
+            rect(bodyX + 4, y + mid(s.item.size) - s.item.dot / 2, s.item.dot, s.item.dot, s.item.dotColor, s.item.dot / 2).group = gi;
+            y += block(entry, bodyX + s.item.indent, y, bodyW - s.item.indent, s.item.size, false, s.item.color, { leading: s.item.leading, groupID: gi, markdown: true });
+          }
+        }
+        if (side) y = Math.max(y, headTop + head);
+      }
       bottom = settle(top, y);
       break;
     }

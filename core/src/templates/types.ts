@@ -1,6 +1,6 @@
 import type { DiagramDirection, DiagramEdge, DiagramNode } from "./diagram.ts";
 
-export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "qr"] as const;
+export const TEMPLATE_IDS = ["text", "document", "quote", "code", "stat", "list", "chat", "table", "comparison", "diagram", "info", "changelog", "qr"] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 /** Style ids. Every template has classic and editorial; poster exists only where registered (text). */
 export const VARIANT_IDS = ["classic", "editorial", "poster"] as const;
@@ -68,6 +68,11 @@ export type TemplateContent =
    * title line, then each field's label and value verbatim; `type` only picks
    * the styling (phone digits grouped visually, secrets in a pill). */
   | { readonly kind: "info"; readonly title?: string; readonly fields: readonly InfoField[] }
+  /** Release notes: an optional title heading, then releases, each a
+   * version-like heading (version and date as written, heading markers and
+   * separators dropped as syntax) with its sections and bullet items. Section
+   * titles are the source's own ("Added", "修复"); `type` only picks a colour. */
+  | { readonly kind: "changelog"; readonly title?: string; readonly releases: readonly ChangelogRelease[] }
   /** Any text as a QR code: `data` is encoded byte for byte (UTF-8). Never
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };
@@ -75,6 +80,12 @@ export type TemplateContent =
 export const INFO_FIELD_TYPES = ["phone", "email", "url", "address", "secret", "plain"] as const;
 export type InfoFieldType = (typeof INFO_FIELD_TYPES)[number];
 export interface InfoField { readonly label?: string; readonly value: string; readonly type: InfoFieldType }
+
+/** What a changelog section's title says it holds; styling only. */
+export const CHANGE_TYPES = ["added", "changed", "fixed", "removed", "security", "other"] as const;
+export type ChangeType = (typeof CHANGE_TYPES)[number];
+export interface ChangelogSection { readonly title?: string; readonly type: ChangeType; readonly items: readonly string[] }
+export interface ChangelogRelease { readonly version: string; readonly date?: string; readonly sections: readonly ChangelogSection[] }
 
 /** The card typeface: Maple Mono (Peesuto Code, the default) or Noto Sans SC. Code cards are always Maple Mono. */
 export const TEMPLATE_FONTS = ["maple", "noto"] as const;

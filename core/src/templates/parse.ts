@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type DocumentBlock, type InfoField, type InfoFieldType, type TemplateContent, type TemplateId } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type TemplateContent, type TemplateId } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -34,7 +34,8 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     const chat = parseChat(text) ?? parseTranscript(text);
     const stat = parseStat(text);
     const info = parseInfo(text);
-    for (const content of [table, comparison, quote, list, chat, stat, info]) {
+    const changelog = parseChangelog(text);
+    for (const content of [table, comparison, quote, list, chat, stat, info, changelog]) {
       if (content) candidates.set(content.kind, content);
     }
     // The legacy classifier also understands commands, JSON and stack traces.
@@ -56,7 +57,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "code", "table", "comparison", "info", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "code", "table", "comparison", "changelog", "info", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -229,6 +230,82 @@ export function parseInfo(text: string): TemplateContent | undefined {
   const known = env >= 2 || fields.some((field) => field.type !== "plain" || (field.label && INFO_LABELS.test(field.label.replace(/\s+/g, " "))));
   if (!known) return;
   return { kind: "info", ...(title ? { title } : {}), fields };
+}
+
+/** A version as release notes write it: v1.2 or longer with a "v", 1.2.3 or
+ * longer without one (1.2 alone is a section number), with an optional
+ * pre-release or build suffix, optionally after "Version", "Release", "版本". */
+const VERSION = String.raw`(?:(?:version|release|版本|发布)\s*)?(?:v\d+(?:\.\d+)+|\d+\.\d+\.\d+(?:\.\d+)*)(?:-[0-9A-Za-z.]+)?(?:\+[0-9A-Za-z.]+)?`;
+const RELEASE_DATE = String.raw`\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}`;
+/** "## v1.2.0 — 2026-09-24", "## [1.2.0] - 2026-09-24", "1.2.0 (2026-09-24)",
+ * "v1.2.0", "## [Unreleased]". Brackets, dashes and parentheses are syntax. */
+const RELEASE_HEADING = new RegExp(String.raw`^(#{1,3}[\t ]+)?\[?(${VERSION}|Unreleased|未发布)\]?(?:[\t ]*(?:[-–—:：·|][\t ]*)?\(?(${RELEASE_DATE})\)?)?$`, "i");
+/** Section titles recognized without a Markdown heading marker ("Added", "修复:"). */
+const SECTION_TYPES: readonly (readonly [ChangeType, RegExp])[] = [
+  ["added", /^(?:added|add|new|new features?|features?|新增|新功能|新特性|功能)$/i],
+  ["fixed", /^(?:fixed|fix|fixes|bug ?fixes|bugfix(?:es)?|修复|问题修复|修正|缺陷修复)$/i],
+  ["changed", /^(?:changed|changes|improved|improvements?|enhancements?|performance|updated|变更|更改|改进|优化|更新|调整|性能)$/i],
+  ["removed", /^(?:removed|deprecated|删除|移除|废弃|弃用)$/i],
+  ["security", /^(?:security|breaking(?: changes?)?|安全|破坏性变更|不兼容变更)$/i],
+  ["other", /^(?:other|others|misc|miscellaneous|docs|documentation|chores?|其他|其它|文档)$/i],
+];
+export function changeType(title: string): ChangeType | undefined {
+  return SECTION_TYPES.find(([, re]) => re.test(title.trim()))?.[0];
+}
+
+/**
+ * Release notes: an optional "# Title" line, then one or more releases. A
+ * release starts at a version-like heading and holds sections (a "###"
+ * heading with any short title, or a bare known title such as "Added" or
+ * "修复"), each with "-", "*" or "•" items; items right under the version
+ * form an untitled section. Every non-blank line must be one of these, else
+ * it is not release notes (a document keeps it). At least one real version
+ * (not only "Unreleased") and one item; items at one indentation.
+ */
+export function parseChangelog(text: string): TemplateContent | undefined {
+  const lines = text.split("\n").filter((line) => line.trim());
+  if (lines.length < 2 || lines.length > 120) return;
+  let title: string | undefined;
+  const releases: { version: string; date?: string; sections: { title?: string; type: ChangeType; items: string[] }[] }[] = [];
+  let indent: string | undefined, versions = 0, items = 0;
+  for (const [index, raw] of lines.entries()) {
+    const line = raw.trimEnd();
+    const release = line.trim().match(RELEASE_HEADING);
+    if (release && (release[1] || !/^(?:unreleased|未发布)$/i.test(release[2]!))) {
+      if (!/^(?:unreleased|未发布)$/i.test(release[2]!)) versions++;
+      releases.push({ version: release[2]!, ...(release[3] ? { date: release[3] } : {}), sections: [] });
+      continue;
+    }
+    const heading = line.match(/^(#{1,4})[\t ]+(\S.*?)[\t ]*[:：]?$/);
+    if (index === 0 && heading && heading[1] === "#" && [...heading[2]!].length <= 40) { title = heading[2]!; continue; }
+    const current = releases.at(-1);
+    if (!current) return;
+    if (heading && heading[1]!.length >= 2 && [...heading[2]!].length <= 30) {
+      current.sections.push({ title: heading[2]!, type: changeType(heading[2]!) ?? "other", items: [] });
+      continue;
+    }
+    const bare = line.match(/^[\t ]*(\S[^:：]{0,29}?)[\t ]*[:：]?$/);
+    const known = bare ? changeType(bare[1]!) : undefined;
+    if (bare && known && !/^[\t ]*[-*•][\t ]/.test(line)) {
+      current.sections.push({ title: bare[1]!, type: known, items: [] });
+      continue;
+    }
+    const item = line.match(/^([\t ]*)[-*•][\t ]+(\S.*)$/);
+    if (!item) return;
+    if (indent === undefined) indent = item[1]!;
+    else if (item[1] !== indent) return;
+    // Items right under the version: an untitled section.
+    if (!current.sections.length) current.sections.push({ type: "other", items: [] });
+    current.sections.at(-1)!.items.push(item[2]!.trim());
+    items++;
+  }
+  if (!versions || !items) return;
+  // A titled section left empty would draw a tag over nothing: not release notes.
+  if (releases.some((r) => r.sections.some((s) => !s.items.length))) return;
+  return { kind: "changelog", ...(title ? { title } : {}), releases: releases.map((r): ChangelogRelease => ({
+    version: r.version, ...(r.date ? { date: r.date } : {}),
+    sections: r.sections.map((s): ChangelogSection => ({ ...(s.title ? { title: s.title } : {}), type: s.type, items: s.items })),
+  })) };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

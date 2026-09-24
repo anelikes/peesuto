@@ -34,6 +34,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Comparison | Side by side | Split panels | |
 | Diagram | Flow | Blueprint | |
 | Info card | Field list | Credentials | |
+| Release notes | Release card | Timeline | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -248,6 +249,32 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   shown in full; the privacy rules are the place to redact them.
 - Field list puts labels in a left column when the widest fits a third of the
   card, else above the values; Credentials always stacks them.
+
+### Release notes: versions, dates and tagged changes
+
+- Recognized when every non-blank line is one of: an optional first `# Title`;
+  a release heading with a version (`## v1.2.0 — 2026-09-24`,
+  `## [1.2.0] - 2026-09-24`, `1.2.0 (2026-09-24)`, `v1.2.0`, `Version 1.2.0`,
+  `## [Unreleased]`); a section title (any `###` heading, or a bare known
+  one such as `Added`, `Fixed:`, `新增：`, `修复`); or a `-`, `*` or `•` item at
+  one indentation. A version is `v1.2` or longer with a `v`, three parts
+  without (`1.2` alone is a section number), with an optional pre-release or
+  build suffix. At least one real version (not only Unreleased), at least one
+  item, and no empty titled section; anything else stays a document. It ranks
+  after comparison and before info, list and chat, so a commit-style list
+  with a URL is not an info card.
+- Drawn verbatim: title, versions, dates, section titles, items (`**bold**`
+  in items is bold). Heading markers, brackets, the dash or parentheses
+  between version and date, and a section title's colon are syntax and are
+  not drawn. Nothing else is written: items right under a version get no
+  invented heading.
+- A section title's words pick its colour (`changeType`: added, changed,
+  fixed, removed, security including breaking changes, other); styling only.
+- Release card: the first release with items leads in large type, date
+  under it, titles on a tint, hairlines between releases. Timeline: dark,
+  version and date in a left column beside the sections, titles in colour;
+  a version or date too wide for the column stacks above the sections.
+  Styles are `CHANGELOG_STYLES` in `compose.ts`.
 
 ### QR code: any text, by shortcut only
 

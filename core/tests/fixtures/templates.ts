@@ -16,6 +16,9 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
     { label: "Host", value: "https://staging.example.com", type: "url" }, { label: "API Key", value: "sk-proj-4f8a2c9e1b7d3a6f0e5c8b2a", type: "secret" },
     { label: "备注", value: "只用于联调，别发到群里", type: "plain" },
   ] },
+  { kind: "changelog", releases: [{ version: "v1.2.0", date: "2026-09-24", sections: [
+    { title: "新增", type: "added", items: ["卡片签名", "Release notes become **cards**"] }, { title: "Fixed", type: "fixed", items: ["长代码行自动换行"] },
+  ] }] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

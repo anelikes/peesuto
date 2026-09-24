@@ -77,6 +77,8 @@ export function contentStrings(content: TemplateContent): string[] {
     case "comparison": return content.columns.flatMap((c) => [c.title, ...c.items]).map(plain);
     case "diagram": return [...content.nodes.map((n) => n.label), ...content.edges.flatMap((e) => (e.label ? [e.label] : []))].map(plain);
     case "info": return [...(content.title ? [content.title] : []), ...content.fields.flatMap((f) => [...(f.label ? [f.label] : []), f.value])].map(plain);
+    case "changelog": return [...(content.title ? [content.title] : []), ...content.releases.flatMap((r) => [r.version, ...(r.date ? [r.date] : []),
+      ...r.sections.flatMap((s) => [...(s.title ? [s.title] : []), ...s.items.map((i) => stripBold(i))])])].map(plain);
     case "qr": return [plain(content.data)];
   }
 }

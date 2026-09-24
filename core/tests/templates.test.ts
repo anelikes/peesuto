@@ -485,3 +485,42 @@ describe("card signature", () => {
     expect(layoutTemplate(plan, measure).lines.some((line) => line.signature)).toBe(false);
   });
 });
+
+describe("changelog cards", () => {
+  test("Markdown, Keep a Changelog, Chinese and commit-style release notes; headings and items verbatim", () => {
+    const md = parseTemplates("## v1.2.0 — 2026-09-24\n### Added\n- Signature footer\n- Release notes cards\n### Fixed\n- Long lines wrap");
+    expect(md.preferred).toBe("changelog");
+    expect(md.candidates.get("changelog")).toEqual({ kind: "changelog", releases: [{ version: "v1.2.0", date: "2026-09-24", sections: [
+      { title: "Added", type: "added", items: ["Signature footer", "Release notes cards"] }, { title: "Fixed", type: "fixed", items: ["Long lines wrap"] },
+    ] }] });
+    const kac = parseTemplates("# Changelog\n\n## [Unreleased]\n\n## [1.2.0] - 2026-09-24\n### Security\n- Patched\n\n## [1.1.0] - 2026-08-01\n### Changed\n- Warmer");
+    expect(kac.preferred).toBe("changelog");
+    const content = kac.candidates.get("changelog");
+    expect(content?.kind === "changelog" && content.title).toBe("Changelog");
+    expect(content?.kind === "changelog" && content.releases.map((r) => [r.version, r.date ?? null, r.sections.map((s) => s.type)])).toEqual([["Unreleased", null, []], ["1.2.0", "2026-09-24", ["security"]], ["1.1.0", "2026-08-01", ["changed"]]]);
+    const zh = parseTemplates("## 1.3.0 (2026-10-01)\n新增：\n- 签名\n修复：\n- 换行");
+    expect(zh.candidates.get("changelog")).toEqual({ kind: "changelog", releases: [{ version: "1.3.0", date: "2026-10-01", sections: [
+      { title: "新增", type: "added", items: ["签名"] }, { title: "修复", type: "fixed", items: ["换行"] }] }] });
+    const commits = parseTemplates("v1.2.0\n- feat: add signature\n- docs: https://peesuto.com/spec");
+    expect(commits.preferred).toBe("changelog"); // not an info card, despite the URL
+    expect(commits.candidates.get("changelog")).toEqual({ kind: "changelog", releases: [{ version: "v1.2.0", sections: [{ type: "other", items: ["feat: add signature", "docs: https://peesuto.com/spec"] }] }] });
+  });
+  test("not release notes: documents, lists, section numbers, prose, empty sections, only Unreleased", () => {
+    for (const source of [
+      "# 周报\n\n- 一\n- 二", "## 3.5 Results\n- a\n- b", "- a\n- b", "v1.2.0\nSome prose here.", "## v2.0.0\n### Added",
+      "## [Unreleased]\n### Added\n- x", "Intro line\n## v1.0.0\n- x", "## v1.0.0\n- a\n  - nested",
+    ]) expect(parseTemplates(source).candidates.has("changelog")).toBe(false);
+  });
+  test("both styles lay out every release; the timeline stacks a version too wide for its column", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const plan = (version: string, variant: "classic" | "editorial") => ({ version: 1 as const, template: "changelog" as const, variant, motion: "none" as const, aspect: "1:1" as const, sourceText: version,
+      content: { kind: "changelog" as const, releases: [{ version, sections: [{ title: "Added", type: "added" as const, items: ["x"] }] }] } });
+    const side = layoutTemplate(plan("v1.2.0", "editorial"), measure), stacked = layoutTemplate(plan("v2.0.0-beta.12", "editorial"), measure);
+    const itemX = (l: ReturnType<typeof layoutTemplate>) => l.lines.find((line) => line.text === "x")!.x;
+    expect(itemX(side)).toBeGreaterThan(itemX(stacked));
+    expect(stacked.lines.find((line) => line.text.startsWith("v2"))!.text).toBe("v2.0.0-beta.12");
+    const card = layoutTemplate(plan("v1.2.0", "classic"), measure);
+    expect(card.lines[0]!.text).toBe("v1.2.0");
+    expect(card.shapes.some((shape) => shape.color === "#dcefe2")).toBe(true); // the Added tint
+  });
+});

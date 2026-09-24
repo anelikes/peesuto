@@ -39,6 +39,7 @@ const PREVIEW_SAMPLES: Record<TemplateId, string> = {
   comparison: "Before:\nCopy, screenshot, crop, paste\nAfter:\nCopy, press a shortcut",
   diagram: "Copy → Decide → Render → Paste",
   info: "Staging account\nUser: admin\nPassword: P@ssw0rd!2026\nEmail: ops@example.com\nHost: https://staging.example.com",
+  changelog: "## v1.2.0 — 2026-09-24\n### Added\n- Signatures on cards\n- Release notes cards\n### Fixed\n- Long code lines wrap",
   qr: "https://peesuto.com",
 };
 
