@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
 import { parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
-import { DIFF_STYLES, ERROR_STYLES, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
+import { DIFF_STYLES, ERROR_STYLES, STATS_STYLES, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature } from "../src/templates/types.ts";
 import { ProviderError } from "../src/provider/types.ts";
@@ -691,6 +691,43 @@ describe("schedule (timeline) cards", () => {
       const time = layout.lines.find((l) => l.text === "10:30")!, text = layout.lines.find((l) => l.text === "Keynote")!;
       if (variant === "classic") { expect(time.x + time.width).toBeLessThan(text.x); expect(Math.abs(time.y - text.y)).toBeLessThan(text.size); }
       else { expect(time.x).toBe(text.x); expect(time.y).toBeLessThan(text.y); }
+    }
+  });
+});
+
+describe("metrics (stats) cards", () => {
+  test("label: number lines with units, currency and changes; the title; parentheses around a change are syntax", () => {
+    expect(parseTemplates("Weekly metrics\nDAU: 12,480 (+8%)\nRevenue: $48.2k (−3.1% WoW)\nChurn: 2.4% ↓0.3pp\nNPS: 61").candidates.get("stats")).toEqual({ kind: "stats", title: "Weekly metrics", metrics: [
+      { label: "DAU", value: "12,480", delta: "+8%" }, { label: "Revenue", value: "$48.2k", delta: "−3.1% WoW" }, { label: "Churn", value: "2.4%", delta: "↓0.3pp" }, { label: "NPS", value: "61" }] });
+    const zh = parseTemplates("本周数据：\n日活：12,480（+8%）\n收入：¥32.5万\n评分：4.8/5");
+    expect(zh.preferred).toBe("stats");
+    expect(zh.candidates.get("stats")).toEqual({ kind: "stats", title: "本周数据", metrics: [
+      { label: "日活", value: "12,480", delta: "+8%" }, { label: "收入", value: "¥32.5万" }, { label: "评分", value: "4.8/5" }] });
+    expect(parseTemplates("A: 5\nB: 7").preferred).toBe("stats"); // numbers, not a conversation
+    expect(parseTemplates("Weekly active users: 12,480").preferred).toBe("stat"); // one metric keeps the single-number card
+  });
+  test("the boundary with info cards: contact details, identifiers, phone-like digits and mixed values are info", () => {
+    for (const [source, preferred] of [
+      ["Phone: 13800138000\nQQ: 12345678", "info"], ["订单信息\n订单号：202609240001\n金额：¥128\n电话：13800138000", "info"],
+      ["Revenue: $12,480\nContact: ops@example.com", "info"], ["Host: db.internal\nPort: 5432", "info"],
+      ["Price: $12\nAmount: 3", "stats"], ["Stars: 1,204\nForks: 88\nIssues: 12", "stats"],
+    ] as const) expect(parseTemplates(source).preferred).toBe(preferred);
+    for (const source of ["Port: 5432\nTimeout: 30s", "User ID: 1024\nScore: 88", "DAU: 12,480\nDAU: 12,500", "Revenue: $12k\nSome prose line after it."]) {
+      expect(parseTemplates(source).candidates.has("stats")).toBe(false);
+    }
+  });
+  test("both styles: a grid of two or three columns; the change coloured by its sign only", () => {
+    const measure: TemplateMeasure = { width: (t, size) => [...t].length * size * 0.6, lineHeight: (size) => size * 1.2 };
+    const plan = (metrics: { label: string; value: string; delta?: string }[], variant: "classic" | "editorial") => layoutTemplate({ version: 1, template: "stats", variant, motion: "none", aspect: "1:1", sourceText: "x", content: { kind: "stats", metrics } }, measure);
+    for (const variant of ["classic", "editorial"] as const) {
+      const S = STATS_STYLES[variant];
+      const four = plan([{ label: "a", value: "1", delta: "+8%" }, { label: "b", value: "2", delta: "−3%" }, { label: "c", value: "3", delta: "(5)" }, { label: "d", value: "4" }], variant);
+      const xs = (l: typeof four) => new Set(l.lines.filter((line) => /^\d$/.test(line.text)).map((line) => Math.round(line.x))).size;
+      expect(xs(four)).toBe(2);
+      expect(xs(plan([{ label: "a", value: "1" }, { label: "b", value: "2" }, { label: "c", value: "3" }, { label: "d", value: "4" }, { label: "e", value: "5" }], variant))).toBe(3);
+      const color = (text: string) => four.lines.find((line) => line.text === text)!.color;
+      expect([color("+8%"), color("−3%"), color("(5)")]).toEqual([S.delta.up, S.delta.down, S.delta.flat]);
+      expect(four.lines.find((line) => line.text === "1")!.size).toBeGreaterThan(four.lines.find((line) => line.text === "a")!.size);
     }
   });
 });

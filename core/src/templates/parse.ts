@@ -1,6 +1,6 @@
 import { classify } from "../render/classify.ts";
 import { parseArrowChains, parseMermaid } from "./diagram.ts";
-import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type ErrorTraceLine, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
+import { TEMPLATE_MAX_GRAPHEMES, TEXT_MAX_GRAPHEMES, TemplateInputError, type ChangeType, type ChangelogRelease, type ChangelogSection, type DocumentBlock, type InfoField, type InfoFieldType, type DiffFile, type DiffLine, type ErrorTraceLine, type StatsMetric, type TemplateContent, type TemplateId, type TerminalLine } from "./types.ts";
 
 export interface ParsedTemplates {
   readonly sourceText: string;
@@ -43,7 +43,8 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
     const changelog = parseChangelog(text);
     // Chat apps copy a time with every message: a conversation is never a schedule.
     const timeline = chat ? undefined : parseTimeline(text);
-    for (const content of [table, comparison, quote, list, chat, stat, info, changelog, timeline]) {
+    const stats = parseStats(text);
+    for (const content of [table, comparison, quote, list, chat, stat, info, changelog, timeline, stats]) {
       if (content) candidates.set(content.kind, content);
     }
     // The legacy classifier also understands commands, JSON and stack traces.
@@ -69,7 +70,7 @@ export function parseTemplates(sourceText: string): ParsedTemplates {
 }
 
 /** Which recognized structure wins when several parse. */
-const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "info", "timeline", "quote", "list", "chat", "stat"];
+const PREFERENCE: readonly TemplateId[] = ["diagram", "terminal", "diff", "error", "code", "table", "comparison", "changelog", "stats", "info", "timeline", "quote", "list", "chat", "stat"];
 
 /** Strings from a list that arrived as JSON; anything else is no list. */
 export function templateIdList(value: unknown): string[] {
@@ -98,7 +99,7 @@ export function withoutTemplates(parsed: ParsedTemplates, disabled: unknown): Pa
  * specialized template would lose (code, table, list, chat, comparison).
  * Quotes and statistics keep text as an alternative. */
 function parseText(text: string, candidates: ReadonlyMap<TemplateId, TemplateContent>): TemplateContent | undefined {
-  if (["code", "terminal", "diff", "error", "timeline", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
+  if (["code", "terminal", "diff", "error", "timeline", "stats", "table", "list", "chat", "comparison"].some((id) => candidates.has(id as TemplateId))) return;
   if (/^(?:graph|flowchart)\b/i.test(text.trim())) return;
   if (exceedsGraphemes(text, TEXT_MAX_GRAPHEMES) !== undefined) return;
   const blocks = documentBlocks(text);
@@ -560,6 +561,49 @@ export function parseTimeline(text: string): TemplateContent | undefined {
   }
   if (events.length < 2) return;
   return { kind: "timeline", ...(title ? { title } : {}), events };
+}
+
+/** A metric's value: a number as written, with currency, grouping, decimals, a unit or a ratio. */
+const METRIC_VALUE = String.raw`(?:[≈~约]\s*)?[+\-−]?(?:[$€£¥￥]\s*)?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?)?`
+  + String.raw`(?:\s*(?:%|％|‰|pp|倍|x|×|[kKMBW]\b|万|亿|千|百万|元|美元|人|次|个|单|件|笔|天|小时|分钟|秒|ms|s\b|min|h\b|GB|MB|KB|TB|kg|km|pts?|users|people|orders|visits|views|downloads|stars|days|hours|mins?|secs?)(?![A-Za-z]))?`;
+/** A change: signed (`+8%`, `−3.2%`, `↑12`, `▼ 2 pts`), optionally with a period (`WoW`, `环比`), or anything numeric in parentheses. */
+const METRIC_DELTA = String.raw`(?:[(（]\s*(?:[+\-−–↑↓▲▼]\s*)?[$€£¥￥]?\d[\d,.]*\s*(?:%|％|pp|pts?|bps|x|倍)?(?:\s*(?:WoW|MoM|YoY|QoQ|DoD|w\/w|m\/m|y\/y|环比|同比))?\s*[)）]|(?:环比|同比)?\s*[+\-−–↑↓▲▼]\s*[$€£¥￥]?\d[\d,.]*\s*(?:%|％|pp|pts?|bps|x|倍)?(?:\s*(?:WoW|MoM|YoY|QoQ|DoD|环比|同比))?)`;
+const METRIC_LINE = new RegExp(String.raw`^(?:[-*•][\t ]+)?([^:：\n]{1,40}?)[\t ]*[:：][\t ]*(${METRIC_VALUE})(?:[\t ]*(${METRIC_DELTA}))?$`);
+/** Labels of identifiers and contact details: a number under one of these is an info field, not a metric. */
+const IDENTIFIER_LABEL = /(?:^|\s)(?:phone|mobile|tel|cell|fax|qq|wechat|id|uid|pin|code|zip|postal|postcode|port|order|order id|order no|tracking|invoice|account|acct|card|user|username|password|passwd|ext|extension|room|version|year|手机|电话|座机|邮编|端口|订单|订单号|单号|快递单号|账号|帐号|卡号|身份证|工号|学号|验证码|密码|编号|房间|版本|年份)(?:\s|$)|号$/i;
+
+/**
+ * Several metrics: an optional title line (a `#` marker is syntax), then at
+ * least two `label: number` lines, each value a number as written (currency,
+ * grouping, units, %, a ratio) with an optional change after it. Every value
+ * must be a number: a block that mixes in text, contact details, identifiers
+ * (phone, order number, port…) or phone-like digit strings is an info card.
+ * Labels are unique; `- ` list markers are syntax.
+ */
+export function parseStats(text: string): TemplateContent | undefined {
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2 || lines.length > 13) return;
+  let title: string | undefined;
+  const metrics: StatsMetric[] = [];
+  for (const [index, line] of lines.entries()) {
+    const m = line.match(METRIC_LINE);
+    if (m && !/^[\d\s.,:]+$/.test(m[1]!)) {
+      const label = m[1]!.trim(), value = m[2]!.trim(), delta = m[3]?.trim().replace(/^[(（]\s*([\s\S]*?)\s*[)）]$/, "$1");
+      if (IDENTIFIER_LABEL.test(label.toLowerCase()) || /^\+?\d{7,}$/.test(value.replace(/[\s-]/g, "")) && !/[,.$€£¥￥%]/.test(value)) return;
+      metrics.push({ label, value, ...(delta ? { delta } : {}) });
+      continue;
+    }
+    if (index === 0) {
+      const heading = line.replace(/^#{1,3}[\t ]+/, "");
+      // A trailing colon after the title is syntax.
+      if ([...heading].length <= 40 && !/[:：]\s*\S/.test(heading)) { title = heading.replace(/[\t ]*[:：]$/, ""); continue; }
+    }
+    return;
+  }
+  if (metrics.length < 2 || metrics.length > 12) return;
+  const labels = metrics.map((metric) => metric.label.toLowerCase());
+  if (new Set(labels).size !== labels.length) return;
+  return { kind: "stats", ...(title ? { title } : {}), metrics };
 }
 
 function parseChat(text: string): TemplateContent | undefined {

@@ -37,6 +37,9 @@ export const TEMPLATE_SAMPLES: readonly TemplateContent[] = [
   { kind: "timeline", title: "发布日程", events: [
     { time: "09:00", text: "冻结代码" }, { time: "10:30–11:00", text: "Regression tests on every template" }, { time: "下午5点", text: "发布 🎉" },
   ] },
+  { kind: "stats", title: "本周数据", metrics: [
+    { label: "日活", value: "12,480", delta: "+8%" }, { label: "Revenue", value: "$48.2k", delta: "−3.1% WoW" }, { label: "转化率", value: "3.2%" },
+  ] },
   { kind: "comparison", columns: [{ title: "Before", items: ["许多零散入口", "Manual formatting", "重复整理内容"] }, { title: "After", items: ["一个明确动作", "Structured templates", "把时间留给创作"] }] },
 ];
 export const samplePlan = (content: TemplateContent, variant: VariantId = "classic", motion: TemplatePlan["motion"] = "none", emphasis?: string): TemplatePlan => ({

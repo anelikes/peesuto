@@ -39,6 +39,7 @@ to local decisions. This is not a claim that Jev understands every arbitrary inp
 | Diff | Review | Night diff | |
 | Error | Crash report | Console | |
 | Schedule (`timeline`) | Agenda | Milestones | |
+| Metrics (`stats`) | Dashboard | Scoreboard | |
 | QR code | Plain | Card | |
 
 These variants change composition and typographic hierarchy, not just color.
@@ -422,6 +423,31 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
   left edge, each date above its event. Styles are `TIMELINE_STYLES` in
   `compose.ts`. The English name is Schedule, since the release-notes card
   already has a style called Timeline.
+
+### Metrics (stats): several numbers in a grid
+
+- Recognized when an optional title line (`#` marker and a trailing colon
+  are syntax) is followed by at least two (at most twelve) `label: value`
+  lines and nothing else, every value a number as written: currency,
+  grouping, decimals, a unit (`%`, `k`, `万`, `ms`, `人`…) or a ratio
+  (`4.8/5`), optionally followed by a change: signed (`+8%`, `−3.1% WoW`,
+  `↓0.3pp`, `环比+8%`) or in parentheses (`(+8%)`, `（-4%）`; the
+  parentheses are syntax). Labels are unique; `- ` markers are syntax.
+- The boundary with the info card: every value must be a number, so a block
+  mixing in an email, a URL or text is an info card; a number under an
+  identifier or contact label (phone, QQ, ID, order number, port, account,
+  version, 手机, 订单号, 单号…, in `IDENTIFIER_LABEL`) or a bare string of
+  seven or more digits (a phone number, an ID) makes it an info card too.
+  One `label: number` line stays the single-number stat card. It ranks after
+  release notes and before info, schedule and chat (`A: 5`, `B: 7` are
+  metrics, not a conversation).
+- Layout: two columns for two or four metrics, else three, fewer when the
+  values do not fit; the value size is the largest that fits every cell
+  (and the frame, when it can). Each cell: the label small, the value large,
+  the change under it in green when it rises (`+`, `↑`, `▲`) and red when it
+  falls (`-`, `−`, `↓`, `▼`), neutral when unsigned; colour only. Dashboard:
+  white tiles on a warm page. Scoreboard: night, hairlines between the
+  cells, values in yellow. Styles are `STATS_STYLES` in `compose.ts`.
 
 ### QR code: any text, by shortcut only
 

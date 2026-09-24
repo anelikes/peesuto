@@ -69,7 +69,7 @@ export const AUTO_FRAME = {
    * holds no more text per line (READABILITY), only a bigger image. */
   widths: [1080, 1440, 1920],
   /** Minimum height / width, so a short text is not a thin strip. */
-  minRatio: { text: 0.75, stat: 0.75, quote: 0.75, qr: 1, comparison: 0.6 } as Partial<Record<TemplateId, number>>,
+  minRatio: { text: 0.75, stat: 0.75, quote: 0.75, qr: 1, comparison: 0.6, stats: 0.6 } as Partial<Record<TemplateId, number>>,
   defaultMinRatio: 0.5,
 } as const;
 
@@ -78,7 +78,7 @@ export const AUTO_FRAME = {
  * growth) wins; step 1 is the fallback and may grow the canvas / scroll. */
 export const TEMPLATE_GROW: Partial<Record<TemplateId, readonly number[]>> = {
   document: [1.4, 1.2, 1.1, 1], list: [1.45, 1.3, 1.15, 1], chat: [1.3, 1.15, 1], comparison: [1.4, 1.25, 1.1, 1], table: [1.3, 1.15, 1], info: [1.3, 1.15, 1],
-  changelog: [1.3, 1.15, 1], error: [1.2, 1.1, 1], timeline: [1.3, 1.15, 1],
+  changelog: [1.3, 1.15, 1], error: [1.2, 1.1, 1], timeline: [1.3, 1.15, 1], stats: [1.2, 1.1, 1],
 };
 
 /* Ornament slots. Every line or shape must encode separation, state or a
@@ -355,6 +355,26 @@ export const TIMELINE_STYLES = {
     time: { size: 36, bold: true, color: "#f0b95a", maxCol: 0 }, text: { size: 48, color: "#f2f0ea", leading: 1.15 }, gap: 52, colGap: 44,
     line: { width: 3, color: "#343844" }, dot: { size: 26, color: "#f0b95a", ring: 7, ringColor: "#14161b" } },
 } as const;
+
+/** Several metrics in a grid: 2 columns for 2 or 4, else 3 (fewer when the
+ * values do not fit). Each cell: the label small, the value large, the change
+ * under it, green when it rises and red when it falls (colour only). */
+export const STATS_STYLES = {
+  /** Dashboard: a warm page of white tiles. */
+  classic: { background: "#efece4", signature: "#6b675e", margin: 72, layout: "tiles", title: { size: 48, color: "#18181b", gap: 40 },
+    tile: { fill: "#ffffff", radius: 24, pad: 36, gap: 20 } as { readonly fill: string; readonly radius: number; readonly pad: number; readonly gap: number } | null,
+    rule: null as string | null, label: { size: 32, color: "#6b675e", gap: 12 }, value: { sizes: [96, 80, 72, 64, 56, 48, 44, 40], color: "#18181b" },
+    delta: { size: 36, gap: 10, up: "#17692f", down: "#b42318", flat: "#6b675e" } },
+  /** Scoreboard: night, hairlines between the cells, values in yellow. */
+  editorial: { background: "#121316", signature: "#8c887f", margin: 88, layout: "grid", title: { size: 36, color: "#a8a397", gap: 48 },
+    tile: null, rule: "#2e3036", label: { size: 32, color: "#a8a397", gap: 14 }, value: { sizes: [112, 96, 80, 72, 64, 56, 48, 44, 40], color: "#f4c430" },
+    delta: { size: 36, gap: 12, up: "#7fd19b", down: "#ff8a7a", flat: "#a8a397" } },
+} as const;
+/** Which way a metric's change points, from its sign or arrow; undefined when unsigned. */
+export function deltaTrend(delta: string): "up" | "down" | undefined {
+  const sign = delta.replace(/^(?:环比|同比)\s*/, "").trim()[0];
+  return sign === "+" || sign === "↑" || sign === "▲" ? "up" : sign === "-" || sign === "−" || sign === "–" || sign === "↓" || sign === "▼" ? "down" : undefined;
+}
 
 /** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
 const LOCK_PATH = "M20 28 L20 20 C20 13.4 25.4 8 32 8 C38.6 8 44 13.4 44 20 L44 28 L38 28 L38 20 C38 16.7 35.3 14 32 14 C28.7 14 26 16.7 26 20 L26 28 Z "
@@ -1186,6 +1206,54 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       }
       // The line runs from the first dot to the last.
       line.y = first; line.height = Math.max(0, last - first);
+      bottom = settle(top, y);
+      break;
+    }
+    case "stats": {
+      const s = grown(styleOf(STATS_STYLES), k);
+      layout.background = s.background; margin = s.margin; signatureColor = s.signature;
+      let y = margin; const top = y;
+      if (content.title) y += block(content.title, margin, y, innerW(), s.title.size, true, s.title.color, { leading: 1.15 }) + s.title.gap;
+      const n = content.metrics.length, T = s.tile;
+      const gap = T ? T.gap : 0, pad = T ? T.pad : 0;
+      // Hairline grids pad each cell on the sides that meet a rule.
+      const inset = s.rule ? 36 : 0;
+      const cellW = (cols: number) => (innerW() - gap * (cols - 1)) / cols - 2 * pad - (s.rule && cols > 1 ? 2 * inset : 0);
+      const sizes: readonly number[] = s.value.sizes;
+      const widest = (sz: number) => Math.max(...content.metrics.map((m) => measure.width(m.value, sz, true)));
+      // The preferred column count, fewer when even the smallest value size does not fit a cell.
+      const preferred = n === 2 || n === 4 ? 2 : Math.min(3, n);
+      const cols = [preferred, 2, 1].filter((c) => c <= preferred).find((c) => widest(sizes.at(-1)!) <= cellW(c)) ?? 1;
+      // The largest value size that fits the cells and, when it can, the frame.
+      const rows = Math.ceil(n / cols), titleH = content.title ? count(content.title, innerW(), s.title.size, true) * lh(s.title.size, 1.15, true) + s.title.gap : 0;
+      const cellH = (sz: number) => 2 * pad + (s.rule ? 2 * inset : 0) + lh(s.label.size, 1.2) + s.label.gap + lh(sz, 1.05, true)
+        + (content.metrics.some((m) => m.delta) ? 2 * s.delta.gap + lh(s.delta.size, 1.2, true) : 0);
+      const room = view.fit - 2 * margin - footerRoom() - titleH - (rows - 1) * (s.rule ? 2 : gap);
+      const size = sizes.find((sz) => widest(sz) <= cellW(cols) && rows * cellH(sz) <= room) ?? sizes.find((sz) => widest(sz) <= cellW(cols)) ?? sizes.at(-1)!;
+      const colW = (innerW() - gap * (cols - 1)) / cols;
+      for (let r = 0; r * cols < n; r++) {
+        const row = content.metrics.slice(r * cols, r * cols + cols);
+        if (r) { if (s.rule) { rect(margin, y, innerW(), 2, s.rule); y += 2; } else y += gap; }
+        const rowTop = y, tiles: TemplateRect[] = [], rules: TemplateRect[] = [];
+        let rowH = 0;
+        for (const [c, metric] of row.entries()) {
+          const g = group++;
+          const x = margin + c * (colW + gap) + pad + (s.rule && c ? inset : 0), w = colW - 2 * pad - (s.rule ? inset * ((c ? 1 : 0) + (c < cols - 1 ? 1 : 0)) : 0);
+          if (T) { const tile = rect(margin + c * (colW + gap), rowTop, colW, 0, T.fill, T.radius); tile.group = g; tiles.push(tile); }
+          let cy = rowTop + pad + (s.rule ? inset : 0);
+          cy += block(metric.label, x, cy, w, s.label.size, false, s.label.color, { leading: 1.2, groupID: g, secondary: true }) + s.label.gap;
+          cy += block(metric.value, x, cy, w, size, true, s.value.color, { leading: 1.05, groupID: g, markdown: false });
+          if (metric.delta) {
+            const trend = deltaTrend(metric.delta), color = trend ? s.delta[trend] : s.delta.flat;
+            cy += s.delta.gap + block(metric.delta, x, cy + s.delta.gap, w, s.delta.size, true, color, { leading: 1.2, groupID: g, markdown: false });
+          }
+          rowH = Math.max(rowH, cy + pad + (s.rule ? inset : 0) - rowTop);
+          // Hairlines between the columns of a scoreboard.
+          if (s.rule && c) { const rule = rect(margin + c * colW - 1, rowTop, 2, 0, s.rule); rule.group = g; rules.push(rule); }
+        }
+        for (const shape of [...tiles, ...rules]) shape.height = rowH;
+        y = rowTop + rowH;
+      }
       bottom = settle(top, y);
       break;
     }

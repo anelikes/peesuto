@@ -58,6 +58,9 @@ export const TEMPLATE_REGISTRY: readonly TemplateRegistration[] = [
   { id: "timeline", name: "Schedule", nameZh: "日程", variants: [
     { id: "classic", name: "Agenda", nameZh: "议程" }, { id: "editorial", name: "Milestones", nameZh: "里程碑" },
   ], motions: MOTIONS },
+  { id: "stats", name: "Metrics", nameZh: "多项指标", variants: [
+    { id: "classic", name: "Dashboard", nameZh: "仪表板" }, { id: "editorial", name: "Scoreboard", nameZh: "记分板" },
+  ], motions: MOTIONS },
   { id: "qr", name: "QR code", nameZh: "二维码", variants: [
     { id: "classic", name: "Plain", nameZh: "纯净" }, { id: "editorial", name: "Card", nameZh: "卡片" },
   ], motions: ["none", "reveal"] },

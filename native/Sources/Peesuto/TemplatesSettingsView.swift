@@ -162,6 +162,7 @@ struct TemplatesSettingsView: View {
         case "diff": return model.tr("Diffs and patches: added and removed lines", "代码差异与补丁：新增与删除的行")
         case "error": return model.tr("Errors and stack traces, your own frames first", "报错与调用栈，突出你自己的代码")
         case "timeline": return model.tr("Schedules and milestones on a timeline", "日程与里程碑，排成时间轴")
+        case "stats": return model.tr("Several numbers with labels, as a grid", "多个带说明的数字，排成网格")
         case "qr": return model.tr("Any text as a QR code", "任意文字转为二维码")
         default: return ""
         }

@@ -8,6 +8,7 @@ section here becomes one.
 ## Unreleased
 
 ### New
+- **Metrics cards** — several `label: number` lines, with changes such as (+8%), become a grid of big numbers; rises are green, falls red.
 - **Schedule cards** — agendas, itineraries and roadmaps (lines that start with a time or a date) become a timeline with a dot per event.
 - **Error cards** — a copied error with its stack trace (JavaScript, Python, Java, C#, Go, Rust) leads with the message; your own frames stand out, library frames are dimmed.
 - **Diff cards** — a copied `git diff` or patch becomes a review card: file names as titles, added and removed lines on green and red rows, and a +N −M count.

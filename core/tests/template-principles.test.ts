@@ -56,6 +56,10 @@ const EXTRA: readonly TemplateContent[] = [
     { time: "Wednesday, September 24, 2026 9:30am – 11:00am", text: "A long first event whose text wraps over more than one line of the card, beside or under its date" },
     { time: "Q1 2027", text: "Windows" }, { time: "第三周", text: "测试与发布" },
   ] },
+  { kind: "stats", metrics: [
+    { label: "Weekly active users across every platform we ship", value: "$1,284,000,000", delta: "↑12.5% YoY" }, { label: "B", value: "3" },
+    { label: "留存", value: "41%", delta: "−2pp" }, { label: "NPS", value: "61" }, { label: "Stars", value: "1,204", delta: "0" },
+  ] },
   { kind: "info", title: "张三", fields: [{ value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" }] },
 ];
 const ALL = [...TEMPLATE_SAMPLES, ...EXTRA];
@@ -85,6 +89,7 @@ function sourceStrings(content: TemplateContent): string[] {
       ...f.hunks.flatMap((h) => [h.header, ...h.lines.map((l) => l.text)])]).map((s) => clean(s, true));
     case "error": return [...[content.lead, content.type, content.message].filter((t): t is string => Boolean(t)), ...content.trace.map((l) => l.text)].map((s) => clean(s, true));
     case "timeline": return [...(content.title ? [content.title] : []), ...content.events.flatMap((e) => [e.time, e.text])].map((s) => clean(s));
+    case "stats": return [...(content.title ? [content.title] : []), ...content.metrics.flatMap((m) => [m.label, m.value, ...(m.delta ? [m.delta] : [])])].map((s) => clean(s));
     case "qr": return [content.data];
   }
 }

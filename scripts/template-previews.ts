@@ -44,6 +44,7 @@ const PREVIEW_SAMPLES: Record<TemplateId, string> = {
   diff: "--- a/greet.swift\n+++ b/greet.swift\n@@ -1,3 +1,3 @@\n func greet(_ name: String) -> String {\n-    \"Hi, \\(name)\"\n+    \"Hello, \\(name)!\"\n }",
   error: "TypeError: Cannot read properties of undefined (reading 'name')\n    at greet (/app/src/greet.ts:3:18)\n    at main (/app/src/main.ts:9:3)\n    at node:internal/main/run_main_module:28:49",
   timeline: "Launch day\n09:00 Doors open\n10:30 Keynote\n14:00 Workshops\n18:00 Party",
+  stats: "This week\nDAU: 12,480 (+8%)\nRevenue: $48.2k (−3%)\nRetention: 41%\nNPS: 61",
   qr: "https://peesuto.com",
 };
 
