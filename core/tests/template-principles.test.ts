@@ -29,6 +29,7 @@ const EXTRA: readonly TemplateContent[] = [
   { kind: "table", headers: ["项"], rows: [["一"], ["二"]] },
   { kind: "stat", value: "1,284", label: "Weekly active users" },
   { kind: "qr", data: "https://peesuto.com" },
+  { kind: "info", title: "张三", fields: [{ value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" }] },
 ];
 const ALL = [...TEMPLATE_SAMPLES, ...EXTRA];
 const FRAMES: readonly TemplateAspect[] = ["1:1", "auto", "4:5", "16:9", "9:16"];

@@ -14,7 +14,9 @@ own license:
 - Peesuto Code, a renamed subset of Maple Mono NL CN v7.9
   (https://github.com/subframe7536/maple-font), Copyright 2022 The Maple Mono
   Project Authors, with Chinese glyphs from Resource Han Rounded (derived from
-  Adobe's Source Han Sans), SIL Open Font License 1.1
+  Adobe's Source Han Sans), and symbols from JetBrains Mono v2.304
+  (https://github.com/JetBrains/JetBrainsMono), Copyright 2020 The JetBrains
+  Mono Project Authors, all SIL Open Font License 1.1
   (core/src/render/fonts/OFL.txt).
 - Peesuto Text, the same subset with full-width glyphs narrowed to 1em
   (scripts/fonts/peesuto-text.py), SIL Open Font License 1.1.

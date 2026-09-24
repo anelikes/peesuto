@@ -18,6 +18,12 @@ The monospace face of the code template: a subset of **Maple Mono NL CN v7.9**
   box drawing, block elements, geometric shapes, miscellaneous symbols,
   dingbats, CJK symbols and punctuation, kana, half/full-width forms and all
   of GB 2312 (8,009 characters). Layout features kept.
+- Symbols Maple lacks (⌘ ⌥ ⌃ ⎋ ⏎ ⌫ ⌦ and the rest of the technical, arrow,
+  geometric, symbol and dingbat blocks it misses, 116 in all) are copied from
+  JetBrains Mono v2.304 (https://github.com/JetBrains/JetBrainsMono, Copyright
+  2020 The JetBrains Mono Project Authors, SIL OFL 1.1, no Reserved Font Name)
+  by `python3 scripts/fonts/merge-symbols.py <JetBrains Mono ttf dir>`; both
+  fonts use a 1000-unit em and 600-unit advance, so outlines copy unscaled.
 - A card whose text needs a glyph outside the subset falls back to Noto Sans SC.
 
 # Peesuto Text

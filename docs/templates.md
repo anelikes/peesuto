@@ -103,8 +103,11 @@ plan as `font`). Code is always Maple Mono. Maple comes in two cuts under
 `core/src/render/fonts/`: Peesuto Code, Chinese at two Latin columns so code
 aligns, and Peesuto Text, Chinese at 1em for everything else (the two-column
 width reads as letter-spacing in prose; `scripts/fonts/peesuto-text.py`).
-A card needing a glyph neither cut has (traditional Chinese beyond GB 2312,
-Korean) is set entirely in Noto Sans SC instead; one font pair per composition.
+Both cuts carry keyboard and technical symbols from JetBrains Mono (⌘ ⌥ ⌃ ⎋ ⏎).
+A card is set in the chosen face when it has every glyph (emoji aside), else in
+the other one when that has them all (Noto lacks ⌥, Maple lacks 體); when
+neither does, an explicit `unsupported-script` error names what is missing. One
+font pair per composition.
 
 ### Code: monospace type and syntax colour
 
@@ -155,6 +158,11 @@ Korean) is set entirely in Noto Sans SC instead; one font pair per composition.
   password, API key, host, order number…) or recognizable value. Any other
   line means document, so nothing is ever dropped. It ranks after comparison,
   before quote, list and chat.
+- Unlabelled lines count as fields when recognizable: an email, a URL, a phone
+  number, a key, or an address (`looksLikeAddress`: two or more Chinese place
+  units such as 市 区 路 号, or a house number and a street word). Such a field
+  gets an icon where its label would be (phone, envelope, globe, pin), drawn
+  from `INFO_ICONS`; no label text is ever added.
 - Values are drawn verbatim; the field type (`infoFieldType`) only styles them:
   a Chinese mobile number is spaced 3-4-4 as separate runs (no characters
   added), an email's `@domain` and a URL's scheme are muted, the rest of a URL

@@ -45,6 +45,8 @@ export const SCENARIOS: readonly Scenario[] = [
   { id: "privacy-chat", title: "消息里夹着令牌与密码", text: "我把测试环境的登录信息发你：\n账号 demo，密码：Fake#2026pass\n接口加请求头 Authorization: Bearer FAKEtoken0000fake1111FAKE 就行，用完记得换掉。", group: "隐私" },
   { id: "privacy-contact", title: "联系方式（个人信息规则默认关闭）", text: "周五评审改到 3 点，有问题找小王：13800000000，wang.fake@example.com。GitHub 令牌 ghp_FAKEfakeFAKEfakeFAKEfakeFAKEfake0000 已作废。", group: "隐私" },
   { id: "info-contact", title: "联系方式（信息卡）", text: "张三\n手机：13800138000\n邮箱：zhangsan@example.com\n地址：杭州市西湖区文三路 90 号", group: "信息卡" },
+  { id: "info-bare-contact", title: "没有标签的联系方式（信息卡，图标代替标签）", text: "张三\n13800138000\nzhangsan@example.com\n杭州市西湖区文三路 90 号", group: "信息卡" },
+  { id: "code-keymap", title: "带 ⌘⌥ 的快捷键配置 JSON", text: "{\n  \"paste\": \"⌘⇧V\",\n  \"card\": \"⌘⌥1\",\n  \"pin\": \"⌘⌥5\"\n}", group: "代码" },
   { id: "info-account", title: "测试账号与密钥（信息卡）", text: "测试环境账号\n用户名: admin\n密码: Fake#2026pass\nAPI Key: sk-proj-FAKEfake0000FAKEfake1111\nHost: https://staging.example.com", group: "隐私" },
   { id: "arrow-branches", title: "多行箭头链（分支与汇合）", text: "登录 -> 首页 -> 设置\n首页 -> 历史\n历史 -> 详情 -> 设置", group: "流程图" },
   { id: "qr-url", title: "网址（用 ⌘⌥4 转二维码）", text: "https://peesuto.com/download?ref=clipboard", group: "二维码" },

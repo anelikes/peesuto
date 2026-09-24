@@ -8,7 +8,7 @@ import { templateHasVariant } from "./registry.ts";
 import { layoutDiagram, type DiagramNode } from "./diagram.ts";
 import { encodeQr, qrRuns } from "./qr.ts";
 import { highlight, type CodePalette } from "./highlight.ts";
-import { DEFAULT_TEMPLATE_FONT, FRAMES, TEMPLATE_MAX_GRAPHEMES, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
+import { DEFAULT_TEMPLATE_FONT, FRAMES, TEMPLATE_MAX_GRAPHEMES, type InfoFieldType, type TemplateFontChoice, type TemplateId, type TemplateMotion, type TemplatePlan } from "./types.ts";
 import { sampleArc, type HueArc } from "./gradient.ts";
 
 export const TEMPLATE_LIMITS = { maxHeight: 4096, maxGraphemes: TEMPLATE_MAX_GRAPHEMES, fps: 30, typingMaxMs: 4200, holdMs: 1200 } as const;
@@ -207,18 +207,43 @@ export const INFO_STYLES = {
   /** Field list: warm page, white card, ink values, blue links, red secrets. */
   classic: { background: "#efece4", margin: 72, card: { fill: "#ffffff", radius: 28, pad: 56, shadow: "shadow-md" },
     title: { size: 52, color: "#18181b", gap: 36 }, rule: "#ece8df", label: { size: 28, color: "#8a857a" }, labelMax: 0.34, labelGap: 40,
-    value: { size: 40, color: "#18181b" }, leading: 1.2, rowGap: 26, muted: "#9b968b", link: "#2f5bd3", phoneGap: 14,
+    value: { size: 40, color: "#18181b" }, leading: 1.2, rowGap: 26, muted: "#9b968b", link: "#2f5bd3", phoneGap: 14, icon: { size: 36, gap: 24, color: "#8a857a" },
     secret: { fill: "#fdeceb", ink: "#c62828", icon: "#d63b3b", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
   /** Credentials: night page, graphite card, each label above its value, pale values, coral secrets. */
   editorial: { background: "#0e1014", margin: 72, card: { fill: "#1b1e24", radius: 28, pad: 56, shadow: "shadow-lg" },
     title: { size: 52, color: "#f2f0ea", gap: 36 }, rule: "#2a2e36", label: { size: 28, color: "#7d8494" }, labelMax: 0, labelGap: 40,
-    value: { size: 40, color: "#e8e6df" }, leading: 1.2, rowGap: 26, muted: "#7d8494", link: "#7cb7ff", phoneGap: 14,
+    value: { size: 40, color: "#e8e6df" }, leading: 1.2, rowGap: 26, muted: "#7d8494", link: "#7cb7ff", phoneGap: 14, icon: { size: 36, gap: 24, color: "#7d8494" },
     secret: { fill: "#3a1d22", ink: "#ff8a80", icon: "#ff7b72", padX: 18, padY: 8, radius: 12, iconSize: 32, iconGap: 12 } },
 } as const;
 
 /** A padlock on a 64 box: fill only, lines and cubic curves (the engine's rasteriser draws no arcs). */
 const LOCK_PATH = "M20 28 L20 20 C20 13.4 25.4 8 32 8 C38.6 8 44 13.4 44 20 L44 28 L38 28 L38 20 C38 16.7 35.3 14 32 14 C28.7 14 26 16.7 26 20 L26 28 Z "
   + "M14 26 L50 26 C52.2 26 54 27.8 54 30 L54 54 C54 56.2 52.2 58 50 58 L14 58 C11.8 58 10 56.2 10 54 L10 30 C10 27.8 11.8 26 14 26 Z";
+
+/** Icon paths on a 64 box: fill only, lines and cubic curves (no arcs), holes
+ * drawn with the opposite winding (nonzero fill). */
+const K = 0.5523;
+function circlePath(cx: number, cy: number, r: number, clockwise = true): string {
+  const k = r * K, f = (n: number) => Math.round(n * 10) / 10;
+  const pts = clockwise
+    ? [[cx, cy - r], [cx + k, cy - r, cx + r, cy - k, cx + r, cy], [cx + r, cy + k, cx + k, cy + r, cx, cy + r], [cx - k, cy + r, cx - r, cy + k, cx - r, cy], [cx - r, cy - k, cx - k, cy - r, cx, cy - r]]
+    : [[cx, cy - r], [cx - k, cy - r, cx - r, cy - k, cx - r, cy], [cx - r, cy + k, cx - k, cy + r, cx, cy + r], [cx + k, cy + r, cx + r, cy + k, cx + r, cy], [cx + r, cy - k, cx + k, cy - r, cx, cy - r]];
+  return `M${pts[0]!.map(f).join(" ")} ` + pts.slice(1).map((p) => `C${p.map(f).join(" ")}`).join(" ") + " Z";
+}
+function roundRectPath(x: number, y: number, w: number, h: number, r: number, clockwise = true): string {
+  const k = r * (1 - K), X = x + w, Y = y + h;
+  return clockwise
+    ? `M${x + r} ${y} L${X - r} ${y} C${X - k} ${y} ${X} ${y + k} ${X} ${y + r} L${X} ${Y - r} C${X} ${Y - k} ${X - k} ${Y} ${X - r} ${Y} L${x + r} ${Y} C${x + k} ${Y} ${x} ${Y - k} ${x} ${Y - r} L${x} ${y + r} C${x} ${y + k} ${x + k} ${y} ${x + r} ${y} Z`
+    : `M${x + r} ${y} C${x + k} ${y} ${x} ${y + k} ${x} ${y + r} L${x} ${Y - r} C${x} ${Y - k} ${x + k} ${Y} ${x + r} ${Y} L${X - r} ${Y} C${X - k} ${Y} ${X} ${Y - k} ${X} ${Y - r} L${X} ${y + r} C${X} ${y + k} ${X - k} ${y} ${X - r} ${y} Z`;
+}
+/** Stand-ins for a label the source did not write: an icon, never added words. */
+export const INFO_ICONS: Readonly<Partial<Record<InfoFieldType, string>>> = {
+  phone: `${roundRectPath(18, 4, 28, 56, 7)} ${roundRectPath(23, 11, 18, 36, 2, false)} ${circlePath(32, 53, 2.5, false)}`,
+  // An envelope: a frame 4 units thick and the flap's V.
+  email: `${roundRectPath(6, 14, 52, 36, 6)} ${roundRectPath(10, 18, 44, 28, 2, false)} M10 18 L32 34 L54 18 L54 23 L32 39 L10 23 Z`,
+  url: `${circlePath(32, 32, 26)} ${circlePath(32, 32, 21.5, false)} M29.5 10 L34.5 10 L34.5 54 L29.5 54 Z M10 29.5 L54 29.5 L54 34.5 L10 34.5 Z ${circlePath(32, 32, 12)} ${circlePath(32, 32, 7.5, false)}`,
+  address: `M32 60 C24 48 12 38 12 26 C12 14.9 20.9 6 32 6 C43.1 6 52 14.9 52 26 C52 38 40 48 32 60 Z ${circlePath(32, 26, 8, false)}`,
+};
 
 /** Where a phone number splits for display: a Chinese mobile as 3-4-4 (after an optional +86); anything else stays whole. */
 export function phoneGroups(value: string): string[] {
@@ -593,13 +618,22 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       const card = rect(cardX, y, cardW, 0, C.fill, C.radius); card.shadow = C.shadow;
       y += C.pad;
       if (content.title) y += block(content.title, innerX, y, inner, s.title.size, true, s.title.color, { leading: 1.15 }) + s.title.gap;
-      const widest = Math.max(0, ...content.fields.map((f) => f.label ? Math.ceil(measure.width(f.label, s.label.size, false)) : 0));
-      const side = widest > 0 && widest + s.labelGap <= inner * s.labelMax;
-      const valueX = side ? innerX + widest + s.labelGap : innerX, valueW = inner - (valueX - innerX);
+      // A field without a label gets an icon in the label's place (never added words).
+      const iconSize = s.icon.size, iconOf = (f: (typeof content.fields)[number]) => (f.label ? undefined : INFO_ICONS[f.type]);
+      const widest = Math.max(0, ...content.fields.map((f) => f.label ? Math.ceil(measure.width(f.label, s.label.size, false)) : iconOf(f) ? iconSize : 0));
+      const gap = content.fields.some((f) => f.label) ? s.labelGap : s.icon.gap;
+      const side = widest > 0 && widest + gap <= inner * Math.max(s.labelMax, content.fields.some((f) => f.label) ? 0 : 1);
+      const colX = side ? innerX + widest + gap : innerX;
       for (const [index, field] of content.fields.entries()) {
         if (index || content.title) { rect(innerX, y, inner, 2, s.rule); y += 2 + s.rowGap; }
         const g = group++;
         let vy = y;
+        const icon = iconOf(field);
+        let valueX = colX, valueW = inner - (colX - innerX);
+        if (icon) {
+          layout.images.push({ x: innerX, y: y + mid(s.value.size) - iconSize / 2, width: iconSize, height: iconSize, src: svg(`info-${field.type}`, icon, s.icon.color), group: g });
+          if (!side) { valueX = innerX + iconSize + s.icon.gap; valueW = inner - iconSize - s.icon.gap; }
+        }
         if (field.label) {
           // Beside the value: the label's baseline on the value's first baseline. Above it: its own line.
           const ly = side ? y + base(s.value.size) - base(s.label.size) : y;
@@ -1275,12 +1309,19 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     sizes: SIZES.flatMap((px) => [{ px, bold: false }, { px, bold: true }]), texts, density: 1,
     cache: { charset, dir: `${work}/dist/.measure` },
   });
-  let font: TemplateFont = chooseTemplateFont(plan.template, [], plan.font);
+  // The chosen face first; if it lacks a glyph of the card (emoji aside), the
+  // other one when it has them all (Noto has no ⌥, Maple no 體). Neither: the
+  // chosen face reports what is missing below.
+  const preferred = chooseTemplateFont(plan.template, [], plan.font);
+  const maple: TemplateFont = plan.template === "code" ? "peesuto-code" : "peesuto-text";
+  let font: TemplateFont = preferred;
   let m = await open(font);
-  if (font !== "noto-sans-sc") {
-    // A glyph Maple Mono lacks (emoji aside) sets the whole card in Noto Sans SC instead.
-    const chosen = chooseTemplateFont(plan.template, texts.flatMap((text) => m.unmapped(text, 40, false)), plan.font);
-    if (chosen !== font) { await m.close(); font = chosen; m = await open(font); }
+  const lacks = () => texts.some((text) => m.unmapped(text, 40, false).length > 0);
+  if (lacks()) {
+    const other: TemplateFont = preferred === "noto-sans-sc" ? maple : "noto-sans-sc";
+    const alternative = await open(other);
+    const covered = texts.every((text) => alternative.unmapped(text, 40, false).length === 0);
+    if (covered) { await m.close(); font = other; m = alternative; } else await alternative.close();
   }
   try {
     for (const text of texts) {

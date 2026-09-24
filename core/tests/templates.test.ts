@@ -418,6 +418,22 @@ describe("info cards", () => {
     expect(parseTemplates("Name: Ada\nAge: 32").preferred).toBe("info");
   });
 
+  test("unlabelled contact lines: a name, a phone, an email and an address make a card (icons stand in for labels)", async () => {
+    const { looksLikeAddress } = await import("../src/templates/parse.ts");
+    expect(parseTemplates("张三\n13800138000\nzhangsan@example.com\n杭州市西湖区文三路 90 号").candidates.get("info")).toEqual({ kind: "info", title: "张三", fields: [
+      { value: "13800138000", type: "phone" }, { value: "zhangsan@example.com", type: "email" }, { value: "杭州市西湖区文三路 90 号", type: "address" },
+    ] });
+    for (const address of ["杭州市西湖区文三路 90 号", "221B Baker Street, London", "1600 Amphitheatre Parkway"]) expect(looksLikeAddress(address)).toBe(true);
+    for (const prose of ["今天去市区逛街了，路上很堵。", "我在楼下", "Meet me on the street"]) expect(looksLikeAddress(prose)).toBe(false);
+    // A dotenv block with a comment title; any scheme:// is a link.
+    expect(parseTemplates("# 本地开发配置\nOPENAI_API_KEY=sk-proj-FAKEfake0000FAKEfake1111\nDATABASE_URL=postgres://app@db:5432/app\nDEBUG=true").candidates.get("info")).toEqual({ kind: "info", title: "本地开发配置", fields: [
+      { label: "OPENAI_API_KEY", value: "sk-proj-FAKEfake0000FAKEfake1111", type: "secret" },
+      { label: "DATABASE_URL", value: "postgres://app@db:5432/app", type: "url" },
+      { label: "DEBUG", value: "true", type: "plain" },
+    ] });
+    expect(parseTemplates("x=1\ny=2").preferred).not.toBe("info");
+  });
+
   test("not an info card: prose, conversations, a single field, unknown labels", () => {
     for (const source of [
       "Name: Ada\nAge: 32\nName: Bob", "Hello: world\nAnother: field", "Phone: 13800138000",

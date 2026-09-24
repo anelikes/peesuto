@@ -104,4 +104,15 @@ integration("fonts: code in Peesuto Code, other cards in Peesuto Text or the cho
   expect(await layoutFont()).toBe("peesuto-text");
   await renderTemplate({ ...doc, font: "noto" }, { ...options, format: "png", out: join(output, "document-noto.png") });
   expect((await sidecar()).fonts.regular).toBe("assets/fonts/NotoSansSC-Regular.otf");
+  // Keyboard symbols come from JetBrains Mono inside both Maple cuts: a JSON
+  // keymap renders, and a Noto card with ⌥ moves to Maple rather than failing.
+  const keymap = '{\n  "paste": "⌘⇧V",\n  "card": "⌘⌥1"\n}';
+  await renderTemplate({ ...samplePlan({ kind: "code", code: keymap, language: "json" }), sourceText: keymap }, { ...options, format: "png", out: join(output, "keymap.png") });
+  expect(await layoutFont()).toBe("peesuto-code");
+  const shortcut = "按 ⌘⌥1 生成图片";
+  await renderTemplate({ ...samplePlan({ kind: "text", paragraphs: [shortcut] }), sourceText: shortcut, font: "noto" }, { ...options, format: "png", out: join(output, "shortcut-noto.png") });
+  expect(await layoutFont()).toBe("peesuto-text");
+  // Neither face has both 體 and ⌥: an explicit error naming what is missing.
+  const both = "繁體 ⌥";
+  await expect(renderTemplate({ ...samplePlan({ kind: "text", paragraphs: [both] }), sourceText: both }, { ...options, format: "png", out: join(output, "both.png") })).rejects.toThrow(/U\+9AD4/);
 }, 240_000);

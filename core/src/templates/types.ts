@@ -62,7 +62,7 @@ export type TemplateContent =
    * chosen automatically; only the paste-qr action or an explicit override. */
   | { readonly kind: "qr"; readonly data: string; readonly caption?: boolean };
 
-export const INFO_FIELD_TYPES = ["phone", "email", "url", "secret", "plain"] as const;
+export const INFO_FIELD_TYPES = ["phone", "email", "url", "address", "secret", "plain"] as const;
 export type InfoFieldType = (typeof INFO_FIELD_TYPES)[number];
 export interface InfoField { readonly label?: string; readonly value: string; readonly type: InfoFieldType }
 

@@ -166,6 +166,15 @@ const URL_VALUE = /^(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+$/i;
 const SECRET_LABEL = /密码|口令|密钥|秘钥|pass|pwd|secret|token|api[ _-]?key|access[ _-]?key|private[ _-]?key/i;
 const SECRET_VALUE = /^(?:sk-[\w-]{16,}|ghp_\w{20,}|github_pat_\w{20,}|xox[abprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{30,}|eyJ[\w-]+\.[\w-]+\.[\w-]+)$/;
 
+/** A postal address: Chinese place units (two or more of 省 市 区 县 路 街 号…), or a
+ * house number and a street word. Only used for lines without a label. */
+export function looksLikeAddress(value: string): boolean {
+  if ([...value].length > 60) return false;
+  const units = value.match(/[省市区县镇乡村路街道巷弄号楼栋室座]|大厦|大道|广场|小区/g) ?? [];
+  if (/[\u4e00-\u9fff]/.test(value) && new Set(units).size >= 2 && !/[，。！？；]/.test(value)) return true;
+  return /^\d+[A-Za-z]?\s+[\w .'-]+\b(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Way|Ct|Court|Pl|Place|Pkwy|Parkway|Hwy|Highway)\b\.?(?:,|$)/i.test(value);
+}
+
 /** How a field is styled; the value itself is never changed. */
 export function infoFieldType(label: string | undefined, value: string): InfoFieldType {
   if (EMAIL_VALUE.test(value)) return "email";
@@ -173,6 +182,7 @@ export function infoFieldType(label: string | undefined, value: string): InfoFie
   const digits = value.replace(/\D/g, "").length;
   if (/^\+?[\d\s()-]{7,24}$/.test(value) && digits >= 7 && digits <= 15 && !/\d{4}-\d{2}-\d{2}/.test(value)) return label && !/phone|mobile|tel|cell|手机|电话|座机/i.test(label) ? "plain" : "phone";
   if (SECRET_VALUE.test(value) || (label && SECRET_LABEL.test(label) && !/\s/.test(value))) return "secret";
+  if (label ? /地址|住址|address|addr/i.test(label) : looksLikeAddress(value)) return "address";
   return "plain";
 }
 
