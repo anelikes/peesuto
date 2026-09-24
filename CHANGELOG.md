@@ -7,35 +7,34 @@ section here becomes one.
 
 ## Unreleased
 
-- Japanese text stays in Maple Mono: Peesuto Code and Peesuto Text now carry all JIS X 0208 kanji (3,025 more than GB 2312, e.g. 気 込 働 峠 辻), half-width katakana and full-width letters and digits, so a Japanese card no longer falls back wholesale to Noto Sans SC. The kanji are Chinese (PRC) glyph forms, as in Noto Sans SC. The fonts are rebuilt reproducibly by `scripts/fonts/build.sh`; each grows from 5.4 to 8.2 MB.
-- Japanese interface: Settings › General › Language now offers 日本語, and "Follow system" picks it when Japanese is the first preferred language. Every window, menu, alert and message is translated, including template, style and privacy-rule names; anything untranslated falls back to English, never Chinese.
-- Code cards in the Terminal style sit on a soft, blurred "Indigo night" colour field (deep indigo and violet with a touch of magenta, light from the top left) in images and videos. GIFs keep the hue-arc backdrop, because a GIF's 256-colour palette would band and dither the soft field.
-- Where Peesuto says Accessibility is missing (the task window, the Paste as… chooser, the welcome guide and Settings › General) a quiet second line explains the common trap: if the switch is already on in System Settings, remove Peesuto with − and add it again (macOS ties the grant to the app's signature, so an update can leave the switch on but the grant void).
-- New shortcut model: ⌥V opens a small "Paste as…" chooser at the text caret (near the pointer when the app does not report a caret) without taking focus from the app you are typing in. It shows the card for the copied text (instant when prepared on copy, a spinner otherwise) and one key per output: Return image, G GIF, M video, Q QR code, P pin to screen, H the full history, Esc cancels; rows are clickable. With an image on the clipboard only pin and history apply. ⇧⌥V opens the clipboard history. The direct image/GIF/video/QR/pin shortcuts (formerly ⌘⌥1–5) stay bindable in Settings › Shortcuts but are unbound by default. Existing installs are reset to these defaults once (`shortcuts_version` 2; custom bindings are not kept), and the panel says so. The menu bar shows the keys.
-- The welcome guide's last page offers optional smarter suggestions: Set Up… ends the guide and opens Settings › AI at the decider, which now explains each choice in a line.
-- Release notes template: copied release notes (Markdown `## v1.2.0 — date` with `### Added` / `### Fixed`, Keep a Changelog, Chinese 新增/修复, or a version line over `- feat:` items) become a card with the version and date up front and each section title as a small coloured tag over its items. Two styles, Release card and Timeline. Ordinary Markdown documents and lists are not affected: a version-like heading is required.
-- Automatic updates with Sparkle 2: Peesuto checks https://peesuto.com/appcast.xml once a day and offers EdDSA-signed updates; "Check for Updates…" in the menu bar and app menus, and Settings › General turns automatic checks off and shows the version. Preview builds never check. A notarized release signs the DMG for Sparkle and adds it to site/appcast.xml.
-- Source ledger before output: a card is only drawn when every character you copied appears on it (as often as you copied it) and nothing else does, apart from list and line numbers and your signature. A layout that would drop or add text is refused with an explicit error instead of rendered.
-- Every card is checked before it is drawn: text below the phone floor, lines outside the canvas, overlapping lines, weak contrast, and text the source did not say. A card that overflows or would show words you did not copy is refused instead of rendered; the rest is logged. Secondary greys that fell short of 4.5:1 (code line numbers and comments, ledger labels, transcript times) are darker. docs/template-spec.md proposes the format community templates would ship in, with these checks as the gate.
-- Cards lose ornaments that meant nothing: the square on Paper text, the rule under Ink text, the band under Poster, the bar atop a reading page and the rail beside an editorial column, the side rule of a book excerpt, the gutter bar of a code notebook, the bar under a big number and the ticks beside ledger records. Chat bubbles sit on a warm grey instead of a cool blue-grey, with warm names and times that meet 4.5:1.
-- A signature on your cards: Settings › Templates › Signature takes one short line (say "@you · example.com", up to 40 characters) drawn small at the foot of every card except QR codes, in a quiet colour each style picks. Empty by default. A signature the card font cannot draw is left off instead of failing the card.
-- Cards stay readable on a phone: no text below 13 px (labels, times and line numbers 11 px) when a card is shown 390 px wide, which is 36/32 px on a 1080 canvas and scales with wider ones (a 16:9 card is a scaled 1080 card). Long content grows the card or scrolls instead of shrinking type, code wraps, a sideways diagram too wide for the floor turns top-down, and table columns keep whole words. The automatic frame starts at 1080 for everything.
-- Onboarding redesigned as three quiet steps on the panel’s glass: what Peesuto does (one real card appearing after a line of text and ⌥⌘1; static with Reduce Motion), the Accessibility permission with its live state, and the two shortcuts to remember. System accent and standard controls only; the teal glows, tinted icon tiles and the Preferences step are gone (those preferences keep their defaults and live in Settings). The window is 680×500.
-- Keyboard symbols render: ⌘ ⌥ ⌃ ⎋ ⏎ and 111 other symbols from JetBrains Mono are merged into both Maple cuts, and a card whose chosen font lacks a glyph uses the other font when that one has them all (a JSON keymap with ⌥ used to fail).
-- Info cards take unlabelled contact lines: a name, then a phone number, email, website or address each get an icon where a label would be.
-- Cards are set in Maple Mono by default (Settings › Templates › Card font switches to Noto Sans SC; code is always Maple). Everything but code uses Peesuto Text, a cut of it with Chinese at 1em, so prose does not look letter-spaced.
-- Info cards also take dotenv blocks (`OPENAI_API_KEY=…`, a `# comment` as the title): names as labels, keys in the secret pill, connection strings styled as links.
-- Info card template: contacts, accounts, server details and other `label: value` text become a card of fields instead of a plain page: phone numbers spaced 3-4-4, email domains and URL schemes muted, links coloured, passwords and keys in a red pill behind a lock (shown in full). Two styles, light Field list and dark Credentials.
-- Code cards: the terminal backdrop is a hue arc (indigo, violet, magenta, coral, amber) sampled in OKLCH and drawn as segments, so it stays saturated end to end instead of greying in the middle like a two-colour RGB blend; the rose overlay is gone.
-- Settings › Templates: every template with a preview of each style. Switch a template off to keep it out of automatic choice (it stays available by hand), click a style to make it the default. Changes apply at once.
-- Latin text no longer splits inside a word: a comma could move a break back into "crop", an early space was out of reach of the look-back, and larger type was kept even when it split a word (seen in the comparison template).
-- The clipboard panel has no title bar or window buttons and runs to its top edge, on Liquid Glass (macOS 26; a behind-window blur before that), with hairline separators.
-- The clipboard panel hides as soon as it loses focus, like Spotlight; the pin button next to Settings keeps it open (remembered across launches). Confirmation and save dialogs opened from the panel do not hide it.
-- Bring your own key for Jev at TypeSafe, Vercel AI Gateway or OpenRouter, in onboarding (pick a service, paste a key) and in Settings › AI. OpenRouter's and Vercel's key also drives text generation with any model they serve. Model content is redacted by the privacy rules before it leaves, as for every network provider. The hosted option is hidden until the service exists.
-- License: MIT, with third-party components listed in NOTICE. Contributions are signed off under the DCO; the Peesuto name and logo are trademarks the license does not cover (CONTRIBUTING.md).
-- Code cards: line numbers from 1 in both styles; larger macOS window dots; the terminal style sits on a layered gradient (indigo to teal, a rose tint below) with a drop shadow on the window. Template shapes can carry the engine's two-stop gradients and shadows.
-- Code cards use a monospace font (Peesuto Code: Maple Mono NL CN v7.9 subset, SIL OFL; no ligatures) with CJK at two columns, and real syntax highlighting (highlight.js 11.12, 24 languages, fence language or auto-detect); text is verified unchanged, with fallbacks to the proportional font and the simple colouring.
-- Pin to screen (⌘⌥5): the copied image, or a card rendered from copied text, floats above every window; drag to move, scroll or pinch to zoom around the cursor, double-click to close; right-click to copy, save or close all. GIFs animate. Also a button on image and GIF results.
+## 0.2.0 — 2026-09-24
+
+The first public release.
+
+### New
+- **Paste as…** — press ⌥V while typing anywhere: a small chooser opens at the caret with a preview of the card. Return pastes an image; G, M, Q and P paste a GIF, a video, a QR code or pin it to the screen; H opens the clipboard history (⇧⌥V). Every output can also have its own shortcut in Settings › Shortcuts.
+- **Automatic updates** — Peesuto checks for new versions once a day (Settings › General).
+- **Info cards** — contacts, accounts, server settings and `.env` blocks become a tidy card of fields: phone numbers spaced, links and emails styled, passwords and keys marked, icons where a line has no label.
+- **Release notes cards** — copied release notes become a card with the version up front and tagged sections.
+- **Signature** — an optional line such as "@you · example.com" at the bottom of every card (Settings › Templates).
+- **Templates in Settings** — every template with its styles; turn templates off for automatic choice, pick a default style, choose the card font.
+- **Japanese** — the interface is available in Japanese, and Japanese text renders on cards.
+- **Your own AI key, optional** — Jev via TypeSafe, Vercel AI Gateway, OpenRouter or Cloudflare for smarter suggestions; nothing is needed to use Peesuto.
+
+### Cards
+- Cards are set in Maple Mono, with a proportional cut for Chinese and Japanese text; keyboard symbols such as ⌘ and ⌥ render.
+- Code cards: real syntax highlighting, line numbers, and a soft "Indigo night" backdrop.
+- Readable on a phone: no text smaller than a phone's footnote size when a card is shared.
+- Quieter templates: decorative marks that meant nothing are gone, and colours meet contrast guidelines.
+- Words are never split across lines, and every card is checked before it is drawn: if anything you copied would be missing, Peesuto says so instead of pasting an incomplete card.
+
+### App
+- A new three-step welcome guide.
+- The clipboard panel sits on glass, hides as soon as you click elsewhere, and can be pinned open.
+- Clearer help when Accessibility is on in System Settings but not taking effect.
+
+### Open source
+- Peesuto is MIT-licensed and developed in the open at github.com/anelikes/peesuto.
 
 ## 0.1.1 — 2026-09-23
 
