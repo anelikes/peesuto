@@ -69,7 +69,7 @@ manager, permission and target-app checks remain in `docs/privacy-audit.md`.
 ## Reporting a vulnerability
 
 Please do not open a public issue for a security problem. Email
-**security@peesuto.com**. GitHub's private vulnerability reporting
+**contact@peesuto.com**. GitHub's private vulnerability reporting
 (*Security → Report a vulnerability*) will open as a second channel when the
 repository becomes public; until then, email is the only channel.
 

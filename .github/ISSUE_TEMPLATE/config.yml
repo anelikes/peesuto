@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: mailto:security@peesuto.com
-    about: Email security@peesuto.com; do not open an issue. SECURITY.md has the details.
+    url: mailto:contact@peesuto.com
+    about: Email contact@peesuto.com; do not open an issue. SECURITY.md has the details.

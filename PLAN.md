@@ -470,7 +470,7 @@ bundle/patch 模式），订阅解锁的官方包与用户定义叠得清楚。
 4. DMG 与 Homebrew cask 是 N5 工作，由 agent 在签名可用后完成；用户只需审阅发布。
 5. M8（暂缓，2026-09-24）：托管服务不上线，部署、计费平台与条款都等需求出现再做。
    域名 peesuto.com 仍需用于官网与邮箱。对外产品名 Peesuto，内部名与路径仍是 pocket-paste。
-6. 让 security@peesuto.com 能收信（SECURITY.md 把它定为私有期间唯一的漏洞报告渠道）：
+6. 让 contact@peesuto.com 能收信（SECURITY.md 把它定为私有期间唯一的漏洞报告渠道）：
    peesuto.com 接入 Cloudflare 后，用 Email Routing 转发到常用邮箱，发一封测试信确认。
 7. 开源前（2026-09-24 用户已定）：签名主体保持杭州木可；不建 GitHub 组织、不开打赏，
    到约 1k star 再议；商标暂不注册（费用见对话，需要时再办）。git 历史已用 gitleaks

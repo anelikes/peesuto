@@ -156,7 +156,7 @@ function footer(lang: Lang, current?: string): string {
 <a href="${GITHUB}">GitHub</a>
 <a href="/changelog/"${cur("changelog")}>${T(lang, "Changelog", "更新日志", "更新履歴")}</a>
 <a href="/privacy/"${cur("privacy")}>${T(lang, "Privacy policy", "隐私政策", "プライバシーポリシー")}</a>
-<a href="mailto:security@peesuto.com">security@peesuto.com</a>
+<a href="mailto:contact@peesuto.com">contact@peesuto.com</a>
 ${LANGS.map((l) => `<a href="${l.path}" lang="${l.hreflang}" hreflang="${l.hreflang}"${l.lang === lang && current === "home" ? ' aria-current="page"' : ""}>${l.label}</a>`).join("\n")}
 </nav>
 <small>© 2026 The Peesuto Authors · ${T(lang, "MIT License", "MIT 许可证", "MIT ライセンス")} · ${T(lang, "“Peesuto” and its logo are trademarks.", "“Peesuto”名称及标志为商标。", "「Peesuto」の名称とロゴは商標です。")}</small>
@@ -503,7 +503,8 @@ function parseChangelog(md: string): Release[] {
 function changelog(): string {
   const releases = parseChangelog(readFileSync(join(REPO, "CHANGELOG.md"), "utf8"));
   const fmt = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  const articles = releases.map((r) => {
+  // An empty section (right after a release, "Unreleased" has nothing yet) is not shown.
+  const articles = releases.filter((r) => r.blocks.length > 0).map((r) => {
     const unreleased = /^unreleased$/i.test(r.title);
     const id = unreleased ? "unreleased" : `v${r.title.replace(/[^0-9a-z.]/gi, "")}`;
     const meta = unreleased
@@ -569,7 +570,7 @@ ${row("Text generation (translate, summarise, your own prompts)", "The filled pr
 <p>peesuto.com is a static site. It sets no cookies, runs no trackers or analytics and loads nothing from other domains; fonts and images are served from here. Our host, Cloudflare, processes requests (including IP addresses) to deliver the site and keep it secure, and keeps standard logs.</p>
 
 <h2>Checking and contact</h2>
-<p>All of this can be checked in the open-source code on <a href="${GITHUB}">GitHub</a>. Questions, or a security issue to report: <a href="mailto:security@peesuto.com">security@peesuto.com</a>.</p>
+<p>All of this can be checked in the open-source code on <a href="${GITHUB}">GitHub</a>. Questions, or a security issue to report: <a href="mailto:contact@peesuto.com">contact@peesuto.com</a>.</p>
 </article></div>`;
   return page({ lang: "en", path: "/privacy/", current: "privacy", title: "Privacy policy — Peesuto",
     description: "What Peesuto stores on your Mac, what leaves it and only when you choose, and what this website does.", body });
