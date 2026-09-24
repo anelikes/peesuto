@@ -22,7 +22,7 @@ public enum PasteChoice: String, CaseIterable, Sendable {
     /// The single-key accelerator shown on its keycap.
     public var keyLabel: String {
         switch self {
-        case .image: return "↩"
+        case .image: return "I"
         case .gif: return "G"
         case .video: return "M"
         case .lyric: return "L"
@@ -96,12 +96,13 @@ public enum PasteChooser {
            let scalar = character.unicodeScalars.first, scalar.isASCII, CharacterSet.letters.contains(scalar) {
             return letter(character)
         }
-        let physical: [UInt16: String] = [5: "g", 46: "m", 37: "l", 12: "q", 35: "p", 4: "h"]
+        let physical: [UInt16: String] = [34: "i", 5: "g", 46: "m", 37: "l", 12: "q", 35: "p", 4: "h"]
         return physical[keyCode].flatMap(letter)
     }
 
     private static func letter(_ character: String) -> ChooserKey? {
         switch character {
+        case "i": return .choose(.image)
         case "g": return .choose(.gif)
         case "m": return .choose(.video)
         case "l": return .choose(.lyric)

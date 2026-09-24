@@ -20,7 +20,7 @@ final class PasteChooserTests: XCTestCase {
     func testLayoutCharacterWinsOverThePhysicalKey() {
         // Dvorak: the key typing "g" is ANSI "I" (34); ANSI "G" (5) types "i".
         XCTAssertEqual(PasteChooser.key(keyCode: 34, characters: "g"), .choose(.gif))
-        XCTAssertNil(PasteChooser.key(keyCode: 5, characters: "i"))
+        XCTAssertEqual(PasteChooser.key(keyCode: 5, characters: "i"), .choose(.image))
         // A non-Latin layout falls back to the physical key.
         XCTAssertEqual(PasteChooser.key(keyCode: 5, characters: "п"), .choose(.gif))
         XCTAssertEqual(PasteChooser.key(keyCode: 35, characters: nil), .choose(.pin))
@@ -74,7 +74,7 @@ final class PasteChooserTests: XCTestCase {
 
     func testChoicesRunTheMediaShortcuts() {
         XCTAssertEqual(PasteChooser.order.map(\.shortcutID), ["paste-card", "paste-gif", "paste-video", "paste-lyric", "paste-qr", "pin-screen", nil])
-        XCTAssertEqual(PasteChooser.order.map(\.keyLabel), ["↩", "G", "M", "L", "Q", "P", "H"])
+        XCTAssertEqual(PasteChooser.order.map(\.keyLabel), ["I", "G", "M", "L", "Q", "P", "H"])
         // Every chooser output is a media shortcut Settings can bind.
         for choice in PasteChooser.order { if let id = choice.shortcutID { XCTAssertTrue(MediaShortcuts.actionIDs.contains(id), id) } }
         XCTAssertEqual(ClipboardShortcutDelivery.of(shortcut: PasteChoice.pin.shortcutID!), .pin)

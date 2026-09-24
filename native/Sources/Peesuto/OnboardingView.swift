@@ -211,12 +211,12 @@ private struct PasteDemo: View {
             HStack(spacing: 8) {
                 KeycapRow(accelerator: accelerator, disabledTitle: offTitle)
                 Image(systemName: "arrow.right").font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
-                Keycap(label: PasteChoice.image.keyLabel)
+                Keycap(label: "↩")
             }
                 .opacity(phase >= 1 ? 1 : 0)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("“\(line)” → \(MediaShortcuts.glyphs(accelerator).joined()) \(PasteChoice.image.keyLabel)")
+        .accessibilityLabel("“\(line)” → \(MediaShortcuts.glyphs(accelerator).joined()) ↩")
         .task { await loop() }
     }
 

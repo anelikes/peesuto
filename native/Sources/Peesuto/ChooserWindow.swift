@@ -236,6 +236,8 @@ struct ChooserView: View {
                     .foregroundColor(.secondary).frame(width: 18)
                 Text(title(choice)).font(.system(size: 13))
                 Spacer()
+                // Return runs the highlighted row, so its ↩ follows the highlight.
+                if highlighted { Keycap(label: "↩") }
                 Keycap(label: choice.keyLabel)
             }
             .padding(.horizontal, 8).padding(.vertical, 4)
@@ -269,7 +271,7 @@ struct ChooserView: View {
         case .image: return "photo"
         case .gif: return "square.stack.3d.forward.dottedline"
         case .video: return "film"
-        case .lyric: return "textformat.size"
+        case .lyric: return "music.note"
         case .qr: return "qrcode"
         case .pin: return "pin"
         case .history: return "clock.arrow.circlepath"
