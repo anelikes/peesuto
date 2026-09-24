@@ -1,0 +1,68 @@
+:root {
+  --stage: #0b0b0d;
+  --ink: #f5f5f7;
+  --ink-2: #a1a1a6;
+  --ink-3: #6e6e73;
+  --accent: #3b82f6;
+  --ui: system-ui, -apple-system, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--stage); }
+body { font-family: var(--ui); color: var(--ink); -webkit-font-smoothing: antialiased; }
+#root { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+#stage-bg { position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 42%, #17171b 0%, #0e0e11 55%, #09090b 100%); }
+.scene { position: absolute; inset: 0; overflow: hidden; }
+.world { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 50% 50%; }
+.hud { position: absolute; inset: 0; pointer-events: none; }
+.abs { position: absolute; }
+
+/* Masked word reveals */
+.mline { position: absolute; white-space: nowrap; }
+.mask { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.12em; margin-bottom: -0.12em; }
+.mword { display: inline-block; }
+
+.display { font-family: var(--ui); font-weight: 650; letter-spacing: -0.025em; color: var(--ink); }
+.label { font-family: var(--ui); font-weight: 500; letter-spacing: 0.01em; color: var(--ink-2); }
+.kind { font-family: var(--ui); font-weight: 600; font-size: 28px; letter-spacing: 0.12em; text-transform: uppercase; color: #8e8e93; }
+
+/* Keycaps */
+.keycap { position: relative; }
+.keycap-top { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #34343a 0%, #232328 100%); color: #f2f2f4; font-family: var(--ui); font-weight: 500;
+  border: 1px solid rgba(255,255,255,0.10); }
+
+/* Notes window (the raw copied text) */
+.notes { position: absolute; background: #fbfbfa; border-radius: 18px; overflow: hidden;
+  box-shadow: 0 40px 90px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); }
+.notes-bar { position: absolute; left: 0; top: 0; right: 0; height: 56px; background: #f0efec; border-bottom: 1px solid #e2e0dc; }
+.notes-dot { position: absolute; top: 21px; width: 14px; height: 14px; border-radius: 7px; background: #d7d5d1; }
+.notes-title { position: absolute; top: 0; left: 0; right: 0; line-height: 56px; text-align: center; font-size: 19px; color: #7c7a76; font-weight: 500; }
+.sel { position: absolute; background: #cfe0fb; border-radius: 3px; }
+
+/* Pain scene */
+.panel { position: absolute; border-radius: 28px; background: #141417; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); overflow: hidden; }
+.chip { position: absolute; font-size: 30px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+.dialog { position: absolute; background: #2a2a2f; border-radius: 14px; box-shadow: 0 20px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08); color: #e5e5ea; font-size: 20px; }
+
+/* Forms scene */
+.fchip { position: absolute; font-size: 34px; font-weight: 600; color: var(--ink-3); white-space: nowrap; line-height: 64px; }
+.fpill { position: absolute; height: 64px; border-radius: 32px; background: #f5f5f7; }
+.badge { position: absolute; font-family: PeesutoText; font-weight: 700; font-size: 22px; padding: 6px 12px; border-radius: 8px; background: rgba(0,0,0,.55); color: #fff; letter-spacing: 0.04em; }
+
+/* Chat app */
+.app { position: absolute; background: #ffffff; border-radius: 22px; overflow: hidden; box-shadow: 0 50px 120px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.08); color: #1d1d1f; }
+.side { position: absolute; left: 0; top: 0; bottom: 0; width: 330px; background: #f3f2f0; border-right: 1px solid #e4e2de; }
+.chan { position: absolute; left: 22px; right: 22px; height: 48px; line-height: 48px; padding-left: 18px; border-radius: 10px; font-size: 24px; color: #5f5d59; }
+.chan.on { background: #e3e1dc; color: #1d1d1f; font-weight: 600; }
+.msg { position: absolute; left: 380px; right: 40px; }
+.avatar { position: absolute; left: 0; top: 2px; width: 52px; height: 52px; border-radius: 14px; color: #fff; font-weight: 700; font-size: 24px; line-height: 52px; text-align: center; }
+.who { position: absolute; left: 72px; top: 0; font-size: 23px; font-weight: 700; color: #1d1d1f; white-space: nowrap; }
+.who span { font-weight: 400; color: #74726d; margin-left: 10px; font-size: 19px; }
+.says { position: absolute; left: 72px; top: 34px; right: 0; font-size: 24px; line-height: 34px; color: #2c2c2e; }
+.composer { position: absolute; border-radius: 16px; border: 1.5px solid #d6d4cf; background: #fff; }
+.chooser { position: absolute; width: 400px; background: #111113; border-radius: 22px; box-shadow: 0 30px 70px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.12); color: #f2f2f4; overflow: hidden; }
+.row { position: absolute; left: 12px; right: 12px; height: 56px; border-radius: 12px; }
+.row .rl { position: absolute; left: 62px; top: 0; line-height: 56px; font-size: 22px; font-weight: 500; }
+.row .ri { position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; }
+.row .rk { position: absolute; right: 10px; top: 10px; width: 36px; height: 36px; border-radius: 9px; background: #2a2a2e; box-shadow: inset 0 0 0 1px rgba(255,255,255,.10); font-size: 19px; font-weight: 600; line-height: 36px; text-align: center; color: #e9e9ec; }
