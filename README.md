@@ -45,9 +45,10 @@ requires locally installed ffmpeg, which is not bundled or installed automatical
 **The native app is the only desktop implementation. Feature and release work remains.**
 [`native/`](native/README.md) builds a standalone SwiftUI + AppKit `.app`, with
 encrypted history, bundled Core, PNG/GIF/MP4 actions and bilingual settings.
-The native app can transform the current clipboard directly with configurable
-`⌘⌥1` (image), `⌘⌥2` (GIF) and `⌘⌥3` (video). Change or disable bindings in
-Settings → Shortcuts. It pastes automatically only when the original insertion
+The native app can transform the current clipboard directly: `⌥V` opens a small
+"Paste as…" chooser at the caret (Return image, G GIF, M video, Q QR code,
+P pin to screen, H history) and `⇧⌥V` opens the clipboard history. Each output
+can also get its own shortcut (unbound by default) in Settings → Shortcuts. It pastes automatically only when the original insertion
 point can still be verified; newer clipboard contents are preserved.
 The native app preserves history formats, credentials, Core actions/providers and
 English/Simplified Chinese support. Account/pack-management UI, action editing,

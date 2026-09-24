@@ -280,7 +280,7 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
 
 Every text can become a QR code, so QR is never chosen automatically: it is
 always among a result's available templates (the template menu can switch to
-it), the model is never offered it, and the `paste-qr` action (⌘⌥4) always
+it), the model is never offered it, and the `paste-qr` action (Q in the ⌥V chooser) always
 uses it without asking a model. The data is the source exactly (surrounding
 whitespace aside; invisible characters are kept), UTF-8, error correction M,
 falling back to L; past 2,953 bytes (about 980 Chinese characters) it is a

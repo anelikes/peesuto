@@ -14,12 +14,16 @@ must be parsed compatibly, and custom action labels/prompts must not be
 translated when the interface language changes. The native menu design may
 change where actions appear; it must preserve access to enabled actions.
 
-The native desktop currently provides shortcuts that can be recorded or disabled for
-opening history and three direct clipboard actions. Defaults are ⌘⌥1 for
-`paste-card`, ⌘⌥2 for `paste-gif`, ⌘⌥3 for `paste-video`, and ⌘⌥4 for `paste-qr`. Record a binding
+The native desktop provides shortcuts that can be recorded or disabled for
+the "Paste as…" chooser (`paste-as`, default ⌥V), opening history (`panel`,
+default ⇧⌥V) and the direct clipboard actions `paste-card`, `paste-gif`,
+`paste-video`, `paste-qr` and `pin-screen`, which are unbound by default: the
+chooser reaches each of them with one key (Return, G, M, Q, P). Record a binding
 in **Settings → Shortcuts**, or clear it to disable; changes apply on save.
 Bindings are stored in `settings.json` under `native_shortcuts`, separately
-from action JSON declarations. Arbitrary custom-action shortcut registration
+from action JSON declarations; the defaults live in `DefaultShortcuts`
+(`native/Sources/PeesutoKit/Settings.swift`), and `shortcuts_version` resets
+older saved bindings to them once. Arbitrary custom-action shortcut registration
 and the native action editor are not implemented yet.
 
 These direct shortcuts use the current clipboard text instead of the selected
