@@ -9,6 +9,7 @@
  *   <template>-<style>.webp      1:1, 640 px wide (retina-sharp at the site's 320 px)
  *   <template>-<style>-wide.webp 16:9, 960 px wide (first style only)
  *   <template>.mp4               the animated card, 640 px, H.264, no audio
+ *   lyrics-<style>.mp4           Lyric motion, every style animated
  *
  * site/gallery/manifest.json records each file's input key, size and bytes.
  * A file is rendered again only when its input (sample text, template, style,
@@ -107,7 +108,9 @@ for (const t of templates) {
     const first = t.variants[0]!.id;
     for (const v of t.variants) wanted.push({ file: `${lang}/${t.id}-${v.id}.webp`, lang, id: t.id, variant: v.id, kind: "square", input: key("square", v.id) });
     wanted.push({ file: `${lang}/${t.id}-${first}-wide.webp`, lang, id: t.id, variant: first, kind: "wide", input: key("wide", first) });
-    wanted.push({ file: `${lang}/${t.id}.mp4`, lang, id: t.id, variant: first, kind: "motion", input: key("motion", first) });
+    // Lyric motion is a video first: every style animated. Other templates: the first style.
+    if (t.id === "lyrics") for (const v of t.variants) wanted.push({ file: `${lang}/${t.id}-${v.id}.mp4`, lang, id: t.id, variant: v.id, kind: "motion", input: key("motion", v.id) });
+    else wanted.push({ file: `${lang}/${t.id}.mp4`, lang, id: t.id, variant: first, kind: "motion", input: key("motion", first) });
   }
 }
 const fresh = (j: Job) => {
@@ -162,8 +165,9 @@ if (todo.length) {
     const target = join(OUT, j.file);
     await mkdir(join(OUT, j.lang), { recursive: true });
     if (j.kind === "motion") {
+      // Lyric motion carries film grain and colour cuts: a higher CRF keeps each clip near 1 MB.
       await run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw, "-vf", `scale=${SQUARE_WIDTH}:-2:flags=lanczos`, "-c:v", "libx264", "-preset", "slow",
-        "-crf", "26", "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart", "-an", target]);
+        "-crf", j.id === "lyrics" ? "30" : "26", "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart", "-an", target]);
     } else {
       await run(["cwebp", "-quiet", "-q", "90", "-m", "6", "-sharp_yuv", "-metadata", "none", "-resize", String(j.kind === "wide" ? WIDE_WIDTH : SQUARE_WIDTH), "0", raw, "-o", target]);
     }

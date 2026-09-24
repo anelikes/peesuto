@@ -206,6 +206,7 @@ section { position: relative; }
 .ch-rows li.sep::before { content: ""; position: absolute; left: 6px; right: 6px; top: -6px; border-top: 1px solid rgba(255,255,255,.1); }
 .ch-rows kbd, .ch-head kbd { margin-left: auto; min-width: 24px; height: 22px; padding: 0 6px; display: inline-grid; place-items: center; font: 600 12px var(--sans); background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; color: #F2F0EE; }
 .ch-head kbd { margin-left: 0; }
+.ch-rows kbd.ret + kbd { margin-left: 6px; }
 .is-enter .ch-rows li.on { background: rgba(120, 140, 255, .32); }
 .is-enter .ch-rows li.on kbd { background: rgba(255,255,255,.22); }
 

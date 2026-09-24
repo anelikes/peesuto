@@ -18,7 +18,7 @@ Peesuto is a small, open-source clipboard app for the Mac. It sees what you
 copied (code, a chat, a table, a quote) and pastes it as a well-set image
 into whatever you are typing in. GIF and video too.
 
-- **Cards from plain text.** 19 templates, 39 styles. Words, names, numbers
+- **Cards from plain text.** 19 templates, 41 styles. Words, names, numbers
   and order come from your text; nothing is rewritten or made up.
 - **One key to paste.** ⌥V opens a chooser at your caret with the card
   already drawn; Return pastes it.
@@ -29,15 +29,16 @@ into whatever you are typing in. GIF and video too.
 
 ## How it works
 
-<img src="docs/images/chooser-en.png" width="360" align="right" alt="The Paste as… chooser: a card preview above the options Image (Return), GIF (G), Video (M), QR code (Q), Pin to screen (P) and Clipboard history (H).">
+<img src="docs/images/chooser-en.png" width="360" align="right" alt="The Paste as… chooser: a card preview above the options Image (I, highlighted, Return), GIF (G), Video (M), Lyric motion (L), QR code (Q), Pin to screen (P) and Clipboard history (H).">
 
 Copy some text, then press **⌥V** wherever you are typing. A small
 **Paste as…** chooser opens at the caret with the card already drawn. One
-more key:
+more key, or **Return** for the highlighted row (Image, until you move
+it with the arrow keys):
 
 | Key | Output |
 |---|---|
-| **Return** | Image: a PNG, pasted into the app you are typing in |
+| **I** | Image: a PNG, pasted into the app you are typing in |
 | **G** | GIF: the same card, revealed line by line |
 | **M** | Video: MP4, made with the ffmpeg on your Mac |
 | **L** | Lyric motion: any text as kinetic type, cut into screens at its sentences and clauses (MP4, or a GIF without ffmpeg) |
@@ -60,7 +61,7 @@ never overwritten.
 ## Templates
 
 <p align="center">
-  <img src="docs/images/templates.png" width="100%" alt="All 39 card styles: text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics, lyric motion and QR code.">
+  <img src="docs/images/templates.png" width="100%" alt="All 41 card styles: text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics, lyric motion and QR code.">
 </p>
 
 Text · Document · Quote · Code · Statistic · List · Conversation · Table ·

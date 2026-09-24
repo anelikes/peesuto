@@ -89,7 +89,7 @@ const localized = (table: Readonly<Record<string, Localized>>, id: string, lang:
 const ICONS = `<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
 <symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="6" r="1.2" fill="currentColor"/><path d="M2 12l3.8-3.6 2.7 2.4 2.2-1.9L14 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
 <symbol id="i-gif" viewBox="0 0 16 16"><path d="M9 2.5 13.5 8 9 13.5 4.5 8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 3.5 1.8 8l3.7 4.5M3.6 3.5 0 8l3.6 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.4 1.4"/></symbol>
-<symbol id="i-lyric" viewBox="0 0 16 16"><path d="M1.5 13 5 3.5 8.5 13M2.7 10h4.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M10.5 13V8.2M10.5 9.6c.7-1.2 1.9-1.8 3.6-1.7" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
+<symbol id="i-lyric" viewBox="0 0 16 16"><path d="M6 12.2V3.2l7-1.4v8.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><ellipse cx="4.3" cy="12.3" rx="1.9" ry="1.5" fill="currentColor"/><ellipse cx="11.3" cy="10.5" rx="1.9" ry="1.5" fill="currentColor"/></symbol>
 <symbol id="i-video" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 3v10M11.5 3v10M1.5 6h3M1.5 10h3M11.5 6h3M11.5 10h3" stroke="currentColor" stroke-width="1"/></symbol>
 <symbol id="i-qr" viewBox="0 0 16 16"><path d="M2 2h4.5v4.5H2zM9.5 2H14v4.5H9.5zM2 9.5h4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 13h1.5" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
 <symbol id="i-pin" viewBox="0 0 16 16"><path d="M5.5 1.8h5M6.5 2v4.2L4.3 9h7.4L9.5 6.2V2M8 9v5.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
@@ -192,13 +192,14 @@ ${LANGS.map((l) => `<a href="${alternates?.[l.lang] ?? l.path}" lang="${l.hrefla
 interface Sample { file: string; text: string; card: string; ask: string; alt: string }
 
 function chooser(lang: Lang, cardName: string, alt = ""): string {
+  // Mirrors ChooserWindow.swift: every row has its letter; the highlighted row ("on") also shows ↩, which runs it.
   const row = (icon: string, label: string, key: string, cls = "") =>
-    `<li${cls ? ` class="${cls}"` : ""}><svg aria-hidden="true"><use href="#i-${icon}"/></svg>${label}<kbd>${key}</kbd></li>`;
+    `<li${cls ? ` class="${cls}"` : ""}><svg aria-hidden="true"><use href="#i-${icon}"/></svg>${label}${cls.split(" ").includes("on") ? '<kbd class="ret">↩</kbd>' : ""}<kbd>${key}</kbd></li>`;
   return `<div class="chooser" aria-hidden="true">
 <div class="ch-head">${T(lang, "Paste as…", "粘贴为…", "ペースト形式…")}<span>${T(lang, "Cancel", "取消", "キャンセル")} <kbd>esc</kbd></span></div>
 <div class="ch-prev"><img data-card="thumb" src="${card(cardName)}" width="116" height="116" alt="${esc(alt)}"></div>
 <ul class="ch-rows">
-${row("image", T(lang, "Image", "图片", "画像"), "↩", "on")}
+${row("image", T(lang, "Image", "图片", "画像"), "I", "on")}
 ${row("gif", "GIF", "G")}
 ${row("video", T(lang, "Video", "视频", "動画"), "M")}
 ${row("lyric", T(lang, "Lyric motion", "文字 PV", "文字PV"), "L")}
@@ -347,9 +348,9 @@ function shortcuts(lang: Lang): string {
 <p class="lede">${T(lang, "Both act on what you copied last.", "都作用于你最近复制的内容。", "どちらも、最後にコピーしたものに働きます。")}</p>
 <ul class="keys-list">
 <li><span class="caps"><kbd>⌥</kbd><kbd>V</kbd></span><div><h3>${T(lang, "Paste as…", "粘贴为…", "ペースト形式…")}</h3></div>
-<p>${T(lang, "A small chooser opens at your caret, with the card already drawn. One more key:", "在光标处打开一个小面板，卡片已经画好。再按一个键：", "カーソルの位置に小さなパネルが開き、カードはもうできています。あとはキーをひとつ：")}</p>
+<p>${T(lang, "A small chooser opens at your caret, with the card already drawn. One more key, or ↩ for the highlighted row (Image, until you move it with the arrow keys):", "在光标处打开一个小面板，卡片已经画好。再按一个键；或按 ↩ 选高亮的那一行（默认是图片，可用方向键移动）：", "カーソルの位置に小さなパネルが開き、カードはもうできています。あとはキーをひとつ。↩ なら選択中の行（最初は画像。矢印キーで動かせます）：")}</p>
 <dl>
-${out("↩", T(lang, "Image", "图片", "画像"), T(lang, "a PNG, pasted into the app you are typing in", "PNG，直接粘贴进你正在输入的应用", "PNG を、いま入力中のアプリにそのままペースト"))}
+${out("I", T(lang, "Image", "图片", "画像"), T(lang, "a PNG, pasted into the app you are typing in", "PNG，直接粘贴进你正在输入的应用", "PNG を、いま入力中のアプリにそのままペースト"))}
 ${out("G", "GIF", T(lang, "the same card, revealed line by line", "同一张卡片，逐行出现", "同じカードを、一行ずつ表示"))}
 ${out("M", T(lang, "Video", "视频", "動画"), T(lang, "MP4, made with the ffmpeg on your Mac", "MP4，用你 Mac 上的 ffmpeg 生成", "MP4。Mac に入っている ffmpeg で作ります"))}
 ${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang, "any text as kinetic type, cut into screens at its sentences and clauses", "任意文字做成动态文字视频，按句子和分句切成一幕幕", "どんなテキストも、文や句の切れ目で場面に分けた動く文字に"))}
@@ -695,11 +696,16 @@ function templatePage(lang: Lang, id: string): string {
     : T(lang, "Have Peesuto? Copy the sample, then press ⌥V in any text field to get this card.", "装了 Peesuto？复制示例，在任意输入框里按 ⌥V，就能得到这张卡片。", "Peesuto をお使いなら：サンプルをコピーして、どこかの入力欄で ⌥V を押すと、このカードになります。");
   const styles = t.variants.map((v) => {
     const [, style] = templateName(lang, id, v.id);
+    // Lyric motion is a video first: each style plays (on screen only, never with reduced motion) over its poster.
+    if (isLyric) {
+      const clip = gfile(lang, `${id}-${v.id}.mp4`), still = gfile(lang, `${id}-${v.id}.webp`);
+      return `<figure><video data-card-video muted loop playsinline preload="none" poster="${still.src}" width="320" height="${Math.round(320 * clip.height / clip.width)}" aria-label="${esc(T(lang, `${name} in the ${style} style.`, `${name}，${style}样式。`, `${name}、${style}スタイル。`))}"><source src="${clip.src}" type="video/mp4"></video><figcaption>${esc(style)}</figcaption></figure>`;
+    }
     return `<figure>${cardImg(lang, `${id}-${v.id}`, T(lang, `${name} card in the ${style} style.`, `${name}卡片，${style}样式。`, `${name}カード、${style}スタイル。`), 320, ' loading="lazy" decoding="async"')}<figcaption>${esc(style)}</figcaption></figure>`;
   }).join("\n");
   const wide = gfile(lang, `${id}-${first}-wide.webp`);
   const [, firstStyle] = templateName(lang, id, first);
-  const motion = gfile(lang, `${id}.mp4`);
+  const motion = gfile(lang, isLyric ? `${id}-${first}.mp4` : `${id}.mp4`);
   const poster = gfile(lang, `${id}-${first}.webp`);
   const prev = shown[(i - 1 + shown.length) % shown.length]!, next = shown[(i + 1) % shown.length]!;
   const body = `<div class="wrap tp">
@@ -745,9 +751,9 @@ ${styles}
 <section class="tp-sec tp-motion" aria-labelledby="motion-title">
 <div>
 <h2 id="motion-title">${T(lang, "In motion", "动起来", "動きをつける")}</h2>
-<p>${isLyric ? T(lang, "Press L in the chooser: each sentence or clause gets its own screen, letters entering, colours changing. You get an MP4 when ffmpeg is on your Mac, a GIF otherwise.",
-    "在选择面板里按 L：每个句子或分句占一幕，文字逐个进场，颜色随之变换。Mac 上装了 ffmpeg 就得到 MP4，否则是 GIF。",
-    "パネルで L を押すと、文や句ごとにひとつの場面になり、文字が入ってきて色が変わります。Mac に ffmpeg があれば MP4、なければ GIF になります。")
+<p>${isLyric ? T(lang, "Press L in the chooser: each sentence or clause gets its own screens, set big in the style's display type, one of twenty-odd compositions per cut, with colour cuts on the beat. You get an MP4 when ffmpeg is on your Mac, a GIF otherwise.",
+    "在选择面板里按 L：每个句子或分句各占几幕，用样式自带的展示字体大字排出，每一幕从二十多种构图里挑一种，颜色随节拍切换。Mac 上装了 ffmpeg 就得到 MP4，否则是 GIF。",
+    "パネルで L を押すと、文や句ごとに場面が生まれ、スタイルの見出し書体で大きく組まれます。場面ごとに二十あまりの構図からひとつ、色はビートで切り替わります。Mac に ffmpeg があれば MP4、なければ GIF になります。")
   : T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order. The video needs ffmpeg on your Mac.",
     "在选择面板里按 G 生成 GIF，按 M 生成 MP4：同一张卡片，按阅读顺序逐步出现。视频需要你的 Mac 上装有 ffmpeg。",
     "パネルで G を押すと GIF、M を押すと MP4 に。同じカードが、読む順に現れます。動画には Mac に ffmpeg が必要です。")}</p>

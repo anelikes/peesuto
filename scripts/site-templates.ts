@@ -55,7 +55,7 @@ export const JA_NAMES: Readonly<Record<string, string>> = {
   error: "エラー", "error-classic": "クラッシュレポート", "error-editorial": "コンソール",
   timeline: "スケジュール", "timeline-classic": "アジェンダ", "timeline-editorial": "マイルストーン",
   stats: "指標", "stats-classic": "ダッシュボード", "stats-editorial": "スコアボード",
-  lyrics: "文字PV", "lyrics-classic": "ステージ", "lyrics-editorial": "紙面",
+  lyrics: "文字PV", "lyrics-classic": "ステージ", "lyrics-editorial": "紙面", "lyrics-pop": "ポップ", "lyrics-night": "ナイト",
   qr: "QR コード", "qr-classic": "シンプル", "qr-editorial": "カード",
 };
 

@@ -28,7 +28,7 @@
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/assets/fonts/peesuto-mono-bold.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/site.css?v=c3f9613375">
+<link rel="stylesheet" href="/assets/site.css?v=a7c2dde756">
 <script src="/assets/site.js?v=94ac2ea535" defer></script>
 </head>
 <body>
@@ -36,7 +36,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
 <symbol id="i-image" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="6" r="1.2" fill="currentColor"/><path d="M2 12l3.8-3.6 2.7 2.4 2.2-1.9L14 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
 <symbol id="i-gif" viewBox="0 0 16 16"><path d="M9 2.5 13.5 8 9 13.5 4.5 8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 3.5 1.8 8l3.7 4.5M3.6 3.5 0 8l3.6 4.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="1.4 1.4"/></symbol>
-<symbol id="i-lyric" viewBox="0 0 16 16"><path d="M1.5 13 5 3.5 8.5 13M2.7 10h4.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M10.5 13V8.2M10.5 9.6c.7-1.2 1.9-1.8 3.6-1.7" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
+<symbol id="i-lyric" viewBox="0 0 16 16"><path d="M6 12.2V3.2l7-1.4v8.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><ellipse cx="4.3" cy="12.3" rx="1.9" ry="1.5" fill="currentColor"/><ellipse cx="11.3" cy="10.5" rx="1.9" ry="1.5" fill="currentColor"/></symbol>
 <symbol id="i-video" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 3v10M11.5 3v10M1.5 6h3M1.5 10h3M11.5 6h3M11.5 10h3" stroke="currentColor" stroke-width="1"/></symbol>
 <symbol id="i-qr" viewBox="0 0 16 16"><path d="M2 2h4.5v4.5H2zM9.5 2H14v4.5H9.5zM2 9.5h4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 13h1.5" fill="none" stroke="currentColor" stroke-width="1.1"/></symbol>
 <symbol id="i-pin" viewBox="0 0 16 16"><path d="M5.5 1.8h5M6.5 2v4.2L4.3 9h7.4L9.5 6.2V2M8 9v5.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
@@ -80,14 +80,14 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <div class="win chat"><div class="win-bar"><i></i><i></i><i></i><b># launch</b></div>
 <div class="thread">
 <div class="msg msg-ask"><span class="avatar">M</span><b>Maya<small>10:02</small></b><p>Can you send the greeting helper?</p></div>
-<div class="msg msg-new"><span class="avatar you">Y</span><b>You<small>10:03</small></b><img data-card="msg" src="/gallery/en/code-classic.webp?v=47cfa5d95641" width="240" height="240" alt=""></div>
+<div class="msg msg-new"><span class="avatar you">Y</span><b>You<small>10:03</small></b><img data-card="msg" src="/gallery/en/code-classic.webp?v=47cfa5d9061b" width="240" height="240" alt=""></div>
 </div>
 <div class="composer"><span class="caret"></span>Message #launch</div>
 <div class="chooser" aria-hidden="true">
 <div class="ch-head">Paste as…<span>Cancel <kbd>esc</kbd></span></div>
-<div class="ch-prev"><img data-card="thumb" src="/gallery/en/code-classic.webp?v=47cfa5d95641" width="116" height="116" alt=""></div>
+<div class="ch-prev"><img data-card="thumb" src="/gallery/en/code-classic.webp?v=47cfa5d9061b" width="116" height="116" alt=""></div>
 <ul class="ch-rows">
-<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd>↩</kbd></li>
+<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>Video<kbd>M</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-lyric"/></svg>Lyric motion<kbd>L</kbd></li>
@@ -104,7 +104,7 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <button class="play" type="button" hidden aria-pressed="false" data-play="Play" data-pause="Pause"><svg viewBox="0 0 10 12" aria-hidden="true"><path d="M0 0h3.5v12H0zM6.5 0H10v12H6.5z" fill="currentColor"/></svg><span class="label">Pause</span></button>
 </div>
 </div>
-<script type="application/json">[{"file":"greet.swift","text":"func greet(_ name: String) -> String {\n    \"Hello, \\(name)!\"\n}\n\nprint(greet(\"Peesuto\"))","card":"/gallery/en/code-classic.webp?v=47cfa5d95641","ask":"Can you send the greeting helper?","alt":"Code card: the Swift function, highlighted, in a dark window on an indigo field."},{"file":"Notes","text":"Make room for a clearer thought.","card":"/gallery/en/text-poster.webp?v=dd55bea25641","ask":"Slide 3 still needs a title.","alt":"Poster card: “Make room for a clearer thought.” in large type on red."},{"file":"plans.md","text":"| Plan | Price | Seats |\n|---|---|---|\n| Solo | $0 | 1 |\n| Team | $12 | 10 |","card":"/gallery/en/table-classic.webp?v=b2404bc55641","ask":"What were the plans again?","alt":"Table card: plans, prices and seats in a green-headed grid."}]</script>
+<script type="application/json">[{"file":"greet.swift","text":"func greet(_ name: String) -> String {\n    \"Hello, \\(name)!\"\n}\n\nprint(greet(\"Peesuto\"))","card":"/gallery/en/code-classic.webp?v=47cfa5d9061b","ask":"Can you send the greeting helper?","alt":"Code card: the Swift function, highlighted, in a dark window on an indigo field."},{"file":"Notes","text":"Make room for a clearer thought.","card":"/gallery/en/text-poster.webp?v=dd55bea2061b","ask":"Slide 3 still needs a title.","alt":"Poster card: “Make room for a clearer thought.” in large type on red."},{"file":"plans.md","text":"| Plan | Price | Seats |\n|---|---|---|\n| Solo | $0 | 1 |\n| Team | $12 | 10 |","card":"/gallery/en/table-classic.webp?v=b2404bc5061b","ask":"What were the plans again?","alt":"Table card: plans, prices and seats in a green-headed grid."}]</script>
 <figcaption data-video-caption="Muted. It plays on its own unless your Mac is set to reduce motion.">Still when your Mac is set to reduce motion.</figcaption>
 </figure>
 </div>
@@ -112,18 +112,18 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 <section class="strip" aria-labelledby="strip-title">
 <h2 id="strip-title" class="visually-hidden">Cards made by Peesuto</h2>
 <ul>
-<li><a href="/templates/text/"><img src="/gallery/en/text-poster.webp?v=dd55bea25641" width="208" height="208" alt="Text, Poster" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/code/"><img src="/gallery/en/code-classic.webp?v=47cfa5d95641" width="208" height="208" alt="Code, Terminal" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/chat/"><img src="/gallery/en/chat-classic.webp?v=5ee0ca165641" width="208" height="208" alt="Conversation, Chat bubbles" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/stats/"><img src="/gallery/en/stats-editorial.webp?v=95483cf95641" width="208" height="208" alt="Metrics, Scoreboard" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/info/"><img src="/gallery/en/info-editorial.webp?v=0e1c0ee35641" width="208" height="208" alt="Info card, Credentials" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/diagram/"><img src="/gallery/en/diagram-editorial.webp?v=03bf02615641" width="208" height="208" alt="Diagram, Blueprint" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/quote/"><img src="/gallery/en/quote-editorial.webp?v=970bdc015641" width="208" height="208" alt="Quote, Statement" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/terminal/"><img src="/gallery/en/terminal-classic.webp?v=2bef15ed5641" width="208" height="208" alt="Terminal session, Night terminal" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/changelog/"><img src="/gallery/en/changelog-classic.webp?v=e83419ce5641" width="208" height="208" alt="Release notes, Release card" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/timeline/"><img src="/gallery/en/timeline-classic.webp?v=5cb0e2425641" width="208" height="208" alt="Schedule, Agenda" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/table/"><img src="/gallery/en/table-classic.webp?v=b2404bc55641" width="208" height="208" alt="Table, Data grid" loading="lazy" decoding="async"></a></li>
-<li><a href="/templates/diff/"><img src="/gallery/en/diff-classic.webp?v=fa955a7f5641" width="208" height="208" alt="Diff, Review" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/text/"><img src="/gallery/en/text-poster.webp?v=dd55bea2061b" width="208" height="208" alt="Text, Poster" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/code/"><img src="/gallery/en/code-classic.webp?v=47cfa5d9061b" width="208" height="208" alt="Code, Terminal" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/chat/"><img src="/gallery/en/chat-classic.webp?v=5ee0ca16061b" width="208" height="208" alt="Conversation, Chat bubbles" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/stats/"><img src="/gallery/en/stats-editorial.webp?v=95483cf9061b" width="208" height="208" alt="Metrics, Scoreboard" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/info/"><img src="/gallery/en/info-editorial.webp?v=0e1c0ee3061b" width="208" height="208" alt="Info card, Credentials" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/diagram/"><img src="/gallery/en/diagram-editorial.webp?v=03bf0261061b" width="208" height="208" alt="Diagram, Blueprint" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/quote/"><img src="/gallery/en/quote-editorial.webp?v=970bdc01061b" width="208" height="208" alt="Quote, Statement" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/terminal/"><img src="/gallery/en/terminal-classic.webp?v=2bef15ed061b" width="208" height="208" alt="Terminal session, Night terminal" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/changelog/"><img src="/gallery/en/changelog-classic.webp?v=e83419ce061b" width="208" height="208" alt="Release notes, Release card" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/timeline/"><img src="/gallery/en/timeline-classic.webp?v=5cb0e242061b" width="208" height="208" alt="Schedule, Agenda" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/table/"><img src="/gallery/en/table-classic.webp?v=b2404bc5061b" width="208" height="208" alt="Table, Data grid" loading="lazy" decoding="async"></a></li>
+<li><a href="/templates/diff/"><img src="/gallery/en/diff-classic.webp?v=fa955a7f061b" width="208" height="208" alt="Diff, Review" loading="lazy" decoding="async"></a></li>
 </ul>
 <p class="wrap">Each of these was pasted from plain text. <a href="/templates/">See all 19 templates</a></p>
 </section>
@@ -147,7 +147,7 @@ print(greet(&quot;Peesuto&quot;))</span></span></pre></div>
 
 print(greet(&quot;Peesuto&quot;))</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/code-classic.webp?v=47cfa5d95641" width="320" height="320" alt="Code card made from the text on the left." loading="lazy" decoding="async"></div>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/code-classic.webp?v=47cfa5d9061b" width="320" height="320" alt="Code card made from the text on the left." loading="lazy" decoding="async"></div>
 <p class="note"><strong>Code.</strong> 24 languages highlighted, from the fence or detected. Long lines wrap; indentation holds.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" data-tint="chat" hidden>
@@ -155,7 +155,7 @@ print(greet(&quot;Peesuto&quot;))</pre></div>
 Ash: Yes, copy it and press the shortcut.
 Lin: Nice, that's all?</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/chat-classic.webp?v=5ee0ca165641" width="320" height="320" alt="Chat card made from the text on the left." loading="lazy" decoding="async"></div>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/chat-classic.webp?v=5ee0ca16061b" width="320" height="320" alt="Chat card made from the text on the left." loading="lazy" decoding="async"></div>
 <p class="note"><strong>Chat.</strong> Speakers and times copied out of chat apps become bubbles or a transcript.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-table" aria-labelledby="tab-table" data-tint="table" hidden>
@@ -164,7 +164,7 @@ Lin: Nice, that's all?</pre></div>
 | Solo | $0 | 1 |
 | Team | $12 | 10 |</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/table-classic.webp?v=b2404bc55641" width="320" height="320" alt="Table card made from the text on the left." loading="lazy" decoding="async"></div>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/table-classic.webp?v=b2404bc5061b" width="320" height="320" alt="Table card made from the text on the left." loading="lazy" decoding="async"></div>
 <p class="note"><strong>Table.</strong> Tab-separated, Markdown and terminal box tables. Columns keep whole words.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-info" aria-labelledby="tab-info" data-tint="info" hidden>
@@ -174,20 +174,20 @@ Password: P@ssw0rd!2026
 Email: ops@example.com
 Host: https://staging.example.com</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/info-classic.webp?v=0d0866815641" width="320" height="320" alt="Info card card made from the text on the left." loading="lazy" decoding="async"></div>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/info-classic.webp?v=0d086681061b" width="320" height="320" alt="Info card card made from the text on the left." loading="lazy" decoding="async"></div>
 <p class="note"><strong>Info card.</strong> Contacts, accounts and dotenv blocks become fields. Passwords and keys are marked with a lock.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-diagram" aria-labelledby="tab-diagram" data-tint="diagram" hidden>
 <div class="from"><span class="eyebrow">On your clipboard</span><pre>Copy → Decide → Render → Paste</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/diagram-editorial.webp?v=03bf02615641" width="320" height="320" alt="Diagram card made from the text on the left." loading="lazy" decoding="async"></div>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/diagram-editorial.webp?v=03bf0261061b" width="320" height="320" alt="Diagram card made from the text on the left." loading="lazy" decoding="async"></div>
 <p class="note"><strong>Diagram.</strong> Mermaid flowcharts and plain arrow chains, laid out and routed.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-quote" aria-labelledby="tab-quote" data-tint="quote" hidden>
 <div class="from"><span class="eyebrow">On your clipboard</span><pre>“Simplicity is the ultimate sophistication.”
 — Leonardo da Vinci</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/quote-editorial.webp?v=970bdc015641" width="320" height="320" alt="Quote card made from the text on the left." loading="lazy" decoding="async"></div>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/quote-editorial.webp?v=970bdc01061b" width="320" height="320" alt="Quote card made from the text on the left." loading="lazy" decoding="async"></div>
 <p class="note"><strong>Quote.</strong> An author is shown only when your text has one.</p>
 </div>
 <div class="tabpanel" role="tabpanel" id="panel-changelog" aria-labelledby="tab-changelog" data-tint="changelog" hidden>
@@ -198,7 +198,7 @@ Host: https://staging.example.com</pre></div>
 ### Fixed
 - Long code lines wrap</pre></div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
-<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/changelog-classic.webp?v=e83419ce5641" width="320" height="320" alt="Release notes card made from the text on the left." loading="lazy" decoding="async"></div>
+<div class="to"><span class="eyebrow">Pasted with ⌥V ↩</span><img src="/gallery/en/changelog-classic.webp?v=e83419ce061b" width="320" height="320" alt="Release notes card made from the text on the left." loading="lazy" decoding="async"></div>
 <p class="note"><strong>Release notes.</strong> Keep a Changelog sections, or a version line over its items, become a release card.</p>
 </div>
 </div>
@@ -206,16 +206,16 @@ Host: https://staging.example.com</pre></div>
 <section class="gallery pad" id="templates" data-theme="light" aria-labelledby="templates-title">
 <div class="wrap">
 <div class="gallery-head">
-<h2 class="h2" id="templates-title">19 templates,<br>39 styles.</h2>
+<h2 class="h2" id="templates-title">19 templates,<br>41 styles.</h2>
 <p>Local rules pick the template; you can switch the style after pasting, choose a default per template, or turn one off in Settings. Each style is an open table of type and colour: <a href="https://github.com/anelikes/peesuto/blob/main/docs/templates.md">how templates work</a>.</p>
 </div>
 <ul class="grid">
-<li class="big"><a href="/templates/text/"><img src="/gallery/en/text-poster.webp?v=dd55bea25641" width="320" height="320" alt="Text, Poster" loading="lazy" decoding="async"><p>Text <span>Poster</span></p></a></li>
-<li class="big"><a href="/templates/code/"><img src="/gallery/en/code-classic.webp?v=47cfa5d95641" width="320" height="320" alt="Code, Terminal" loading="lazy" decoding="async"><p>Code <span>Terminal</span></p></a></li>
-<li><a href="/templates/error/"><img src="/gallery/en/error-editorial.webp?v=6cc2ee505641" width="320" height="320" alt="Error, Console" loading="lazy" decoding="async"><p>Error <span>Console</span></p></a></li>
-<li><a href="/templates/stats/"><img src="/gallery/en/stats-classic.webp?v=3baf57cc5641" width="320" height="320" alt="Metrics, Dashboard" loading="lazy" decoding="async"><p>Metrics <span>Dashboard</span></p></a></li>
-<li><a href="/templates/chat/"><img src="/gallery/en/chat-classic.webp?v=5ee0ca165641" width="320" height="320" alt="Conversation, Chat bubbles" loading="lazy" decoding="async"><p>Conversation <span>Chat bubbles</span></p></a></li>
-<li><a href="/templates/timeline/"><img src="/gallery/en/timeline-editorial.webp?v=d671021a5641" width="320" height="320" alt="Schedule, Milestones" loading="lazy" decoding="async"><p>Schedule <span>Milestones</span></p></a></li>
+<li class="big"><a href="/templates/text/"><img src="/gallery/en/text-poster.webp?v=dd55bea2061b" width="320" height="320" alt="Text, Poster" loading="lazy" decoding="async"><p>Text <span>Poster</span></p></a></li>
+<li class="big"><a href="/templates/code/"><img src="/gallery/en/code-classic.webp?v=47cfa5d9061b" width="320" height="320" alt="Code, Terminal" loading="lazy" decoding="async"><p>Code <span>Terminal</span></p></a></li>
+<li><a href="/templates/error/"><img src="/gallery/en/error-editorial.webp?v=6cc2ee50061b" width="320" height="320" alt="Error, Console" loading="lazy" decoding="async"><p>Error <span>Console</span></p></a></li>
+<li><a href="/templates/stats/"><img src="/gallery/en/stats-classic.webp?v=3baf57cc061b" width="320" height="320" alt="Metrics, Dashboard" loading="lazy" decoding="async"><p>Metrics <span>Dashboard</span></p></a></li>
+<li><a href="/templates/chat/"><img src="/gallery/en/chat-classic.webp?v=5ee0ca16061b" width="320" height="320" alt="Conversation, Chat bubbles" loading="lazy" decoding="async"><p>Conversation <span>Chat bubbles</span></p></a></li>
+<li><a href="/templates/timeline/"><img src="/gallery/en/timeline-editorial.webp?v=d671021a061b" width="320" height="320" alt="Schedule, Milestones" loading="lazy" decoding="async"><p>Schedule <span>Milestones</span></p></a></li>
 </ul>
 <p class="gallery-more"><a class="btn btn-primary" href="/templates/">See all 19 templates<svg aria-hidden="true" viewBox="0 0 48 14"><use href="#i-arrow"/></svg></a></p>
 </div>
@@ -227,9 +227,9 @@ Host: https://staging.example.com</pre></div>
 <p class="lede">Both act on what you copied last.</p>
 <ul class="keys-list">
 <li><span class="caps"><kbd>⌥</kbd><kbd>V</kbd></span><div><h3>Paste as…</h3></div>
-<p>A small chooser opens at your caret, with the card already drawn. One more key:</p>
+<p>A small chooser opens at your caret, with the card already drawn. One more key, or ↩ for the highlighted row (Image, until you move it with the arrow keys):</p>
 <dl>
-<dt><kbd class="inline-cap">↩</kbd></dt><dd><strong>Image</strong>: a PNG, pasted into the app you are typing in</dd>
+<dt><kbd class="inline-cap">I</kbd></dt><dd><strong>Image</strong>: a PNG, pasted into the app you are typing in</dd>
 <dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>: the same card, revealed line by line</dd>
 <dt><kbd class="inline-cap">M</kbd></dt><dd><strong>Video</strong>: MP4, made with the ffmpeg on your Mac</dd>
 <dt><kbd class="inline-cap">L</kbd></dt><dd><strong>Lyric motion</strong>: any text as kinetic type, cut into screens at its sentences and clauses</dd>
@@ -244,9 +244,9 @@ Host: https://staging.example.com</pre></div>
 </div>
 <div class="keys-art"><div class="field"><div class="chooser" aria-hidden="true">
 <div class="ch-head">Paste as…<span>Cancel <kbd>esc</kbd></span></div>
-<div class="ch-prev"><img data-card="thumb" src="/gallery/en/text-poster.webp?v=dd55bea25641" width="116" height="116" alt=""></div>
+<div class="ch-prev"><img data-card="thumb" src="/gallery/en/text-poster.webp?v=dd55bea2061b" width="116" height="116" alt=""></div>
 <ul class="ch-rows">
-<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd>↩</kbd></li>
+<li class="on"><svg aria-hidden="true"><use href="#i-image"/></svg>Image<kbd class="ret">↩</kbd><kbd>I</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-gif"/></svg>GIF<kbd>G</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-video"/></svg>Video<kbd>M</kbd></li>
 <li><svg aria-hidden="true"><use href="#i-lyric"/></svg>Lyric motion<kbd>L</kbd></li>
