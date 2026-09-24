@@ -95,3 +95,34 @@ describe("runtime guard", () => {
     expect(logged[0]).not.toContain("牛奶");
   });
 });
+
+describe("painted text (Pocket Motion v0.4.0 paint)", () => {
+  const on = (l: CheckedLine, background = "#fbfaf6") => kinds(layout([{ ...l, text: "hello world", width: 264 }], { background }));
+  test("gradient ink counts both of its stops", () => {
+    expect(on(line({ paint: { gradient: { from: "#18181b", to: "#27272a" } } }))).toEqual([]);
+    expect(on(line({ color: "#18181b", paint: { gradient: { from: "#18181b", to: "#f4f4f5" } } }))).toContain("contrast");
+  });
+  test("hollow text is its outline, and only at the large size", () => {
+    expect(on(line({ size: 96, height: 110, color: "#fbfaf6", paint: { stroke: { width: 3, color: "#b8321e", hollow: true } } }))).toEqual([]);
+    expect(on(line({ size: 96, height: 110, paint: { stroke: { width: 3, color: "#f0ede6", hollow: true } } }))).toContain("contrast");
+    expect(on(line({ size: 40, paint: { stroke: { width: 3, color: "#b8321e", hollow: true } } }))).toContain("contrast");
+  });
+  test("a wide enough outline is a halo: a fill that fails on the ground passes against it", () => {
+    const pale = line({ color: "#f4f4f5" });
+    expect(on(pale)).toContain("contrast");
+    expect(on({ ...pale, paint: { stroke: { width: 40 * CHECK_THRESHOLDS.haloEm, color: "#18181b" } } })).toEqual([]);
+    expect(on({ ...pale, paint: { stroke: { width: 1, color: "#18181b" } } })).toContain("contrast");
+  });
+});
+
+describe("paint class tokens", () => {
+  test("gradient, outline, glow and the soft disc", async () => {
+    const { paintClasses, softFill } = await import("../src/templates/compose.ts");
+    expect(paintClasses(undefined, "#111111")).toBe("text-[#111111]");
+    expect(paintClasses({ gradient: { from: "#ffeeaa", to: "#ff9900", fromAt: 0.22, toAt: 0.86 } }, "#111111"))
+      .toBe("bg-clip-text text-transparent bg-linear-180 from-[#ffeeaa] from-22% to-[#ff9900] to-86%");
+    expect(paintClasses({ stroke: { width: 2, color: "#b8321e", position: "outside", hollow: true }, glow: { radius: 40, color: "#ffd23f66", gain: 1 } }, "#111111"))
+      .toBe("text-transparent text-stroke-[2px] text-stroke-[#b8321e] text-stroke-outside glow-[40px] glow-[#ffd23f66]");
+    expect(softFill("#9a1f13", 0.4)).toBe("bg-[radial-gradient(#9a1f13,#9a1f13_42.4%,#9a1f1300_70.7%)]");
+  });
+});

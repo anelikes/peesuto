@@ -1,4 +1,5 @@
 /** Native engine compositions for structured templates. Legacy DSL composition stays unchanged. */
+import { existsSync } from "node:fs";
 import { copyFile, link, mkdir, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +37,8 @@ export type TemplateFormat = "png" | "gif" | "mp4";
 export interface LayoutOptions {
   /** Default: PNG for a still plan, GIF for an animated one (as renderTemplate picks). */
   readonly format?: TemplateFormat;
+  /** Named faces (TEMPLATE_FACES) the measurer was opened with and that draw every glyph of the card; a style's face slot is used only when listed here. */
+  readonly faces?: readonly string[];
 }
 /** The format a render of `plan` produces when none is given (renderTemplate's default). */
 export const defaultTemplateFormat = (plan: Pick<TemplatePlan, "motion">): TemplateFormat => (plan.motion === "none" ? "png" : "gif");
@@ -43,7 +46,7 @@ export const defaultTemplateFormat = (plan: Pick<TemplatePlan, "motion">): Templ
  * it); `fit` is the height templates size their type against. Fixed frames use
  * the frame height for both; the automatic frame fits against a square and
  * starts the canvas at a per-template minimum so it hugs the content. */
-interface View { width: number; height: number; fit: number; format: TemplateFormat }
+interface View { width: number; height: number; fit: number; format: TemplateFormat; faces?: readonly string[] }
 /* ───────────── Style tokens ─────────────
  * Every colour, size and spacing a template uses lives in these tables;
  * layoutAt() reads only them, so a redesign changes numbers here, not layout
@@ -442,8 +445,9 @@ function accentMask(source: string, emphasis: string | undefined): boolean[] {
 }
 
 export interface TemplateMeasure {
-  width(text: string, size: number, bold: boolean): number;
-  lineHeight(size: number, bold: boolean): number;
+  /** `face`: a named face from TEMPLATE_FACES (absent: the card's font pair). */
+  width(text: string, size: number, bold: boolean, face?: string): number;
+  lineHeight(size: number, bold: boolean, face?: string): number;
 }
 export interface TemplateLine {
   text: string; x: number; y: number; width: number; size: number; height: number; bold: boolean; color: string; group: number;
@@ -461,12 +465,57 @@ export interface TemplateLine {
   emphasis?: boolean;
   /** Drawn this far from its box: vertical punctuation set in the corner of its cell (the box is where the mark lands). */
   offset?: { x: number; y: number };
+  /** Text paint beyond a flat fill (Pocket Motion v0.4.0): outline, gradient ink, glow. Paint only: the box never grows for it. */
+  paint?: TextPaint;
+  /** A named face (TEMPLATE_FACES) instead of the card's font pair: `font-[name]`. */
+  face?: string;
+}
+/**
+ * Paint on a text run. Every glyph is its own Text node, so a gradient spans
+ * one glyph's box: it runs top to bottom (the same on every glyph of a line)
+ * between `fromAt` and `toAt` of the box height, where the ink is.
+ */
+export interface TextPaint {
+  /** An outline `width` px wide; `hollow` draws the ring alone (the fill transparent). */
+  readonly stroke?: { readonly width: number; readonly color: string; readonly position: "outside" | "center"; readonly hollow?: boolean };
+  /** Gradient ink instead of the fill colour, top to bottom. */
+  readonly gradient?: { readonly from: string; readonly to: string; readonly fromAt: number; readonly toAt: number };
+  /** A soft glow behind the glyphs: radius px (CSS blur radius), a colour that may carry alpha, and the gain that thickens it. */
+  readonly glow?: { readonly radius: number; readonly color: string; readonly gain: number };
+}
+/**
+ * A disc's fill with a soft edge: solid to (1 − soft) of its radius, fading to
+ * clear at the radius. A radial gradient (the farthest-corner ellipse of the
+ * square box, so the radius is 1/√2 of it), not a blur layer: it costs a
+ * table lookup per pixel, and a disc hanging off the canvas keeps its shape
+ * (Pocket Motion v0.4.0 blurs only what lies inside the clip, so a blurred
+ * disc cut by the canvas edge shrinks into a smudge).
+ */
+export function softFill(color: string, soft: number): string {
+  const edge = 100 / Math.SQRT2, inner = edge * (1 - Math.min(1, Math.max(0, soft)));
+  const c = color.slice(0, 7);
+  return `bg-[radial-gradient(${c},${c}_${inner.toFixed(1)}%,${c}00_${edge.toFixed(1)}%)]`;
+}
+const pct = (v: number) => `${Math.round(Math.min(1, Math.max(0, v)) * 100)}%`;
+const lengthPx = (v: number) => `${Math.round(v * 100) / 100}px`;
+/** The class tokens for `paint`, and the fill colour token it leaves (none for gradient or hollow ink). */
+export function paintClasses(paint: TextPaint | undefined, color: string): string {
+  if (!paint) return `text-[${color}]`;
+  const out: string[] = [];
+  if (paint.gradient) out.push("bg-clip-text", "text-transparent", "bg-linear-180", `from-[${paint.gradient.from}]`, `from-${pct(paint.gradient.fromAt)}`, `to-[${paint.gradient.to}]`, `to-${pct(paint.gradient.toAt)}`);
+  else if (paint.stroke?.hollow) out.push("text-transparent");
+  else out.push(`text-[${color}]`);
+  if (paint.stroke) out.push(`text-stroke-[${lengthPx(paint.stroke.width)}]`, `text-stroke-[${paint.stroke.color}]`, `text-stroke-${paint.stroke.position}`);
+  if (paint.glow) out.push(`glow-[${lengthPx(paint.glow.radius)}]`, `glow-[${paint.glow.color}]`, ...(paint.glow.gain !== 1 ? [`glow-gain-[${paint.glow.gain}]`] : []));
+  return out.join(" ");
 }
 export interface TemplateRect { x: number; y: number; width: number; height: number; color: string; radius: number;
   /** A two-stop linear gradient instead of the flat colour (the engine draws 4 directions; colours may carry alpha). */
   gradient?: { dir: "t" | "b" | "l" | "r"; from: string; to: string };
   /** The engine's drop shadow. */
   shadow?: "shadow" | "shadow-md" | "shadow-lg";
+  /** A disc whose edge fades out over this share of its radius (0..1): soft decor light, drawn as a radial gradient. */
+  soft?: number;
   /** Reveal group; shapes without one are drawn from the first frame. */
   group?: number }
 /** A small SVG drawn scaled (arrowheads, diamonds). `src` names a file in `assets`.
@@ -502,13 +551,13 @@ function styledGlyphs(text: string, bold: boolean, markdown: boolean): StyledGly
   append(text.slice(cursor), bold);
   return output;
 }
-function styledWidth(glyphs: readonly StyledGlyph[], size: number, measure: TemplateMeasure): number {
+function styledWidth(glyphs: readonly StyledGlyph[], size: number, measure: TemplateMeasure, face?: string): number {
   let width = 0, run = "", bold = glyphs[0]?.bold ?? false;
   for (const glyph of glyphs) {
-    if (glyph.bold !== bold) { width += measure.width(run, size, bold); run = ""; bold = glyph.bold; }
+    if (glyph.bold !== bold) { width += measure.width(run, size, bold, face); run = ""; bold = glyph.bold; }
     run += glyph.text;
   }
-  return width + measure.width(run, size, bold);
+  return width + measure.width(run, size, bold, face);
 }
 /** Glyph indices where a new word begins (ICU word segmentation, which also
  * splits Chinese and Japanese into words). Breaking there keeps 复杂 whole. */
@@ -661,7 +710,8 @@ const snapNear = (n: number): number => SIZES.reduce<number>((best, s) => (Math.
  * readability floor scales exactly with the width, so a style that meets it
  * at the reference width meets it scaled (36 → 48 → 64, 32 → 44 → 56). */
 export function scaledTo<T>(style: T, u: number, parent = ""): T {
-  if (u === 1 || style === null || typeof style !== "object" || parent === "backdrop" || parent === "gifBackdrop") return style;
+  // Engine paint slots (lyrics.ts) are in em of the glyph size and ratios: never scaled.
+  if (u === 1 || style === null || typeof style !== "object" || parent === "backdrop" || parent === "gifBackdrop" || parent === "engine") return style;
   const out: Record<string, unknown> | unknown[] = Array.isArray(style) ? [] : {};
   for (const [key, val] of Object.entries(style as Record<string, unknown>)) {
     let next: unknown;
@@ -730,7 +780,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure, opt
   if (plan.aspect !== "auto") {
     const frame = FRAMES[plan.aspect];
     if (!frame) throw new ComposeError("catalog", "Unknown card frame.");
-    return grownLayout(plan, measure, { ...frame, fit: frame.height, format });
+    return grownLayout(plan, measure, { ...frame, fit: frame.height, format, faces: options.faces ?? [] });
   }
   // Automatic: the first width, trying wider ones when it overflows (a
   // diagram too wide even below the floor); the canvas starts at the
@@ -739,7 +789,7 @@ export function layoutTemplate(plan: TemplatePlan, measure: TemplateMeasure, opt
   let last: unknown;
   for (const width of widths) {
     const minRatio = AUTO_FRAME.minRatio[plan.template] ?? AUTO_FRAME.defaultMinRatio;
-    try { return grownLayout(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width, format }); }
+    try { return grownLayout(plan, measure, { width, height: Math.round(width * minRatio / 2) * 2, fit: width, format, faces: options.faces ?? [] }); }
     catch (error) {
       if (!(error instanceof ComposeError) || error.code !== "overflow") throw error;
       last = error;
@@ -1316,7 +1366,7 @@ function layoutAt(plan: TemplatePlan, measure: TemplateMeasure, view: View, k = 
       break;
     }
     case "lyrics": {
-      const r = layoutLyrics({ plan, content, measure, width: W, height: view.height, fit: view.fit, format: view.format, sizes: SIZES,
+      const r = layoutLyrics({ plan, content, measure, faces: view.faces ?? [], width: W, height: view.height, fit: view.fit, format: view.format, sizes: SIZES,
         minBody: minFontSize(W), minSecondary: minFontSize(W, "secondary"), footerRoom, style: styleOf(LYRICS_STYLES), variant: plan.variant === "editorial" ? "editorial" : "classic" });
       layout.background = r.background; margin = r.margin; signatureColor = r.signatureColor; signatureAlign = r.signatureAlign;
       layout.lines.push(...r.lines); layout.shapes.push(...r.shapes);
@@ -1914,6 +1964,22 @@ export const CODE_FONT_DIR = fileURLToPath(new URL("../render/fonts/", import.me
 export const CODE_FONT = { regular: "PeesutoCode-Regular.ttf", bold: "PeesutoCode-Bold.ttf" } as const;
 export const TEXT_FONT = { regular: "PeesutoText-Regular.ttf", bold: "PeesutoText-Bold.ttf" } as const;
 const BUNDLED_FONTS: Readonly<Record<Exclude<TemplateFont, "noto-sans-sc">, { readonly regular: string; readonly bold: string }>> = { "peesuto-code": CODE_FONT, "peesuto-text": TEXT_FONT };
+/**
+ * Named faces a style may set lines in besides the card's font pair (Pocket
+ * Motion v0.4.0 `fonts.faces`, `font-[name]`): name → files in CODE_FONT_DIR,
+ * both weights (a single-weight face names its file twice). Empty: no extra
+ * face ships until the owner picks one. Adding a face is this entry plus the
+ * style slot that names it (lyrics.ts LYRICS_STYLES[…].engine.faces); the
+ * measurer, the staging, the sidecar and the class tokens follow from here.
+ * A face that lacks a glyph of the card is left out for that card.
+ */
+export const TEMPLATE_FACES: Record<string, { readonly regular: string; readonly bold: string }> = {};
+/** The registered faces a plan's style asks for. */
+export function templateFaceNames(plan: Pick<TemplatePlan, "template" | "variant">): string[] {
+  if (plan.template !== "lyrics") return [];
+  const slot = (LYRICS_STYLES[plan.variant === "editorial" ? "editorial" : "classic"].engine as { faces: { display: string; text: string } | null }).faces;
+  return [...new Set(slot ? [slot.display, slot.text] : [])].filter((name) => name in TEMPLATE_FACES);
+}
 /** Where a staged code font sits in the composition, relative to the work tree root. */
 const CODE_FONT_STAGE = "compositions/paste/fonts";
 
@@ -1964,10 +2030,26 @@ async function stageFont(font: TemplateFont, dir: string): Promise<void> {
 }
 
 interface EngineMeasurer {
-  measure(size: number, bold?: boolean): (text: string) => number;
-  lineHeight(size: number, bold?: boolean): number;
-  unmapped(text: string, size: number, bold?: boolean): string[];
+  measure(size: number, bold?: boolean, face?: string): (text: string) => number;
+  lineHeight(size: number, bold?: boolean, face?: string): number;
+  unmapped(text: string, size: number, bold?: boolean, face?: string): string[];
   close(): Promise<void>;
+}
+
+/** Stage the named faces into the composition (`<dir>/fonts/`) like the code font. */
+async function stageFaces(names: readonly string[], dir: string): Promise<void> {
+  if (!names.length) return;
+  await mkdir(join(dir, "fonts"), { recursive: true });
+  for (const name of new Set(names.flatMap((n) => Object.values(TEMPLATE_FACES[n]!)))) {
+    const from = join(CODE_FONT_DIR, name), to = join(dir, "fonts", name);
+    if (!existsSync(to)) { try { await link(from, to); } catch { await copyFile(from, to); } }
+  }
+}
+/** The sidecar `fonts` entry: the card's pair, plus `faces` when any is used. */
+function sidecarFonts(font: TemplateFont, engine: string, faces: readonly string[]): Record<string, unknown> {
+  const pair = fontFaces(font, engine).composition;
+  if (!faces.length) return pair;
+  return { ...pair, faces: Object.fromEntries(faces.map((n) => [n, { regular: `${CODE_FONT_STAGE}/${TEMPLATE_FACES[n]!.regular}`, bold: `${CODE_FONT_STAGE}/${TEMPLATE_FACES[n]!.bold}` }])) };
 }
 
 export async function composeTemplate(plan: TemplatePlan, options: ComposeOptions & LayoutOptions): Promise<TemplateComposeResult> {
@@ -1987,9 +2069,12 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
   const charset = await Bun.file(new URL("../render/charset.txt", import.meta.url)).text();
   // The measure cache is keyed by the face files' content (and charset, sizes),
   // so Noto and Peesuto Code metrics live in separate cache directories.
+  const wanted = templateFaceNames(plan);
+  const faceFiles = Object.fromEntries(wanted.map((n) => [n, { regular: join(CODE_FONT_DIR, TEMPLATE_FACES[n]!.regular), bold: join(CODE_FONT_DIR, TEMPLATE_FACES[n]!.bold) }]));
   const open = (font: TemplateFont) => api.openMeasurer({
     face: fontFaces(font, options.engine).measure,
-    sizes: SIZES.flatMap((px) => [{ px, bold: false }, { px, bold: true }]), texts: signatureText ? [...texts, signatureText] : texts, density: 1,
+    ...(wanted.length ? { faces: faceFiles } : {}),
+    sizes: [undefined, ...wanted].flatMap((face) => SIZES.flatMap((px) => [{ px, bold: false, ...(face ? { face } : {}) }, { px, bold: true, ...(face ? { face } : {}) }])), texts: signatureText ? [...texts, signatureText] : texts, density: 1,
     cache: { charset, dir: `${work}/dist/.measure` },
   });
   // The chosen face first; if it lacks a glyph of the card (emoji aside), the
@@ -2019,12 +2104,16 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     // A signature the chosen face cannot draw is dropped without a word.
     if (plan.signature && (signatureText === undefined || (signatureText && m.unmapped(signatureText, 40, false).length) || unsupportedScript(plan.signature))) plan = { ...plan, signature: undefined };
     const metrics: TemplateMeasure = {
-      width: (text, size, bold) => splitEmoji(text).reduce((width, run) => width + ("emoji" in run ? size : m.measure(size, bold)(run.text)), 0),
-      lineHeight: (size, bold) => m.lineHeight(size, bold),
+      width: (text, size, bold, face) => splitEmoji(text).reduce((width, run) => width + ("emoji" in run ? size : m.measure(size, bold, face)(run.text)), 0),
+      lineHeight: (size, bold, face) => m.lineHeight(size, bold, face),
     };
-    const layout = layoutTemplate(plan, metrics, { format: options.format ?? defaultTemplateFormat(plan) });
+    // A named face is used only when it draws every glyph of the card (emoji aside).
+    const faces = wanted.filter((face) => texts.every((text) => m.unmapped(text, 40, false, face).length === 0));
+    const layout = layoutTemplate(plan, metrics, { format: options.format ?? defaultTemplateFormat(plan), faces });
     guardLayout(layout, plan);
-    if (layout.lyrics) return await composeLyrics(plan, layout, layout.lyrics, metrics, font, dir, options);
+    const used = [...new Set(layout.lines.flatMap((line) => (line.face ? [line.face] : [])))];
+    await stageFaces(used, dir);
+    if (layout.lyrics) return await composeLyrics(plan, layout, layout.lyrics, metrics, font, dir, options, used);
     // The signature is drawn from the first frame and takes no part in reveal or typing.
     const count = layout.lines.reduce((total, line) => total + (line.signature ? 0 : graphemes(line.text).length), 0);
     // GIF/MP4 keep their frame strictly: taller content scrolls through it.
@@ -2059,7 +2148,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]" src="${image.src}" />`);
     }
     for (const [i, shape] of layout.shapes.entries()) {
-      const fill = shape.gradient ? `bg-gradient-to-${shape.gradient.dir} from-[${shape.gradient.from}] to-[${shape.gradient.to}]` : `bg-[${shape.color}]`;
+      const fill = shape.gradient ? `bg-gradient-to-${shape.gradient.dir} from-[${shape.gradient.from}] to-[${shape.gradient.to}]` : shape.soft ? softFill(shape.color, shape.soft) : `bg-[${shape.color}]`;
       nodes.push(`<View class="absolute left-[${shape.x}px] top-[${shape.y}px] w-[${shape.width}px] h-[${shape.height}px] ${fill} rounded-[${shape.radius}px]${shape.shadow ? ` ${shape.shadow}` : ""}${shapeAnimation(`s${i}`, shape.group)}" />`);
     }
     for (const [i, image] of layout.images.entries()) if (!image.field) nodes.push(`<Image class="absolute left-[${image.x}px] top-[${image.y}px] w-[${image.width}px] h-[${image.height}px]${shapeAnimation(`i${i}`, image.group)}" src="${image.src}" />`);
@@ -2068,7 +2157,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
       const prefix: StyledGlyph[] = [];
       for (const [glyphPosition, glyph] of graphemes(line.text).entries()) {
         const bold = line.boldAt[glyphPosition] ?? line.bold;
-        const x = line.x + (line.offset?.x ?? 0) + styledWidth(prefix, line.size, metrics);
+        const x = line.x + (line.offset?.x ?? 0) + styledWidth(prefix, line.size, metrics, line.face);
         prefix.push({ text: glyph, bold });
         const index = line.signature ? -1 : glyphIndex++;
         if (!glyph.trim()) continue;
@@ -2088,7 +2177,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
           nodes.push(`<Image class="absolute left-[${x}px] top-[${line.y + (line.height - line.size) / 2}px] w-[${line.size}px] h-[${line.size}px]${animation}" src="e_${emoji.key}.png" />`);
         } else {
           const color = line.colorAt?.[glyphPosition] ?? line.color;
-          nodes.push(`<Text class="absolute left-[${x}px] top-[${line.y + (line.offset?.y ?? 0)}px] text-[${line.size}px] ${bold ? "font-bold" : ""} text-[${color}] h-[${line.height}px]${animation}">{${JSON.stringify(glyph)}}</Text>`);
+          nodes.push(`<Text class="absolute left-[${x}px] top-[${line.y + (line.offset?.y ?? 0)}px] text-[${line.size}px] ${bold ? "font-bold" : ""}${line.face ? ` font-[${line.face}]` : ""} ${paintClasses(line.paint, color)} h-[${line.height}px]${animation}">{${JSON.stringify(glyph)}}</Text>`);
         }
       }
     }
@@ -2105,7 +2194,7 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
     await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(keyframes)},animation:${JSON.stringify(animations)}}});\n`);
     await stageFont(font, dir);
     await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: timing.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1,
-      fonts: fontFaces(font, options.engine).composition }, null, 2));
+      fonts: sidecarFonts(font, options.engine, used) }, null, 2));
     await Bun.write(`${dir}/pocket.json`, JSON.stringify({ $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
       id: "dev.pocket-stack.motion-paste", name: "pocketjs-motion-paste", title: `${plan.template} ${plan.variant}`, version: "0.0.0",
       engine: { capabilities: { requires: ["text.glyphs.baked"] } },
@@ -2118,14 +2207,14 @@ export async function composeTemplate(plan: TemplatePlan, options: ComposeOption
 }
 
 /** A lyric video's composition: its own node tree (cuts gated in time) and timing. */
-async function composeLyrics(plan: TemplatePlan, layout: TemplateLayout, program: LyricsProgram, metrics: TemplateMeasure, font: TemplateFont, dir: string, options: ComposeOptions): Promise<TemplateComposeResult> {
+async function composeLyrics(plan: TemplatePlan, layout: TemplateLayout, program: LyricsProgram, metrics: TemplateMeasure, font: TemplateFont, dir: string, options: ComposeOptions, faces: readonly string[]): Promise<TemplateComposeResult> {
   const out = lyricsComposition(layout, program, metrics, plan.variant === "editorial" ? "editorial" : "classic");
   const emoji = await stageEmoji(out.emojiKeys, options.emojiCache, dir, options.emojiBundle);
   await Bun.write(`${dir}/images.json`, JSON.stringify(Object.fromEntries(emoji.map((file) => [file, { linear: true }]))) + "\n");
   await Bun.write(`${dir}/main.tsx`, `// GENERATED template ${plan.template}/${plan.variant}: a lyric video of ${program.cuts.length} cuts.\nimport { mount } from "@pocketjs/framework";\nimport { View, Text${emoji.length ? ", Image" : ""} } from "@pocketjs/framework/components";\nmount(() => (<View class="w-full h-full bg-[${layout.background}]">\n${out.body}\n</View>));\n`);
   await Bun.write(`${dir}/pocket.config.ts`, `import { definePocketConfig } from "../../vendor/pocketjs/framework/src/config.ts";\nexport default definePocketConfig({theme:{keyframes:${JSON.stringify(out.keyframes)},animation:${JSON.stringify(out.animations)}}});\n`);
   await stageFont(font, dir);
-  await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: out.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1, fonts: fontFaces(font, options.engine).composition }, null, 2));
+  await Bun.write(`${dir}/pocket-motion.json`, JSON.stringify({ motion: 1, durationFrames: out.frames, fps: TEMPLATE_LIMITS.fps, supersample: 1, fonts: sidecarFonts(font, options.engine, faces) }, null, 2));
   await Bun.write(`${dir}/pocket.json`, JSON.stringify({ $schema: "https://pocketjs.dev/schema/pocket-2.json", pocket: 2,
     id: "dev.pocket-stack.motion-paste", name: "pocketjs-motion-paste", title: `${plan.template} ${plan.variant}`, version: "0.0.0",
     engine: { capabilities: { requires: ["text.glyphs.baked"] } },

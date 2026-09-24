@@ -3,7 +3,9 @@ import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts
 import { parseLyricLine, parseTemplates, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
 import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, STATS_STYLES, TEMPLATE_LIMITS, TEMPLATE_SCROLL, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
-import { lyricsComposition, lyricsMaxMs, lyricsViolations } from "../src/templates/lyrics.ts";
+import { emphasisPaint, lyricsComposition, lyricsMaxMs, lyricsViolations, LYRICS_STYLES } from "../src/templates/lyrics.ts";
+import { contrastRatio } from "../src/templates/checks.ts";
+import { CODE_FONT, TEMPLATE_FACES, templateFaceNames } from "../src/templates/compose.ts";
 import { TEMPLATE_GIF_FRAME_BUDGET } from "../src/templates/render.ts";
 import { TEMPLATE_REGISTRY } from "../src/templates/registry.ts";
 import { MOTIONS, SIGNATURE_MAX_GRAPHEMES, TEMPLATE_IDS, TemplateInputError, templateSignature, type TemplateContent } from "../src/templates/types.ts";
@@ -955,6 +957,46 @@ describe("lyrics cards", () => {
     expect(() => layoutTemplate(plan(huge), measure, { format: "mp4" })).toThrow(/No content was dropped/);
     // The PNG poster holds all of it (the canvas grows).
     expect(layoutTemplate(plan(huge, "classic", "none"), measure).lines.map((l) => l.text).join("")).toContain("我唱第40句到天亮");
+  });
+  test("engine paint: Stage gilds emphasis with a gradient and a glow, Paper inks it heavier; stops keep contrast; no glow on a light ground or in a GIF", () => {
+    for (const pal of LYRICS_STYLES.classic.motion.palette) {
+      const paint = emphasisPaint(LYRICS_STYLES.classic.engine, pal, 172, 1080, "mp4")!;
+      expect(paint.gradient).toBeDefined();
+      for (const stop of [paint.gradient!.from, paint.gradient!.to]) expect(contrastRatio(stop, pal.bg)).toBeGreaterThanOrEqual(3);
+      // A glow is light: only where the accent is lighter than the ground.
+      expect(Boolean(paint.glow)).toBe(contrastRatio(pal.accent, "#000000") > contrastRatio(pal.bg, "#000000"));
+      expect(emphasisPaint(LYRICS_STYLES.classic.engine, pal, 172, 1080, "gif")!.glow).toBeUndefined();
+    }
+    const paper = emphasisPaint(LYRICS_STYLES.editorial.engine, LYRICS_STYLES.editorial.motion.palette[0]!, 172, 1080, "png")!;
+    expect(paper).toEqual({ stroke: { width: 2, color: LYRICS_STYLES.editorial.motion.palette[0]!.accent, position: "outside" } });
+    // The layout carries the paint on emphasised runs only, in poster and video alike.
+    for (const [variant, motion] of [["classic", "none"], ["classic", "reveal"], ["editorial", "none"], ["editorial", "reveal"]] as const) {
+      const layout = layoutTemplate(plan(JA, variant, motion), measure, { format: motion === "none" ? "png" : "mp4" });
+      expect(layout.lines.filter((l) => l.paint).every((l) => l.emphasis)).toBe(true);
+      expect(layout.lines.some((l) => l.paint)).toBe(true);
+    }
+    // The video: gradient stops animate from the ink at the punch, the entrance blurs in, the big disc is a soft radial light.
+    const p = plan(JA, "classic");
+    const layout = layoutTemplate(p, measure, { format: "mp4" });
+    const composition = lyricsComposition(layout, layout.lyrics!, measure, "classic");
+    expect(composition.body).toContain("bg-clip-text");
+    expect(JSON.stringify(composition.keyframes)).toContain("gradFrom");
+    expect(JSON.stringify(composition.keyframes)).toContain("\"blur\"");
+    expect(lyricsViolations(layout, layout.lyrics!, p)).toEqual([]);
+  });
+  test("named faces: none ship, so nothing changes; a registered face in a style's slot is asked for", () => {
+    expect(Object.keys(TEMPLATE_FACES)).toEqual([]);
+    expect(templateFaceNames({ template: "lyrics", variant: "classic" })).toEqual([]);
+    const engine = LYRICS_STYLES.classic.engine as unknown as { faces: unknown };
+    TEMPLATE_FACES.display = CODE_FONT; engine.faces = { display: "display", text: "display" };
+    try {
+      expect(templateFaceNames({ template: "lyrics", variant: "classic" })).toEqual(["display"]);
+      expect(templateFaceNames({ template: "text", variant: "classic" })).toEqual([]);
+      const layout = layoutTemplate(plan(EN, "classic", "none"), measure, { faces: ["display"] });
+      expect(layout.lines.filter((l) => !l.signature).every((l) => l.face === "display")).toBe(true);
+      // Not measured (or lacking a glyph): the card's own pair.
+      expect(layoutTemplate(plan(EN, "classic", "none"), measure).lines.some((l) => l.face)).toBe(false);
+    } finally { delete TEMPLATE_FACES.display; engine.faces = null; }
   });
   test("the caps match the limits they stand for", () => {
     expect<number>(LYRICS_TIMING.maxMs).toBe(TEMPLATE_SCROLL.startMs + TEMPLATE_SCROLL.maxMs + TEMPLATE_SCROLL.endMs);

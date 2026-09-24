@@ -572,16 +572,34 @@ code or assets are used. Peesuto makes the quick version; the result panel's
 - **Tokens**: `LYRICS_STYLES` (layout, palette, sizes; drawn for 1080 and
   scaled) and `LYRICS_MOTION` (timing and distances in em; not scaled) in
   `core/src/templates/lyrics.ts`.
-- **Engine hooks.** Pocket Motion as pinned draws one font pair per
-  composition, keyframes on translate/rotate/scale/opacity/colour, fill-only
-  shapes, two-stop gradients, no blur or text stroke; `scale` and `rotate`
-  move glyphs without resizing or turning them, which is why "scale" and
-  "rotate" move a whole line's glyphs (the gather, the swing). Each style has
-  an `engine` slot table, all `null` today: `faces` (a display face for lyric
-  lines, a text face for notes), `stroke` (outlined emphasis), `gradientText`
-  (two-stop lyric ink) and `blur` (entrance motion blur, soft decor); the
-  layout already computes every box they need, so switching one on is a
-  token change plus the marked `TODO(engine: …)` spots in `lyrics.ts`.
+- **Engine paint** (Pocket Motion v0.4.0). `scale` and `rotate` move glyphs
+  without resizing or turning them, which is why "scale" and "rotate" move a
+  whole line's glyphs (the gather, the swing). Each style's `engine` table (in
+  em of the glyph size, never scaled with the canvas) switches on the paint:
+  - Stage: the emphasised word in gold-leaf gradient ink (the accent lightened
+    at the top and deepened, hue turned, at the foot; each stop pulled back
+    toward the accent until it keeps the contrast the checks ask for) with a
+    low glow of the accent, lit at the punch. The glow appears only where the
+    accent is lighter than the ground (on the yellow ground a red glow is a
+    smear) and never in a GIF (256 colours step a soft halo into a box).
+  - Paper: the emphasised word inked heavier in vermilion (an outline of its
+    own colour, 1.2% of the size, thickening the regular face). A hollow ring
+    (`hollow: true`) is supported and checked but tangles on dense CJK glyphs
+    at poster sizes, so it is off.
+  - Both: letters come into focus as they enter (a blur that falls to 0 over
+    the entrance, 7% / 5% of the size; not for typing). Stage's big orb is a
+    soft light, a radial gradient fading over 40% of its radius (not a blur
+    layer: the engine blurs only what lies inside the canvas, so a blurred
+    disc hanging off the edge shrinks into a smudge).
+  - `faces` (a display face for lyric lines, a text face for notes) stays
+    null until a face ships: the plumbing is in place (`TEMPLATE_FACES` in
+    compose.ts, measured per face, staged into the composition, declared in
+    the sidecar's `fonts.faces`, `font-[name]` on the lines), so a new face
+    is a registry entry plus the slot. A face lacking a glyph of the card is
+    left out for that card.
+  Contrast checks read the paint (`inkColors` in checks.ts): gradient ink
+  counts both stops, hollow text its outline (and fails below the large
+  size), an outline of at least 4% of the size counts as a halo.
 - **Open in JIZURA** (native result panel, lyrics results only):
   JIZURA's web app takes no lyrics in its URL (it starts from what it saved
   in the browser; checked in its `src/12_ui.js`), so the button copies the

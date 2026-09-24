@@ -8,6 +8,7 @@ section here becomes one.
 ## Unreleased
 
 ### Improved
+- **Lyrics with paint** — in lyric posters and videos, emphasised words now shine: gold gradient ink with a soft glow in the Stage style, a heavier vermilion in Paper; letters come into focus as they appear, and Stage's big disc is a soft light.
 - **Finer code and terminal backdrops** — the Indigo night colour field behind code and terminal cards is now drawn at the card's full resolution with its full grain, instead of a small texture stretched to fit; the faint diagonal weave in its gradients is gone.
 
 ## 0.2.1 — 2026-09-24

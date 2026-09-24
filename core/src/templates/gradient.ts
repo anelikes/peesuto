@@ -57,6 +57,20 @@ export function oklchHex(color: Oklch): string {
   return `#${rgb.map((v) => Math.round(toGamma(Math.min(1, Math.max(0, v))) * 255).toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** #rgb or #rrggbb → OKLCH (hue in degrees, 0..360). */
+export function hexOklch(color: string): Oklch {
+  let hex = color.replace(/^#/, "");
+  if (hex.length === 3) hex = [...hex].map((c) => c + c).join("");
+  const [r, g, b] = [0, 2, 4].map((i) => toLinear(parseInt(hex.slice(i, i + 2), 16) / 255)) as [number, number, number];
+  const l_ = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m_ = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s_ = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_;
+  const A = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_;
+  const B = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_;
+  return { l: L, c: Math.hypot(A, B), h: ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360 };
+}
+
 /** `steps + 1` colours evenly along the arc, as #rrggbb. */
 export function sampleArc(arc: HueArc, steps: number): string[] {
   return Array.from({ length: steps + 1 }, (_, i) => {

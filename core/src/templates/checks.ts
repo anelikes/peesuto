@@ -7,7 +7,11 @@
  * - `overlap`: two text lines drawn over each other.
  * - `contrast`: text against the ground or shape beneath it below WCAG AA
  *   (over a colour-field backdrop: the field's colour at the top, middle and
- *   bottom of the line, so the lightest part under it counts).
+ *   bottom of the line, so the lightest part under it counts). Painted text
+ *   (inkColors): gradient ink counts both of its stops, hollow text its
+ *   outline; a filled glyph with an outline of at least `haloEm` reads if
+ *   its fill stands out from the ground OR from the outline around it (a
+ *   halo). Glow is decoration and never counts.
  * - `untraceable`: drawn text that is not in the source (generated numbers
  *   and the user's signature aside).
  * - `missing`: a source grapheme that is never drawn (a truncation).
@@ -29,7 +33,16 @@ export const CHECK_THRESHOLDS = {
   overflowTolerance: 0.5,
   /** Pixels two line boxes may share before they overlap. */
   overlapTolerance: 1,
+  /** An outline at least this share of the type size separates a fill from the ground like a halo; hollow text below the large size fails. */
+  haloEm: 0.04,
 } as const;
+
+/** The colours a line's glyphs are drawn in: its fill (and per-glyph colours), both stops of gradient ink, or the outline of hollow text. */
+export function inkColors(line: CheckedLine): string[] {
+  if (line.paint?.stroke?.hollow) return [line.paint.stroke.color];
+  if (line.paint?.gradient) return [line.paint.gradient.from, line.paint.gradient.to];
+  return [...new Set([line.color, ...(line.colorAt ?? []).filter((c): c is string => Boolean(c))])];
+}
 
 export type CheckKind = "size" | "overflow" | "overlap" | "contrast" | "untraceable" | "missing";
 /** Overflow, text the source did not say and source text left out never ship; the rest is logged. */
@@ -48,6 +61,11 @@ export interface CheckedLine {
   readonly text: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly size: number;
   readonly color: string; readonly colorAt?: readonly (string | undefined)[];
   readonly secondary?: boolean; readonly signature?: boolean; readonly generated?: boolean;
+  /** Outline and gradient ink (compose.ts TextPaint); glow is not read. */
+  readonly paint?: {
+    readonly stroke?: { readonly width: number; readonly color: string; readonly hollow?: boolean };
+    readonly gradient?: { readonly from: string; readonly to: string };
+  };
 }
 export interface CheckedShape {
   readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly color: string;
@@ -185,13 +203,17 @@ export function checkLayout(layout: CheckedLayout, plan?: Pick<TemplatePlan, "co
     if (line.x < -tol || line.y < -tol || line.x + line.width > W + tol || line.y + line.height > layout.height + tol) {
       out.push({ kind: "overflow", line: index, message: `line ${index} runs outside the ${W}×${layout.height} canvas` });
     }
-    const required = line.size * reference / W >= T.contrast.largeSize ? T.contrast.large : T.contrast.body;
-    const colors = new Set([line.color, ...(line.colorAt ?? []).filter((c): c is string => Boolean(c))]);
+    const large = line.size * reference / W >= T.contrast.largeSize;
+    const required = large ? T.contrast.large : T.contrast.body;
     const mid = line.y + line.height / 2;
     const grounds = new Set([line.x + 1, line.x + line.width / 2, line.x + line.width - 1].flatMap((x) => groundAt(layout, x, mid, line.height / 2)));
+    const stroke = line.paint?.stroke;
+    // A filled glyph inside an outline wide enough to read as a halo is seen against the outline too.
+    const halo = stroke && !stroke.hollow && stroke.width >= line.size * T.haloEm ? stroke.color : undefined;
     let worst = Infinity;
-    for (const color of colors) for (const ground of grounds) worst = Math.min(worst, contrastRatio(color, ground));
+    for (const color of inkColors(line)) for (const ground of grounds) worst = Math.min(worst, Math.max(contrastRatio(color, ground), halo ? contrastRatio(color, halo) : 0));
     if (worst < required) out.push({ kind: "contrast", line: index, message: `line ${index} has ${worst.toFixed(2)}:1 against its ground (needs ${required}:1)` });
+    else if (stroke?.hollow && !large) out.push({ kind: "contrast", line: index, message: `line ${index} is hollow (outline only) below the large size` });
   });
   // Overlap: line boxes sorted by top; only neighbours that start above a box's bottom can meet it.
   const order = layout.lines.map((line, index) => ({ line, index })).filter(({ line }) => line.text.trim()).sort((a, b) => a.line.y - b.line.y);

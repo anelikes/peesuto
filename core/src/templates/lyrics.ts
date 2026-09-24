@@ -13,19 +13,22 @@
  * No JIZURA code or assets are used; Peesuto makes the quick version and hands
  * the lyrics to JIZURA for a full video.
  *
- * Engine notes (Pocket Motion as pinned): one font pair per composition,
- * keyframes on translate/rotate/scale/opacity/colour, `scale` and `rotate`
- * move glyphs but never resize or turn them (so "scale" and "rotate"
- * entrances move a line's glyphs together: they gather in, or the line swings
- * down into place), shapes are fill-only, two-stop gradients, no blur or text
- * stroke. The style tables carry typed `null` slots for what the engine will
- * gain (faces, stroke, gradient text, blur); search for `TODO(engine` below.
+ * Engine notes (Pocket Motion v0.4.0): keyframes on translate/rotate/scale/
+ * opacity/colour and on paint (blur, glow, gradient stops, outline colour);
+ * `scale` and `rotate` move glyphs but never resize or turn them (so "scale"
+ * and "rotate" entrances move a line's glyphs together: they gather in, or
+ * the line swings down into place). Each style's `engine` table switches the
+ * v0.4.0 paint on: emphasis drawn as gradient ink, an outline or with a glow,
+ * a blur-in on entrances and a soft blur on big decor (`emphasisPaint`,
+ * `entranceBlur`, `decorBlur`). `faces` stays null until the owner picks a
+ * display face (compose.ts TEMPLATE_FACES); search for `TODO(engine`.
  */
 import { splitEmoji } from "../render/emoji.ts";
 import { ComposeError, normalizeText } from "../render/compose.ts";
-import { checkLayout, fidelityViolations, type CheckViolation } from "./checks.ts";
+import { checkLayout, contrastRatio, luminance, fidelityViolations, CHECK_THRESHOLDS, type CheckViolation } from "./checks.ts";
+import { hexOklch, oklchHex } from "./gradient.ts";
 import type { LyricLine, TemplateContent, TemplatePlan } from "./types.ts";
-import type { TemplateFormat, TemplateLayout, TemplateLine, TemplateMeasure, TemplateRect } from "./compose.ts";
+import { paintClasses, softFill, type TemplateFormat, type TemplateLayout, type TemplateLine, type TemplateMeasure, type TemplateRect, type TextPaint } from "./compose.ts";
 
 type LyricsContent = Extract<TemplateContent, { kind: "lyrics" }>;
 
@@ -35,19 +38,20 @@ export type LyricEntrance = "rise" | "drop" | "slide" | "scale" | "rotate" | "ty
 export type LyricArrangement = "center" | "left" | "stack" | "vertical";
 export type LyricDecor = "bars" | "orb" | "frame" | "dots" | "rules" | "sun" | "none";
 
-/** Slots for engine features that do not exist yet. Each is null in every
- * style today; when Pocket Motion gains the feature, setting the slot in a
- * style switches it on without touching the layout (the layout already
- * computes every box these would need). */
+/** Pocket Motion paint, per style. In em of the glyph size (or ratios), never
+ * scaled with the canvas (compose.ts scaledTo leaves `engine` alone); null
+ * switches a feature off. Colours come from each cut's palette. */
 interface EngineSlots {
-  /** TODO(engine: faces): a display face for lyric lines and a text face for notes, once a composition can load more than one font pair. */
+  /** TODO(engine: faces): a display face for lyric lines and a text face for notes, by name in compose.ts TEMPLATE_FACES. Null until a face is chosen and shipped. */
   readonly faces: { readonly display: string; readonly text: string } | null;
-  /** TODO(engine: stroke): outlined type, e.g. the emphasised word drawn as an outline over its fill. */
-  readonly stroke: { readonly width: number; readonly color: string } | null;
-  /** TODO(engine: gradient text): lyric ink as a two-stop gradient. */
-  readonly gradientText: { readonly from: string; readonly to: string } | null;
-  /** TODO(engine: blur): a motion blur on entrances and a soft blur on big decor. */
-  readonly blur: { readonly entrance: number; readonly decor: number } | null;
+  /** The emphasised word outlined in the accent: width in em; `hollow` draws the outline alone. */
+  readonly stroke: { readonly widthEm: number; readonly position: "outside" | "center"; readonly hollow: boolean } | null;
+  /** The emphasised word's ink as a vertical gradient around the accent: OKLCH lightness added at the top and at the foot, hue turned toward the foot. */
+  readonly gradientText: { readonly lightTop: number; readonly lightFoot: number; readonly hueTurn: number } | null;
+  /** A soft glow of the accent behind the emphasised word: blur radius in em, peak alpha, gain. */
+  readonly glow: { readonly radiusEm: number; readonly alpha: number; readonly gain: number } | null;
+  /** A blur-in on glyph entrances (deviation in em, animating to 0) and a soft edge on the big decor disc (the share of its radius that fades). */
+  readonly blur: { readonly entranceEm: number; readonly decor: number } | null;
 }
 
 /* Style tokens, drawn for the 1080 reference width and scaled with the
@@ -78,7 +82,9 @@ export const LYRICS_STYLES = {
       title: { size: 144, creditSize: 48, gap: 28 }, note: { size: 36, gap: 28 }, label: { size: 32 },
       underline: { thickness: 10, gap: 4 }, cursor: { thickness: 10 }, frame: { inset: 36, thickness: 8 },
     },
-    engine: { faces: null, stroke: null, gradientText: null, blur: null } as EngineSlots,
+    /** Emphasis: gold-leaf gradient ink with a low glow of the accent; letters come into focus; the big orb is a soft light. */
+    engine: { faces: null, stroke: null, gradientText: { lightTop: 0.09, lightFoot: -0.07, hueTurn: -14 }, glow: { radiusEm: 0.3, alpha: 0.4, gain: 1 },
+      blur: { entranceEm: 0.07, decor: 0.4 } } as EngineSlots,
   },
   /** Paper: warm paper tints, regular editorial type, crossfades, hairline decor; CJK verse set vertically. */
   editorial: {
@@ -100,7 +106,10 @@ export const LYRICS_STYLES = {
       title: { size: 128, creditSize: 48, gap: 36 }, note: { size: 36, gap: 32 }, label: { size: 32 },
       underline: { thickness: 4, gap: 10 }, cursor: { thickness: 4 }, frame: { inset: 40, thickness: 3 },
     },
-    engine: { faces: null, stroke: null, gradientText: null, blur: null } as EngineSlots,
+    /** Emphasis: the word inked heavier in vermilion (an outline of its own colour thickens the regular face, as a pen pressed harder); letters come into focus. Decor stays crisp.
+     * A hollow ring (`hollow: true`) was tried: thin rings tangle on dense CJK glyphs at poster sizes. */
+    engine: { faces: null, stroke: { widthEm: 0.012, position: "outside", hollow: false }, gradientText: null, glow: null,
+      blur: { entranceEm: 0.05, decor: 0 } } as EngineSlots,
   },
 } as const;
 export type LyricsStyle = (typeof LYRICS_STYLES)[keyof typeof LYRICS_STYLES];
@@ -158,22 +167,22 @@ const VERTICAL_SAFE = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}々
 /** Punctuation set in the top-right corner of its cell in a vertical column. */
 const CORNER = /^[，。、．]$/u;
 
-interface Glyph { text: string; size: number; bold: boolean; color: string; emph: boolean }
+interface Glyph { text: string; size: number; bold: boolean; color: string; emph: boolean; paint?: TextPaint; face?: string }
 interface Token { glyphs: Glyph[]; width: number; trail: number }
 interface Row { tokens: Token[]; width: number; height: number; base: number }
 
 class Typesetter {
   constructor(private readonly m: TemplateMeasure, private readonly leading: number) {}
-  lh(size: number, bold: boolean, leading = this.leading): number { return Math.ceil(this.m.lineHeight(size, bold) * leading); }
+  lh(size: number, bold: boolean, leading = this.leading, face?: string): number { return Math.ceil(this.m.lineHeight(size, bold, face) * leading); }
   /** Where a glyph's baseline sits below the top of its line box (Noto's ascender). */
   base(size: number): number { return Math.round(size * 1.16); }
   width(glyphs: readonly Glyph[]): number {
-    let width = 0, run = "", size = glyphs[0]?.size ?? 0, bold = glyphs[0]?.bold ?? false;
+    let width = 0, run = "", size = glyphs[0]?.size ?? 0, bold = glyphs[0]?.bold ?? false, face = glyphs[0]?.face;
     for (const g of glyphs) {
-      if (g.size !== size || g.bold !== bold) { width += this.m.width(run, size, bold); run = ""; size = g.size; bold = g.bold; }
+      if (g.size !== size || g.bold !== bold || g.face !== face) { width += this.m.width(run, size, bold, face); run = ""; size = g.size; bold = g.bold; face = g.face; }
       run += g.text;
     }
-    return width + (run ? this.m.width(run, size, bold) : 0);
+    return width + (run ? this.m.width(run, size, bold, face) : 0);
   }
   /** Words (ICU, so CJK splits between words), closing punctuation kept with the word before, opening with the word after, spaces trailing. */
   tokens(glyphs: readonly Glyph[]): Token[] {
@@ -239,7 +248,7 @@ class Typesetter {
   row(tokens: Token[]): Row {
     const glyphs = tokens.flatMap((t) => t.glyphs);
     const width = tokens.reduce((w, t) => w + t.width, 0) - (tokens.at(-1)?.trail ?? 0);
-    return { tokens, width, height: Math.max(...glyphs.map((g) => this.lh(g.size, g.bold))), base: Math.max(...glyphs.map((g) => this.base(g.size))) };
+    return { tokens, width, height: Math.max(...glyphs.map((g) => this.lh(g.size, g.bold, this.leading, g.face))), base: Math.max(...glyphs.map((g) => this.base(g.size))) };
   }
   /** One row as lines, one per run of the same size, weight, colour and emphasis. Trailing spaces are not drawn. */
   emit(row: Row, x: number, top: number, extra: Partial<TemplateLine> = {}): TemplateLine[] {
@@ -250,13 +259,13 @@ class Typesetter {
     const flush = () => {
       if (!run.length) return;
       const g = run[0]!, text = run.map((r) => r.text).join(""), width = this.width(run);
-      out.push({ text, x: cx, y: top + row.base - this.base(g.size), width, size: g.size, height: this.lh(g.size, g.bold), bold: g.bold, color: g.color, group: 0,
-        boldAt: run.map(() => g.bold), ...extra, ...(g.emph ? { emphasis: true } : {}) });
+      out.push({ text, x: cx, y: top + row.base - this.base(g.size), width, size: g.size, height: this.lh(g.size, g.bold, this.leading, g.face), bold: g.bold, color: g.color, group: 0,
+        boldAt: run.map(() => g.bold), ...extra, ...(g.emph ? { emphasis: true } : {}), ...(g.paint ? { paint: g.paint } : {}), ...(g.face ? { face: g.face } : {}) });
       cx += width; run = [];
     };
     for (const g of glyphs) {
       const r = run[0];
-      if (r && (r.size !== g.size || r.bold !== g.bold || r.color !== g.color || r.emph !== g.emph)) flush();
+      if (r && (r.size !== g.size || r.bold !== g.bold || r.color !== g.color || r.emph !== g.emph || r.face !== g.face)) flush();
       run.push(g);
     }
     flush();
@@ -264,12 +273,57 @@ class Typesetter {
   }
 }
 
-/** Glyphs of `text` (normalized as drawn), emphasised ranges at `emphSize` in `accent`. */
-function glyphsOf(text: string, ranges: readonly (readonly [number, number])[] | undefined, size: number, emphSize: number, bold: boolean, ink: string, accent: string): Glyph[] {
+/** Glyphs of `text` (normalized as drawn), emphasised ranges at `emphSize` in `accent` (with `paint`, when the style paints emphasis). */
+function glyphsOf(text: string, ranges: readonly (readonly [number, number])[] | undefined, size: number, emphSize: number, bold: boolean, ink: string, accent: string, paint?: TextPaint, face?: string): Glyph[] {
   return graphemes(normalizeText(text, "plain")).map((g, i) => {
     const emph = Boolean(ranges?.some(([a, b]) => i >= a && i < b)) && g.trim() !== "";
-    return { text: g, size: emph ? emphSize : size, bold, color: emph ? accent : ink, emph };
+    return { text: g, size: emph ? emphSize : size, bold, color: emph ? accent : ink, emph, ...(emph && paint ? { paint } : {}), ...(face ? { face } : {}) };
   });
+}
+
+/* ───────────── Paint (Pocket Motion v0.4.0) ───────────── */
+/** `color` moved toward `toward` (0..1 of the way) in OKLCH lightness and chroma, keeping `toward`'s hue: used to pull a gradient stop back toward the accent. */
+function mixToward(color: string, toward: string, t: number): string {
+  const a = hexOklch(color), b = hexOklch(toward);
+  return oklchHex({ l: a.l + (b.l - a.l) * t, c: a.c + (b.c - a.c) * t, h: a.h + (((b.h - a.h + 540) % 360) - 180) * t });
+}
+/** `stop` pulled toward `accent` just far enough to keep `ratio` against `ground` (the accent itself if nothing short of it does). */
+function keepContrast(stop: string, accent: string, ground: string, ratio: number): string {
+  if (contrastRatio(stop, ground) >= ratio) return stop;
+  if (contrastRatio(accent, ground) < ratio) return accent;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 16; i++) { const mid = (lo + hi) / 2; if (contrastRatio(mixToward(stop, accent, mid), ground) >= ratio) hi = mid; else lo = mid; }
+  return mixToward(stop, accent, hi);
+}
+/** Alpha appended to #rrggbb. */
+const withAlpha = (color: string, alpha: number) => `${color.slice(0, 7)}${Math.round(Math.min(1, Math.max(0, alpha)) * 255).toString(16).padStart(2, "0")}`;
+/** The contrast an emphasised run needs at `size` on a `width` canvas (checks.ts: large text 3:1, body 4.5:1). */
+const neededRatio = (size: number, width: number) => size * CHECK_THRESHOLDS.readability.referenceWidth / width >= CHECK_THRESHOLDS.contrast.largeSize ? CHECK_THRESHOLDS.contrast.large : CHECK_THRESHOLDS.contrast.body;
+
+/**
+ * How the style paints an emphasised run of `size` px in `palette`, or
+ * undefined for a flat accent. Gradient stops are derived from the accent in
+ * OKLCH and pulled back toward it until each keeps the contrast the checks
+ * ask for; the outline takes the accent; the glow is the accent, translucent.
+ * Hollow outlines only on type at the large size (thin rings below it do not read);
+ * a glow only where the accent is lighter than the ground, and never in a GIF.
+ */
+export function emphasisPaint(engine: EngineSlots, palette: LyricPalette, size: number, width: number, format?: TemplateFormat): TextPaint | undefined {
+  const need = neededRatio(size, width);
+  const accent = hexOklch(palette.accent);
+  const g = engine.gradientText, st = engine.stroke, gl = engine.glow;
+  const hollow = st?.hollow && need === CHECK_THRESHOLDS.contrast.large;
+  const paint: { -readonly [K in keyof TextPaint]: TextPaint[K] } = {};
+  if (g) {
+    const top = oklchHex({ l: Math.min(0.98, accent.l + g.lightTop), c: accent.c, h: accent.h });
+    const foot = oklchHex({ l: Math.max(0.05, accent.l + g.lightFoot), c: accent.c, h: (accent.h + g.hueTurn + 360) % 360 });
+    paint.gradient = { from: keepContrast(top, palette.accent, palette.bg, need), to: keepContrast(foot, palette.accent, palette.bg, need), fromAt: 0.22, toAt: 0.86 };
+  }
+  if (st && (hollow || !st.hollow)) paint.stroke = { width: Math.max(1.5, Math.round(size * st.widthEm * 2) / 2), color: palette.accent, position: st.position, ...(hollow ? { hollow: true } : {}) };
+  // A glow is light: only an accent lighter than its ground glows (on the yellow ground a red glow would be a smear).
+  // Not in a GIF: 256 colours step a soft halo into a visible box.
+  if (gl && format !== "gif" && luminance(palette.accent) > luminance(palette.bg)) paint.glow = { radius: Math.round(size * gl.radiusEm), color: withAlpha(palette.accent, gl.alpha), gain: gl.gain };
+  return Object.keys(paint).length ? paint : undefined;
 }
 
 /* ───────────── Context and result ───────────── */
@@ -277,6 +331,8 @@ export interface LyricsContext {
   readonly plan: TemplatePlan;
   readonly content: LyricsContent;
   readonly measure: TemplateMeasure;
+  /** Named faces the measurer has and that draw every glyph (compose.ts TEMPLATE_FACES); the style's face slot applies only to these. */
+  readonly faces: readonly string[];
   readonly width: number;
   /** The frame height (the minimum canvas height). */
   readonly height: number;
@@ -336,6 +392,12 @@ export interface LyricsCut {
 }
 interface Box { x: number; y: number; width: number; height: number }
 
+/** The named face the style sets `role` in, when it has one and the card can use it (else the card's font pair). */
+function faceOf(ctx: LyricsContext, role: "display" | "text"): string | undefined {
+  const name = ctx.style.engine.faces?.[role];
+  return name && ctx.faces.includes(name) ? name : undefined;
+}
+
 /* ───────────── Entry point ───────────── */
 export function layoutLyrics(ctx: LyricsContext): LyricsResult {
   return ctx.plan.motion === "none" ? poster(ctx) : video(ctx);
@@ -359,7 +421,6 @@ function poster(ctx: LyricsContext): LyricsResult {
   const result: LyricsResult = { background: pal.bg, margin, lines: [], shapes: [], backdrop: [], pinned: [], bottom: margin,
     signatureColor: pal.sub, signatureAlign: s.align === "center" ? "center" : "left" };
   if (s.gradient) {
-    // TODO(engine: gradient text / blur): a soft glow behind the slab when the engine blurs.
     const rect: TemplateRect = { x: 0, y: 0, width: W, height: 0, color: pal.tint, radius: 0, gradient: { dir: "b", from: pal.bg, to: pal.tint } };
     result.shapes.push(rect); result.backdrop.push(rect); result.pinned.push(rect);
   }
@@ -391,7 +452,7 @@ function poster(ctx: LyricsContext): LyricsResult {
     const key = `${units.indexOf(u)}|${size}|${emph}|${width}|${maxRows}`;
     if (rowCache.has(key)) return rowCache.get(key);
     const tokenKey = `${units.indexOf(u)}|${size}|${emph}`;
-    const tokens = tokenCache.get(tokenKey) ?? t.tokens(glyphsOf(u.text, u.ranges, size, emph, s.bold, pal.ink, pal.accent));
+    const tokens = tokenCache.get(tokenKey) ?? t.tokens(glyphsOf(u.text, u.ranges, size, emph, s.bold, pal.ink, pal.accent, emphasisPaint(style.engine, pal, emph, W, ctx.format), faceOf(ctx, "display")));
     tokenCache.set(tokenKey, tokens);
     const result = balancedRows(tokens, width, maxRows);
     rowCache.set(key, result);
@@ -416,7 +477,7 @@ function poster(ctx: LyricsContext): LyricsResult {
   };
   const quietRows = (u: Unit): Row[] | undefined => {
     const size = u.kind === "title" ? secondary(s.title.size) : secondary(u.kind === "credit" ? s.credit.size : u.kind === "label" ? s.label.size : s.note.size);
-    return t.wrap(t.tokens(glyphsOf(u.text, undefined, size, size, u.kind === "title", u.kind === "title" ? pal.accent : pal.sub, pal.accent)), inner);
+    return t.wrap(t.tokens(glyphsOf(u.text, undefined, size, size, u.kind === "title", u.kind === "title" ? pal.accent : pal.sub, pal.accent, undefined, faceOf(ctx, u.kind === "title" ? "display" : "text"))), inner);
   };
   type Set = { rows: Row[][]; gaps: number[]; height: number; widest: number };
   /** Everything set with `line(u)` giving a lyric unit's rows; undefined when a unit does not fit. */
@@ -506,7 +567,7 @@ function poster(ctx: LyricsContext): LyricsResult {
   if (s.orb && y + margin <= ctx.height) {
     const text = unionBox(result.lines.map((l) => ({ x: l.x, y: l.y, width: l.width, height: l.height })));
     const index = result.shapes.length;
-    decorate("orb", W, ctx.height, margin, text, pal, style.motion, result.shapes);
+    decorate("orb", W, ctx.height, margin, text, pal, style.motion, result.shapes, style.engine.blur?.decor ?? 0);
     for (const shape of result.shapes.slice(index)) result.pinned.push(shape);
   }
   return result;
@@ -565,10 +626,12 @@ function verticalPoster(ctx: LyricsContext, result: LyricsResult, margin: number
       for (const [k, glyph] of column.glyphs.entries()) {
         if (!glyph.trim()) continue;
         const emph = column.emph.some(([a, b]) => k >= a && k < b);
-        const w = ctx.measure.width(glyph, column.size, column.bold);
+        const face = faceOf(ctx, column.secondary ? "text" : "display");
+        const w = ctx.measure.width(glyph, column.size, column.bold, face);
         const y = top + column.offset + k * p;
+        const paint = emph ? emphasisPaint(style.engine, pal, column.size, W, ctx.format) : undefined;
         const line: TemplateLine = { text: glyph, x: cx - w / 2, y, width: w, size: column.size, height: p, bold: column.bold, color: emph ? pal.accent : column.color, group: group++, boldAt: [column.bold],
-          ...(column.secondary ? { secondary: true } : {}) };
+          ...(column.secondary ? { secondary: true } : {}), ...(paint ? { paint } : {}), ...(face ? { face } : {}) };
         if (CORNER.test(glyph)) cornerPunctuation(line, cx, y, column.size);
         result.lines.push(line);
       }
@@ -715,10 +778,10 @@ function video(ctx: LyricsContext): LyricsResult {
     // Room for the label on top and the notes and credit underneath.
     const quietSize = secondary(M.note.size);
     const labelRoom = spec.label ? t.lh(secondary(M.label.size), false, 1.2) + Math.round(M.note.gap / 2) : 0;
-    const noteRows = (text: string) => t.wrap(t.tokens(glyphsOf(text, undefined, quietSize, quietSize, false, palette.sub, palette.accent)), W - 2 * margin) ?? [];
+    const noteRows = (text: string) => t.wrap(t.tokens(glyphsOf(text, undefined, quietSize, quietSize, false, palette.sub, palette.accent, undefined, faceOf(ctx, "text"))), W - 2 * margin) ?? [];
     const notes = spec.notes.map(noteRows);
     const creditSize = secondary(M.title.creditSize);
-    const credit = spec.credit ? t.wrap(t.tokens(glyphsOf(spec.credit, undefined, creditSize, creditSize, false, palette.sub, palette.accent)), W - 2 * margin) ?? [] : [];
+    const credit = spec.credit ? t.wrap(t.tokens(glyphsOf(spec.credit, undefined, creditSize, creditSize, false, palette.sub, palette.accent, undefined, faceOf(ctx, "text"))), W - 2 * margin) ?? [] : [];
     const quietH = [...notes.flat(), ...credit].reduce((h, r) => h + r.height, 0) + (notes.length || credit.length ? M.note.gap : 0);
     const box = { x: margin, y: margin + labelRoom, width: W - 2 * margin, height: H - 2 * margin - ctx.footerRoom() - labelRoom - quietH };
     const block = arrangement === "vertical"
@@ -737,7 +800,7 @@ function video(ctx: LyricsContext): LyricsResult {
       qy += row.height;
     }
     if (spec.label) {
-      const rows = t.wrap(t.tokens(glyphsOf(spec.label, undefined, secondary(M.label.size), secondary(M.label.size), false, palette.sub, palette.accent)), W - 2 * margin) ?? [];
+      const rows = t.wrap(t.tokens(glyphsOf(spec.label, undefined, secondary(M.label.size), secondary(M.label.size), false, palette.sub, palette.accent, undefined, faceOf(ctx, "text"))), W - 2 * margin) ?? [];
       let ly = margin;
       for (const row of rows) { for (const line of t.emit(row, margin, ly, { secondary: true })) { quiet.push(result.lines.length); result.lines.push(line); } ly += row.height; }
     }
@@ -751,7 +814,7 @@ function video(ctx: LyricsContext): LyricsResult {
       result.shapes.push({ x: line.x, y: line.y + t.base(line.size) + u.gap, width: line.width, height: u.thickness, color: palette.accent, radius: u.thickness / 2 });
     }
     const outer = unionBox([block.box, ...result.lines.slice(firstLine).map((l) => ({ x: l.x, y: l.y, width: l.width, height: l.height }))]);
-    const decorShapes = decorate(decor, W, H, margin, outer, palette, M, result.shapes);
+    const decorShapes = decorate(decor, W, H, margin, outer, palette, M, result.shapes, style.engine.blur?.decor ?? 0);
     // Timing: the cut's ground comes in during the transition before `start`.
     const start = at;
     const inAt = i === 0 ? 0 : start - timing.transitionMs;
@@ -782,7 +845,8 @@ function horizontalCut(ctx: LyricsContext, t: Typesetter, spec: CutSpec, palette
   const stack = arrangement === "stack";
   for (const size of sizes) {
     const emph = snapUp(ctx.sizes, size * 1.2);
-    const segments = spec.segments.map((seg) => t.tokens(glyphsOf(seg.text, seg.emphasis, size, emph, bold, palette.ink, palette.accent)));
+    const paint = emphasisPaint(ctx.style.engine, palette, emph, ctx.width, ctx.format);
+    const segments = spec.segments.map((seg) => t.tokens(glyphsOf(seg.text, seg.emphasis, size, emph, bold, palette.ink, palette.accent, paint, faceOf(ctx, "display"))));
     const wrapAll = (width: number, split = true): Row[] | undefined => {
       const rows: Row[] = [];
       for (const tokens of segments) { const r = t.wrap(tokens, width, split); if (!r) return; rows.push(...r); }
@@ -871,9 +935,11 @@ function verticalCut(ctx: LyricsContext, spec: CutSpec, palette: LyricPalette, b
       for (const [k, glyph] of column.glyphs.entries()) {
         if (!glyph.trim()) continue;
         const i = column.from + k, emph = ranges[column.seg]!.some(([a, b]) => i >= a && i < b);
-        const w = ctx.measure.width(glyph, size, M.bold);
+        const face = faceOf(ctx, "display");
+        const w = ctx.measure.width(glyph, size, M.bold, face);
+        const paint = emph ? emphasisPaint(ctx.style.engine, palette, size, ctx.width, ctx.format) : undefined;
         const line: TemplateLine = { text: glyph, x: cx - w / 2, y: top + k * pitch, width: w, size, height: pitch, bold: M.bold, color: emph ? palette.accent : palette.ink, group: 0, boldAt: [M.bold],
-          ...(emph ? { emphasis: true } : {}) };
+          ...(emph ? { emphasis: true } : {}), ...(paint ? { paint } : {}), ...(face ? { face } : {}) };
         if (CORNER.test(glyph)) cornerPunctuation(line, cx, top + k * pitch, size);
         lines.push(line);
       }
@@ -885,7 +951,7 @@ function verticalCut(ctx: LyricsContext, spec: CutSpec, palette: LyricPalette, b
 }
 
 /** Decor shapes for one cut, kept clear of everything the cut writes. Returns their indices. */
-function decorate(kind: LyricDecor, W: number, H: number, margin: number, text: Box, palette: LyricPalette, M: MotionStyle, shapes: TemplateRect[]): number[] {
+function decorate(kind: LyricDecor, W: number, H: number, margin: number, text: Box, palette: LyricPalette, M: MotionStyle, shapes: TemplateRect[], soft = 0): number[] {
   const out: number[] = [];
   const add = (rect: TemplateRect) => { out.push(shapes.length); shapes.push(rect); };
   const pad = Math.round(margin * 0.3);
@@ -909,8 +975,9 @@ function decorate(kind: LyricDecor, W: number, H: number, margin: number, text: 
       // A big quiet disc in the corner farthest from the text, as large as the clearance allows.
       const cx = text.x + text.width / 2 < W / 2 ? W : 0, cy = text.y + text.height / 2 < H / 2 ? H : 0;
       for (let r = Math.round(Math.min(W, H) * 0.42); r >= Math.round(Math.min(W, H) * 0.12); r -= Math.round(20 * u)) {
-        const rect = { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, color: palette.tint, radius: r };
-        if (clear(rect)) { add(rect); return out; }
+        const rect: TemplateRect = { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, color: palette.tint, radius: r };
+        // A soft light rather than a hard disc; the clearance counts its full radius, where it has faded to nothing.
+        if (clear(rect)) { if (soft) rect.soft = soft; add(rect); return out; }
       }
       return out;
     }
@@ -978,7 +1045,7 @@ const hex = (color: string) => color.replace(/^#/, "");
 
 /** The lyric video as Pocket Motion nodes and baked animations. */
 export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram, measure: TemplateMeasure, variant: keyof typeof LYRICS_STYLES): LyricsComposition {
-  const timing = LYRICS_MOTION[variant];
+  const timing = LYRICS_MOTION[variant], engine: EngineSlots = LYRICS_STYLES[variant].engine;
   const W = layout.width, H = program.frameHeight;
   const keyframes: Record<string, unknown> = {}, animations: Record<string, { value: string }> = {};
   const emojiKeys = new Set<string>();
@@ -987,14 +1054,15 @@ export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram
   const key = (name: string, frames: Record<string, Record<string, string>>) => { keyframes[name] ??= frames; return name; };
   const cubic = { out: "cubic-bezier(0.16,1,0.3,1)", back: "cubic-bezier(0.34,1.56,0.64,1)", inOut: "cubic-bezier(0.65,0,0.35,1)", in: "cubic-bezier(0.5,0,0.75,0)" };
   const view = (box: Box, extra: string, children: string[]) => `<View class="absolute left-[${px(box.x)}] top-[${px(box.y)}] w-[${px(box.width)}] h-[${px(box.height)}]${extra}">\n${children.join("\n")}\n</View>`;
-  const rectNode = (r: TemplateRect, dx: number, dy: number, extra = "") => `<View class="absolute left-[${px(r.x - dx)}] top-[${px(r.y - dy)}] w-[${px(r.width)}] h-[${px(r.height)}] bg-[${r.color}] rounded-[${px(r.radius)}]${extra}" />`;
-  const glyphNode = (text: string, x: number, y: number, line: TemplateLine, color: string, anim: string) => {
+  const rectNode = (r: TemplateRect, dx: number, dy: number, extra = "") => `<View class="absolute left-[${px(r.x - dx)}] top-[${px(r.y - dy)}] w-[${px(r.width)}] h-[${px(r.height)}] ${r.soft ? softFill(r.color, r.soft) : `bg-[${r.color}]`} rounded-[${px(r.radius)}]${extra}" />`;
+  /** `ink` is the colour/paint class tokens (compose.ts paintClasses). */
+  const glyphNode = (text: string, x: number, y: number, line: TemplateLine, ink: string, anim: string) => {
     const emoji = splitEmoji(text).find((run) => "emoji" in run);
     if (emoji && "emoji" in emoji) {
       emojiKeys.add(emoji.key);
       return `<Image class="absolute left-[${px(x)}] top-[${px(y + (line.height - line.size) / 2)}] w-[${line.size}px] h-[${line.size}px]${anim}" src="e_${emoji.key}.png" />`;
     }
-    return `<Text class="absolute left-[${px(x)}] top-[${px(y)}] text-[${line.size}px] ${line.bold ? "font-bold" : ""} text-[${color}] h-[${px(line.height)}]${anim}">{${JSON.stringify(text)}}</Text>`;
+    return `<Text class="absolute left-[${px(x)}] top-[${px(y)}] text-[${line.size}px] ${line.bold ? "font-bold" : ""}${line.face ? ` font-[${line.face}]` : ""} ${ink} h-[${px(line.height)}]${anim}">{${JSON.stringify(text)}}</Text>`;
   };
   const signature = layout.lines.filter((l) => l.signature);
   const nodes: string[] = [];
@@ -1071,29 +1139,54 @@ export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram
       let prefix = "";
       const baseX = offset ? line.x + offset.x : line.x, baseY = offset ? line.y + offset.y : line.y;
       for (const g of glyphs) {
-        const gx = baseX + (offset ? 0 : measure.width(prefix, line.size, line.bold));
+        const gx = baseX + (offset ? 0 : measure.width(prefix, line.size, line.bold, line.face));
         prefix += g;
         if (!g.trim()) continue;
         const k = order++;
         const delay = typing ? S + k * typeStep : S + (n > 1 ? (window * k) / (n - 1) : 0);
         const s = line.size;
+        // Letters come into focus as they arrive: a blur that falls to 0 over the entrance (not for typing).
+        const b = engine.blur && !typing ? Math.round(s * engine.blur.entranceEm * 10) / 10 : 0;
+        const focus = (from: Record<string, string>) => (b ? { ...from, blur: px(b) } : from);
+        const sharp = (to: Record<string, string>) => (b ? { ...to, blur: "0px" } : to);
+        const tag = b ? `b${Math.round(b * 10)}` : "";
         let value: string;
         switch (entrance) {
-          case "rise": value = `${key(`lrise${Math.round(s * timing.riseEm)}`, { from: { opacity: "0", translateY: px(s * timing.riseEm) }, to: { opacity: "1", translateY: "0px" } })} ${ms(enterMs)} ${cubic.out} ${ms(delay)} both`; break;
-          case "drop": { const d = Math.round(s * 0.7); value = `${key(`ldrop${d}`, { from: { opacity: "0", translateY: px(-d) }, "45%": { opacity: "1", translateY: px(d * 0.12) }, "72%": { opacity: "1", translateY: px(-d * 0.04) }, to: { opacity: "1", translateY: "0px" } })} ${ms(enterMs + 80)} ${cubic.out} ${ms(delay)} both`; break; }
-          case "slide": value = `${key(`lslide${Math.round(s * timing.slideEm)}`, { from: { opacity: "0", translateX: px(-s * timing.slideEm) }, to: { opacity: "1", translateX: "0px" } })} ${ms(enterMs)} ${cubic.out} ${ms(delay)} both`; break;
+          case "rise": value = `${key(`lrise${Math.round(s * timing.riseEm)}${tag}`, { from: focus({ opacity: "0", translateY: px(s * timing.riseEm) }), to: sharp({ opacity: "1", translateY: "0px" }) })} ${ms(enterMs)} ${cubic.out} ${ms(delay)} both`; break;
+          case "drop": { const d = Math.round(s * 0.7); value = `${key(`ldrop${d}${tag}`, { from: focus({ opacity: "0", translateY: px(-d) }), "45%": { opacity: "1", translateY: px(d * 0.12), ...(b ? { blur: px(b * 0.25) } : {}) }, "72%": sharp({ opacity: "1", translateY: px(-d * 0.04) }), to: sharp({ opacity: "1", translateY: "0px" }) })} ${ms(enterMs + 80)} ${cubic.out} ${ms(delay)} both`; break; }
+          case "slide": value = `${key(`lslide${Math.round(s * timing.slideEm)}${tag}`, { from: focus({ opacity: "0", translateX: px(-s * timing.slideEm) }), to: sharp({ opacity: "1", translateX: "0px" }) })} ${ms(enterMs)} ${cubic.out} ${ms(delay)} both`; break;
           case "type": value = `${key("ltype", { from: { opacity: "0" }, to: { opacity: "1" } })} 17ms linear ${ms(delay)} both`; break;
-          default: value = `${key("lfade", { from: { opacity: "0" }, to: { opacity: "1" } })} ${ms(Math.min(enterMs, 380))} ease-out ${ms(delay)} both`;
+          default: value = `${key(`lfade${tag}`, { from: focus({ opacity: "0" }), to: sharp({ opacity: "1" }) })} ${ms(Math.min(enterMs, 380))} ease-out ${ms(delay)} both`;
         }
-        // The emphasised word turns from ink to the accent at the punch.
-        if (emph) value += `, ${key(`lglow${hex(p.ink)}${hex(line.color)}`, { from: { color: p.ink }, to: { color: line.color } })} 260ms ease-out ${ms(punchAt)} both`;
-        if (typing) cursorStops.push({ t: delay, left: gx - box.x, x: gx + measure.width(g, line.size, line.bold) - box.x, y: line.y - box.y, h: line.size });
-        run.push(glyphNode(g, gx - (emph ? line.x : box.x), baseY - (emph ? line.y : box.y), line, emph ? p.ink : line.color, animate(value)));
+        // The emphasised word turns from ink to its paint at the punch: gradient stops, outline and fill colours animate; the classes hold the state before it.
+        let ink = paintClasses(undefined, line.color);
+        if (emph) {
+          const paint = line.paint, clear = (c: string) => withAlpha(c, 0);
+          if (paint?.gradient) {
+            const g = paint.gradient;
+            ink = paintClasses({ gradient: { ...g, from: p.ink, to: p.ink } }, p.ink);
+            value += `, ${key(`lgild${hex(p.ink)}${hex(g.from)}${hex(g.to)}`, { from: { gradFrom: p.ink, gradTo: p.ink }, to: { gradFrom: g.from, gradTo: g.to } })} 320ms ease-out ${ms(punchAt)} both`;
+          } else if (paint?.stroke) {
+            const st = paint.stroke, fill = st.hollow ? clear(p.ink) : line.color;
+            ink = `${paintClasses({ stroke: { ...st, hollow: false, color: clear(st.color) } }, p.ink)}`;
+            value += `, ${key(`lring${hex(p.ink)}${hex(fill)}${hex(st.color)}`, { from: { color: p.ink, textStrokeColor: clear(st.color) }, to: { color: fill, textStrokeColor: st.color } })} 320ms ease-out ${ms(punchAt)} both`;
+          } else {
+            ink = paintClasses(undefined, p.ink);
+            value += `, ${key(`lglow${hex(p.ink)}${hex(line.color)}`, { from: { color: p.ink }, to: { color: line.color } })} 260ms ease-out ${ms(punchAt)} both`;
+          }
+        }
+        if (typing) cursorStops.push({ t: delay, left: gx - box.x, x: gx + measure.width(g, line.size, line.bold, line.face) - box.x, y: line.y - box.y, h: line.size });
+        run.push(glyphNode(g, gx - (emph ? line.x : box.x), baseY - (emph ? line.y : box.y), line, ink, animate(value)));
       }
       if (emph) {
         const r = { x: line.x - box.x, y: line.y - box.y, width: line.width, height: line.height };
         const lift = Math.round(line.size * 0.2);
-        textNodes.push(view(r, animate(`${key(`lpunch${lift}`, { "0%": { translateY: "0px", scale: "1" }, "35%": { translateY: px(-lift), scale: "1.18" }, "68%": { translateY: px(lift * 0.15), scale: "0.98" }, "100%": { translateY: "0px", scale: "1" } })} ${ms(timing.punchMs)} ${cubic.out} ${ms(punchAt)} both`), run));
+        const punch = `${key(`lpunch${lift}`, { "0%": { translateY: "0px", scale: "1" }, "35%": { translateY: px(-lift), scale: "1.18" }, "68%": { translateY: px(lift * 0.15), scale: "0.98" }, "100%": { translateY: "0px", scale: "1" } })} ${ms(timing.punchMs)} ${cubic.out} ${ms(punchAt)} both`;
+        // A glow, one layer for the whole word, lit at the punch.
+        const glow = line.paint?.glow;
+        const lit = glow ? `, ${key(`llit${hex(glow.color)}`, { from: { dropShadowColor: withAlpha(glow.color, 0) }, to: { dropShadowColor: glow.color } })} 420ms ease-out ${ms(punchAt)} both` : "";
+        const glowClass = glow ? ` glow-[${glow.radius}px] glow-[${withAlpha(glow.color, 0)}]${glow.gain !== 1 ? ` glow-gain-[${glow.gain}]` : ""}` : "";
+        textNodes.push(view(r, `${glowClass}${animate(punch + lit)}`, run));
       } else textNodes.push(...run);
     }
     // Typewriter: a caret that follows the typing, then blinks.
@@ -1118,9 +1211,9 @@ export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram
       const anim = animate(`${key(`lquiet${Math.round(line.size * 0.3)}`, { from: { opacity: "0", translateY: px(line.size * 0.3) }, to: { opacity: "1", translateY: "0px" } })} 480ms ${cubic.out} ${ms(S + (cut.text.length ? Math.min(window + enterMs, cut.hold * 0.5) * 0.6 : 0))} both`);
       const run: string[] = [];
       for (const g of graphemes(line.text)) {
-        const gx = line.x + measure.width(prefix, line.size, line.bold);
+        const gx = line.x + measure.width(prefix, line.size, line.bold, line.face);
         prefix += g;
-        if (g.trim()) run.push(glyphNode(g, gx - outer.x, line.y - outer.y, line, line.color, ""));
+        if (g.trim()) run.push(glyphNode(g, gx - outer.x, line.y - outer.y, line, paintClasses(undefined, line.color), ""));
       }
       quietNodes.push(view({ x: 0, y: 0, width: outer.width, height: outer.height }, anim, run));
     }
@@ -1136,9 +1229,9 @@ export function lyricsComposition(layout: TemplateLayout, program: LyricsProgram
     for (const line of signature) {
       let prefix = "";
       for (const g of graphemes(line.text)) {
-        const gx = line.x + measure.width(prefix, line.size, line.bold);
+        const gx = line.x + measure.width(prefix, line.size, line.bold, line.face);
         prefix += g;
-        if (g.trim()) inner.push(glyphNode(g, gx, line.y, line, p.sub, i === 0 ? "" : animate(`${key("lfadein", { from: { opacity: "0" }, to: { opacity: "1" } })} ${ms(timing.transitionMs)} ease-in-out ${ms(cut.inAt)} both`)));
+        if (g.trim()) inner.push(glyphNode(g, gx, line.y, line, paintClasses(undefined, p.sub), i === 0 ? "" : animate(`${key("lfadein", { from: { opacity: "0" }, to: { opacity: "1" } })} ${ms(timing.transitionMs)} ease-in-out ${ms(cut.inAt)} both`)));
       }
     }
     // Gates: a cut appears when its transition starts and is hidden once the next one covers it.
