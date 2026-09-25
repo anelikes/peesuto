@@ -4,7 +4,7 @@ import { CUT_MAX_UNITS, parseLyricLine, parseLyrics, parseTemplates, splitCuts, 
 import { renderKeyParts } from "../src/daemon/precompose.ts";
 import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, STATS_STYLES, TEMPLATE_LIMITS, TEMPLATE_SCROLL, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { cutSpecs, emphasisPaint, lyricsComposition, lyricsMaxMs, lyricsViolations, LYRICS_STYLES, LYRICS_VARIANTS, Typesetter } from "../src/templates/lyrics.ts";
-import { chunked } from "../src/templates/lyric-video.ts";
+import { chunked, withLyricForce } from "../src/templates/lyric-video.ts";
 import { loadFace, missingGlyphs, plateGeometry, plateWidth, renderPlate } from "../src/templates/type-raster.ts";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -1045,6 +1045,23 @@ describe("lyrics cards", () => {
     expect(lines[1]).toBeGreaterThanOrEqual(3498); expect(lines[1]).toBeLessThanOrEqual(3502);
     // Typewriter types every cut.
     expect(layoutTemplate(plan(EN, "classic", "typewriter"), measure, { format: "gif" }).lyrics!.cuts.every((c) => c.entrance === "type")).toBe(true);
+  });
+  test("the tooling override pins each cut's layout, entrance, hold and transition, and only inside withLyricForce", () => {
+    const text = "晚风吹亮*月光*\n我们慢慢走回家\n路灯一盏盏醒来";
+    const seen: number[] = [];
+    const forced = withLyricForce({ layout: "center", entrance: "slice", hold: "jitter", transition: "glitch", decor: "rules", shapeMotion: "pulse", chroma: false, micro: false, chunk: false, onProgram: (p) => seen.push(p.cuts.length) },
+      () => layoutTemplate(plan(text, "editorial"), measure, { format: "gif" }).lyrics!);
+    expect(forced.cuts.length).toBe(3);
+    expect(seen).toEqual([3]);
+    for (const [i, cut] of forced.cuts.entries()) {
+      expect(cut).toMatchObject({ layout: "center", entrance: "slice", motion: "jitter", transition: i ? "glitch" : "none", chroma: false });
+      expect(cut.shapes.length).toBeGreaterThan(0);
+      expect(cut.shapes.every((s) => s.motion === "pulse")).toBe(true);
+    }
+    // A forced layout that cannot set a cut says so; outside the hook the planner is untouched.
+    expect(() => withLyricForce({ layout: "vertical" }, () => layoutTemplate(plan("Paper moon\nWalk me home"), measure, { format: "gif" }))).toThrow(/forced layout/);
+    const free = layoutTemplate(plan(text, "editorial"), measure, { format: "gif" }).lyrics!;
+    expect(free.cuts.some((c) => c.entrance !== "slice" || c.motion !== "jitter")).toBe(true);
   });
   test("the vocabulary: many layouts per style, big type, chunked lines, stepped motion where the style asks", () => {
     const used = new Map<string, Set<string>>();

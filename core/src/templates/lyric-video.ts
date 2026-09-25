@@ -21,6 +21,7 @@
  * type plate (type-raster.ts): the line keeps its place in the layout like any
  * other and is drawn as an image.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import { ComposeError, normalizeText } from "../render/compose.ts";
 import { checkLayout, fidelityViolations, type CheckViolation } from "./checks.ts";
@@ -34,6 +35,38 @@ import {
 } from "./lyrics.ts";
 
 type MotionStyle = LyricsStyle["motion"];
+
+/* ───────────── Tooling override ───────────── */
+/**
+ * Pins parts of the planner's choice for every cut, so a tool can show one
+ * effect in isolation (scripts/lyric-gallery.ts). Tooling only: nothing in the
+ * app sets it and it is not part of a plan, so no user input reaches it. The
+ * title cut keeps its own layout; a forced layout that cannot set a cut throws.
+ */
+export interface LyricForce {
+  readonly layout?: LyricLayout;
+  readonly entrance?: LyricEntrance;
+  readonly hold?: LyricHold;
+  /** The transition into every cut after the first. */
+  readonly transition?: LyricTransition;
+  /** The ambient decor (drawn on layouts that are not busy). */
+  readonly decor?: LyricDecor;
+  /** How every shape of a cut (layout shapes and decor) comes in. */
+  readonly shapeMotion?: LyricShapeMotion;
+  /** Chromatic ghosts on or off. */
+  readonly chroma?: boolean;
+  /** False: no micro-copy. */
+  readonly micro?: boolean;
+  /** False: lines are never broken into chunks; true: every line that can be is. */
+  readonly chunk?: boolean;
+  /** Called with every program planned inside (to report what each cut used). */
+  readonly onProgram?: (program: LyricsProgram) => void;
+}
+const forced = new AsyncLocalStorage<LyricForce>();
+/** Runs `fn` (sync or async) with `force` applied to every lyric video composed inside it. */
+export function withLyricForce<T>(force: LyricForce, fn: () => T): T {
+  return forced.run(force, fn);
+}
 type Vocab = (typeof LYRICS_MOTION)[keyof typeof LYRICS_MOTION];
 
 /* ───────────── Weighted choice ───────────── */
@@ -1036,6 +1069,7 @@ export function video(ctx: LyricsContext): LyricsResult {
   const H = ctx.plan.aspect === "auto" ? ctx.fit : ctx.height;
   const M = style.motion, V: Vocab = LYRICS_MOTION[variant], T = LYRICS_TIMING;
   const random = generator(seedOf(`${ctx.plan.sourceText}\u0000${variant}`));
+  const force = forced.getStore() ?? {};
   const cap = lyricsMaxMs(W, H, ctx.format);
   const beatMs = 60000 / V.bpm;
   const typewriter = ctx.plan.motion === "typewriter";
@@ -1045,6 +1079,7 @@ export function video(ctx: LyricsContext): LyricsResult {
     const out: LyricTransition[] = [];
     for (let i = 0; i < list.length; i++) {
       if (i === 0) { out.push("none"); continue; }
+      if (force.transition) { out.push(force.transition); continue; }
       // Within a line the chunks cut hard (now and then a flash); lines change by the style's transitions.
       if (list[i]!.part) { const r = random(); out.push(V.transitions.fade && V.koma === 0 && r < 0.5 ? "fade" : r < 0.8 ? "cut" : "flash"); continue; }
       const prev = out[i - 1];
@@ -1066,7 +1101,7 @@ export function video(ctx: LyricsContext): LyricsResult {
     return durations && { durations, tail };
   };
   const whole = cutSpecs(content);
-  let specs = chunked(whole, new Typesetter(ctx.measure, M.leading), random, V.chunk);
+  let specs = force.chunk === false ? whole : chunked(whole, new Typesetter(ctx.measure, M.leading), random, force.chunk ? 1 : V.chunk);
   let transitions = planTransitions(specs);
   let fitted = fit(specs, transitions);
   // Too long: lines whole again, then two lines a screen.
@@ -1118,6 +1153,9 @@ export function video(ctx: LyricsContext): LyricsResult {
     let draft: Draft | undefined, layout: LyricLayout = "center";
     if (spec.kind === "title") {
       for (const l of ["giant", "center"] as const) { draft = LAYOUTS[l](env); if (draft) { layout = l; break; } }
+    } else if (force.layout) {
+      draft = LAYOUTS[force.layout](env); layout = force.layout;
+      if (!draft) throw new ComposeError("overflow", `The forced layout "${force.layout}" cannot set cut ${i + 1} in this frame.`);
     } else {
       const pool = LYRIC_LAYOUTS.map((l) => {
         const base = (V.layouts as Partial<Record<LyricLayout, number>>)[l] ?? 0;
@@ -1138,13 +1176,13 @@ export function video(ctx: LyricsContext): LyricsResult {
     recent.push(layout);
     // Entrance, hold and ghosts.
     const allowed = draft.entrances ?? GLYPH_ENTRANCES;
-    const entrance: LyricEntrance = typewriter ? "type" : spec.kind === "title" ? (allowed.includes("zoom") ? "zoom" : "rise")
-      : weighted(random, allowed.map((e) => [e, ((V.entrances as Partial<Record<LyricEntrance, number>>)[e] ?? 0.05) * (e === prevEntrance ? 0.3 : 1)] as const)) ?? allowed[0]!;
+    const entrance: LyricEntrance = force.entrance ?? (typewriter ? "type" : spec.kind === "title" ? (allowed.includes("zoom") ? "zoom" : "rise")
+      : weighted(random, allowed.map((e) => [e, ((V.entrances as Partial<Record<LyricEntrance, number>>)[e] ?? 0.05) * (e === prevEntrance ? 0.3 : 1)] as const)) ?? allowed[0]!);
     prevEntrance = entrance;
     const holds = draft.holds ?? (Object.keys(V.holds) as LyricHold[]);
-    const motion: LyricHold = weighted(random, holds.map((h) => [h, ((V.holds as Partial<Record<LyricHold, number>>)[h] ?? 0.2) * (h === prevHold ? 0.5 : 1)] as const)) ?? "still";
+    const motion: LyricHold = force.hold ?? weighted(random, holds.map((h) => [h, ((V.holds as Partial<Record<LyricHold, number>>)[h] ?? 0.2) * (h === prevHold ? 0.5 : 1)] as const)) ?? "still";
     prevHold = motion;
-    const chroma = V.ghosts.share > 0 && random() < V.ghosts.share && layout !== "labels";
+    const chroma = force.chroma ?? (V.ghosts.share > 0 && random() < V.ghosts.share && layout !== "labels");
     // Lines: the lyric, its decorative companions, then shapes.
     const textStart = result.lines.length;
     result.lines.push(...draft.lines);
@@ -1171,12 +1209,12 @@ export function video(ctx: LyricsContext): LyricsResult {
     // Ambient decor on quiet layouts.
     if (!draft.busy) {
       const decor = (M.decor as readonly LyricDecor[]).filter((d) => d !== prevDecor);
-      const kind = decor[Math.floor(random() * decor.length)] ?? "none";
+      const kind = force.decor ?? decor[Math.floor(random() * decor.length)] ?? "none";
       prevDecor = kind;
       for (const k of decorate(kind, W, H, margin, outer, pal, M, result.shapes, style.engine.blur?.decor ?? 0)) shapes.push({ shape: k, role: "decor", motion: kind === "orb" ? "pop" : kind === "frame" || kind === "rules" ? "grow-x" : "pop", delay: 80 + shapes.length * 50 });
       // Micro-copy: the cut's own words, small and spaced, in an empty band with a short accent bar (editorial texture; decorative).
       const seg = spec.segments.length === 1 ? spec.segments[0] : undefined;
-      if (seg && V.micro > 0 && random() < V.micro && graphemes(seg.text).length <= 48) {
+      if (seg && force.micro !== false && V.micro > 0 && random() < V.micro && graphemes(seg.text).length <= 48) {
         const small = Math.max(ctx.minSecondary, Math.round(M.small.size * 0.8));
         const text = normalizeText(seg.text, "plain"), n = graphemes(text).length, track = 0.14;
         const w = ctx.measure.width(text, small, false) + track * small * (n - 1), h = Math.round(small * 1.3);
@@ -1191,6 +1229,7 @@ export function video(ctx: LyricsContext): LyricsResult {
         }
       }
     }
+    if (force.shapeMotion) for (const [k, s] of shapes.entries()) shapes[k] = { ...s, motion: force.shapeMotion };
     // Night: a camera HUD round the frame (corner brackets and the cut counter) on every cut.
     if (V.hud) {
       const k = Math.max(3, Math.round(4 * W / 1080)), arm = Math.round(Math.min(W, H) * 0.06), inset = Math.round(margin * 0.32);
@@ -1225,6 +1264,7 @@ export function video(ctx: LyricsContext): LyricsResult {
   for (const shape of result.shapes) result.pinned.push(shape);
   result.program = { durationMs: at, frameHeight: H, cuts, koma: V.koma, beatMs, texture: ctx.format === "gif" ? { grain: 0, scanlines: 0, vignette: 0, paper: 0 } : V.texture };
   result.bottom = H - margin;
+  force.onProgram?.(result.program);
   return result;
 }
 

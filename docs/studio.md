@@ -59,3 +59,11 @@ bun scripts/gallery.ts [--engine <prepared engine>] [--out .work/gallery] [--onl
 ```
 
 This renders the same scenarios and jobs through the Studio's pipeline (`scripts/studio/pipeline.ts`), using the local rules decider, image frame 自动 and animated frame 1:1 unless the flags say otherwise, into a self-contained `<out>/index.html`. A scenario that a privacy rule matches (the 隐私 group) also shows the redacted text a model would receive.
+
+## Lyric motion shot gallery
+
+```bash
+bun run lyric-gallery [-- --jobs 8 --styles classic,night --sections layouts,transitions --frame 1:1 --no-video]
+```
+
+`scripts/lyric-gallery.ts` renders every effect lyric motion (文字 PV) can use as its own short GIF, in each of the four styles: the 22 layouts, the 10 entrances (plus zoom and pop on type plates), the 5 holds, the 11 transitions, the 7 decor kinds, the 12 shape motions, and extras (chromatic ghosts, micro-copy, `!` flash, chunking, labels and notes, the LRC title cut, typewriter, and one unforced GIF and MP4 per style). Each clip pins one dimension through `withLyricForce` in `core/src/templates/lyric-video.ts` (a tooling-only hook: the app never sets it and no plan field reaches it) and keeps the others quiet. The page at `.work/lyric-gallery/index.html` switches between styles, notes the layout, entrance, hold and transition every cut actually used, and lists each style's weighted vocabulary from `LYRICS_MOTION`. Each job is a worker process with its own clone of the engine checkout. The full run takes about 4 minutes with 8 jobs.

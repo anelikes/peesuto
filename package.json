@@ -10,6 +10,7 @@
     "probe": "bun scripts/probe.ts",
     "install-dev": "bun scripts/install-dev.ts",
     "studio": "bun scripts/studio.ts",
+    "lyric-gallery": "bun scripts/lyric-gallery.ts",
     "test": "bun test core/tests",
     "typecheck": "tsc --noEmit",
     "site:assets": "bun scripts/site-assets.ts",
