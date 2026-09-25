@@ -101,6 +101,9 @@ public enum DirectPasteBlock: Equatable, Sendable {
     case secureInput
     /// Peesuto itself is frontmost; pasting would target our own window.
     case selfFrontmost
+    /// Another app came to the front while the result was being made; the
+    /// paste would land somewhere the user did not ask for.
+    case appChanged
 }
 
 public enum DirectPasteOutcome: Equatable {
@@ -112,11 +115,19 @@ public enum DirectPasteOutcome: Equatable {
 /// Media shortcuts express the intent to paste where the user is now, so the
 /// only reasons not to press ⌘V are the ones below.
 public enum DirectPaste {
-    public static func decide(trusted: Bool, secureInput: Bool, frontmostIsSelf: Bool) -> DirectPasteBlock? {
+    public static func decide(trusted: Bool, secureInput: Bool, frontmostIsSelf: Bool, frontmostChanged: Bool = false) -> DirectPasteBlock? {
         if !trusted { return .accessibility }
         if secureInput { return .secureInput }
         if frontmostIsSelf { return .selfFrontmost }
+        if frontmostChanged { return .appChanged }
         return nil
+    }
+
+    /// The frontmost app changed when one was recorded at the start and a
+    /// different one (or none) is frontmost now.
+    public static func frontmostChanged(expected: Int32?, now: Int32?) -> Bool {
+        guard let expected else { return false }
+        return now != expected
     }
 }
 
@@ -223,25 +234,27 @@ public final class PasteController {
     public func pasteFiles(_ urls: [URL]) async -> PasteResult { await deliver(written: copyFiles(urls)) }
 
     /// Media shortcut delivery: write the result (marked as our own write) and
-    /// press ⌘V into whatever app is frontmost now. The result stays on the
-    /// clipboard either way.
-    public func pasteText(toFrontmost text: String) -> DirectPasteOutcome {
-        deliverToFrontmost { self.copyText(text) }
+    /// press ⌘V into the app that is frontmost now, as long as it is still
+    /// `expecting` (the app frontmost when the shortcut was pressed). The
+    /// result stays on the clipboard either way.
+    public func pasteText(toFrontmost text: String, expecting pid: Int32? = nil) -> DirectPasteOutcome {
+        deliverToFrontmost(expecting: pid) { self.copyText(text) }
     }
-    public func pasteImage(toFrontmost image: Data) -> DirectPasteOutcome {
+    public func pasteImage(toFrontmost image: Data, expecting pid: Int32? = nil) -> DirectPasteOutcome {
         guard let png = Self.normalizedPNG(image) else { return .failed(reason: "Could not read the rendered image.") }
-        return deliverToFrontmost { Self.write([Self.imageItem(png)]) }
+        return deliverToFrontmost(expecting: pid) { Self.write([Self.imageItem(png)]) }
     }
-    public func pasteFile(toFrontmost url: URL) -> DirectPasteOutcome {
+    public func pasteFile(toFrontmost url: URL, expecting pid: Int32? = nil) -> DirectPasteOutcome {
         guard let items = Self.fileItems([url]) else { return .failed(reason: "The rendered file is unavailable.") }
-        return deliverToFrontmost { Self.write(items) }
+        return deliverToFrontmost(expecting: pid) { Self.write(items) }
     }
 
-    private func deliverToFrontmost(write: () -> Bool) -> DirectPasteOutcome {
+    private func deliverToFrontmost(expecting pid: Int32?, write: () -> Bool) -> DirectPasteOutcome {
         guard write() else { return .failed(reason: "Could not write to the clipboard.") }
         let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
         if let block = DirectPaste.decide(trusted: AXIsProcessTrusted(), secureInput: IsSecureEventInputEnabled(),
-                                          frontmostIsSelf: frontmost == ProcessInfo.processInfo.processIdentifier) {
+                                          frontmostIsSelf: frontmost == ProcessInfo.processInfo.processIdentifier,
+                                          frontmostChanged: DirectPaste.frontmostChanged(expected: pid, now: frontmost)) {
             return .copiedOnly(block)
         }
         return Self.pressPaste() == .pasted ? .pasted : .failed(reason: "Could not create the paste key event.")

@@ -76,8 +76,15 @@ struct ChooserSnapshot {
     let hotkeys = HotKeyGroup()
     var hidePanel: (() -> Void)?
     var settingsChanged: (() -> Void)?
+    /// The card, kept only for outcomes the user has to act on (Accessibility
+    /// missing, a password field that blocked the paste).
     var showTaskStatus: (() -> Void)?
     var hideTaskStatus: (() -> Void)?
+    /// Shortcut feedback at the caret: the working dot (Esc cancels) and bubbles.
+    lazy var feedback = CaretFeedback(onCancel: { [weak self] in
+        guard let self, self.busy, self.directTask else { return }
+        self.cancelAction()
+    })
     /// Pinned images (pin to screen); none survive a relaunch.
     lazy var pins = PinManager(tr: { [weak self] en, zh in self?.tr(en, zh) ?? en }, copy: { [weak self] image in
         guard let self else { return false }
@@ -389,32 +396,35 @@ struct ChooserSnapshot {
     /// preview render (same action and input as this shortcut would send);
     /// it is used instead of a second request when it was made for the text
     /// that is on the clipboard now.
-    func runClipboardAction(_ actionID: String, prepared: PreparedRender? = nil) {
+    ///
+    /// Feedback stays at the caret (`anchor`: where the chooser found it, else
+    /// read now): a small working dot, nothing once the result has landed, a
+    /// bubble for anything worth reading. The card is only for outcomes that
+    /// need the user (see `deliverDirect`).
+    func runClipboardAction(_ actionID: String, prepared: PreparedRender? = nil, anchor: ChooserPlacement.Anchor? = nil) {
         guard !previewMode else { return }
         let delivery = ClipboardShortcutDelivery.of(shortcut: actionID)
         // An image on the clipboard is pinned as-is: no render, no Core, no status.
         if delivery == .pin, let image = PinImage.read(from: NSPasteboard.general) {
             if !pins.pin(image) {
-                directTask = true
-                error = tr("Could not read the image on the clipboard.", "无法读取剪贴板中的图片。")
-                notice = nil
-                showTaskStatus?()
+                feedback.show(tr("Could not read the image on the clipboard.", "无法读取剪贴板中的图片。"), isError: true, at: anchor)
             }
             return
         }
-        guard !busy else { showTaskStatus?(); return }
+        guard !busy else {
+            feedback.show(tr("Still working on the previous request.", "上一个任务仍在进行中。"), isError: false, at: anchor)
+            return
+        }
         let board = NSPasteboard.general
         let changeCount = board.changeCount
         let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         guard ClipboardMonitor.shouldRecord(types: (board.types ?? []).map(\.rawValue), bundleID: app, excludedApps: monitor.excludedApps),
               let text = board.string(forType: .string), board.changeCount == changeCount,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            directTask = true
-            error = delivery == .pin
+            feedback.show(delivery == .pin
                 ? tr("Copy an image or some text first. Protected clipboard content is excluded.", "请先复制图片或文字。受保护的剪贴板内容不会使用。")
-                : tr("Copy some text first. Protected clipboard content is excluded.", "请先复制文字。受保护的剪贴板内容不会用于生成。")
-            notice = nil
-            showTaskStatus?()
+                : tr("Copy some text first. Protected clipboard content is excluded.", "请先复制文字。受保护的剪贴板内容不会用于生成。"),
+                isError: true, at: anchor)
             return
         }
         let title: String
@@ -430,8 +440,11 @@ struct ChooserSnapshot {
         // preferences, so a prepared-on-copy card is a cache hit).
         let renderAction = ClipboardShortcutDelivery.renderAction(shortcut: actionID)
         let reuse = prepared.flatMap { $0.text == text && $0.actionID == renderAction ? $0.task : nil }
-        execute(actionID: renderAction, title: title, text: text, direct: true, delivery: delivery, prepared: reuse)
-        showTaskStatus?()
+        // The result is pasted only into the app that was in front when the shortcut was pressed.
+        let target = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        hideTaskStatus?()
+        feedback.begin(at: anchor ?? CaretFeedback.currentAnchor())
+        execute(actionID: renderAction, title: title, text: text, direct: true, delivery: delivery, prepared: reuse, target: target)
     }
 
     /// What the "Paste as…" chooser can work with right now, read the same
@@ -544,7 +557,7 @@ struct ChooserSnapshot {
                          delivery: ClipboardShortcutDelivery = .paste,
                          options: CoreTemplateOptions? = nil, frame: String? = nil,
                          keepPreview: Bool = false, rememberVariant: Bool = false,
-                         prepared: Task<CoreActionResponse, Error>? = nil) {
+                         prepared: Task<CoreActionResponse, Error>? = nil, target: pid_t? = nil) {
         actionRevision += 1
         let revision = actionRevision
         error = nil; notice = nil; busy = true; needsAccessibility = false
@@ -555,6 +568,8 @@ struct ChooserSnapshot {
         panelRevision += 1
         task = Task {
             defer { busy = false; task = nil }
+            var landing = DirectLanding.nothing
+            defer { if direct { reportDirect(landing, cancelled: Task.isCancelled) } }
             do {
                 // Recommendation timeouts stop the shared Core. Drain the
                 // pending panel query before submitting an explicit action.
@@ -600,9 +615,8 @@ struct ChooserSnapshot {
                     }
                     if direct, let output {
                         switch delivery {
-                        case .paste: deliverDirect(output)
-                        case .pin:
-                            if pinOutput(output) { notice = tr("Pinned to screen", "已贴到屏幕"); hideTaskStatus?() }
+                        case .paste: landing = deliverDirect(output, target: target)
+                        case .pin: if pinOutput(output) { landing = .landed }
                         }
                     }
                     // Lyric motion as video with no MP4 encoder at all (not in a normal install): say that it is a GIF.
@@ -612,7 +626,7 @@ struct ChooserSnapshot {
                     }
                 }
             } catch {
-                if Task.isCancelled { notice = tr("Cancelled", "已取消") }
+                if Task.isCancelled { if !direct { notice = tr("Cancelled", "已取消") } }
                 else if let failure = error as? CoreError, failure.kind == "action:needs", failure.message.contains("MP4") || failure.message.contains("video encoder") {
                     self.error = tr("Video could not be made: Peesuto's video encoder is missing. Reinstall Peesuto; PNG and GIF still work.", "无法生成视频：Peesuto 的视频编码器缺失。请重新安装 Peesuto；图片和 GIF 仍可使用。")
                 } else if let failure = error as? CoreError, failure.kind == "compose" {
@@ -626,32 +640,68 @@ struct ChooserSnapshot {
         }
     }
 
-    /// Media shortcut result: paste into the app that is frontmost now.
-    private func deliverDirect(_ output: OutputPreview) {
+    /// How a shortcut's result ended, for its feedback.
+    enum DirectLanding {
+        /// Nothing to add beyond `error`/`notice` (or nothing at all).
+        case nothing
+        /// Pasted or pinned: the result itself is the feedback.
+        case landed
+        /// Copied only, and the user has to act: the card.
+        case needsUser
+    }
+
+    /// Media shortcut result: paste into the app that is frontmost now, if it
+    /// is still `target` (the app in front when the shortcut was pressed).
+    private func deliverDirect(_ output: OutputPreview, target: pid_t?) -> DirectLanding {
         let outcome: DirectPasteOutcome
         if let url = output.url, url.pathExtension.lowercased() == "png" {
             guard let data = try? Data(contentsOf: url) else {
-                error = tr("Could not read the rendered image. Open the result to try again.", "无法读取生成的图片，请打开结果重试。"); return
+                error = tr("Could not read the rendered image. Open the result to try again.", "无法读取生成的图片，请打开结果重试。")
+                return .nothing
             }
-            outcome = paste.pasteImage(toFrontmost: data)
+            outcome = paste.pasteImage(toFrontmost: data, expecting: target)
         } else if let url = output.url {
-            outcome = paste.pasteFile(toFrontmost: url)
+            outcome = paste.pasteFile(toFrontmost: url, expecting: target)
         } else if let text = output.text {
-            outcome = paste.pasteText(toFrontmost: text)
-        } else { return }
+            outcome = paste.pasteText(toFrontmost: text, expecting: target)
+        } else { return .nothing }
         switch outcome {
-        case .pasted: notice = tr("Pasted", "已粘贴")
+        case .pasted: return .landed
         case .copiedOnly(.accessibility):
             needsAccessibility = true
             notice = tr("Copied. Allow Accessibility so Peesuto can paste for you; for now, press ⌘V.",
                         "已复制。授予辅助功能权限后 Peesuto 才能替你粘贴；现在请按 ⌘V。")
+            return .needsUser
         case .copiedOnly(.secureInput):
             notice = tr("Copied only: a password field is active, so Peesuto does not type into it. Press ⌘V yourself if you mean to.",
                         "仅复制：当前是密码输入状态，Peesuto 不会向其中粘贴。如确需粘贴，请自己按 ⌘V。")
+            return .needsUser
         case .copiedOnly(.selfFrontmost):
             notice = tr("Copied. Switch to the app you want and press ⌘V.", "已复制。切换到目标应用后按 ⌘V。")
+        case .copiedOnly(.appChanged):
+            notice = tr("Copied. Press ⌘V where you want it.", "已复制，请在需要的位置按 ⌘V。")
         case .failed:
             error = tr("Could not paste. Open the result to copy or paste it.", "未能粘贴，请打开结果后复制或粘贴。")
+        }
+        return .nothing
+    }
+
+    /// Shortcut feedback once the task is over: nothing (a brief flash of the
+    /// dot) when the result landed, the card when the user has to act, else a
+    /// bubble at the caret with the error or notice. A cancel just ends the dot.
+    private func reportDirect(_ landing: DirectLanding, cancelled: Bool) {
+        feedback.finish(flash: landing == .landed && error == nil && notice == nil && !cancelled)
+        if cancelled { return }
+        if landing == .needsUser {
+            showTaskStatus?()
+            return
+        }
+        if let error {
+            feedback.show(error, isError: true)
+        } else if let message = notice {
+            feedback.show(message, isError: false)
+            // Said once at the caret; the history panel's footer need not repeat it.
+            notice = nil
         }
     }
 

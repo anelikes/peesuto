@@ -315,10 +315,7 @@ final class ClipboardPanel: NSPanel {
             window.isReleasedWhenClosed = false
             window.hidesOnDeactivate = false
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.contentView = NSHostingView(rootView: TaskStatusView(model: model, openResult: { [weak self] in
-                self?.taskPanel?.orderOut(nil)
-                self?.showPanel()
-            }, dismiss: { [weak self] in self?.taskPanel?.orderOut(nil) }))
+            window.contentView = NSHostingView(rootView: TaskStatusView(model: model, dismiss: { [weak self] in self?.taskPanel?.orderOut(nil) }))
             taskPanel = window
         }
         let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }) ?? NSScreen.main

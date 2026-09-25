@@ -14,6 +14,17 @@ final class SystemIntegrationTests: XCTestCase {
         XCTAssertEqual(DirectPaste.decide(trusted: true, secureInput: true, frontmostIsSelf: true), .secureInput)
     }
 
+    func testDirectPasteDoesNotPasteIntoAnotherAppThanTheOneItStartedIn() {
+        XCTAssertEqual(DirectPaste.decide(trusted: true, secureInput: false, frontmostIsSelf: false, frontmostChanged: true), .appChanged)
+        XCTAssertEqual(DirectPaste.decide(trusted: true, secureInput: false, frontmostIsSelf: true, frontmostChanged: true), .selfFrontmost,
+                       "our own window in front says so more precisely")
+        XCTAssertEqual(DirectPaste.decide(trusted: false, secureInput: false, frontmostIsSelf: false, frontmostChanged: true), .accessibility)
+        XCTAssertFalse(DirectPaste.frontmostChanged(expected: 42, now: 42))
+        XCTAssertTrue(DirectPaste.frontmostChanged(expected: 42, now: 43))
+        XCTAssertTrue(DirectPaste.frontmostChanged(expected: 42, now: nil), "no app in front is not the app it started in")
+        XCTAssertFalse(DirectPaste.frontmostChanged(expected: nil, now: 43), "nothing recorded: the frontmost app is taken as is")
+    }
+
     func testIndependentHotkeyIdentitiesCannotConsumeEachOthersEvents() async {
         await MainActor.run {
             let first = HotKeyManager(), second = HotKeyManager()

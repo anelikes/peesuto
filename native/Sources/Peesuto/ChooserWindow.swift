@@ -42,6 +42,8 @@ final class ChooserPanel: NSPanel {
     private var snapshot: ChooserSnapshot?
     private var prepared: PreparedRender?
     private var mouseMonitor: Any?
+    /// Where the chooser found the caret (or pointer); the shortcut's feedback appears there too.
+    private var anchor: ChooserPlacement.Anchor?
 
     init(model: AppState, openHistory: @escaping () -> Void) {
         self.model = model; self.openHistory = openHistory
@@ -62,6 +64,7 @@ final class ChooserPanel: NSPanel {
         } else {
             anchor = .screen
         }
+        self.anchor = anchor
         let snapshot = sample ?? model.chooserSnapshot()
         self.snapshot = snapshot
         model.trusted = PasteController.accessibilityTrusted
@@ -148,12 +151,12 @@ final class ChooserPanel: NSPanel {
 
     private func choose(_ choice: PasteChoice) {
         guard let snapshot, PasteChooser.isEnabled(choice, clipboard: snapshot.clipboard) else { NSSound.beep(); return }
-        let prepared = self.prepared
+        let prepared = self.prepared, anchor = self.anchor
         self.prepared = nil
         // Close first: the target app keeps the keyboard, so ⌘V lands in it.
         close()
         guard let id = choice.shortcutID else { openHistory(); return }
-        model.runClipboardAction(id, prepared: prepared)
+        model.runClipboardAction(id, prepared: prepared, anchor: anchor)
     }
 
     func windowDidResignKey(_ notification: Notification) {
