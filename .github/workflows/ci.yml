@@ -56,7 +56,7 @@ jobs:
         run: |
           mkdir -p .work
           cp -R engine .work/template-engine
-          PEESUTO_TEMPLATE_ENGINE=.work/template-engine bun test core/tests/template-engine.test.ts
+          PEESUTO_TEMPLATE_ENGINE=.work/template-engine bun test core/tests/template-engine.test.ts core/tests/frames.test.ts
       # Builds PeesutoEncoder first; the bundle's render probe encodes MP4 through it.
       - name: native app bundle
         run: bun scripts/build-native.ts --engine engine
