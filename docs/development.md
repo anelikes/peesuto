@@ -90,6 +90,26 @@ the text, fetched once from Noto Emoji at a pinned tag, staged beside the
 composition and drawn inline at the font size, measured as one advance when
 wrapping.
 
+## How GIF and MP4 frames are drawn
+
+Core draws every frame of a GIF or a native MP4 itself, with the engine's
+wasm rasteriser, which is single-threaded per world (`core/src/render/frames.ts`).
+So frames are drawn by worker threads, each booting its own world over the
+built bundle: frames go out in chunks of six, round-robin, and come back to
+the encoder strictly in order. A frame whose draw list equals the frame
+before it (a held drawing, a line that has landed) is not drawn again; its
+pixels are repeated. Either way the frames are the same bytes as drawing
+them one by one in one thread (`core/tests/frames.test.ts` hashes them).
+
+| Variable | Effect |
+| --- | --- |
+| `PEESUTO_RENDER_THREADS` | Threads drawing frames. Default: 1.5 per performance core (`sysctl hw.perflevel0.physicalcpu`; else the logical CPUs less two), at most 6, and at most a quarter of physical memory at 0.6 GB a thread (8 GB Mac: 3; 16 GB and up: 6). `1` draws in Core's own thread. Background precompose uses 1 unless this is set. |
+| `PEESUTO_FRAME_REUSE` | `0` draws every frame, held ones too (for checking). |
+
+If the worker threads cannot start, the render continues in Core's own
+thread. Cancelling (Esc stops Core; an aborted request or the render
+deadline inside Core) terminates the threads within a frame.
+
 ## Tests
 
 ```bash

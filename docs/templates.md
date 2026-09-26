@@ -695,10 +695,15 @@ user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
   Contrast checks read the paint (`inkColors` in checks.ts): gradient ink
   counts both stops, hollow text its outline (and fails below the large
   size), an outline of at least 4% of the size counts as a halo.
-- **Cost**: a 20 s MP4 renders in about 12–28 s at 1:1 and 17–40 s at 9:16
-  on an M-series Mac (Pop fastest, Night slowest). Full-canvas images are
-  the expensive part of the software rasteriser, so textures are sparse and
-  sampled nearest.
+- **Cost**: frames are drawn on several threads, and a frame that repeats
+  the one before it (a held drawing, a line that has landed) is not drawn
+  again ([how](development.md#how-gif-and-mp4-frames-are-drawn)). On a Mac
+  mini M4 with Pocket Motion v0.5.0 (6 threads, measured while the machine
+  was busy with other work), a 24–30 s MP4 at 1:1 renders in about 3–8 s
+  (Pop fastest, Paper slowest; about 5–25 s in one thread) and a GIF in
+  2–8 s; a 30 s Paper MP4 at 9:16 in about 10 s. Peak memory is about 0.4 GB plus
+  0.4–0.5 GB a thread. Full-canvas images are the expensive part of the
+  software rasteriser, so textures are sparse and sampled nearest.
 - **Open in JIZURA** (native result panel, lyric-motion results only):
   JIZURA's web app takes no lyrics in its URL (it starts from what it saved
   in the browser; checked in its `src/12_ui.js`), so the button copies the

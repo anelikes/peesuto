@@ -85,7 +85,8 @@ the native action-management UI is still incomplete.
 
 `video` is implemented by the render runtime and the `paste-video` built-in
 (core/src/render/video.ts). Frames are rendered in Core by the engine's frame
-source and encoded by one of two encoders, both H.264 High 4:2:0 with the moov
+source, on worker threads ([how](development.md#how-gif-and-mp4-frames-are-drawn)),
+and encoded by one of two encoders, both H.264 High 4:2:0 with the moov
 atom first and no audio:
 
 - **PeesutoEncoder** (preferred): a small Swift helper in the app bundle

@@ -3,7 +3,8 @@
  * synthetic RGBA frames. No engine, no ffmpeg; runs in milliseconds.
  */
 import { describe, expect, test } from "bun:test";
-import { downscaleBox, encodeGif } from "../src/render/gif.ts";
+import { encodeGif } from "../src/render/gif.ts";
+import { downscaleBox } from "../src/render/raster.ts";
 
 /** A gradient with a square that moves with `t`: thousands of distinct colours per frame. */
 function frame(w: number, h: number, t: number): Uint8Array {

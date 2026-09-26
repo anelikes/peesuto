@@ -51,7 +51,7 @@ export async function renderTemplate(plan: TemplatePlan, options: RenderOptions)
   const run = { deadline, signal: options.signal, lowPriority: options.lowPriority };
   await writeOutput(path, async (temp) => {
     if (format === "mp4") await encodeMp4(encoder!, { engine: options.engine, work: options.work, out: temp, ...run });
-    else if (format === "gif") await encodeCardGif({ engine: options.engine, work: options.work, out: temp, width: templateGifWidth(prepared.width, prepared.height, prepared.frames), deadline, signal: options.signal });
+    else if (format === "gif") await encodeCardGif({ engine: options.engine, work: options.work, out: temp, width: templateGifWidth(prepared.width, prepared.height, prepared.frames), deadline, signal: options.signal, lowPriority: options.lowPriority });
     else await runEngine(options.work, ["frame", "compositions/paste", "--at", "0", "--out", temp], {}, run);
     throwIfAborted(options.signal);
     if ((await stat(temp)).size === 0) throw new EngineError("Template output is empty.");

@@ -3,9 +3,10 @@
  *
  *   native  PeesutoEncoder, the Swift helper in the app bundle (Contents/MacOS):
  *           AVFoundation + the VideoToolbox hardware encoder. Frames are
- *           rendered in this process by the engine's frame source (as the GIF
- *           path does) and piped to the helper as raw RGBA — no PNG round trip,
- *           no temp files. Preferred whenever it is present (macOS only).
+ *           rendered in this process by the engine's frame source, on several
+ *           threads (frames.ts, as the GIF path does), and piped to the helper
+ *           in order as raw RGBA — no PNG round trip, no temp files. Preferred
+ *           whenever it is present (macOS only).
  *   ffmpeg  Pocket Motion's own `render --format mp4`, which runs a locally
  *           installed ffmpeg (libx264). Used outside the app (`bun run paste`)
  *           or when forced with PEESUTO_VIDEO_ENCODER=ffmpeg for debugging.
@@ -16,7 +17,9 @@ import { accessSync, constants, statSync } from "node:fs";
 import { mkdir, readlink, rm, symlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { bunOnPath, EngineError, EngineTimeoutError, runEngine, throwIfAborted } from "../engine.ts";
-import { downscaleBox, openPreparedFrames, type FrameSource } from "./gif.ts";
+import { renderFrames, type Frame, type FrameStats } from "./frames.ts";
+import { resolvePrepared } from "./prepared.ts";
+import { defaultRenderThreads } from "./threads.ts";
 
 export class VideoUnavailableError extends EngineError {}
 
@@ -128,8 +131,10 @@ export interface NativeMp4Options {
   readonly encoder: string;
   readonly deadline?: number;
   readonly signal?: AbortSignal;
-  /** Background work: the helper runs niced and frames yield between each other. */
+  /** Background work: the helper runs niced and frames are drawn in one thread. */
   readonly lowPriority?: boolean;
+  /** Threads drawing frames (threads.ts); default: this machine's. */
+  readonly threads?: number;
 }
 
 export interface NativeMp4Result {
@@ -137,8 +142,10 @@ export interface NativeMp4Result {
   readonly width: number;
   readonly height: number;
   readonly fps: number;
-  /** Wall time split: rendering frames here vs. waiting on the encoder. */
+  /** Wall time split: waiting for frames vs. waiting on the encoder. */
   readonly ms: { readonly render: number; readonly encode: number; readonly total: number };
+  /** How the frames were drawn (encodeNativeMp4). */
+  readonly draw?: FrameStats;
 }
 
 const NICE = ["/usr/bin/nice", "/bin/nice"].find(isExecutable);
@@ -206,24 +213,27 @@ export async function pipeFramesToEncoder(o: FramePipeOptions): Promise<NativeMp
 
 /** The prepared composition at `<work>/compositions/paste` → an MP4 at `out`, through PeesutoEncoder. */
 export async function encodeNativeMp4(o: NativeMp4Options): Promise<NativeMp4Result> {
-  let source: FrameSource | undefined;
+  const draw: FrameStats = { threads: 1, drawn: 0, held: 0 };
+  let frames: AsyncGenerator<Frame, void, undefined> | undefined;
   try {
-    const opened = await openPreparedFrames(o.engine, o.work, "mp4");
-    source = opened.source;
-    const c = opened.composition, s = source;
-    const physW = c.width * c.supersample, physH = c.height * c.supersample;
-    return await pipeFramesToEncoder({ encoder: o.encoder, out: o.out, width: c.width, height: c.height, fps: c.fps, frames: c.durationFrames,
+    const c = await resolvePrepared(o.engine, o.work, "mp4");
+    const stream = renderFrames({ engine: o.engine, composition: c, threads: o.threads ?? defaultRenderThreads({ lowPriority: o.lowPriority }),
+      signal: o.signal, deadline: o.deadline, label: "MP4", stats: draw });
+    frames = stream;
+    const result = await pipeFramesToEncoder({ encoder: o.encoder, out: o.out, width: c.width, height: c.height, fps: c.fps, frames: c.durationFrames,
       deadline: o.deadline, signal: o.signal, lowPriority: o.lowPriority,
       frame: async (f) => {
-        await s.seekFrame(f);
-        // Supersampled compositions are area-averaged to the declared size, as the engine's ffmpeg leg does.
-        return c.supersample > 1 ? downscaleBox(s.read(), physW, physH, c.width).rgba : s.read();
+        const next = await stream.next();
+        if (next.done || next.value.index !== f) throw new EngineError(`mp4: frame ${f} came out of order`);
+        return next.value.rgba;
       } });
+    return { ...result, draw };
   } catch (e) {
     if (e instanceof EngineError) throw e;
     throw new EngineError(`mp4: ${e instanceof Error ? e.message : String(e)}`);
   } finally {
-    await source?.dispose();
+    // Stops the frame threads when the encoder stopped first.
+    await frames?.return(undefined);
   }
 }
 

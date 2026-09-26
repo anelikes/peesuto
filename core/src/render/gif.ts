@@ -1,19 +1,14 @@
 /**
- * GIF encoding, in process: the engine's frame source → box downscale → one
- * 128-colour palette → gifenc. ffmpeg is not involved.
- *
- * Frames come straight from the engine's `WasmFrameSource`, imported by
- * absolute path from the engine checkout the way compose.ts imports the text
- * modules, so there is no compile-time dependency on where the engine is. The
- * composition is resolved by the engine's own `resolveComposition` (bundle,
- * pak, viewport, fps, duration, build record), so the paths and refusals are
- * exactly the ones `frame` and `render` apply.
+ * GIF encoding, in process: the prepared composition's frames (frames.ts:
+ * drawn by the engine's frame source, box-downscaled, on several threads when
+ * the machine has them) → one 128-colour palette → gifenc. ffmpeg is not
+ * involved.
  *
  * Why in-process rather than a subprocess streaming raw RGBA: every helper
- * the frame path needs is an ordinary module — `src/cli/resolve.ts` and
- * `src/runtime/frame-source.ts`; only the argv wrapper lives in
- * `src/cli/commands/`. And compose.ts already boots a wasm world in this
- * process for measurement (`src/text/measure.ts`), so a second boot here is
+ * the frame path needs is an ordinary engine module — `src/cli/resolve.ts`
+ * and `src/runtime/frame-source.ts` (prepared.ts); only the argv wrapper
+ * lives in `src/cli/commands/`. And compose.ts already boots a wasm world in
+ * this process for measurement (`src/text/measure.ts`), so booting more is
  * the same kind of thing the process does already. A subprocess would add a
  * byte protocol over a pipe and a second Bun start-up for nothing.
  *
@@ -28,58 +23,13 @@
  * default (transdiff); the composite stays fully opaque and a static
  * background costs almost nothing per frame.
  */
-import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { applyPalette, GIFEncoder, quantize } from "gifenc";
 import { EngineError, EngineTimeoutError, throwIfAborted } from "../engine.ts";
-
-/* ---- the engine surface this encoder uses -------------------------------- */
-export interface ResolvedComposition {
-  readonly compositionId: string;
-  readonly bundlePath: string;
-  readonly pakPath: string;
-  readonly width: number;
-  readonly height: number;
-  readonly fps: number;
-  readonly durationFrames: number;
-  readonly supersample: number;
-  readonly buildCommand: string;
-  readonly sidecar: { readonly footage?: readonly unknown[] };
-}
-type ResolveResult =
-  | { readonly ok: true; readonly value: ResolvedComposition }
-  | {
-      readonly ok: false;
-      readonly kind: string;
-      readonly message: string;
-      readonly diagnostics?: readonly { readonly path: string; readonly code: string; readonly message: string }[];
-    };
-interface ResolveApi {
-  resolveComposition(o: { dir: string; flags: { json: boolean }; requireBundle?: boolean }): Promise<ResolveResult>;
-}
-export interface FrameSource {
-  audit(): unknown;
-  seekFrame(frame: number): Promise<void>;
-  /** RGBA at physical size. Treated as valid only until the next seek. */
-  read(): Uint8Array;
-  dispose(): Promise<void>;
-}
-interface FrameSourceApi {
-  WasmFrameSource: {
-    create(o: {
-      compositionId: string;
-      bundlePath: string;
-      pakPath?: string;
-      width: number;
-      height: number;
-      hz: number;
-      durationFrames: number;
-      renderScale?: number;
-      buildCommand?: string;
-    }): Promise<FrameSource>;
-  };
-}
+import { renderFrames, type FrameStats } from "./frames.ts";
+import { frameSize, resolvePrepared } from "./prepared.ts";
+import { defaultRenderThreads } from "./threads.ts";
 
 export const GIF_DEFAULTS = { fps: 15, width: 540, colors: 128, sampleEvery: 4 } as const;
 
@@ -97,43 +47,20 @@ export interface CardGifOptions {
   readonly delta?: boolean;
   /** performance.now() deadline, checked between frames (rendering is in-process). */
   readonly deadline?: number;
-  /** Checked between frames: aborting stops the encoder with EngineAbortedError. */
+  /** Checked between frames: aborting stops the encoder (and its frame threads) with EngineAbortedError. */
   readonly signal?: AbortSignal;
+  /** Threads drawing frames (threads.ts); default: this machine's, one for background work. */
+  readonly threads?: number;
+  /** Background work: one frame thread. */
+  readonly lowPriority?: boolean;
 }
 
 export interface CardGifResult {
   /** Frames written to the GIF. */
   readonly frames: number;
   readonly bytes: number;
-}
-
-/** The prepared composition at `<work>/compositions/paste`, opened for frame
- * reads in this process. Shared by the GIF encoder and the native MP4 path
- * (video.ts); `label` prefixes errors. The caller disposes `source`. */
-export async function openPreparedFrames(engine: string, work: string, label: string): Promise<{ readonly composition: ResolvedComposition; readonly source: FrameSource }> {
-  const { resolveComposition } = (await import(`${engine}/src/cli/resolve.ts`)) as ResolveApi;
-  const { WasmFrameSource } = (await import(`${engine}/src/runtime/frame-source.ts`)) as FrameSourceApi;
-  const resolved = await resolveComposition({ dir: join(work, "compositions/paste"), flags: { json: false }, requireBundle: true });
-  if (!resolved.ok) {
-    const detail = (resolved.diagnostics ?? []).map((d) => `\n  ${d.path || "/"}: ${d.code}: ${d.message}`).join("");
-    throw new EngineError(`${label}: ${resolved.message}${detail}`);
-  }
-  const c = resolved.value;
-  if ((c.sidecar.footage?.length ?? 0) > 0) throw new EngineError(`${label}: the card composition declares footage; this path renders none`);
-  const source = await WasmFrameSource.create({
-    compositionId: c.compositionId,
-    bundlePath: c.bundlePath,
-    pakPath: existsSync(c.pakPath) ? c.pakPath : undefined,
-    width: c.width,
-    height: c.height,
-    hz: c.fps,
-    durationFrames: c.durationFrames,
-    renderScale: c.supersample,
-    buildCommand: c.buildCommand,
-  });
-  try { source.audit(); }
-  catch (e) { await source.dispose(); throw e; }
-  return { composition: c, source };
+  /** How the frames were drawn: threads, and frames drawn vs held. */
+  readonly draw: FrameStats;
 }
 
 /** The prepared composition at `<work>/compositions/paste` → an animated GIF at `out`. */
@@ -141,129 +68,34 @@ export async function encodeCardGif(o: CardGifOptions): Promise<CardGifResult> {
   const fps = o.fps ?? GIF_DEFAULTS.fps;
   const width = o.width ?? GIF_DEFAULTS.width;
   const frames: Uint8Array[] = [];
+  const draw: FrameStats = { threads: 1, drawn: 0, held: 0 };
   let size = { width: 0, height: 0 };
-  let source: FrameSource | undefined;
   let step = 1;
   let compositionFps = 30;
   try {
-    const opened = await openPreparedFrames(o.engine, o.work, "gif");
-    source = opened.source;
-    const c = opened.composition;
+    const c = await resolvePrepared(o.engine, o.work, "gif");
     compositionFps = c.fps;
     step = Math.max(1, Math.round(c.fps / fps));
-    const physW = c.width * c.supersample;
-    const physH = c.height * c.supersample;
-    for (let f = 0; f < c.durationFrames; f += step) {
-      // Frames render in-process; the deadline is checked between frames.
+    size = frameSize(c, width);
+    const threads = o.threads ?? defaultRenderThreads({ lowPriority: o.lowPriority });
+    for await (const frame of renderFrames({ engine: o.engine, composition: c, step, width, threads, signal: o.signal, deadline: o.deadline, label: "gif", stats: draw })) {
       if (o.deadline !== undefined && performance.now() > o.deadline) throw new EngineTimeoutError("gif encoding timed out and was stopped. Try a shorter text, PNG, or set PASTE_RENDER_TIMEOUT_MS.");
       throwIfAborted(o.signal);
-      // Background work yields between frames so requests keep being answered.
-      if (o.signal) await new Promise((r) => setImmediate(r));
-      await source.seekFrame(f);
-      const scaled = downscaleBox(source.read(), physW, physH, width);
-      size = { width: scaled.width, height: scaled.height };
-      frames.push(scaled.rgba);
+      frames.push(frame.rgba);
     }
   } catch (e) {
     if (e instanceof EngineError) throw e;
     throw new EngineError(`gif: ${e instanceof Error ? e.message : String(e)}`);
-  } finally {
-    await source?.dispose();
   }
 
   throwIfAborted(o.signal);
   const gif = encodeGif(frames, size.width, size.height, { fps: compositionFps / step, colors: o.colors, delta: o.delta });
   await mkdir(dirname(o.out), { recursive: true });
   await Bun.write(o.out, gif);
-  return { frames: frames.length, bytes: gif.byteLength };
+  return { frames: frames.length, bytes: gif.byteLength, draw };
 }
 
-/* ---- pure half: resample and encode -------------------------------------- */
-
-export interface Raster {
-  readonly rgba: Uint8Array;
-  readonly width: number;
-  readonly height: number;
-}
-
-/**
- * Area-average (box) resample of an RGBA raster to `dstWidth` px wide, the
- * height following the aspect. Each destination pixel is the exact mean of
- * the source area it covers, partial source pixels weighted by their overlap:
- * 1080 → 540 is a plain 2×2 mean, 1920 → 540 (3.56×) has no phase drift.
- * Separable, rows first into a float buffer, then columns. Alpha is dropped;
- * the output alpha is 255.
- */
-export function downscaleBox(src: Uint8Array, srcWidth: number, srcHeight: number, dstWidth: number): Raster {
-  if (src.length !== srcWidth * srcHeight * 4) {
-    throw new RangeError(`downscaleBox: ${src.length} bytes is not ${srcWidth}x${srcHeight} RGBA`);
-  }
-  const dw = Math.max(1, Math.round(dstWidth));
-  const dh = Math.max(1, Math.round((srcHeight * dw) / srcWidth));
-  const wx = axisWeights(srcWidth, dw);
-  const wy = axisWeights(srcHeight, dh);
-
-  // Rows: srcHeight × dw × RGB.
-  const tmp = new Float32Array(srcHeight * dw * 3);
-  for (let y = 0; y < srcHeight; y++) {
-    const srow = y * srcWidth * 4;
-    const trow = y * dw * 3;
-    for (let x = 0; x < dw; x++) {
-      const { start, weights } = wx[x]!;
-      let r = 0, g = 0, b = 0;
-      for (let k = 0; k < weights.length; k++) {
-        const wt = weights[k]!;
-        const s = srow + (start + k) * 4;
-        r += src[s]! * wt; g += src[s + 1]! * wt; b += src[s + 2]! * wt;
-      }
-      const t = trow + x * 3;
-      tmp[t] = r; tmp[t + 1] = g; tmp[t + 2] = b;
-    }
-  }
-  // Columns: dh × dw × RGBA.
-  const out = new Uint8Array(dw * dh * 4);
-  for (let y = 0; y < dh; y++) {
-    const { start, weights } = wy[y]!;
-    for (let x = 0; x < dw; x++) {
-      let r = 0, g = 0, b = 0;
-      for (let k = 0; k < weights.length; k++) {
-        const wt = weights[k]!;
-        const t = ((start + k) * dw + x) * 3;
-        r += tmp[t]! * wt; g += tmp[t + 1]! * wt; b += tmp[t + 2]! * wt;
-      }
-      const d = (y * dw + x) * 4;
-      out[d] = clamp8(r); out[d + 1] = clamp8(g); out[d + 2] = clamp8(b); out[d + 3] = 255;
-    }
-  }
-  return { rgba: out, width: dw, height: dh };
-}
-
-/**
- * For each destination index along one axis: the first source index it
- * touches and the weight of every source pixel it covers, summing to 1.
- * Destination pixel i spans source [i·s, (i+1)·s) with s = src/dst.
- */
-function axisWeights(srcN: number, dstN: number): { start: number; weights: number[] }[] {
-  const s = srcN / dstN;
-  const table: { start: number; weights: number[] }[] = [];
-  for (let i = 0; i < dstN; i++) {
-    const a = i * s;
-    const b = Math.min(srcN, (i + 1) * s);
-    const start = Math.min(srcN - 1, Math.floor(a));
-    const end = Math.max(start + 1, Math.min(srcN, Math.ceil(b)));
-    const weights: number[] = [];
-    let sum = 0;
-    for (let j = start; j < end; j++) {
-      const w = Math.max(0, Math.min(b, j + 1) - Math.max(a, j));
-      weights.push(w);
-      sum += w;
-    }
-    table.push({ start, weights: weights.map((w) => w / sum) });
-  }
-  return table;
-}
-
-const clamp8 = (v: number): number => (v <= 0 ? 0 : v >= 255 ? 255 : Math.round(v));
+/* ---- pure half: encode --------------------------------------------------- */
 
 export interface EncodeOptions {
   /** Playback rate; realised as centisecond delays whose running sum stays on this clock. */
