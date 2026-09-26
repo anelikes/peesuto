@@ -10,6 +10,7 @@ section here becomes one.
 ### Improved
 - **Quiet pasting** — the shortcuts (and Paste as…) no longer pop a card in the top-right corner. While a result is being made, a small breathing dot sits right after your text cursor (next to the pointer in apps that do not report a cursor, such as terminals and some web editors); press Esc to cancel. When the result is pasted the dot just fades; nothing else appears. Anything worth reading (an error, a note) is a one-line bubble at the cursor that fades by itself. The card is kept only for when you have to act: Accessibility is missing, or a password field stopped the paste. To switch a result's style afterwards, open clipboard history (⇧⌥V), which shows the latest result. Reduce Motion keeps the dot still.
 - **No pasting into the wrong app** — if you switch apps while a result is being made, it is copied instead of pasted, with "Copied. Press ⌘V where you want it."
+- **Faster Japanese** — cards, GIFs and videos of Japanese text are ready 3–4 seconds sooner: kana, the common kanji and marks such as 「」『』・〜 (and full-width letters and digits) no longer need a measuring pass of their own.
 
 ### Fixed
 - **Lyric motion in 16:9** — most Lyric motion GIFs and videos in the 16:9 frame failed with an internal font error; they render again, in every style.

@@ -313,10 +313,11 @@ export async function composeCard(dsl: Dsl, o: ComposeOptions): Promise<ComposeR
     .map(stripEmoji)
     .filter(Boolean);
 
-  // `charset.txt`: ASCII, CJK punctuation and the 3755 level-1 GB2312
-  // characters. With it the measurement is a cached metrics-only bake booted
-  // per paste instead of a build per paste; a clipboard with a character
-  // outside it falls back to the build.
+  // `charset.txt` (scripts/charset.ts): ASCII, GB2312 level 1, kana, JIS X
+  // 0208 level 1, and the punctuation and full-width forms of both. With it
+  // the measurement is a cached metrics-only bake booted per paste instead of
+  // a build per paste; a clipboard with a character outside it falls back to
+  // the build.
   const m = await measureApi.openMeasurer({
     face: { regular: `${o.engine}/assets/fonts/NotoSansSC-Regular.otf`, bold: `${o.engine}/assets/fonts/NotoSansSC-Bold.otf` },
     sizes: sizes.flatMap((s) => [{ px: s, bold: true }, { px: s, bold: false }]),

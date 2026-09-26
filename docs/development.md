@@ -80,9 +80,12 @@ motion and format for checking templates by eye.
 ## How a paste is measured
 
 Text is measured against a cached metrics-only bake of
-`core/src/render/charset.txt` (ASCII, CJK punctuation, GB2312 level 1), so a
+`core/src/render/charset.txt` (ASCII, GB2312 level 1, kana, JIS X 0208
+level 1, and the punctuation and full-width forms of both standards), so a
 paste costs one composition build, not two; a character outside the charset
-falls back to a per-paste measurement build. Emoji are pictures: split out of
+falls back to a per-paste measurement build (3–4 s). The file is generated:
+`bun scripts/charset.ts` writes it and `--check` verifies it (the script says
+what each part is). Emoji are pictures: split out of
 the text, fetched once from Noto Emoji at a pinned tag, staged beside the
 composition and drawn inline at the font size, measured as one advance when
 wrapping.
