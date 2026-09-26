@@ -13,9 +13,9 @@
  *
  * Neither present → VideoUnavailableError before any composition work.
  */
-import { accessSync, constants, statSync } from "node:fs";
+import { accessSync, constants, readFileSync, statSync } from "node:fs";
 import { mkdir, readlink, rm, symlink } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { bunOnPath, EngineError, EngineTimeoutError, runEngine, throwIfAborted } from "../engine.ts";
 import { renderFrames, type Frame, type FrameStats } from "./frames.ts";
 import { resolvePrepared } from "./prepared.ts";
@@ -56,11 +56,27 @@ export function resolveFFmpeg(o: FFmpegDiscovery = {}): string {
 }
 
 /** Where the native encoder may be: next to the bundled Bun (the app's
- * Contents/MacOS), then a development build in this checkout. */
+ * Contents/MacOS), then a development build in this checkout, then (from a
+ * linked git worktree, which has no native/.build of its own) one in the
+ * main worktree. */
 export function nativeEncoderPaths(): string[] {
   if (process.platform !== "darwin") return [];
   const repo = resolve(import.meta.dir, "../../..");
-  return [join(dirname(process.execPath), "PeesutoEncoder"), join(repo, "native/.build/release/PeesutoEncoder"), join(repo, "native/.build/debug/PeesutoEncoder")];
+  const builds = (root: string) => [join(root, "native/.build/release/PeesutoEncoder"), join(root, "native/.build/debug/PeesutoEncoder")];
+  const main = mainWorktree(repo);
+  return [join(dirname(process.execPath), "PeesutoEncoder"), ...builds(repo), ...(main && main !== repo ? builds(main) : [])];
+}
+
+/** The main worktree of the linked git worktree at `root` (whose `.git` is a
+ * `gitdir:` file), without running git; undefined anywhere else. */
+export function mainWorktree(root: string): string | undefined {
+  try {
+    const link = /^gitdir:\s*(.+)$/m.exec(readFileSync(join(root, ".git"), "utf8"))?.[1]?.trim();
+    if (!link) return;
+    const gitdir = resolve(root, link);
+    const common = resolve(gitdir, readFileSync(join(gitdir, "commondir"), "utf8").trim());
+    return basename(common) === ".git" ? dirname(common) : undefined;
+  } catch { return; }
 }
 
 export interface VideoEncoderDiscovery {

@@ -99,7 +99,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     const result = await runAction(spec, { text, aspect: str("frame") ?? (isAspect(str("aspect")) ? str("aspect") : undefined), fresh: flags.has("fresh"), ...(output ? { output: output as "image" | "gif" | "video" } : {}) }, { decider, generator, render });
     if (json) console.log(JSON.stringify({ ok: true, action: spec.id, result }));
     else if (result.output === "text") console.log(result.text);
-    else console.log(`${spec.id}: ${result.format} → ${result.path} (${result.ms} ms)`);
+    else console.log(`${spec.id}: ${result.format} → ${result.path} (${result.ms} ms${"meta" in result && result.meta?.encoder ? `, ${result.meta.encoder} encoder` : ""})`);
     return 0;
   }
 

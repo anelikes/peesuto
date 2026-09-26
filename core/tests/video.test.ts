@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { BUILTIN_ACTIONS, parseActionSpec, runAction } from "../src/actions/index.ts";
 import { EngineError, engineMissing } from "../src/engine.ts";
 import { mp4Boxes } from "./helpers/mp4.ts";
 import { renderCard } from "../src/render/card.ts";
-import { pipeFramesToEncoder, resolveFFmpeg, resolveVideoEncoder, videoEnvironment, VideoUnavailableError } from "../src/render/video.ts";
+import { mainWorktree, pipeFramesToEncoder, resolveFFmpeg, resolveVideoEncoder, videoEnvironment, VideoUnavailableError } from "../src/render/video.ts";
 import { fallbackDsl } from "../src/questions.ts";
 
 const temporary: string[] = [];
@@ -86,6 +86,21 @@ printf '{"ok":true,"frames":%d,"width":%d,"height":%d,"fps":%d}\\n' $((BYTES / (
   await chmod(file, 0o755);
   return file;
 }
+
+describe("native encoder in development", () => {
+  test("a linked git worktree also looks in its main worktree's native/.build", async () => {
+    const root = await makeRoot();
+    const main = join(root, "main"), linked = join(root, "linked");
+    await mkdir(join(main, ".git/worktrees/linked"), { recursive: true });
+    await mkdir(linked, { recursive: true });
+    await writeFile(join(main, ".git/worktrees/linked/commondir"), "../..\n");
+    await writeFile(join(linked, ".git"), `gitdir: ${join(main, ".git/worktrees/linked")}\n`);
+    expect(mainWorktree(linked)).toBe(main);
+    // The main worktree itself (a .git directory) and a plain directory have none.
+    expect(mainWorktree(main)).toBeUndefined();
+    expect(mainWorktree(root)).toBeUndefined();
+  });
+});
 
 describe("native encoder pipe (mock encoder)", () => {
   const frames = (w: number, h: number) => (i: number) => new Uint8Array(w * h * 4).fill(i);

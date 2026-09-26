@@ -94,8 +94,10 @@ atom first and no audio:
   app. Core pipes raw RGBA frames to it and it encodes with AVFoundation and
   the VideoToolbox hardware encoder, BT.709 limited range tagged with the sRGB
   transfer so players show the PNG's colours. Found next to the running Bun,
-  then in a development build (`native/.build/release/PeesutoEncoder`);
-  `PEESUTO_ENCODER_PATH` names it explicitly.
+  then in a development build (`native/.build/release/PeesutoEncoder`, from a
+  linked git worktree also the main worktree's);
+  `PEESUTO_ENCODER_PATH` names it explicitly. `bun run paste --action …`
+  names the encoder that made an MP4.
 - **ffmpeg**: Pocket Motion's own `render --format mp4` (libx264, CRF 16).
   Used when the helper is absent, e.g. `bun run paste` outside the app, or when
   forced with `PEESUTO_VIDEO_ENCODER=ffmpeg` (`native` refuses to fall back).
