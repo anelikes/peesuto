@@ -162,7 +162,9 @@ export function placePlate(line: TemplateLine, color = line.color, extra: Partia
   const st: PlateStyle = { color, ...(line.plate?.rotate ? { rotate: line.plate.rotate } : {}), ...(line.plate?.alpha !== undefined ? { alpha: line.plate.alpha } : {}),
     ...(stroke ? { stroke } : {}), ...(paint?.gradient ? { gradient: paint.gradient } : {}), ...extra };
   const g = plateGeometry(face, line.text, line.size, st);
-  const [left, top] = line.plate?.rotate ? [line.x + line.width / 2 - g.cx, line.y + line.height / 2 - g.cy] : [line.x - g.ox, line.y + line.size * 0.88 - g.oy];
+  // Unturned plates sit on the baseline 0.88 em below the box top; a column's comma is drawn `offset` from its box (the corner of its cell).
+  const [left, top] = line.plate?.rotate ? [line.x + line.width / 2 - g.cx, line.y + line.height / 2 - g.cy]
+    : [line.x + (line.offset?.x ?? 0) - g.ox, line.y + (line.offset?.y ?? 0) + line.size * 0.88 - g.oy];
   return { left, top, width: g.width, height: g.height, request: { file: plateFile(font, line.text, line.size, st), font, text: line.text, size: line.size, style: st } };
 }
 

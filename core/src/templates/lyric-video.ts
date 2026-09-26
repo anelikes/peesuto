@@ -24,12 +24,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import { ComposeError, normalizeText } from "../render/compose.ts";
-import { checkLayout, fidelityViolations, type CheckViolation } from "./checks.ts";
+import { checkLayout, fidelityViolations, outsideCanvas, type CheckViolation } from "./checks.ts";
 import { CODE_FONT_DIR, TEMPLATE_FACES, TEXT_FONT, type TemplateLayout, type TemplateLine, type TemplateMeasure, type TemplateRect } from "./compose.ts";
 import { loadFace, missingGlyphs, plateMetrics, plateWidth, type Face } from "./type-raster.ts";
 import {
   CORNER, cutSpecs, emphasisPaint, faceOf, fitDurations, generator, glyphsOf, graphemes, KANA, LYRIC_LAYOUTS, LYRICS_MOTION, LYRICS_TIMING, lyricsMaxMs, NO_LINE_START,
-  pairCuts, seedOf, snapUp, Typesetter, verticalSafe, WIDE, cornerPunctuation,
+  pairCuts, seedOf, snapNear, snapUp, Typesetter, verticalSafe, WIDE, cornerPunctuation,
   type Box, type CutSpec, type LyricDecorMotion, type LyricEntrance, type LyricHold, type LyricLayout, type LyricPalette, type LyricsContext, type LyricsCut,
   type LyricShapeMotion, type LyricShapeRole, type LyricsProgram, type LyricsResult, type LyricsStyle, type LyricTransition, type LyricDecor, type Row,
 } from "./lyrics.ts";
@@ -252,8 +252,10 @@ function setColumns(env: Env, spec: CutSpec, pal: LyricPalette, box: Box, maxCol
         if (plate) {
           // A plate glyph centred in its cell; a comma or full stop in the cell's top-right quarter.
           const pw = plateWidth(env.plate!.face, glyph, size), cellTop = top + k * pitch;
-          const corner = CORNER.test(glyph);
-          lines.push(plateLine(env, glyph, corner ? cx + size * 0.08 : cx - pw / 2, Math.round(cellTop + (corner ? size * 0.32 : size * 0.9)), size, emph ? pal.accent : pal.ink, emph ? { emphasis: true } : {}));
+          const color = emph ? pal.accent : pal.ink, extra = emph ? { emphasis: true } : {};
+          lines.push(CORNER.test(glyph)
+            ? cornerPlate(plateLine(env, glyph, cx + size * 0.08, Math.round(cellTop + size * 0.32), size, color, extra), cx, cellTop)
+            : plateLine(env, glyph, cx - pw / 2, Math.round(cellTop + size * 0.9), size, color, extra));
           continue;
         }
         const w = ctx.measure.width(glyph, size, bold, env.face);
@@ -280,6 +282,17 @@ function plateLine(env: Env, text: string, x: number, baseline: number, size: nu
   const width = plateWidth(p.face, text, size);
   return { text, x, y: baseline - size * PLATE_ASCENT, width, size, height: size, bold: p.bold, color, group: 0, boldAt: graphemes(text).map(() => p.bold),
     ...(p.name ? { face: p.name } : {}), plate: {}, ...extra };
+}
+/**
+ * A comma or full stop plate in a vertical column, as cornerPunctuation does
+ * for engine glyphs: its box is the cell's top-right quarter, where the mark
+ * lands, and the plate is drawn `offset` from it, exactly where it was set.
+ * The plate's own em box starts at its pen and runs a whole em to the right,
+ * past the column: in a column at the right margin it left the canvas, and
+ * the overflow check refused the whole video.
+ */
+function cornerPlate(line: TemplateLine, cx: number, cellTop: number): TemplateLine {
+  return { ...line, x: cx, y: cellTop, width: line.size / 2, height: Math.round(line.size / 2), offset: { x: line.x - cx, y: line.y - cellTop } };
 }
 /** Per grapheme plate lines of `text` (spaces skipped), pen from x on `baseline`, colours by emphasis. */
 function plateGlyphs(env: Env, text: string, ranges: readonly (readonly [number, number])[], x: number, baseline: number, size: (i: number) => number, color: (i: number, emph: boolean) => string,
@@ -974,6 +987,14 @@ export function decorate(kind: LyricDecor, W: number, H: number, margin: number,
 }
 
 /* ───────────── The planner ───────────── */
+/** A draft the planner may use: every lyric line on the canvas (the overflow
+ * check, which refuses the whole video, applied to the one cut). One that
+ * leaves it counts as a layout that cannot set the cut, so the planner tries
+ * the next, as it does when a layout returns nothing. Decorative lines
+ * (tickers, ghosts, numerals) may bleed off the edge. */
+function onCanvas(draft: Draft | undefined, W: number, H: number): Draft | undefined {
+  return draft && draft.lines.every((l) => l.decorative || !l.text.trim() || !outsideCanvas(l, W, H)) ? draft : undefined;
+}
 const BUSY_PENALTY: Partial<Record<LyricLayout, number>> = {};
 /** How well each layout suits a cut, before the style's weights. */
 function suitability(env: Env, layout: LyricLayout): number {
@@ -1152,9 +1173,9 @@ export function video(ctx: LyricsContext): LyricsResult {
     // The layout: weighted by style, suitability and novelty; the first that fits wins.
     let draft: Draft | undefined, layout: LyricLayout = "center";
     if (spec.kind === "title") {
-      for (const l of ["giant", "center"] as const) { draft = LAYOUTS[l](env); if (draft) { layout = l; break; } }
+      for (const l of ["giant", "center"] as const) { draft = onCanvas(LAYOUTS[l](env), W, H); if (draft) { layout = l; break; } }
     } else if (force.layout) {
-      draft = LAYOUTS[force.layout](env); layout = force.layout;
+      draft = onCanvas(LAYOUTS[force.layout](env), W, H); layout = force.layout;
       if (!draft) throw new ComposeError("overflow", `The forced layout "${force.layout}" cannot set cut ${i + 1} in this frame.`);
     } else {
       const pool = LYRIC_LAYOUTS.map((l) => {
@@ -1167,10 +1188,10 @@ export function video(ctx: LyricsContext): LyricsResult {
         const l = weighted(random, pool.filter(([k]) => !tried.has(k)));
         if (!l) break;
         tried.add(l);
-        draft = LAYOUTS[l](env);
+        draft = onCanvas(LAYOUTS[l](env), W, H);
         if (draft) layout = l;
       }
-      if (!draft) { draft = center(env); layout = "center"; }
+      if (!draft) { draft = onCanvas(center(env), W, H); layout = "center"; }
     }
     if (!draft) throw new ComposeError("overflow", "A lyric line is too long for one screen of this frame even at the smallest size. Use PNG, a wider frame, or break the line with `/`. No content was dropped.");
     recent.push(layout);
@@ -1215,7 +1236,7 @@ export function video(ctx: LyricsContext): LyricsResult {
       // Micro-copy: the cut's own words, small and spaced, in an empty band with a short accent bar (editorial texture; decorative).
       const seg = spec.segments.length === 1 ? spec.segments[0] : undefined;
       if (seg && force.micro !== false && V.micro > 0 && random() < V.micro && graphemes(seg.text).length <= 48) {
-        const small = Math.max(ctx.minSecondary, Math.round(M.small.size * 0.8));
+        const small = Math.max(ctx.minSecondary, snapNear(ctx.sizes, M.small.size * 0.8));
         const text = normalizeText(seg.text, "plain"), n = graphemes(text).length, track = 0.14;
         const w = ctx.measure.width(text, small, false) + track * small * (n - 1), h = Math.round(small * 1.3);
         const bar = { w: Math.round(small * 1.1), h: Math.max(3, Math.round(small * 0.18)) };

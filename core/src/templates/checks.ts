@@ -196,6 +196,12 @@ function groundAt(layout: CheckedLayout, x: number, y: number, reach = 0): strin
   return [layout.background];
 }
 
+/** Whether a line's box leaves a `width`×`height` canvas (sub-pixel centring tolerated): the `overflow` check. */
+export function outsideCanvas(line: Pick<CheckedLine, "x" | "y" | "width" | "height">, width: number, height: number): boolean {
+  const tol = CHECK_THRESHOLDS.overflowTolerance;
+  return line.x < -tol || line.y < -tol || line.x + line.width > width + tol || line.y + line.height > height + tol;
+}
+
 /** Every check over one layout; `plan` enables the fidelity checks. */
 export function checkLayout(layout: CheckedLayout, plan?: Pick<TemplatePlan, "content">): CheckViolation[] {
   const T = CHECK_THRESHOLDS, W = layout.width;
@@ -205,10 +211,7 @@ export function checkLayout(layout: CheckedLayout, plan?: Pick<TemplatePlan, "co
     if (!line.text.trim() || line.decorative) return;
     const effective = line.size * T.readability.phoneWidth / W, floor = line.secondary ? T.readability.secondary : T.readability.body;
     if (effective < floor - 1e-9) out.push({ kind: "size", line: index, message: `line ${index} is ${line.size}px on a ${W}px canvas, ${effective.toFixed(1)}px on a phone (floor ${floor})` });
-    const tol = T.overflowTolerance;
-    if (line.x < -tol || line.y < -tol || line.x + line.width > W + tol || line.y + line.height > layout.height + tol) {
-      out.push({ kind: "overflow", line: index, message: `line ${index} runs outside the ${W}×${layout.height} canvas` });
-    }
+    if (outsideCanvas(line, W, layout.height)) out.push({ kind: "overflow", line: index, message: `line ${index} runs outside the ${W}×${layout.height} canvas` });
     const large = line.size * reference / W >= T.contrast.largeSize;
     const required = large ? T.contrast.large : T.contrast.body;
     const mid = line.y + line.height / 2;

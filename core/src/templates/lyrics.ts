@@ -641,6 +641,8 @@ export function layoutLyrics(ctx: LyricsContext): LyricsResult {
 /** Every character upright-safe for a vertical column. */
 export const verticalSafe = (text: string) => graphemes(text).every((g) => VERTICAL_SAFE.test(g));
 export const snapUp = (sizes: readonly number[], n: number) => sizes.find((s) => s >= n) ?? sizes.at(-1)!;
+/** The baked size nearest `n` (the larger on a tie): the measurer has a slot for baked sizes only. */
+export const snapNear = (sizes: readonly number[], n: number) => sizes.reduce((best, s) => (Math.abs(s - n) <= Math.abs(best - n) ? s : best), sizes[0]!);
 
 /* ───────────── Poster ───────────── */
 function poster(ctx: LyricsContext): LyricsResult {

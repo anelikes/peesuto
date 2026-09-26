@@ -2,13 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { buildTemplateRequest, decideTemplate } from "../src/templates/decide.ts";
 import { CUT_MAX_UNITS, parseLyricLine, parseLyrics, parseTemplates, splitCuts, templateIdList, withoutTemplates } from "../src/templates/parse.ts";
 import { renderKeyParts } from "../src/daemon/precompose.ts";
-import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, STATS_STYLES, TEMPLATE_LIMITS, TEMPLATE_SCROLL, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
+import { DIFF_STYLES, ERROR_STYLES, LYRICS_MOTION, LYRICS_TIMING, SIZES, STATS_STYLES, TEMPLATE_LIMITS, TEMPLATE_SCROLL, TIMELINE_STYLES, layoutTemplate, wrapTemplateText, type TemplateMeasure } from "../src/templates/compose.ts";
 import { cutSpecs, emphasisPaint, lyricsComposition, lyricsMaxMs, lyricsViolations, LYRICS_STYLES, LYRICS_VARIANTS, Typesetter } from "../src/templates/lyrics.ts";
 import { chunked, withLyricForce } from "../src/templates/lyric-video.ts";
 import { loadFace, missingGlyphs, plateGeometry, plateWidth, renderPlate } from "../src/templates/type-raster.ts";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { contrastRatio, fidelityViolations } from "../src/templates/checks.ts";
+import { contrastRatio, FATAL_CHECKS, fidelityViolations } from "../src/templates/checks.ts";
+import { placePlate } from "../src/templates/lyric-film.ts";
 import { CODE_FONT_DIR, TEMPLATE_FACES, faceTexts, templateFaceNames } from "../src/templates/compose.ts";
 import { TEMPLATE_GIF_FRAME_BUDGET } from "../src/templates/render.ts";
 import { TEMPLATE_REGISTRY, templateRegistration } from "../src/templates/registry.ts";
@@ -847,7 +848,7 @@ describe("lyrics cards", () => {
   const EN = "I remember the dawn\nPaper lanterns on the river\nWe were counting every bridge back home\n\nOh, *stay awake* with me\nStay awake with me!";
   const LRC = "[ti:纸飞机]\n[ar:Peesuto]\n[00:12.34]旧站台的白铃兰\n[00:15.80]从那年夏天开到现在\n[00:19.20]你折好的纸飞机\n[00:22.60]还停在我窗前的风里";
   const measure: TemplateMeasure = { width: (t, size) => [...t].reduce((n, c) => n + size * (/[\x00-\x7f]/.test(c) ? 0.6 : 1), 0), lineHeight: (size) => size * 1.45 };
-  const plan = (text: string, variant: "classic" | "editorial" | "pop" | "night" = "classic", motion: "none" | "reveal" | "typewriter" = "reveal", aspect: "1:1" | "9:16" | "16:9" = "1:1") =>
+  const plan = (text: string, variant: "classic" | "editorial" | "pop" | "night" = "classic", motion: "none" | "reveal" | "typewriter" = "reveal", aspect: "1:1" | "4:5" | "9:16" | "16:9" = "1:1") =>
     ({ version: 1 as const, template: "lyrics" as const, variant, motion, aspect, sourceText: text, content: lyricsOf(text)! });
 
   test("song lyrics in Chinese, Japanese and English keep their lines; lyric motion is never chosen automatically", () => {
@@ -1045,6 +1046,54 @@ describe("lyrics cards", () => {
     expect(lines[1]).toBeGreaterThanOrEqual(3498); expect(lines[1]).toBeLessThanOrEqual(3502);
     // Typewriter types every cut.
     expect(layoutTemplate(plan(EN, "classic", "typewriter"), measure, { format: "gif" }).lyrics!.cuts.every((c) => c.entrance === "type")).toBe(true);
+  });
+  test("every style, frame and output stays on the canvas and measures only baked sizes", () => {
+    // Sample lyrics written for these tests. The Japanese one once failed Paper's MP4: a comma set as a
+    // plate in the right-hand column of `mix` had a box one em wide from its pen, past the canvas edge.
+    const LONG_JA = "夜明けの色を/覚えてる\n*透明*な傘をたたんで\n坂道の途中で笑った!\nまだ眠い町の灯り\nほどけた声が鳴った\nねえ、まだ間に合うかな\n二人で数えた橋の数\nもう一度だけ/歩こう";
+    const LONG_ZH = "晚风吹亮*月光*\n我们慢慢走回家\n路灯一盏盏醒来\n把影子拉得很长\n你说明天还会下雨\n我说那就一起淋湿吧\n旧站台的白铃兰\n还在等夏天回来!";
+    // The engine's measurer has one slot per baked size and throws on any other (16:9 once measured micro-copy at 58 px).
+    const baked = new Set<number>(SIZES);
+    const strict: TemplateMeasure = {
+      width: (t, size, bold, face) => { if (!baked.has(size)) throw new Error(`measured at ${size}px, not a baked size`); return measure.width(t, size, bold, face); },
+      lineHeight: (size, bold, face) => { if (!baked.has(size)) throw new Error(`measured at ${size}px, not a baked size`); return measure.lineHeight(size, bold, face); },
+    };
+    for (const variant of LYRICS_VARIANTS) for (const aspect of ["1:1", "4:5", "16:9", "9:16"] as const) for (const format of ["gif", "mp4"] as const) {
+      for (const text of [ZH, JA, LONG_JA, LONG_ZH]) {
+        const p = plan(text, variant, "reveal", aspect);
+        const layout = layoutTemplate(p, strict, { format });
+        expect({ variant, aspect, format, text: text.slice(0, 6), fatal: lyricsViolations(layout, layout.lyrics!, p).filter((v) => FATAL_CHECKS.includes(v.kind)) })
+          .toEqual({ variant, aspect, format, text: text.slice(0, 6), fatal: [] });
+      }
+    }
+    // Columns at the right edge: a comma sits in its cell's top-right quarter, box and plate both.
+    for (const variant of LYRICS_VARIANTS) {
+      const p = plan("ねえ、まだ間に合うかな", variant);
+      const layout = withLyricForce({ layout: "mix", chunk: false }, () => layoutTemplate(p, strict, { format: "mp4" }));
+      expect(lyricsViolations(layout, layout.lyrics!, p)).not.toContainEqual(expect.objectContaining({ kind: "overflow" }));
+      for (const line of layout.lines.filter((l) => l.plate && l.text === "、")) {
+        expect(line.width).toBeLessThanOrEqual(line.size / 2);
+        expect(line.x + line.width).toBeLessThanOrEqual(layout.width);
+        // Drawn where the plate's pen is (0.08 em into the cell's right half), not where its box is.
+        const { offset, ...unboxed } = line;
+        expect(offset!.x).toBeCloseTo(line.size * 0.08, 5);
+        expect(placePlate(line)).toEqual(placePlate({ ...unboxed, x: line.x + offset!.x, y: line.y + offset!.y }));
+      }
+    }
+  });
+  test("the planner never uses a draft whose lyric leaves the canvas: it tries the next layout", () => {
+    // A glyph measured fifteen em wide: in a column its box spills past the column and the canvas.
+    // Noto has no plates, so every glyph is the engine's and measured.
+    const wide: TemplateMeasure = { width: (t, size, bold, face) => measure.width(t, size, bold, face) + [...t].filter((c) => c === "鳴").length * size * 14, lineHeight: measure.lineHeight };
+    const noto = { format: "mp4" as const, font: "noto-sans-sc" as const };
+    for (const variant of LYRICS_VARIANTS) {
+      const forced = plan("ほどけた声が鳴った", variant);
+      expect(() => withLyricForce({ layout: "vertical", chunk: false }, () => layoutTemplate(forced, measure, noto))).not.toThrow();
+      expect(() => withLyricForce({ layout: "vertical", chunk: false }, () => layoutTemplate(forced, wide, noto))).toThrow(/forced layout "vertical" cannot set/);
+      const free = plan("ほどけた声が鳴った\nまだ眠い町の灯り\n声が鳴った", variant);
+      const layout = layoutTemplate(free, wide, noto);
+      expect(lyricsViolations(layout, layout.lyrics!, free).filter((v) => v.kind === "overflow")).toEqual([]);
+    }
   });
   test("the tooling override pins each cut's layout, entrance, hold and transition, and only inside withLyricForce", () => {
     const text = "晚风吹亮*月光*\n我们慢慢走回家\n路灯一盏盏醒来";
