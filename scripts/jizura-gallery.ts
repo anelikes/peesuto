@@ -19,9 +19,9 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
+import { deflateSync } from "node:zlib";
 import { prepareJizura, renderJizura, SLOW_PARTS, type JizuraJob } from "../core/src/jizura/index.ts";
 import { JizuraDrawer } from "../core/src/jizura/render.ts";
-import { loadCanvas } from "../core/src/jizura/canvas.ts";
 import { lyricStyles } from "../core/src/jizura/catalog.ts";
 import { resolveVideoEncoder, videoAvailable } from "../core/src/render/video.ts";
 import { renderTemplate } from "../core/src/templates/render.ts";
@@ -105,7 +105,6 @@ if (classic) {
 interface GrainCase { style: string; lang: Lang; crops: string; mean: number; max: number; changed: number; msPattern: number; msSheets: number; mp4?: { pattern: number; sheets: number } }
 const grain: GrainCase[] = [];
 {
-  const canvas = await loadCanvas();
   for (const [lang, style] of [["zh", "noir"], ["ja", "mint"], ["zh", "paper"]] as const) {
     const text = TEXTS[lang];
     const p = await prepareJizura({ content: lyricsOf(text), sourceText: text, aspect: "1:1", format: "mp4", style });
@@ -126,22 +125,10 @@ const grain: GrainCase[] = [];
     for (let i = 0; i < a.pics.length; i++) for (let k = 0; k < a.pics[i]!.length; k += 4) for (let c = 0; c < 3; c++) {
       const d = Math.abs(a.pics[i]![k + c]! - b.pics[i]![k + c]!); sum += d; n++; if (d) changed++; if (d > max) max = d;
     }
-    // Crops of the busiest frame: pattern | sheets | difference ×40, at 2×.
-    const k = 30, W = p.job.width, crop = 300, x0 = Math.round(W / 2 - crop / 2), y0 = Math.round(p.job.height / 2 - crop / 2);
-    const sheet = canvas.createCanvas(crop * 2 * 3 + 16, crop * 2);
-    const ctx = sheet.getContext("2d") as unknown as { createImageData(w: number, h: number): { data: Uint8ClampedArray }; putImageData(d: unknown, x: number, y: number): void; fillStyle: string; fillRect(x: number, y: number, w: number, h: number): void };
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, crop * 6 + 16, crop * 2);
-    const panels = [a.pics[k]!, b.pics[k]!, a.pics[k]!.map((v, i) => (i % 4 === 3 ? 255 : Math.min(255, Math.abs(v - b.pics[k]![i]!) * 40)))];
-    panels.forEach((px, j) => {
-      const img = ctx.createImageData(crop * 2, crop * 2);
-      for (let y = 0; y < crop * 2; y++) for (let x = 0; x < crop * 2; x++) {
-        const s = ((y0 + (y >> 1)) * W + x0 + (x >> 1)) * 4, t = (y * crop * 2 + x) * 4;
-        img.data[t] = px[s]!; img.data[t + 1] = px[s + 1]!; img.data[t + 2] = px[s + 2]!; img.data[t + 3] = 255;
-      }
-      ctx.putImageData(img, j * (crop * 2 + 8), 0);
-    });
+    // Crops of one frame: pattern | sheets | difference ×40, at 2×, written as a PNG here (no canvas).
+    const rgb = cropSheet(a.pics[30]!, b.pics[30]!, p.job.width, p.job.height, 300);
     const crops = `media/grain-${style}.png`;
-    await Bun.write(join(out, crops), sheet.encodeSync("png"));
+    await Bun.write(join(out, crops), png(rgb.data, rgb.width, rgb.height));
     const c: GrainCase = { style, lang, crops, mean: +(sum / n).toFixed(3), max, changed: +(changed / n).toFixed(3), msPattern: Math.round(a.ms), msSheets: Math.round(b.ms) };
     if (video) {
       const sizes: number[] = [];
@@ -155,6 +142,48 @@ const grain: GrainCase[] = [];
     grain.push(c);
     console.log(`grain ${style}: mean ${c.mean}, max ${c.max}; ${c.msPattern} → ${c.msSheets} ms a frame`);
   }
+}
+
+/**
+ * Three centre crops side by side at 2×: `a`, `b` and their difference ×40.
+ * A plain function on purpose: the same loops written as a closure inside
+ * this module's top-level-await body stopped early under Bun 1.3.11's
+ * optimising JIT (JavaScriptCore), leaving most of the sheet unwritten.
+ */
+function cropSheet(a: Uint8Array, b: Uint8Array, W: number, H: number, crop: number): { data: Uint8Array; width: number; height: number } {
+  const x0 = Math.round(W / 2 - crop / 2), y0 = Math.round(H / 2 - crop / 2), gap = 8, SW = crop * 6 + gap * 2, SH = crop * 2;
+  const diff = new Uint8Array(a.length);
+  for (let i = 0; i < diff.length; i++) diff[i] = Math.min(255, Math.abs(a[i]! - b[i]!) * 40);
+  const rgb = new Uint8Array(SW * SH * 3).fill(255);
+  const panels = [a, b, diff];
+  for (let j = 0; j < 3; j++) {
+    const px = panels[j]!;
+    for (let y = 0; y < SH; y++) for (let x = 0; x < crop * 2; x++) {
+      const s = ((y0 + (y >> 1)) * W + x0 + (x >> 1)) * 4, t = (y * SW + j * (crop * 2 + gap) + x) * 3;
+      rgb[t] = px[s]!; rgb[t + 1] = px[s + 1]!; rgb[t + 2] = px[s + 2]!;
+    }
+  }
+  return { data: rgb, width: SW, height: SH };
+}
+
+/** RGB → PNG (8-bit, no filter), for the crops. */
+function png(rgb: Uint8Array, w: number, h: number): Uint8Array {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (b: Uint8Array) => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 0xff]! ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type: string, data: Uint8Array) => {
+    const out = new Uint8Array(12 + data.length), v = new DataView(out.buffer);
+    v.setUint32(0, data.length); out.set(new TextEncoder().encode(type), 4); out.set(data, 8);
+    v.setUint32(8 + data.length, crc(out.subarray(4, 8 + data.length)));
+    return out;
+  };
+  const raw = new Uint8Array((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) raw.set(rgb.subarray(y * w * 3, (y + 1) * w * 3), y * (w * 3 + 1) + 1);
+  const ihdr = new Uint8Array(13), iv = new DataView(ihdr.buffer);
+  iv.setUint32(0, w); iv.setUint32(4, h); ihdr[8] = 8; ihdr[9] = 2;
+  const parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw, { level: 6 })), chunk("IEND", new Uint8Array())];
+  const zl = parts.reduce((n, p) => n + p.length, 0), outBuf = new Uint8Array(zl);
+  let at = 0; for (const p of parts) { outBuf.set(p, at); at += p.length; }
+  return outBuf;
 }
 
 /* ───────────── The page ───────────── */
