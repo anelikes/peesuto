@@ -63,6 +63,8 @@ export interface JizuraJob {
   readonly maxRes: number;
   /** The grain and scanlines as pre-tiled images (grain.ts) instead of Skia's slow pattern fill. */
   readonly grainShim: boolean;
+  /** Leave JIZURA's film grain out (a GIF, grain.ts). */
+  readonly noGrain?: boolean;
 }
 
 /** Bytes of frames a chunk may hold (the frames in flight are about a chunk per thread): 14 frames at 1080², 8 at 1920×1080, 30 of a GIF. */
@@ -133,9 +135,9 @@ export class JizuraDrawer implements Drawer {
     const renderer = new J.Renderer();
     const canvas = this.canvas.createCanvas(job.width, job.height);
     const ctx = canvas.getContext("2d", { alpha: false });
-    if (job.grainShim) {
+    if (job.grainShim || job.noGrain) {
       const r = renderer as unknown as { grain?: unknown[]; scan?: unknown };
-      shimGrain(this.canvas, ctx, [...(r.grain ?? []), ...(r.scan ? [r.scan] : [])]);
+      shimGrain(this.canvas, ctx, [...(r.grain ?? []), ...(r.scan ? [r.scan] : [])], { sheets: job.grainShim, ...(job.noGrain ? { skip: r.grain ?? [] } : {}) });
     }
     const scale = job.width / plan.W;
     const chunk = job.chunks[i]!;

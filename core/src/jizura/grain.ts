@@ -18,6 +18,11 @@
  * into (own properties on that instance, as JIZURA's own alpha guard does),
  * and only for the renderer's grain and scanline tiles; every other pattern,
  * and a pattern given a transform of its own, is filled as before.
+ *
+ * A GIF leaves the grain out, as classic Lyric motion does: noise that
+ * changes with every drawing is dithering in a 128-colour palette and about
+ * two thirds of the file (a 14 s GIF: 5.3 MB with it, 1.7 MB without any
+ * texture); the paper, the scanlines and the vignette stay.
  */
 import type { CanvasContext2D, CanvasElement, CanvasModule } from "./canvas.ts";
 
@@ -46,9 +51,13 @@ function sheetOf(canvas: CanvasModule, t: Tile, sw: number, sh: number): CanvasE
 
 export interface GrainShim { readonly hits: () => number }
 
-/** Draw `tiles` (the renderer's grain and scanline canvases) as pre-tiled sheets when `ctx` fills a rect with them. */
-export function shimGrain(canvas: CanvasModule, ctx: CanvasContext2D, tiles: readonly unknown[]): GrainShim {
-  const own = new Set(tiles);
+/**
+ * Draw `tiles` (the renderer's grain and scanline canvases) as pre-tiled
+ * sheets when `ctx` fills a rect with them (`sheets: false` keeps Skia's
+ * pattern fill); tiles in `skip` are not drawn at all (the grain of a GIF).
+ */
+export function shimGrain(canvas: CanvasModule, ctx: CanvasContext2D, tiles: readonly unknown[], o: { readonly skip?: readonly unknown[]; readonly sheets?: boolean } = {}): GrainShim {
+  const own = new Set(tiles), skip = new Set(o.skip ?? []), sheets = o.sheets ?? true;
   const proto = Object.getPrototypeOf(ctx) as Record<string, unknown>;
   const native = {
     createPattern: proto.createPattern as (this: CanvasContext2D, src: unknown, rep: string | null) => { setTransform?: (...a: unknown[]) => void } | null,
@@ -83,7 +92,8 @@ export function shimGrain(canvas: CanvasModule, ctx: CanvasContext2D, tiles: rea
   target.restore = function (this: CanvasContext2D) { if (stack.length) current = stack.pop(); native.restore.call(this); };
   target.fillRect = function (this: CanvasContext2D, x: number, y: number, w: number, h: number) {
     const tile = current !== null && typeof current === "object" ? meta.get(current) : undefined;
-    if (!tile || tile.transformed || !(w > 0 && h > 0)) return native.fillRect.call(this, x, y, w, h);
+    if (tile && skip.has(tile.src)) return;
+    if (!tile || tile.transformed || !sheets || !(w > 0 && h > 0)) return native.fillRect.call(this, x, y, w, h);
     const tw = tile.src.width, th = tile.src.height;
     // The pattern's tiles sit on multiples of the tile size in the current user space.
     const x0 = Math.floor(x / tw) * tw, y0 = Math.floor(y / th) * th;

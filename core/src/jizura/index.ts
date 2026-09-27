@@ -179,6 +179,8 @@ export async function prepareJizura(r: JizuraRequest): Promise<JizuraPrepared> {
     chunks: jizuraChunks({ durationFrames, step, fps: JIZURA_FPS, width: size.width, height: size.height }),
     fonts: files, randomSeed: RANDOM_SEED, maxRes: size.height >= 1000 ? 768 : 512,
     grainShim: process.env.PEESUTO_JIZURA_GRAIN !== "pattern",
+    // A GIF without the film grain, as classic Lyric motion (grain.ts).
+    ...(r.format === "gif" ? { noGrain: true } : {}),
   };
   const { info } = jizuraSource(bundlePath);
   return { ok: true, job, ms: Math.round(performance.now() - t0), meta: {

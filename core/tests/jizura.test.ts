@@ -254,7 +254,7 @@ describe.skipIf(!canvasReady)("frames", () => {
       const renderer = new realm.J.Renderer();
       const cv = canvas.createCanvas(job.width, job.height), ctx = cv.getContext("2d", { alpha: false });
       const r = renderer as unknown as { grain: unknown[]; scan: unknown };
-      if (job.grainShim) shimGrain(canvas, ctx, [...r.grain, r.scan]);
+      if (job.grainShim || job.noGrain) shimGrain(canvas, ctx, [...r.grain, r.scan], { sheets: job.grainShim, ...(job.noGrain ? { skip: r.grain } : {}) });
       const straight: string[] = [];
       for (let f = 0; f < job.durationFrames; f += job.step) { renderer.frame(ctx, plan, f / job.fps, { scale: job.width / plan.W }); straight.push(hash(cv.data())); }
       realm.dispose();
@@ -276,7 +276,7 @@ describe.skipIf(!canvasReady)("frames", () => {
   test("the grain drawn as sheets matches Skia's pattern fill within rounding", async () => {
     const job = await film(ZH, "mint");
     const short = { ...job, chunks: job.chunks.slice(0, 2) };
-    const a = await JizuraDrawer.open({ ...short, grainShim: false }), b = await JizuraDrawer.open({ ...short, grainShim: true });
+    const a = await JizuraDrawer.open({ ...short, grainShim: false, noGrain: false }), b = await JizuraDrawer.open({ ...short, grainShim: true, noGrain: false });
     let max = 0, sum = 0, n = 0;
     for (const f of short.chunks.flatMap((c) => c.frames)) {
       const x = await a.draw(f), y = await b.draw(f);
@@ -294,6 +294,28 @@ describe.skipIf(!canvasReady)("frames", () => {
       setTimeout(() => control.abort(), 300);
       await expect(run).rejects.toBeInstanceOf(EngineAbortedError);
     } finally { await rm(dir, { recursive: true, force: true }); }
+  }, 60_000);
+  test.skipIf(!Bun.which("ffmpeg"))("an MP4 through ffmpeg's raw pipe (outside the app), H.264 tagged BT.709", async () => {
+    const job = { ...(await film(ZH, "candy")), step: 1, durationFrames: 40 };
+    const chunked = { ...job, chunks: jizuraChunks({ durationFrames: 40, step: 1, fps: job.fps, width: job.width, height: job.height, size: 8 }) };
+    const dir = await mkdtemp(join(tmpdir(), "peesuto-jizura-"));
+    try {
+      const out = join(dir, "x.mp4");
+      const r = await renderJizura(chunked, { out, format: "mp4", threads: 2, encoder: { kind: "ffmpeg", path: Bun.which("ffmpeg")! } });
+      expect(r.frames).toBe(40);
+      const probe = Bun.spawnSync([Bun.which("ffprobe") ?? "ffprobe", "-v", "error", "-show_entries", "stream=codec_name,color_primaries,color_transfer,nb_frames", "-of", "compact", out]);
+      const text = probe.stdout.toString();
+      if (probe.exitCode === 0) expect(text).toContain("codec_name=h264");
+      const bytes = await Bun.file(out).bytes();
+      const at = (box: string) => Buffer.from(bytes).indexOf(box);
+      expect(at("moov")).toBeLessThan(at("mdat"));
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }, 60_000);
+  test("a GIF leaves the film grain out (as classic Lyric motion); video keeps it", async () => {
+    const gif = await prepareJizura({ content: lyricsOf(JA), sourceText: JA, aspect: "1:1", format: "gif", style: "noir", resolveFonts: standIn });
+    const video = await prepareJizura({ content: lyricsOf(JA), sourceText: JA, aspect: "1:1", format: "mp4", style: "noir", resolveFonts: standIn });
+    expect(gif.ok && gif.job.noGrain).toBe(true);
+    expect(video.ok && video.job.noGrain).toBeFalsy();
   }, 60_000);
   test("a GIF out of a prepared film", async () => {
     const job = await film(ZH, "candy");
