@@ -577,7 +577,7 @@ is an input error, and a text too long is the same `lyric-too-long` /
   (`PEESUTO_JIZURA_GRAIN=presampled`, `core/src/jizura/grain.ts`) samples one
   period of the layer with the same pattern fill and lays it over the frame
   by whole-pixel copies: a 21 s 1080² MP4 in 15.6 s instead of 21.9 s on six
-  threads, the pixels within 4 of 255 (0.3–0.6 on average), but MP4s 11–23%
+  threads, the pixels within 4 of 255 (0.3–1.1 on average), but MP4s 10–23%
   larger, because the 8-bit blend adds a faint noise the encoder pays for
   (an earlier pre-tiled image resampled in 8 bits: up to 10 of 255 and
   20–32% larger). Not matching, it stays off; crops, numbers and both MP4s in

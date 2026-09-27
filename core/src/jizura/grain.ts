@@ -16,7 +16,7 @@
  * small canvas, and that patch is laid over the frame by whole-pixel copies
  * with the same blend and alpha (PRESAMPLED). The pattern's own sampling is
  * kept exactly; what remains is Skia blending an image in 8 bits where its
- * shader blends in float: up to 4 of 255, 0.3–0.6 on average, spread evenly.
+ * shader blends in float: up to 4 of 255, 0.3–1.1 on average, spread evenly.
  * Under any other transform (9:16 and 4:5 frames scale the grain by a
  * fraction)
  * the tiles are drawn as one pre-tiled image under the same transform
