@@ -110,6 +110,69 @@ If the worker threads cannot start, the render continues in Core's own
 thread. Cancelling (Esc stops Core; an aborted request or the render
 deadline inside Core) terminates the threads within a frame.
 
+## JIZURA font packs
+
+The JIZURA render line draws with the faces JIZURA asks Google Fonts for in
+a browser. Peesuto never asks Google (or anyone) while rendering: a small
+base set is bundled, and one pack per lyric language is downloaded when a
+render first needs it (`core/src/fonts/jizura-packs.ts`).
+
+| What | Where |
+| --- | --- |
+| Pinned sources and the pack layout | `scripts/fonts/jizura-sources.json` (upstream URL at an exact commit, SHA-256, licence of every file) |
+| Build | `scripts/fonts/jizura-packs.ts`, with `scripts/fonts/jizura-fonts.py` (fontTools) for WOFF2, the Latin cuts and the checks |
+| Manifest (committed) | `core/src/fonts/jizura-packs.json`: every file's size and SHA-256, bundled vs downloadable, `baseUrl` |
+| Bundled base (committed) | `core/src/render/fonts/jizura/` ([README](../core/src/render/fonts/jizura/README.md)): DotGothic16, IBM Plex Mono and IBM Plex Sans JP whole, and a Latin cut of every other Japanese face, so English lyrics need no download |
+| Packs (built, not committed) | `.work/jizura-font-packs/<id>-<sha8>.tar`: `ja`, `zh-hans`, `zh-hant`, `ko`; a plain tar of WOFF2 files and their licences, uploaded to the host as they are |
+| Installed packs | `<app data>/fonts/jizura/<id>@<sha12>/` (the daemon's `--app-data`; `~/Library/Application Support/com.peesuto.desktop` in the app), downloads in progress under `.partial/` |
+
+Rebuild after changing the sources:
+
+```bash
+bun scripts/fonts/jizura-packs.ts            # fetch into .work/jizura-font-cache, convert, pack, write the manifest
+bun scripts/fonts/jizura-packs.ts --pin      # a new source: take its empty sha256 from the download
+bun scripts/fonts/jizura-packs.ts --verify   # also: outlines, overlaps, pixels (below)
+```
+
+Needs python3 with fontTools and brotli (built with 4.60); the first run
+downloads about 400 MB of sources and takes some minutes to convert, later
+runs reuse both. The same sources give byte-identical WOFF2, tars and
+manifest. `--verify` checks that every WOFF2 has exactly its source's
+outlines (glyph by glyph), draws each one filled and stroked with
+@napi-rs/canvas next to its source and compares the pixels, and, with
+skia-pathops installed, counts the sources' overlapping contours. The two
+extra tools are not repository dependencies:
+
+```bash
+python3 -m venv .work/fontvenv && .work/fontvenv/bin/pip install fonttools==4.60.0 brotli skia-pathops
+(mkdir -p .work/jizura-font-verify && cd .work/jizura-font-verify && echo '{"private":true}' > package.json && bun add @napi-rs/canvas)
+PYTHON=$PWD/.work/fontvenv/bin/python bun scripts/fonts/jizura-packs.ts --verify
+```
+
+Noto Sans/Serif JP, SC, TC and KR must be the static CFF builds from
+notofonts/noto-cjk (`SubsetOTF`): the TrueType and variable builds on Google
+Fonts keep overlapping contours (89% of Noto Sans JP's glyphs), which
+JIZURA's outline treatments stroke as inner lines. Static Noto CJK has no
+weight 800, so JIZURA's Serif 800 snaps to 900, and the 太さ cut, which asks
+for any weight from 100 to 900, steps through the four weights shipped.
+
+To publish a build, upload the tars under the manifest's `baseUrl` (each
+file name carries its hash, so old and new builds can sit side by side),
+then commit the manifest and the bundled base. A client only downloads when
+`ensureJizuraFonts` or `installFontPack` is called: HTTPS only (plain HTTP
+for loopback hosts, for tests), no cookies or credentials, `Range` only when
+resuming; the size and SHA-256 are checked before anything is unpacked, and
+again for every file; offline mode refuses, and every request is a line in
+the egress log (`fonts:<pack>`).
+
+| Variable | Effect |
+| --- | --- |
+| `PEESUTO_JIZURA_FONTS_DIR` | A flat directory of font files (TTF, OTF, WOFF, WOFF2) used before the bundled and installed ones, matched by the family and weight in each file's name table: `PEESUTO_JIZURA_FONTS_DIR=$PWD/.work/jizura-font-cache` or `.work/jizura-font-packs/woff2` after a build. |
+| `PEESUTO_FONT_PACKS_URL` | Where packs are downloaded from, instead of the manifest's `baseUrl` (for testing a host, or `python3 -m http.server 8765 -b 127.0.0.1 -d .work/jizura-font-packs` with `http://127.0.0.1:8765/`). |
+| `PYTHON` | The Python the build uses (default `python3`). |
+| `JIZURA_CANVAS_DIR` | Where `--verify` finds @napi-rs/canvas (default `.work/jizura-font-verify`). |
+| `JIZURA_FONT_JOBS` | Parallel conversions (default: up to 6). |
+
 ## Tests
 
 ```bash
