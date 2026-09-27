@@ -2,7 +2,7 @@
  * The JIZURA render line, for looking at: the same two texts (Chinese and
  * Japanese) as Lyric motion GIFs drawn by JIZURA in おまかせ and seven of its
  * styles, next to the classic (Pocket Motion) renders of the same texts, and
- * the grain drawn as sheets (core/src/jizura/grain.ts) against Skia's own
+ * the grain presampled (core/src/jizura/grain.ts, opt-in) against JIZURA's own
  * pattern fill: crops of one frame each way, their difference amplified, the
  * numbers, and the MP4 each way. Every render's time and size is listed.
  *
@@ -101,7 +101,7 @@ if (classic) {
   }
 }
 
-/* ───────────── Grain as sheets vs Skia's pattern fill ───────────── */
+/* ───────────── Grain presampled (opt-in) vs JIZURA's pattern fill (default) ───────────── */
 interface GrainCase { style: string; lang: Lang; crops: string; mean: number; max: number; changed: number; msPattern: number; msSheets: number; mp4?: { pattern: number; sheets: number } }
 const grain: GrainCase[] = [];
 {
@@ -125,7 +125,7 @@ const grain: GrainCase[] = [];
     for (let i = 0; i < a.pics.length; i++) for (let k = 0; k < a.pics[i]!.length; k += 4) for (let c = 0; c < 3; c++) {
       const d = Math.abs(a.pics[i]![k + c]! - b.pics[i]![k + c]!); sum += d; n++; if (d) changed++; if (d > max) max = d;
     }
-    // Crops of one frame: pattern | sheets | difference ×40, at 2×, written as a PNG here (no canvas).
+    // Crops of one frame: pattern | presampled | difference ×40, at 2×, written as a PNG here (no canvas).
     const rgb = cropSheet(a.pics[30]!, b.pics[30]!, p.job.width, p.job.height, 300);
     const crops = `media/grain-${style}.png`;
     await Bun.write(join(out, crops), png(rgb.data, rgb.width, rgb.height));
@@ -133,7 +133,7 @@ const grain: GrainCase[] = [];
     if (video) {
       const sizes: number[] = [];
       for (const shim of [false, true]) {
-        const file = join(out, `media/grain-${style}-${shim ? "sheets" : "pattern"}.mp4`);
+        const file = join(out, `media/grain-${style}-${shim ? "presampled" : "pattern"}.mp4`);
         await renderJizura({ ...p.job, grainShim: shim }, { out: file, format: "mp4", encoder: resolveVideoEncoder() });
         sizes.push(existsSync(file) ? (await stat(file)).size : 0);
       }
@@ -214,12 +214,12 @@ table { border-collapse: collapse; font-size: 13px; } td, th { border-bottom: 1p
 ${(Object.keys(TEXTS) as Lang[]).map((lang) => `<h2>${lang === "zh" ? "Chinese" : "Japanese"} · JIZURA</h2><p><code>${esc(TEXTS[lang].replace(/\n/g, " / "))}</code></p><div class="grid">${grid[lang].map((s) => card(s)).join("")}</div>`).join("\n")}
 ${classic ? `<h2>Classic (Pocket Motion) and JIZURA おまかせ, same texts</h2><div class="grid">${(Object.keys(TEXTS) as Lang[]).flatMap((lang) => [...classicShots[lang], grid[lang][0]!]).map((s) => card(s)).join("")}</div>` : ""}
 ${videos.length ? `<h2>MP4 (おまかせ), 1:1 and 16:9</h2><div class="grid">${videos.map((s) => card(s, "video")).join("")}</div>` : ""}
-<h2>Grain: sheets (Peesuto) vs Skia's pattern fill</h2>
-<p>JIZURA fills its grain (and scanlines) as a repeating pattern every frame; Skia's pattern shader makes that most of a frame. Peesuto draws the same tiles as one pre-tiled image under the same transform. Each row: one frame, centre crop at 2× — pattern | sheets | difference ×40. Differences and times over 60 frames (two seconds from the middle of the film); MP4 sizes over the whole film, each way.</p>
-<table><tr><th>style</th><th>mean |Δ| (0–255)</th><th>max |Δ|</th><th>pixels changed</th><th>ms/frame pattern → sheets</th><th>MP4 pattern → sheets</th></tr>
+<h2>Grain: presampled (opt-in, PEESUTO_JIZURA_GRAIN=presampled) vs JIZURA's pattern fill (default)</h2>
+<p>JIZURA fills its grain (and scanlines) as a repeating pattern every frame; Skia's pattern shader makes that most of a frame. The opt-in path samples one period of the layer with the same pattern fill and lays it over the frame by whole-pixel copies (core/src/jizura/grain.ts): the sampling is JIZURA's, the blend rounds in 8 bits. Each row: one frame, centre crop at 2× — pattern | presampled | difference ×40. Differences and times over 60 frames (two seconds from the middle of the film); MP4 sizes over the whole film, each way. The default is the pattern: presampled frames are faster, but the MP4s come out larger.</p>
+<table><tr><th>style</th><th>mean |Δ| (0–255)</th><th>max |Δ|</th><th>pixels changed</th><th>ms/frame pattern → presampled</th><th>MP4 pattern → presampled</th></tr>
 ${grain.map((g) => `<tr><td>${g.style} (${g.lang})</td><td>${g.mean}</td><td>${g.max}</td><td>${(g.changed * 100).toFixed(1)}%</td><td>${g.msPattern} → ${g.msSheets}</td><td>${g.mp4 ? `${kb(g.mp4.pattern)} → ${kb(g.mp4.sheets)}` : "—"}</td></tr>`).join("\n")}
 </table>
-<div class="grid wide">${grain.map((g) => `<figure><img src="${g.crops}" alt="grain ${g.style}"><figcaption><b>${g.style}</b><span>pattern | sheets | difference ×40</span></figcaption></figure>`).join("")}</div>
+<div class="grid wide">${grain.map((g) => `<figure><img src="${g.crops}" alt="grain ${g.style}"><figcaption><b>${g.style}</b><span>pattern | presampled | difference ×40</span></figcaption></figure>`).join("")}</div>
 </main></body></html>
 `;
 await writeFile(join(out, "index.html"), html);
