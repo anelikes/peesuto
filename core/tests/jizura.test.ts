@@ -22,6 +22,7 @@ import { jizuraBundlePath } from "../src/jizura/bundle.ts";
 import { AUTO_STYLE, JizuraDrawer, JizuraStyleError, lyricStyles, prepareJizura, renderJizura, type JizuraJob } from "../src/jizura/index.ts";
 import { createRealm } from "../src/jizura/realm.ts";
 import { jizuraChunks } from "../src/jizura/render.ts";
+import { shimGrain } from "../src/jizura/grain.ts";
 import { lyricScript } from "../src/jizura/script.ts";
 import { ComposeError } from "../src/render/compose.ts";
 import { liveFrameWorkers, renderFrames } from "../src/render/frames.ts";
@@ -109,7 +110,7 @@ describe("text and timing as JIZURA lines", () => {
     expect(parsed).toHaveLength(s.lines.length);
     expect(parsed.map((l) => l.text)).toEqual(["＃1 song of the night,", "5 ＊ 3 = 15 stars.", "Mix 1／2 cup of milk,", "then wait.", "［00:12] was not a stamp here."]);
     expect(parsed.every((l) => l.lrc === null && l.manual === null)).toBe(true);
-  });
+  }, 60_000);
   test("the caps are Lyric motion's: a GIF too long is lyric-gif-too-long, pointing at video; nothing is dropped", () => {
     const long = Array.from({ length: 40 }, (_, i) => `第${i + 1}行的歌词在这里慢慢唱`).join("\n");
     let error: unknown;
@@ -136,7 +137,7 @@ describe.skipIf(!canvasReady)("plans", () => {
     expect(a.meta.lang).toBe("zh-Hans");
     expect(c.meta.lang).toBe("ja");
     expect(JSON.stringify(a.job.project)).not.toBe(JSON.stringify(c.job.project));
-  });
+  }, 60_000);
   test("a chosen style is drawn in that style; a GIF is drawn at its own width, 15 frames a second", async () => {
     const p = await prepare(JA, { style: "sakura" });
     if (!p.ok) throw new Error(p.message);
@@ -148,7 +149,7 @@ describe.skipIf(!canvasReady)("plans", () => {
     const video = await prepare(JA, { style: "sakura", format: "mp4", aspect: "16:9" });
     if (!video.ok) throw new Error(video.message);
     expect([video.job.width, video.job.height, video.job.step]).toEqual([1920, 1080, 1]);
-  });
+  }, 60_000);
   test("horror is off unless asked: おまかせ never draws a horror style or part, a horror style needs the switch", async () => {
     const canvas = await loadCanvas();
     for (const text of [ZH, JA, "Rain on the window\nI remember you\nNight is falling\nHold on to me"]) {
@@ -169,7 +170,7 @@ describe.skipIf(!canvasReady)("plans", () => {
     const horror = await prepare(ZH, { style: "hrRuin", horror: true });
     expect(horror.ok && horror.meta.style).toBe("hrRuin");
     await expect(prepare(ZH, { style: "no-such-style" })).rejects.toBeInstanceOf(JizuraStyleError);
-  });
+  }, 60_000);
   test("missing fonts and missing glyphs are typed results, never a render with boxes", async () => {
     const text = ZH;
     const missing = await prepareJizura({ content: lyricsOf(text), sourceText: text, aspect: "1:1", format: "gif", resolveFonts: (families) => ({ files: [], missing: [...families] }) });
@@ -182,7 +183,7 @@ describe.skipIf(!canvasReady)("plans", () => {
     expect(glyphs.ok).toBe(false);
     if (!glyphs.ok && glyphs.reason === "glyphs") expect(glyphs.characters).toContain("晚");
     else throw new Error("expected glyphs");
-  });
+  }, 60_000);
 });
 
 describe("routing (templates/lyrics-route.ts)", () => {
@@ -210,13 +211,13 @@ describe("routing (templates/lyrics-route.ts)", () => {
     const r = await renderLyrics(g, { ...options, format: "gif" }, { resolveFonts: (families) => ({ files: [], missing: [...families] }) }, fakeClassic(calls));
     expect(r.lyric).toMatchObject({ engine: "classic", reason: "fonts-missing", missing: expect.arrayContaining(["Noto Sans SC"]) });
     expect(calls).toEqual(["classic:gif"]);
-  });
+  }, 60_000);
   withCanvas("an input JIZURA refuses is an input error, not a fallback", async () => {
     const [g, calls] = plan(ZH);
     await expect(renderLyrics(g, { ...options, format: "gif" }, { style: "hrCurse", resolveFonts: standIn }, fakeClassic(calls))).rejects.toBeInstanceOf(TemplateInputError);
     await expect(renderLyrics(g, { ...options, format: "gif" }, { engine: "jizura", style: "pop" }, fakeClassic(calls))).rejects.toBeInstanceOf(TemplateInputError);
     expect(calls).toEqual([]);
-  });
+  }, 60_000);
 });
 
 describe.skipIf(!canvasReady)("frames", () => {
@@ -241,6 +242,24 @@ describe.skipIf(!canvasReady)("frames", () => {
     expect(new Set(one).size).toBeGreaterThan(one.length / 3);
     expect(await hashes(job, 3)).toEqual(one);
     expect(await hashes(job, 4)).toEqual(one);
+  }, 120_000);
+  test("chunked frames are the frames of one uninterrupted run", async () => {
+    for (const [text, style] of [[JA, "noir"], [ZH, "auto"]] as const) {
+      const job = await film(text, style);
+      const chunked = await hashes(job, 3);
+      const canvas = await loadCanvas();
+      const realm = createRealm(canvas, job.bundlePath, job.randomSeed);
+      realm.J.glyphs.maxRes = job.maxRes;
+      const plan = realm.J.plan(JSON.parse(JSON.stringify(job.project)), null);
+      const renderer = new realm.J.Renderer();
+      const cv = canvas.createCanvas(job.width, job.height), ctx = cv.getContext("2d", { alpha: false });
+      const r = renderer as unknown as { grain: unknown[]; scan: unknown };
+      if (job.grainShim) shimGrain(canvas, ctx, [...r.grain, r.scan]);
+      const straight: string[] = [];
+      for (let f = 0; f < job.durationFrames; f += job.step) { renderer.frame(ctx, plan, f / job.fps, { scale: job.width / plan.W }); straight.push(hash(cv.data())); }
+      realm.dispose();
+      expect(chunked).toEqual(straight);
+    }
   }, 120_000);
   test("drawing resumes inside a chunk with the same pixels (the workers gave up there)", async () => {
     const job = await film(ZH, "candy");

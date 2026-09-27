@@ -6,12 +6,11 @@
  *   <repo>/vendor/jizura    a checkout (this file is core/src/jizura/bundle.ts)
  *   <resources>/vendor/jizura  the app bundle (Core is copied to <resources>/core)
  *
- * The source is compiled once per thread into a vm.Script; every realm
- * (realm.ts) runs that same compiled script.
+ * The source is read once per thread; realm.ts evaluates it once per thread
+ * inside a vm context and makes engine instances from it.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import vm from "node:vm";
 import { JizuraUnavailableError } from "./canvas.ts";
 
 const CANDIDATES = [
@@ -37,11 +36,11 @@ export interface JizuraBundleInfo {
   readonly commit: string;
 }
 
-const compiled = new Map<string, { script: vm.Script; info: JizuraBundleInfo }>();
+const read = new Map<string, { source: string; info: JizuraBundleInfo }>();
 
-/** The compiled engine at `path` (once per thread), and the version and commit its header names. */
-export function jizuraScript(path: string): { script: vm.Script; info: JizuraBundleInfo } {
-  let hit = compiled.get(path);
+/** The engine's source at `path` (read once per thread), and the version and commit its header names. */
+export function jizuraSource(path: string): { source: string; info: JizuraBundleInfo } {
+  let hit = read.get(path);
   if (hit) return hit;
   let source: string;
   try { source = readFileSync(path, "utf8"); }
@@ -49,7 +48,7 @@ export function jizuraScript(path: string): { script: vm.Script; info: JizuraBun
   const head = source.slice(0, 600);
   const version = /JIZURA (\d+\.\d+\.\d+)/.exec(head)?.[1] ?? "unknown";
   const commit = /at ([0-9a-f]{40})/.exec(head)?.[1] ?? "unknown";
-  hit = { script: new vm.Script(source, { filename: "jizura.js" }), info: { path, version, commit } };
-  compiled.set(path, hit);
+  hit = { source, info: { path, version, commit } };
+  read.set(path, hit);
   return hit;
 }

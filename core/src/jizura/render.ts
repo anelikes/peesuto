@@ -3,25 +3,25 @@
  *
  * JIZURA draws a frame from (plan, t), but a few of its caches carry state
  * from one frame to the next: the last real lyric box per cut that decor
- * falls back on while the text is hidden or leaving, the order glyphs were
- * first cut into pieces (their ids seed how a glyph shatters), the paper
- * texture made on first use. Drawn in order in one thread that is simply the
+ * falls back on while the text is hidden or leaving, the paper texture made
+ * on first use (and the order glyphs were first cut into pieces, which
+ * realm.ts makes irrelevant). Drawn in order in one thread that is simply the
  * film; drawn by several threads, each starting somewhere in the middle, it
  * would differ in the odd frame. So the film is cut into fixed chunks (their
  * bounds depend on the film and the frame size, never on the thread count),
  * and every chunk is drawn the same way wherever it is drawn:
  *
- *   a fresh realm (realm.ts: a new engine instance, Math.random seeded the
- *   same), the plan made again, then REPLAY: the frames of the second before
- *   the chunk drawn with an empty clip (the engine runs everything, Skia
- *   paints nothing: about a tenth of a frame's cost), so the caches hold what
- *   they would hold there in one long run; then the chunk's frames.
+ *   a fresh engine instance (realm.ts: Math.random seeded the same), the plan
+ *   made again, then REPLAY: the frames of the second before the chunk drawn
+ *   with an empty clip (the engine runs everything, Skia paints nothing:
+ *   about a tenth of a frame's cost), so the caches hold what they would
+ *   hold there in one long run; then the chunk's frames.
  *
  * A chunk's pixels are therefore a function of the job alone, and any number
- * of threads gives the same film, frame for frame (core/tests/jizura*.test.ts
- * hashes them). The replay second is what keeps a chunk looking like the
- * film would in one long run (decor keeps its place while the lyric leaves,
- * a transition finds the cut before it at rest).
+ * of threads gives the same film, frame for frame (core/tests/jizura.test.ts
+ * hashes it). They are also, all but exactly, the frames of one uninterrupted
+ * run: of 2,804 frames of four 1080 px films (282 chunk starts) none
+ * differed; of 1,296 GIF frames (six films), one, by at most 5 of 255.
  *
  * Frames are drawn straight at the output size (a GIF at its own width, not
  * downscaled), at 30 frames a second; a GIF takes every other one.

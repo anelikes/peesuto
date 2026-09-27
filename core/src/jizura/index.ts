@@ -31,7 +31,7 @@ import { pipeFramesToEncoder, pipeFramesToFfmpeg, type VideoEncoder } from "../r
 import { seedOf } from "../templates/lyrics.ts";
 import { templateGifWidth } from "../templates/render.ts";
 import { FRAMES, type TemplateAspect, type TemplateContent } from "../templates/types.ts";
-import { jizuraBundlePath, jizuraScript as compiledBundle } from "./bundle.ts";
+import { jizuraBundlePath, jizuraSource } from "./bundle.ts";
 import { JizuraUnavailableError, loadCanvas } from "./canvas.ts";
 import { AUTO_STYLE, jizuraStyleOf } from "./catalog.ts";
 import { planFaces, registerFonts, uncovered } from "./fonts.ts";
@@ -180,7 +180,7 @@ export async function prepareJizura(r: JizuraRequest): Promise<JizuraPrepared> {
     fonts: files, randomSeed: RANDOM_SEED, maxRes: size.height >= 1000 ? 768 : 512,
     grainShim: process.env.PEESUTO_JIZURA_GRAIN !== "pattern",
   };
-  const { info } = compiledBundle(bundlePath);
+  const { info } = jizuraSource(bundlePath);
   return { ok: true, job, ms: Math.round(performance.now() - t0), meta: {
     engine: "jizura", requestedStyle: style, style: planned.built.style, mood: planned.built.mood, horror, lang: planned.plan.lang,
     cuts: planned.plan.cuts.length, lines: script.lines.length, paired: script.paired, families: planned.faces.families,
