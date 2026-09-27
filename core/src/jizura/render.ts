@@ -61,7 +61,7 @@ export interface JizuraJob {
   readonly randomSeed: number;
   /** J.glyphs.maxRes, as JIZURA's own exporter sets it for the output height. */
   readonly maxRes: number;
-  /** The grain and scanlines as pre-tiled images (grain.ts) instead of Skia's slow pattern fill. */
+  /** The grain and scanlines presampled (grain.ts) instead of Skia's slow pattern fill; off by default (MP4s grow). */
   readonly grainShim: boolean;
   /** Leave JIZURA's film grain out (a GIF, grain.ts). */
   readonly noGrain?: boolean;

@@ -178,7 +178,8 @@ export async function prepareJizura(r: JizuraRequest): Promise<JizuraPrepared> {
     kind: "jizura", bundlePath, project: planned.built.project, width: size.width, height: size.height, fps: JIZURA_FPS, durationFrames, step,
     chunks: jizuraChunks({ durationFrames, step, fps: JIZURA_FPS, width: size.width, height: size.height }),
     fonts: files, randomSeed: RANDOM_SEED, maxRes: size.height >= 1000 ? 768 : 512,
-    grainShim: process.env.PEESUTO_JIZURA_GRAIN !== "pattern",
+    // JIZURA's own pattern fills unless asked (grain.ts: faster, within 4 of 255, but MP4s about a fifth larger).
+    grainShim: process.env.PEESUTO_JIZURA_GRAIN === "presampled",
     // A GIF without the film grain, as classic Lyric motion (grain.ts).
     ...(r.format === "gif" ? { noGrain: true } : {}),
   };
