@@ -115,8 +115,8 @@ export interface ManifestFont {
   readonly file: string;
   readonly bytes: number;
   readonly sha256: string;
-  /** Only on a subset: the code points it has, as inclusive [first, last] ranges. Absent = the family's full character set. */
-  readonly unicodes?: readonly (readonly [number, number])[];
+  /** Only on a cut (the Latin cut of a CJK face): the ranges it leaves out, inclusive [first, last]. It stands in for the full face while the text has no character in them. */
+  readonly lacks?: readonly (readonly [number, number])[];
 }
 
 export interface ManifestFile { readonly file: string; readonly bytes: number; readonly sha256: string }
@@ -170,14 +170,14 @@ export function parseManifest(raw: unknown, origin = "jizura-packs.json"): Jizur
     const weight = int(f.weight, `${what}.weight`);
     if (weight < 1 || weight > 1000) bad(`${what}.weight out of range`);
     if (f.style !== "normal" && f.style !== "italic") bad(`${what}.style must be normal or italic`);
-    let unicodes: [number, number][] | undefined;
-    if (f.unicodes !== undefined) unicodes = arr(f.unicodes, `${what}.unicodes`).map((p, i) => {
-      const q = arr(p, `${what}.unicodes[${i}]`);
-      const a = int(q[0], `${what}.unicodes[${i}][0]`), b = int(q[1], `${what}.unicodes[${i}][1]`);
-      if (q.length !== 2 || a > b || b > 0x10ffff) bad(`${what}.unicodes[${i}] must be [first, last]`);
+    let lacks: [number, number][] | undefined;
+    if (f.lacks !== undefined) lacks = arr(f.lacks, `${what}.lacks`).map((p, i) => {
+      const q = arr(p, `${what}.lacks[${i}]`);
+      const a = int(q[0], `${what}.lacks[${i}][0]`), b = int(q[1], `${what}.lacks[${i}][1]`);
+      if (q.length !== 2 || a > b || b > 0x10ffff) bad(`${what}.lacks[${i}] must be [first, last]`);
       return [a, b] as [number, number];
     });
-    return { family: str(f.family, `${what}.family`), weight, style: f.style as "normal" | "italic", ...base, ...(unicodes ? { unicodes } : {}) };
+    return { family: str(f.family, `${what}.family`), weight, style: f.style as "normal" | "italic", ...base, ...(lacks ? { lacks } : {}) };
   };
   const b = obj(r.bundled, "bundled");
   const bundled = {
@@ -223,7 +223,7 @@ interface Common {
 export interface ResolveOptions extends Common {
   /** The app's data directory (the daemon's --app-data); installed packs live in `<dataDir>/fonts/jizura/`. */
   dataDir?: string;
-  /** The text to be drawn. A bundled subset (e.g. the Latin cut of a Japanese face) only counts when it has every character of it; without `text` only full faces count. */
+  /** The text to be drawn (lyrics and title). A bundled cut (the Latin cut of a Japanese face) stands in for the full face when the text has no CJK character; without `text` only full faces count. */
   text?: string;
 }
 export interface DownloadOptions extends Common {
@@ -288,13 +288,26 @@ function devFaces(): Map<string, DevFace[]> | null {
   return faces;
 }
 
+/**
+ * What a Latin cut leaves out of a CJK face: hangul, CJK radicals to the
+ * unified ideographs (kana, CJK symbols and punctuation, bopomofo, enclosed
+ * and compatibility forms included), compatibility ideographs, vertical and
+ * compatibility forms, half- and full-width forms, enclosed ideographs, and
+ * the supplementary ideograph planes. Everything else the face has is kept.
+ */
+export const CJK_RANGES: readonly (readonly [number, number])[] = [
+  [0x1100, 0x11ff], [0x2e80, 0x9fff], [0xa960, 0xa97f], [0xac00, 0xd7ff], [0xf900, 0xfaff],
+  [0xfe10, 0xfe1f], [0xfe30, 0xfe4f], [0xff00, 0xffef], [0x1f200, 0x1f2ff], [0x20000, 0x3ffff],
+];
+
+/** A cut stands in for its full face when the text has none of the characters it lacks (without text: never). */
 function covers(f: ManifestFont, text: string | undefined): boolean {
-  if (!f.unicodes) return true;
+  if (!f.lacks) return true;
   if (text === undefined) return false;
   for (const ch of text) {
     const u = ch.codePointAt(0)!;
-    if (u <= 0x20 || u === 0x3000 || (u >= 0x200b && u <= 0x200d) || u === 0xfeff || (u >= 0xfe00 && u <= 0xfe0f)) continue; // not drawn
-    if (!f.unicodes.some(([a, b]) => u >= a && u <= b)) return false;
+    if (u === 0x3000) continue;                        // the ideographic space is not drawn
+    if (f.lacks.some(([a, b]) => u >= a && u <= b)) return false;
   }
   return true;
 }
@@ -317,10 +330,10 @@ export function jizuraFontFiles(families: readonly string[], opts: ResolveOption
     const found: JizuraFontFile[] = [];
     for (const p of installed) for (const f of p.families) if (f.family === family) found.push({ family, weight: f.weight, style: f.style, path: join(root!, dirName(p), f.file) });
     const bundled = manifest.bundled.families.filter((f) => f.family === family && existsSync(join(bundledDir, f.file)));
-    const full = bundled.filter((f) => !f.unicodes);
+    const full = bundled.filter((f) => !f.lacks);
     for (const f of full) found.push({ family, weight: f.weight, style: f.style, path: join(bundledDir, f.file) });
     if (!found.length) {
-      const subset = bundled.filter((f) => f.unicodes);
+      const subset = bundled.filter((f) => f.lacks);
       if (subset.length && subset.every((f) => covers(f, opts.text))) for (const f of subset) found.push({ family, weight: f.weight, style: f.style, path: join(bundledDir, f.file) });
     }
     if (found.length) files.push(...found); else missing.push(family);
@@ -330,7 +343,7 @@ export function jizuraFontFiles(families: readonly string[], opts: ResolveOption
 
 /** The pack that has the full face of `family` (null: bundled in full, or unknown). */
 function packFor(manifest: JizuraPackManifest, family: string): ManifestPack | null {
-  if (manifest.bundled.families.some((f) => f.family === family && !f.unicodes)) return null;
+  if (manifest.bundled.families.some((f) => f.family === family && !f.lacks)) return null;
   return manifest.packs.find((p) => p.families.some((f) => f.family === family)) ?? null;
 }
 
@@ -356,12 +369,21 @@ export async function ensureJizuraFonts(families: readonly string[], opts: Ensur
     need.set(p.id, p);                                  // missing, or installed (then only checked)
   }
   const packs = [...need.values()];
-  const total = packs.reduce((s, p) => s + p.bytes, 0);
+  // progress counts the packs that are not installed; one found damaged joins the total when it starts downloading
+  const root = fontPacksRoot(opts.dataDir);
+  const counted = new Set(packs.filter((p) => !installedSync(root, p)).map((p) => p.id));
+  let total = packs.filter((p) => counted.has(p.id)).reduce((s, p) => s + p.bytes, 0);
   const done = new Map<string, number>();
   const report = opts.onProgress;
   for (const p of packs) {
-    await installFontPack(p.id, { ...opts, onProgress: report ? (d) => { done.set(p.id, d); report([...done.values()].reduce((s, x) => s + x, 0), total); } : undefined });
-    done.set(p.id, p.bytes);
+    await installFontPack(p.id, {
+      ...opts,
+      onProgress: report ? (d) => {
+        if (!counted.has(p.id)) { counted.add(p.id); total += p.bytes; }
+        done.set(p.id, d);
+        report([...done.values()].reduce((s, x) => s + x, 0), total);
+      } : undefined,
+    });
   }
   return jizuraFontFiles(families, opts);
 }
@@ -619,7 +641,7 @@ async function download(url: string, part: string, pack: ManifestPack, signal: A
   const both = AbortSignal.any([signal, stall.signal]);
   const t0 = performance.now();
   let res: Logged;
-  try { res = await request(url, have, both); }
+  try { res = await request(pack.id, url, have, both); }
   catch (e) { clearTimeout(timer); throw netError(e, signal, stall.signal, url); }
   const log = (extra: Partial<EgressLogLine>) => logLine({ ...res.log, status: res.status, ms: Math.round(performance.now() - t0), ...extra });
   const range = /^bytes (\d+)-/.exec(res.headers.get("content-range") ?? "");
@@ -678,11 +700,11 @@ function netError(e: unknown, caller: AbortSignal, stall: AbortSignal, url: stri
 type Logged = Response & { log: EgressLogLine };
 
 /** GET with manual redirects, so every hop is checked to be HTTPS. Only Range (when resuming) is sent besides the basics. */
-async function request(url: string, from: number, signal: AbortSignal): Promise<Logged> {
+async function request(id: string, url: string, from: number, signal: AbortSignal): Promise<Logged> {
   let u = new URL(url);
   for (let hop = 0; hop < 6; hop++) {
     secure(u);
-    const line: EgressLogLine = { at: new Date().toISOString(), host: u.host, purpose: "fonts", bytesOut: 0, bytesIn: 0, status: 0, ms: 0, ...(isLocalHost(u.hostname) ? { local: true as const } : {}) };
+    const line: EgressLogLine = { at: new Date().toISOString(), host: u.host, purpose: `fonts:${id}`, bytesOut: 0, bytesIn: 0, status: 0, ms: 0, ...(isLocalHost(u.hostname) ? { local: true as const } : {}) };
     const t0 = performance.now();
     let res: Response;
     try {
