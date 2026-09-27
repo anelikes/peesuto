@@ -203,8 +203,8 @@ export function pipeFramesToEncoder(o: FramePipeOptions): Promise<NativeMp4Resul
 export function pipeFramesToFfmpeg(o: FramePipeOptions): Promise<NativeMp4Result> {
   const args = [o.encoder, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
     "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${o.width}x${o.height}`, "-r", String(o.fps), "-i", "pipe:0",
-    "-vf", "scale=out_color_matrix=bt709:out_range=tv", "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p",
-    "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "iec61966-2-1", "-movflags", "+faststart", o.out];
+    "-vf", "scale=out_color_matrix=bt709:out_range=tv,setparams=color_primaries=bt709:color_trc=iec61966-2-1:colorspace=bt709:range=tv",
+    "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart", o.out];
   return pipeFrames(o, args, "ffmpeg", () => ({ frames: o.frames, width: o.width, height: o.height }));
 }
 
