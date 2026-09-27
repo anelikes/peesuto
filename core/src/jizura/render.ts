@@ -12,16 +12,19 @@
  * and every chunk is drawn the same way wherever it is drawn:
  *
  *   a fresh engine instance (realm.ts: Math.random seeded the same), the plan
- *   made again, then REPLAY: the frames of the second before the chunk drawn
- *   with an empty clip (the engine runs everything, Skia paints nothing:
- *   about a tenth of a frame's cost), so the caches hold what they would
- *   hold there in one long run; then the chunk's frames.
+ *   made again, then REPLAY: the frames of the half second before the chunk
+ *   drawn with an empty clip (the engine runs everything, Skia paints
+ *   nothing: about a tenth of a frame's cost), so the caches hold what they
+ *   would hold there in one long run; then the chunk's frames.
  *
  * A chunk's pixels are therefore a function of the job alone, and any number
  * of threads gives the same film, frame for frame (core/tests/jizura.test.ts
  * hashes it). They are also, all but exactly, the frames of one uninterrupted
- * run: of 2,804 frames of four 1080 px films (282 chunk starts) none
- * differed; of 1,296 GIF frames (six films), one, by at most 5 of 255.
+ * run: of eight 1080 px films (5,675 frames, 571 chunk starts), five were
+ * identical and three differed in a few frames by specks along an edge (at
+ * most 70 pixels over 8 levels; most likely JIZURA's reused offscreen layers,
+ * whose unused margins keep earlier drawings that a blur or a filtered copy
+ * reads); of six GIFs (1,296 frames), one frame differed, by at most 5 of 255.
  *
  * Frames are drawn straight at the output size (a GIF at its own width, not
  * downscaled), at 30 frames a second; a GIF takes every other one.
@@ -62,12 +65,16 @@ export interface JizuraJob {
   readonly grainShim: boolean;
 }
 
-/** Bytes of frames a chunk may hold (the frames in flight are about a chunk per thread). */
-export const CHUNK_BYTES = 48 * 2 ** 20;
+/** Bytes of frames a chunk may hold (the frames in flight are about a chunk per thread): 14 frames at 1080², 8 at 1920×1080, 30 of a GIF. */
+export const CHUNK_BYTES = 64 * 2 ** 20;
 /** Chunk length bounds, in delivered frames. */
 export const CHUNK_FRAMES = { min: 6, max: 30 } as const;
-/** How much of the film before a chunk is replayed. */
-export const REPLAY_SECONDS = 1;
+/**
+ * How much of the film before a chunk is replayed: enough for a cut's exit
+ * to find the lyric box it had at rest. Over eight 1080 px films (571 chunk
+ * starts) half a second and a whole one gave the same frames.
+ */
+export const REPLAY_SECONDS = 0.5;
 
 /** The fixed chunks of a film: the delivered frames cut by size, each with the frames of the second before it to replay. */
 export function jizuraChunks(o: { readonly durationFrames: number; readonly step: number; readonly fps: number; readonly width: number; readonly height: number; readonly size?: number }): JizuraChunk[] {
