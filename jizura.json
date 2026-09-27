@@ -1,0 +1,6 @@
+{
+  "repo": "https://github.com/852wa/JIZURA",
+  "commit": "bae339e450512435b829a717248ea92ae5b44899",
+  "version": "0.9.0",
+  "note": "JIZURA's engine (src/*.js), unmodified, drives Lyric motion's GIF and video. MIT, (c) 2026 hakoniwa (852wa); the author allowed reuse and modification as long as JIZURA is credited in the license. vendor/jizura/ is generated from this commit by scripts/jizura.ts (--check verifies it); all adaptation lives in core/src/jizura/."
+}
