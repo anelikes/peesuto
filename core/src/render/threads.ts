@@ -43,8 +43,9 @@ export const RENDER_THREADS = {
   memoryShare: 0.25,
   /** An explicit PEESUTO_RENDER_THREADS is capped here (a typo must not start a thousand threads). */
   ceiling: 32,
-  /** JIZURA's frame threads (core/src/jizura): each holds a Skia canvas, an engine realm per chunk and a chunk of frames. */
-  jizura: { max: 6, bytesPerThread: 0.8 * 2 ** 30 },
+  /** JIZURA's frame threads (core/src/jizura): each holds Skia canvases, an engine realm per chunk and a chunk of frames.
+   * Measured 0.35 GB a thread at 1:1 and 16:9 MP4 (peak 0.61 GB with one thread, 2.33–2.38 GB with six). */
+  jizura: { max: 6, bytesPerThread: 0.5 * 2 ** 30 },
 } as const;
 
 /** What the threads draw: Pocket Motion frames (the default) or a JIZURA film, which has its own memory budget. */

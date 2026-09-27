@@ -75,6 +75,8 @@ export interface JizuraRealm {
   readonly warnings: string[];
   /** Reseed the realm's Math.random. */
   seed(seed: number): void;
+  /** Free the pixels of every canvas the engine made (the realm is not used again). */
+  dispose(): void;
 }
 
 /** mulberry32, as the engine's own J.rng. */
@@ -93,13 +95,18 @@ export function mulberry32(seed: number): () => number {
 export function createRealm(canvas: CanvasModule, bundlePath: string, seed: number): JizuraRealm {
   const { script } = jizuraScript(bundlePath);
   const warnings: string[] = [];
+  // Every canvas the engine makes (scratch layers, glyph pieces, textures, caches): their Skia
+  // surfaces live outside the JS heap, so the collector does not hurry; dispose() frees them.
+  const canvases: { width: number; height: number }[] = [];
   const keep = (...args: unknown[]) => {
     if (warnings.length < 200) warnings.push(args.map((a) => (a instanceof Error ? a.stack?.split("\n").slice(0, 2).join(" | ") ?? a.message : String(a))).join(" ").slice(0, 400));
   };
   const document = {
     createElement(tag: string) {
       if (tag !== "canvas") throw new Error(`jizura realm: document.createElement(${JSON.stringify(tag)}) is not available`);
-      return canvas.createCanvas(300, 150);
+      const c = canvas.createCanvas(300, 150);
+      canvases.push(c);
+      return c;
     },
     getElementById: () => null,
     querySelector: () => null,
@@ -126,5 +133,6 @@ export function createRealm(canvas: CanvasModule, bundlePath: string, seed: numb
   script.runInContext(context);
   const J = sandbox.J as JizuraApi | undefined;
   if (!J || typeof J.plan !== "function" || typeof J.Renderer !== "function") throw new Error("jizura realm: the bundle did not define J.plan and J.Renderer");
-  return { J, warnings, seed: reseed };
+  const dispose = () => { for (const c of canvases.splice(0)) { c.width = 1; c.height = 1; } };
+  return { J, warnings, seed: reseed, dispose };
 }

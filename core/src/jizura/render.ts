@@ -95,6 +95,8 @@ interface ChunkState {
   /** Index in the chunk's frames of the next frame to draw. */
   next: number;
   readonly warnings: () => number;
+  /** Frees the chunk's canvases (its realm's and its own). */
+  readonly release: () => void;
 }
 
 /** Draws a job's frames chunk by chunk, in the calling thread (a worker, or Core's own thread). */
@@ -138,7 +140,8 @@ export class JizuraDrawer implements Drawer {
       this.stats.replayed++;
     }
     this.stats.realms++;
-    return { chunk: i, renderer, plan, canvas, ctx, next: at, warnings: () => realm.warnings.length };
+    return { chunk: i, renderer, plan, canvas, ctx, next: at, warnings: () => realm.warnings.length,
+      release: () => { realm.dispose(); canvas.width = 1; canvas.height = 1; } };
   }
 
   /** Frame `frame`'s RGBA (never held: JIZURA frames are drawn whole). Frames come in increasing order. */
@@ -149,7 +152,7 @@ export class JizuraDrawer implements Drawer {
     let s = this.#state;
     if (!s || s.chunk !== i || chunk.frames[s.next] !== frame) {
       // A new chunk, or drawing resumes inside one (the workers gave up): the same state either way.
-      if (s) this.stats.warnings += s.warnings();
+      if (s) { this.stats.warnings += s.warnings(); s.release(); }
       s = this.#state = this.#begin(i, chunk.frames.indexOf(frame));
     }
     const t0 = performance.now();
@@ -163,7 +166,7 @@ export class JizuraDrawer implements Drawer {
   }
 
   async dispose(): Promise<void> {
-    if (this.#state) this.stats.warnings += this.#state.warnings();
+    if (this.#state) { this.stats.warnings += this.#state.warnings(); this.#state.release(); }
     this.#state = undefined;
   }
 }

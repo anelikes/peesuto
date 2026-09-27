@@ -189,12 +189,21 @@ export async function prepareJizura(r: JizuraRequest): Promise<JizuraPrepared> {
 }
 
 /**
- * Parts JIZURA may still use but never picks at random here, because under
- * Skia they cost seconds a frame (measured in scripts/jizura-gallery.ts's
- * sweep; see docs/templates.md). A line can still be given one by hand in
- * JIZURA itself; Peesuto has no per-line picks.
+ * Parts never picked at random here, because under Skia they cost most of a
+ * second to seconds on every frame of their cut (JIZURA itself may still
+ * use them; a line can be given one by hand in JIZURA's editor).
+ *
+ * Measured over 112 films (24 styles and four おまかせ seeds × four texts,
+ * 79,884 frames at 1080², grain as sheets): frame CPU p50 43 ms, p99 335 ms.
+ * ぼかし送り (treat focusPull) blurs every glyph by its own radius for the
+ * whole cut, and Skia draws each blurred glyph through a full layer: all 15
+ * of its cuts ran at 220–700 ms a frame (up to 2.1 s), six of them over a
+ * second, the slowest cut of five films. Nothing else is slow on its own:
+ * the other frames over a second (0.1%) come from rare pairs, such as 原稿用紙
+ * (genkou) with a blur exit, or a long shadow with a staggered blur exit,
+ * each fine apart (docs/templates.md).
  */
-export const SLOW_PARTS: Readonly<Record<string, readonly string[]>> = {};
+export const SLOW_PARTS: Readonly<Record<string, readonly string[]>> = { treat: ["focusPull"] };
 
 export interface JizuraRenderOptions {
   readonly out: string;
