@@ -12,6 +12,7 @@
  *   binaries/paste-<target>     the Bun executable staged for the native app bundle
  *   resources/engine/…          engine subset (src, vendored compiler, wasm, fonts, node_modules closure)
  *   resources/core/…            core/src
+ *   resources/vendor/jizura/…   JIZURA's engine, as vendored (jizura.js, LICENSE, catalog.json)
  *   resources/VERSION           "<engine sha> <core sha>" — the install key
  *
  * The node_modules copies are pruned (PRUNE_* below) and the result must
@@ -117,18 +118,21 @@ async function pruneFiles(nodeModules: string): Promise<void> {
   }
 }
 
-/** Transitive `dependencies` closure over the flat node_modules. */
+/** Transitive `dependencies` closure over the flat node_modules. Optional
+ * dependencies come along when installed (a native addon's binary for this
+ * platform, e.g. @napi-rs/canvas-darwin-arm64); the other platforms' are not. */
 async function packageClosure(roots: readonly string[], NM: string): Promise<string[]> {
   const seen = new Set<string>();
-  const queue = [...roots];
+  const queue = roots.map((name) => ({ name, optional: false }));
   while (queue.length) {
-    const name = queue.shift()!;
+    const { name, optional } = queue.shift()!;
     if (seen.has(name)) continue;
     const pj = join(NM, name, "package.json");
-    if (!existsSync(pj)) { console.warn(`  (skip ${name}: not in node_modules)`); continue; }
+    if (!existsSync(pj)) { if (!optional) console.warn(`  (skip ${name}: not in node_modules)`); continue; }
     seen.add(name);
     const meta = JSON.parse(await readFile(pj, "utf8")) as { dependencies?: Record<string, string>; optionalDependencies?: Record<string, string> };
-    for (const dep of Object.keys({ ...(meta.dependencies ?? {}), ...(meta.optionalDependencies ?? {}) })) queue.push(dep);
+    for (const dep of Object.keys(meta.dependencies ?? {})) queue.push({ name: dep, optional: false });
+    for (const dep of Object.keys(meta.optionalDependencies ?? {})) queue.push({ name: dep, optional: true });
   }
   return [...seen].sort();
 }
@@ -157,6 +161,12 @@ await pruneFiles(engineNM);
 await rm(join(engineOut, "vendor/pocketjs/framework/src/styles.generated.ts"), { force: true });
 
 await cp(join(REPO_ROOT, "core/src"), join(resources, "core"), { recursive: true });
+// JIZURA's engine as vendored (scripts/jizura.ts): Core finds it at <resources>/vendor/jizura (core/src/jizura/bundle.ts).
+for (const f of ["jizura.js", "LICENSE", "catalog.json"]) {
+  if (!existsSync(join(REPO_ROOT, "vendor/jizura", f))) throw new Error(`bundle: vendor/jizura/${f} is missing; run bun scripts/jizura.ts`);
+  await mkdir(join(resources, "vendor/jizura"), { recursive: true });
+  await copyFile(join(REPO_ROOT, "vendor/jizura", f), join(resources, "vendor/jizura", f));
+}
 
 // Core's own runtime packages (root package.json "dependencies") ship beside
 // it. Without them the bundled Bun resolves nothing outside this repository,
@@ -243,21 +253,24 @@ await chmod(bin, 0o755);
   const probe = await mkdtemp(join(tmpdir(), "peesuto-render-probe-"));
   try {
     await cp(join(resources, "core"), join(probe, "core"), { recursive: true });
+    await cp(join(resources, "vendor"), join(probe, "vendor"), { recursive: true });
     await cp(engineOut, join(probe, "engine"), { recursive: true });
     const emoji = join(resources, "emoji");
+    // JIZURA's CJK faces are downloaded packs, not in the bundle: a development set, when there is one, lets the probe draw Chinese too.
+    const jizuraFonts = process.env.PEESUTO_JIZURA_FONTS_DIR || (existsSync(join(REPO_ROOT, ".work/jizura-fonts-src")) ? join(REPO_ROOT, ".work/jizura-fonts-src") : "");
     // MP4 goes through the app's own encoder (PeesutoEncoder, built by build-native.ts first), never ffmpeg.
     const encoder = flag("encoder") ? resolve(flag("encoder")!) : undefined;
     if (encoder && !existsSync(encoder)) throw new Error(`--encoder ${encoder} does not exist; build it with swift build --package-path native -c release`);
     const args = ["--core", join(probe, "core"), "--engine", join(probe, "engine"), "--out", join(probe, "out"),
-      ...(existsSync(emoji) ? ["--emoji", emoji] : []), ...(encoder ? ["--encoder", encoder] : [])];
-    const p = Bun.spawn([bin, "--no-install", join(REPO_ROOT, "scripts/bundle-render-probe.ts"), ...args], {
-      cwd: join(probe, "core"), stdout: "pipe", stderr: "pipe", env: { ...process.env, BUN_INSTALL_CACHE_DIR: join(probe, "cache") },
-    });
+      ...(existsSync(emoji) ? ["--emoji", emoji] : []), ...(encoder ? ["--encoder", encoder] : []), ...(jizuraFonts ? ["--jizura-fonts", jizuraFonts] : [])];
+    const env: Record<string, string | undefined> = { ...process.env, BUN_INSTALL_CACHE_DIR: join(probe, "cache") };
+    delete env.PEESUTO_JIZURA_FONTS_DIR; delete env.PEESUTO_JIZURA_BUNDLE; delete env.NAPI_RS_NATIVE_LIBRARY_PATH;
+    const p = Bun.spawn([bin, "--no-install", join(REPO_ROOT, "scripts/bundle-render-probe.ts"), ...args], { cwd: join(probe, "core"), stdout: "pipe", stderr: "pipe", env });
     const [stdout, stderr, code] = [await new Response(p.stdout).text(), await new Response(p.stderr).text(), await p.exited];
     const result = stdout.trim().split("\n").at(-1) ?? "";
     if (code !== 0 || !result.startsWith("ok ")) throw new Error(`bundled Core and engine cannot render every template from the pruned bundle:\n${stderr.trim().split("\n").filter((l) => !l.startsWith("templates:")).slice(-30).join("\n")}`);
     for (const line of stderr.split("\n")) if (line.startsWith("bundle-render-probe:")) console.warn(line);
-    console.log(`render probe: ${result.slice(3)} (every template, PNG and GIF${encoder ? ", MP4 through PeesutoEncoder" : ""}; offline, from the bundle)`);
+    console.log(`render probe: ${result.slice(3)} (every template, PNG and GIF${encoder ? ", MP4 through PeesutoEncoder" : ""}, Lyric motion by JIZURA on frame threads${jizuraFonts ? " incl. Chinese" : ""}; offline, from the bundle)`);
   } finally { await rm(probe, { recursive: true, force: true }); }
 }
 

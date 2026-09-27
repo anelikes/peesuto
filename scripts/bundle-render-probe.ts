@@ -6,13 +6,17 @@
  * against a scratch copy of its output (the engine copy stands in for the one
  * the app installs into Application Support; renders write into it).
  *
- *   paste --no-install scripts/bundle-render-probe.ts --core <core> --engine <engine> --out <dir> [--emoji <dir>] [--encoder <PeesutoEncoder>]
+ *   paste --no-install scripts/bundle-render-probe.ts --core <core> --engine <engine> --out <dir> [--emoji <dir>] [--encoder <PeesutoEncoder>] [--jizura-fonts <dir>]
  *
  * Covers: every registered template × variant as PNG and as GIF (samples from
  * core/tests/fixtures/templates.ts, plus QR), the Noto card font, a character
  * only Noto Sans SC has, emoji, the DSL card path (PNG and GIF) and, with
  * --encoder, MP4 through the app's own encoder with ffmpeg ruled out (a text
- * card and a Lyric motion video, each checked for H.264 and moov-before-mdat).
+ * card and a Lyric motion video, each checked for H.264 and moov-before-mdat),
+ * and Lyric motion drawn by JIZURA (the vendored engine, the Skia addon from
+ * the bundle's node_modules, on frame threads): an English GIF and MP4 with
+ * the fonts the bundle carries, and with --jizura-fonts (a directory of
+ * JIZURA's faces standing in for downloaded packs) a Chinese GIF too.
  * This script imports nothing but Core's own modules by absolute path, so
  * every package resolves from the bundled node_modules.
  * It never uses the network: fetch throws, and without --emoji (no bundled
@@ -28,6 +32,7 @@ const need = (n: string) => { const v = flag(n); if (!v) throw new Error(`bundle
 const core = need("core"), engine = need("engine"), out = need("out");
 const emoji = flag("emoji") ? resolve(flag("emoji")!) : undefined;
 const encoder = flag("encoder") ? resolve(flag("encoder")!) : undefined;
+const jizuraFonts = flag("jizura-fonts") ? resolve(flag("jizura-fonts")!) : undefined;
 globalThis.fetch = (async (input: unknown) => { throw new Error(`bundle-render-probe: no network (${String(input)})`); }) as unknown as typeof fetch;
 const hasEmoji = (x: unknown) => /\p{Extended_Pictographic}/u.test(JSON.stringify(x));
 
@@ -80,6 +85,27 @@ if (encoder) {
   await one("text-video", samplePlan(text("Peesuto 视频 🎬"), "classic", "reveal"), "mp4");
   const lyric = TEMPLATE_SAMPLES.find((c) => c.kind === "lyrics");
   if (lyric && TEMPLATE_REGISTRY.some((r) => r.id === "lyrics")) await one("lyrics-video", samplePlan(lyric, "classic", "reveal"), "mp4");
+}
+// Lyric motion by JIZURA: the engine, the canvas addon and its worker threads, from the bundle.
+{
+  const { renderLyrics } = await import(join(core, "templates/lyrics-route.ts")) as typeof import("../core/src/templates/lyrics-route.ts");
+  const { parseTemplates } = await import(join(core, "templates/parse.ts")) as typeof import("../core/src/templates/parse.ts");
+  const film = async (name: string, text: string, format: "gif" | "mp4", style: string) => {
+    const plan: TemplatePlan = { version: 1, template: "lyrics", variant: "classic", motion: "reveal", sourceText: text, content: parseTemplates(text).candidates.get("lyrics")!, aspect: "1:1" };
+    const path = join(out, `${name}.${format}`);
+    const r = await renderLyrics(plan, { ...options, format, out: path, ...(format === "mp4" ? { videoEncoder: "native" as const, nativeEncoder: encoder } : {}) }, { style });
+    if (r.lyric.engine !== "jizura") throw new Error(`bundle-render-probe: ${name}.${format} was not drawn by JIZURA: ${"message" in r.lyric ? r.lyric.message : r.lyric.reason}`);
+    if (r.frames < 2 || (await Bun.file(path).size) < 1000) throw new Error(`bundle-render-probe: ${name}.${format} is empty`);
+    done.push(`${name}.${format}`);
+  };
+  const en = "Rain on the window\nI remember *you*\nNight is falling\nHold on to me!";
+  await film("jizura-en", en, "gif", "noir");
+  if (encoder) await film("jizura-en", en, "mp4", "candy");
+  if (jizuraFonts) {
+    process.env.PEESUTO_JIZURA_FONTS_DIR = jizuraFonts;
+    await film("jizura-zh", "晚风吹亮*月光*\n我们慢慢走回家\n路灯一盏盏醒来\n把影子拉得很长", "gif", "auto");
+    delete process.env.PEESUTO_JIZURA_FONTS_DIR;
+  }
 }
 // The DSL card (CLI and fallback path).
 for (const format of ["png", "gif"] as const) {
