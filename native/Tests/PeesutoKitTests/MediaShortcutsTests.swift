@@ -95,12 +95,12 @@ final class MediaShortcutsTests: XCTestCase {
         XCTAssertTrue(ComposeFailureText.message(unfit, tr: Localizer(.english)).hasPrefix("Lyric motion is for words"))
         XCTAssertTrue(ComposeFailureText.message(unfit, tr: Localizer(.chinese)).hasPrefix("文字 PV 适合文字"))
         let long = CoreError(kind: "compose", message: "long", code: "lyric-too-long")
-        XCTAssertTrue(ComposeFailureText.message(long, tr: Localizer(.japanese)).hasPrefix("文字PVのビデオには長すぎます"))
+        XCTAssertTrue(ComposeFailureText.message(long, tr: Localizer(.japanese)).hasPrefix("文字PVの動画には長すぎます"))
         // Too long for a GIF: says so and points at video, in every language.
         let gif = CoreError(kind: "compose", message: "long", code: "lyric-gif-too-long")
         XCTAssertTrue(ComposeFailureText.message(gif, tr: Localizer(.english)).contains("Make it a video instead"))
         XCTAssertTrue(ComposeFailureText.message(gif, tr: Localizer(.chinese)).contains("请改成视频"))
-        XCTAssertTrue(ComposeFailureText.message(gif, tr: Localizer(.japanese)).contains("ビデオにしてください"))
+        XCTAssertTrue(ComposeFailureText.message(gif, tr: Localizer(.japanese)).contains("動画にしてください"))
         let json = #"{"template":null,"fallback":{"from":"video","to":"gif","reason":"encoder"}}"#
         let meta = try JSONDecoder().decode(CoreActionMetadata.self, from: Data(json.utf8))
         XCTAssertEqual(meta.fallback, CoreRenderFallback(from: "video", to: "gif", reason: "encoder"))

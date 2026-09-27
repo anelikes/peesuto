@@ -236,7 +236,7 @@ struct SettingsView: View {
             let keys = AppState.keys(shortcuts[MediaShortcuts.chooserID] ?? "")
             Text(model.tr("Copy text, press \(keys) where it should go, then choose image, GIF, video, QR code or pin.",
                           "复制文字，在要粘贴的地方按 \(keys)，再选图片、GIF、视频、二维码或贴到屏幕。",
-                          ja: "テキストをコピーし、ペーストしたい場所で \(keys) を押してから、画像、GIF、ビデオ、QR コード、ピン留めのいずれかを選びます。"))
+                          ja: "テキストをコピーし、ペーストしたい場所で \(keys) を押してから、画像、GIF、動画、QR コード、ピン留めのいずれかを選びます。"))
                 .font(.system(size: 12)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
             shortcutRow(MediaShortcuts.chooserID, "Paste as…", "粘贴为…", symbol: "rectangle.stack")
             shortcutRow("panel", "Open clipboard history", "打开剪贴板历史", symbol: "clock.arrow.circlepath")

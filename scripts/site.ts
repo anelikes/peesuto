@@ -352,8 +352,8 @@ function shortcuts(lang: Lang): string {
 <dl>
 ${out("I", T(lang, "Image", "图片", "画像"), T(lang, "a PNG, pasted into the app you are typing in", "PNG，直接粘贴进你正在输入的应用", "PNG を、いま入力中のアプリにそのままペースト"))}
 ${out("G", "GIF", T(lang, "the same card, revealed line by line", "同一张卡片，逐行出现", "同じカードを、一行ずつ表示"))}
-${out("M", T(lang, "Video", "视频", "動画"), T(lang, "an MP4, encoded by your Mac's own video hardware", "MP4，由 Mac 自带的视频硬件编码", "MP4。Mac 内蔵のビデオハードウェアでエンコードします"))}
-${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang, "any text as kinetic type, cut into screens at its sentences and clauses: a GIF, or a video or poster if you prefer", "任意文字做成动态文字，按句子和分句切成一幕幕：默认 GIF，也可以设成视频或海报", "どんなテキストも、文や句の切れ目で場面に分けた動く文字に。GIF のほか、ビデオやポスターにも"))}
+${out("M", T(lang, "Video", "视频", "動画"), T(lang, "an MP4, encoded by your Mac's own video hardware", "MP4，由 Mac 自带的视频硬件编码", "MP4。Mac 内蔵のハードウェアで動画をエンコードします"))}
+${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang, "any text as kinetic type, cut into screens at its sentences and clauses: a GIF, or a video or poster if you prefer", "任意文字做成动态文字，按句子和分句切成一幕幕：默认 GIF，也可以设成视频或海报", "どんなテキストも、文や句の切れ目で場面に分けた動く文字に。GIF のほか、動画やポスターにも"))}
 ${out("Q", T(lang, "QR code", "二维码", "QR コード"), T(lang, "exactly the text you copied; never sent to a model", "编码的就是你复制的原文，不会发给任何模型", "コピーしたテキストをそのまま。モデルには送りません"))}
 ${out("P", T(lang, "Pin to screen", "贴到屏幕", "画面にピン留め"), T(lang, "floats above every window; drag, pinch to zoom, double-click to close", "浮在所有窗口之上；可拖动、捏合缩放，双击关闭", "すべてのウィンドウの上に浮かびます。ドラッグで移動、ピンチで拡大、ダブルクリックで閉じます"))}
 </dl>
@@ -393,7 +393,7 @@ function faq(lang: Lang): string {
     ["なぜ「アクセシビリティ」の許可が必要なのですか？", "入力中のアプリにペーストするため、カーソルの位置にパネルを開くため、そしてペーストの直前にカーソルが元の場所にあるかを確かめるためです。許可しなくてもコピーと履歴は使えます。その場合、結果はクリップボードに入るので、⌘V はご自分で押してください。"],
     ["Mac の外に出るデータはありますか？", `初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/ja/privacy/">プライバシーポリシー</a>に書いてあります。`],
     ["AI は必須ですか？", "いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。"],
-    ["動画を作るのに何か必要ですか？", "いいえ。MP4 は Peesuto 自身が、Mac に内蔵のビデオエンコーダ（VideoToolbox）で作ります。画像、GIF、動画、QR コードのどれにも、追加でインストールするものはありません。"],
+    ["動画を作るのに何か必要ですか？", "いいえ。MP4 は Peesuto 自身が、Mac に内蔵の動画エンコーダ（VideoToolbox）で作ります。画像、GIF、動画、QR コードのどれにも、追加でインストールするものはありません。"],
     ["対応している Mac は？", "Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。"],
     ["Homebrew で入れられますか？", "はい。<code>brew install --cask anelikes/tap/peesuto</code> でインストールできます。アップデートはアプリ自身が行います。"],
     ["料金はかかりますか？", "かかりません。Peesuto は MIT ライセンスのオープンソースで、オープンソース版から外している機能もありません。"],
@@ -753,7 +753,7 @@ ${styles}
 <h2 id="motion-title">${T(lang, "In motion", "动起来", "動きをつける")}</h2>
 <p>${isLyric ? T(lang, "Press L in the chooser: each sentence or clause gets its own screens, set big in the style's display type, one of twenty-odd compositions per cut, with colour cuts on the beat. It makes a GIF; set Lyric motion to Video or Poster in Settings › Templates, or switch one result in its format menu.",
     "在选择面板里按 L：每个句子或分句各占几幕，用样式自带的展示字体大字排出，每一幕从二十多种构图里挑一种，颜色随节拍切换。默认生成 GIF；可在“设置 › 模板”里把文字 PV 改成视频或海报，也可以在结果的格式菜单里单独切换。",
-    "パネルで L を押すと、文や句ごとに場面が生まれ、スタイルの見出し書体で大きく組まれます。場面ごとに二十あまりの構図からひとつ、色はビートで切り替わります。できあがるのは GIF。「設定 › テンプレート」でビデオやポスターに変えられ、結果の形式メニューで一枚ずつ切り替えることもできます。")
+    "パネルで L を押すと、文や句ごとに場面が生まれ、スタイルの見出し書体で大きく組まれます。場面ごとに二十あまりの構図からひとつ、色はビートで切り替わります。できあがるのは GIF。「設定 › テンプレート」で動画やポスターに変えられ、結果の形式メニューで一枚ずつ切り替えることもできます。")
   : T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order.",
     "在选择面板里按 G 生成 GIF，按 M 生成 MP4：同一张卡片，按阅读顺序逐步出现。",
     "パネルで G を押すと GIF、M を押すと MP4 に。同じカードが、読む順に現れます。")}</p>
