@@ -21,6 +21,7 @@ import { renderCard, type RenderOptions } from "../render/card.ts";
 import { ProviderError } from "../provider/types.ts";
 import type { Request, Response, TaskEvent } from "./protocol.ts";
 import { TEMPLATE_REGISTRY } from "../templates/registry.ts";
+import { lyricStyles } from "../jizura/catalog.ts";
 
 export interface DaemonHost {
   readonly version: string;
@@ -110,7 +111,7 @@ export class Daemon {
 
   private render(): Omit<RenderOptions, "out"> | null {
     if (!this.host.engine) return null;
-    return { engine: this.host.engine, work: join(this.host.appData, "work"), emojiCache: join(this.host.appData, "emoji"), emojiBundle: this.host.emojiBundle, outDir: join(this.host.appData, "cards") };
+    return { engine: this.host.engine, work: join(this.host.appData, "work"), emojiCache: join(this.host.appData, "emoji"), emojiBundle: this.host.emojiBundle, outDir: join(this.host.appData, "cards"), dataDir: this.host.appData };
   }
 
   private spec(id: string): ActionSpec {
@@ -184,7 +185,8 @@ export class Daemon {
         case "actions.list":
           return { id, ok: true, cmd: "actions.list", actions: this.actions.actions, problems: this.actions.problems };
         case "templates.list":
-          return { id, ok: true, cmd: "templates.list", templates: TEMPLATE_REGISTRY };
+          // lyricStyles: Lyric motion's styles (auto, JIZURA's with the horror ones flagged, the classic ones).
+          return { id, ok: true, cmd: "templates.list", templates: TEMPLATE_REGISTRY, lyricStyles: lyricStyles({ horror: true }) };
         case "actions.reload":
           await this.reload();
           this.precomposer.cancelAll();

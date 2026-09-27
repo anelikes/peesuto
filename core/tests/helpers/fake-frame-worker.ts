@@ -12,7 +12,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => { queue = queue.then(()
 
 async function handle(m: WorkerRequest): Promise<void> {
   if (m.type === "init") {
-    const mode = fakeMode(m.engine);
+    const mode = fakeMode("engine" in m ? m.engine : "");
     if (mode.failInit) { post({ type: "error", phase: "init", message: "fake world did not boot" }); return; }
     drawer = fakeDrawer(mode);
     post({ type: "ready" });

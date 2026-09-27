@@ -13,6 +13,7 @@ import type { RenderOptions } from "../render/card.ts";
 import type { CardDecider } from "../render/pipeline.ts";
 import { videoEncoderFor, VideoUnavailableError } from "../render/video.ts";
 import { decideTemplate } from "../templates/decide.ts";
+import { renderLyrics } from "../templates/lyrics-route.ts";
 import { renderTemplate } from "../templates/render.ts";
 import { TemplateInputError } from "../templates/types.ts";
 import { ActionError, type ActionInput, type ActionResult, type ActionSpec } from "./types.ts";
@@ -34,6 +35,8 @@ export interface ActionDeps {
   readonly outputText?: (text: string) => string;
   /** The template renderer; tests substitute a fake engine. */
   readonly renderTemplate?: typeof renderTemplate;
+  /** Lyric motion's renderer (JIZURA or classic, templates/lyrics-route.ts); tests substitute it. */
+  readonly renderLyrics?: typeof renderLyrics;
 }
 
 /** Background rendering (precompose): cancellable and at low priority. */
@@ -115,7 +118,18 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   const { plan, decisionSource, availableTemplates, decisionError } = decision;
   const format = output === "video" ? "mp4" : output === "gif" ? "gif" : "png";
   const render = deps.renderTemplate ?? renderTemplate;
-  const r = await render(plan, { ...deps.render, catalog: deps.catalog, format, signal: control.signal, lowPriority: control.lowPriority });
+  const options = { ...deps.render, catalog: deps.catalog, format, signal: control.signal, lowPriority: control.lowPriority } as const;
+  let r: Awaited<ReturnType<typeof renderTemplate>> & { readonly lyric?: unknown };
+  if (plan.template === "lyrics") {
+    // Lyric motion: JIZURA or classic (templates/lyrics-route.ts); a style picked from the template menu is a classic one.
+    const lyric = { engine: input.lyricEngine, style: input.lyricStyle, horror: input.lyricHorror, classicVariant: input.template?.variant !== undefined };
+    try {
+      r = await (deps.renderLyrics ?? renderLyrics)(plan, options, lyric, render);
+    } catch (error) {
+      if (error instanceof TemplateInputError) throw new ActionError("input", error.message);
+      throw error;
+    }
+  } else r = await render(plan, options);
   // GIF/MP4 must animate unless the action is explicitly static ("never").
   if (format !== "png" && spec.render?.animate !== "never" && (r.format !== format || plan.motion === "none" || r.frames <= 1)) {
     await rm(r.path, { force: true });
@@ -124,6 +138,7 @@ export async function renderAction(spec: ActionSpec, input: ActionInput, deps: A
   return { output, path: r.path, format: r.format, ms: ms(), meta: {
     ...(fallback ? { fallback } : {}),
     ...(r.encoder ? { encoder: r.encoder } : {}),
+    ...(r.lyric ? { lyric: r.lyric } : {}),
     template: { id: plan.template, variant: plan.variant, motion: plan.motion, aspect: plan.aspect, decisionSource, availableTemplates, ...(decisionError ? { decisionError } : {}) },
     lines: r.lines, size: r.size, frames: r.frames, render: r.ms,
   } };

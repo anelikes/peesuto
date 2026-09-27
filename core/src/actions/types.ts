@@ -56,6 +56,12 @@ export interface ActionInput {
   readonly disabledTemplates?: readonly string[];
   /** One of the action's `render.outputs` (paste-lyric's default output, Settings › Templates › Lyric motion). */
   readonly output?: "image" | "gif" | "video";
+  /** Lyric motion's engine: "auto" (default: JIZURA for GIF and video when it can draw the film, else classic), "jizura" or "classic". */
+  readonly lyricEngine?: "auto" | "jizura" | "classic";
+  /** Lyric motion's style: "auto" (default: JIZURA's おまかせ from the text), a JIZURA style key, or a classic style id (classic, editorial, pop, night). */
+  readonly lyricStyle?: string;
+  /** JIZURA's horror parts, styles and mood (default off). */
+  readonly lyricHorror?: boolean;
 }
 
 export type ActionResult =

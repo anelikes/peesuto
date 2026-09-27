@@ -3,17 +3,19 @@
  * prepared composition. It draws the chunks it is sent, in the order sent
  * (always increasing), folding through the frames other workers draw, and
  * posts each frame's pixels (transferred, not copied), or that it is held.
+ * For a JIZURA film the thread draws with JIZURA instead (core/src/jizura/
+ * render.ts: a fresh engine per chunk), loaded only then.
  *
  * Messages are handled one at a time: a chunk waits for the init before it
  * and for the chunk before it. After each frame the worker yields a macrotask
  * turn; that is where the thread's terminate() takes effect.
  */
 import type { WorkerReply, WorkerRequest } from "./frames.ts";
-import { FrameDrawer } from "./prepared.ts";
+import { FrameDrawer, type Drawer } from "./prepared.ts";
 
 declare const self: Worker;
 
-let drawer: FrameDrawer | undefined;
+let drawer: Drawer | undefined;
 let queue: Promise<void> = Promise.resolve();
 const post = (reply: WorkerReply, transfer: ArrayBuffer[] = []) => self.postMessage(reply, transfer);
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -23,7 +25,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => { queue = queue.then(()
 async function handle(m: WorkerRequest): Promise<void> {
   if (m.type === "init") {
     try {
-      drawer = await FrameDrawer.open(m.engine, m.composition, { width: m.width, reuse: m.reuse });
+      drawer = "jizura" in m
+        ? await (await import("../jizura/render.ts")).JizuraDrawer.open(m.jizura)
+        : await FrameDrawer.open(m.engine, m.composition, { width: m.width, reuse: m.reuse });
       post({ type: "ready" });
     } catch (e) {
       post({ type: "error", phase: "init", message: messageOf(e) });

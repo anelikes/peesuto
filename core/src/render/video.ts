@@ -183,7 +183,33 @@ export interface FramePipeOptions {
 
 /** Frames → PeesutoEncoder's stdin → MP4. The encoder's JSON report must
  * account for every frame; its stderr becomes the error otherwise. */
-export async function pipeFramesToEncoder(o: FramePipeOptions): Promise<NativeMp4Result> {
+export function pipeFramesToEncoder(o: FramePipeOptions): Promise<NativeMp4Result> {
+  const args = [o.encoder, "--width", String(o.width), "--height", String(o.height), "--fps", String(o.fps), "--out", o.out];
+  return pipeFrames(o, args, "the video encoder", (stdout) => {
+    let report: { ok?: boolean; frames?: number; width?: number; height?: number };
+    try { report = JSON.parse(stdout.trim().split("\n").pop() || "{}"); } catch { report = {}; }
+    if (report.ok !== true || report.frames !== o.frames) throw new EngineError(`mp4: the video encoder wrote ${report.frames ?? 0} of ${o.frames} frames`);
+    return { frames: report.frames, width: report.width ?? o.width, height: report.height ?? o.height };
+  });
+}
+
+/**
+ * Frames → ffmpeg's stdin (raw RGBA) → MP4: libx264 at CRF 16 as Pocket
+ * Motion's own `render --format mp4`, 4:2:0, BT.709 tagged with the sRGB
+ * transfer as PeesutoEncoder tags it, moov first. For frames Core draws
+ * itself outside the app (JIZURA films, core/src/jizura), where PeesutoEncoder
+ * is not there. `encoder` is the ffmpeg executable.
+ */
+export function pipeFramesToFfmpeg(o: FramePipeOptions): Promise<NativeMp4Result> {
+  const args = [o.encoder, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+    "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${o.width}x${o.height}`, "-r", String(o.fps), "-i", "pipe:0",
+    "-vf", "scale=out_color_matrix=bt709:out_range=tv", "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p",
+    "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "iec61966-2-1", "-movflags", "+faststart", o.out];
+  return pipeFrames(o, args, "ffmpeg", () => ({ frames: o.frames, width: o.width, height: o.height }));
+}
+
+async function pipeFrames(o: FramePipeOptions, args: readonly string[], name: string,
+  report: (stdout: string) => { frames: number; width: number; height: number }): Promise<NativeMp4Result> {
   const started = performance.now();
   let renderMs = 0;
   let proc: ReturnType<typeof Bun.spawn> | undefined;
@@ -191,8 +217,7 @@ export async function pipeFramesToEncoder(o: FramePipeOptions): Promise<NativeMp
   const expected = o.width * o.height * 4;
   try {
     await mkdir(dirname(o.out), { recursive: true });
-    const args = [o.encoder, "--width", String(o.width), "--height", String(o.height), "--fps", String(o.fps), "--out", o.out];
-    proc = Bun.spawn(o.lowPriority && NICE ? [NICE, "-n", "10", ...args] : args, { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+    proc = Bun.spawn(o.lowPriority && NICE ? [NICE, "-n", "10", ...args] : [...args], { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
     stderr = new Response(proc.stderr as ReadableStream).text();
     const stdout = new Response(proc.stdout as ReadableStream).text();
     const stdin = proc.stdin as import("bun").FileSink;
@@ -212,13 +237,10 @@ export async function pipeFramesToEncoder(o: FramePipeOptions): Promise<NativeMp
     }
     await stdin.end();
     const code = await proc.exited;
-    if (code !== 0) throw new EngineError(`mp4: the video encoder failed (exit ${code}): ${(await stderr).trim() || "no message"}`);
-    let report: { ok?: boolean; frames?: number; width?: number; height?: number };
-    try { report = JSON.parse((await stdout).trim().split("\n").pop() || "{}"); } catch { report = {}; }
-    if (report.ok !== true || report.frames !== o.frames) throw new EngineError(`mp4: the video encoder wrote ${report.frames ?? 0} of ${o.frames} frames`);
+    if (code !== 0) throw new EngineError(`mp4: ${name} failed (exit ${code}): ${(await stderr).trim() || "no message"}`);
+    const r = report(await stdout);
     const total = performance.now() - started;
-    return { frames: report.frames, width: report.width ?? o.width, height: report.height ?? o.height, fps: o.fps,
-      ms: { render: Math.round(renderMs), encode: Math.round(total - renderMs), total: Math.round(total) } };
+    return { ...r, fps: o.fps, ms: { render: Math.round(renderMs), encode: Math.round(total - renderMs), total: Math.round(total) } };
   } catch (e) {
     if (proc && proc.exitCode === null) { proc.kill(9); await proc.exited.catch(() => undefined); }
     if (e instanceof EngineError) throw e;

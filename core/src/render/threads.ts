@@ -43,10 +43,15 @@ export const RENDER_THREADS = {
   memoryShare: 0.25,
   /** An explicit PEESUTO_RENDER_THREADS is capped here (a typo must not start a thousand threads). */
   ceiling: 32,
+  /** JIZURA's frame threads (core/src/jizura): each holds a Skia canvas, an engine realm per chunk and a chunk of frames. */
+  jizura: { max: 6, bytesPerThread: 0.8 * 2 ** 30 },
 } as const;
 
+/** What the threads draw: Pocket Motion frames (the default) or a JIZURA film, which has its own memory budget. */
+export type RenderKind = "engine" | "jizura";
+
 /** Threads for one render on `host`. Pure: env and host are arguments. */
-export function renderThreads(host: RenderHost, env: Record<string, string | undefined> = process.env, o: { readonly lowPriority?: boolean } = {}): number {
+export function renderThreads(host: RenderHost, env: Record<string, string | undefined> = process.env, o: { readonly lowPriority?: boolean; readonly kind?: RenderKind } = {}): number {
   const set = env.PEESUTO_RENDER_THREADS?.trim();
   if (set) {
     const n = Number(set);
@@ -57,8 +62,9 @@ export function renderThreads(host: RenderHost, env: Record<string, string | und
   const cpu = host.performanceCores !== undefined && host.performanceCores > 0
     ? Math.round(host.performanceCores * T.perPerformanceCore)
     : host.logicalCores - T.reservedCores;
-  const memory = Math.floor((host.memoryBytes * T.memoryShare) / T.bytesPerThread);
-  return Math.max(1, Math.min(T.max, cpu, memory));
+  const perThread = o.kind === "jizura" ? T.jizura.bytesPerThread : T.bytesPerThread;
+  const memory = Math.floor((host.memoryBytes * T.memoryShare) / perThread);
+  return Math.max(1, Math.min(o.kind === "jizura" ? T.jizura.max : T.max, cpu, memory));
 }
 
 let host: RenderHost | undefined;
@@ -78,4 +84,4 @@ export function renderHost(): RenderHost {
 }
 
 /** Threads for a render on this machine (PEESUTO_RENDER_THREADS, else the policy above). */
-export const defaultRenderThreads = (o: { readonly lowPriority?: boolean } = {}): number => renderThreads(renderHost(), process.env, o);
+export const defaultRenderThreads = (o: { readonly lowPriority?: boolean; readonly kind?: RenderKind } = {}): number => renderThreads(renderHost(), process.env, o);

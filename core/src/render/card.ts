@@ -34,6 +34,8 @@ export interface RenderOptions {
   readonly signal?: AbortSignal;
   /** Engine children run at a lower priority (precompose). */
   readonly lowPriority?: boolean;
+  /** The app's data directory: Lyric motion finds JIZURA's installed font packs under it (core/src/fonts). */
+  readonly dataDir?: string;
 }
 
 export interface RenderResult extends ComposeResult {

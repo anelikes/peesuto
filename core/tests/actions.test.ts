@@ -3,6 +3,7 @@ import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BUILTIN_ACTIONS, fillTemplate, loadActions, parseActionSpec, runAction, ActionError } from "../src/actions/index.ts";
+import { renderLyrics } from "../src/templates/lyrics-route.ts";
 
 const valid = { id: "shout", name: "Shout", input: "clipboard", needs: "generator", prompt: "SHOUT: {{input}}", output: "text" };
 
@@ -89,10 +90,12 @@ describe("runAction", () => {
     const encoder = join(tmpdir(), "peesuto-mock-encoder");
     await Bun.write(encoder, "#!/bin/sh\nexit 0\n");
     await chmod(encoder, 0o755);
-    const withNative = { decider: null, generator: null, render: { engine: "/fake", work: "/tmp/w", nativeEncoder: encoder }, renderTemplate: fake } as never;
+    // Pocket Motion (the fake) draws every output here; JIZURA's routing is covered by jizura.test.ts.
+    const classic = ((plan: never, o: never, lyric: object, render: never) => renderLyrics(plan, o, { ...lyric, engine: "classic" }, render)) as never;
+    const withNative = { decider: null, generator: null, render: { engine: "/fake", work: "/tmp/w", nativeEncoder: encoder }, renderTemplate: fake, renderLyrics: classic } as never;
     const text = "We shipped the release today. Thanks, everyone.";
     // Default: GIF, no fallback.
-    expect(await runAction(lyric, { text }, withNative)).toMatchObject({ output: "gif", format: "gif", meta: { template: { id: "lyrics" } } });
+    expect(await runAction(lyric, { text }, withNative)).toMatchObject({ output: "gif", format: "gif", meta: { template: { id: "lyrics" }, lyric: { engine: "classic", reason: "chosen" } } });
     // Settings › Templates › Lyric motion: Video → MP4 through the native encoder, no GIF fallback.
     const video = await runAction(lyric, { text, output: "video" }, withNative);
     expect(video).toMatchObject({ output: "video", format: "mp4", meta: { encoder: "native" } });
@@ -103,7 +106,7 @@ describe("runAction", () => {
     // An output the action does not offer is refused.
     await expect(runAction(BUILTIN_ACTIONS.find((a) => a.id === "paste-card")!, { text, output: "video" }, withNative)).rejects.toMatchObject({ kind: "input" });
     // Neither the app's encoder nor ffmpeg: Video becomes an explicit GIF fallback; paste-video fails with "needs".
-    const noEncoder = { decider: null, generator: null, render: { engine: "/fake", work: "/tmp/w", videoEncoder: "ffmpeg", ffmpeg: "/nonexistent/ffmpeg" }, renderTemplate: fake } as never;
+    const noEncoder = { decider: null, generator: null, render: { engine: "/fake", work: "/tmp/w", videoEncoder: "ffmpeg", ffmpeg: "/nonexistent/ffmpeg" }, renderTemplate: fake, renderLyrics: classic } as never;
     expect(await runAction(lyric, { text, output: "video" }, noEncoder)).toMatchObject({ output: "gif", format: "gif", meta: { fallback: { from: "video", to: "gif", reason: "encoder" } } });
     await expect(runAction(BUILTIN_ACTIONS.find((a) => a.id === "paste-video")!, { text: "x" }, noEncoder)).rejects.toMatchObject({ kind: "needs" });
   });

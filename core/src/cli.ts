@@ -46,7 +46,7 @@ function parseArgv(argv: readonly string[]) {
     if (!a.startsWith("--")) { positional.push(a); continue; }
     const name = a.slice(2);
     const next = argv[i + 1];
-    if (["stdin", "json", "keep", "help", "fresh"].includes(name) || next === undefined || next.startsWith("--")) flags.set(name, true);
+    if (["stdin", "json", "keep", "help", "fresh", "horror"].includes(name) || next === undefined || next.startsWith("--")) flags.set(name, true);
     else { flags.set(name, next); i++; }
   }
   const str = (n: string): string | undefined => { const v = flags.get(n); return typeof v === "string" ? v : undefined; };
@@ -96,10 +96,18 @@ export async function main(argv: readonly string[]): Promise<number> {
     const render = spec.needs === "render" ? await renderDeps(str, appData) : null;
     const output = str("output");
     if (output !== undefined && !["image", "gif", "video"].includes(output)) throw new UsageError("--output must be image, gif or video");
-    const result = await runAction(spec, { text, aspect: str("frame") ?? (isAspect(str("aspect")) ? str("aspect") : undefined), fresh: flags.has("fresh"), ...(output ? { output: output as "image" | "gif" | "video" } : {}) }, { decider, generator, render });
+    const lyricEngine = str("lyric-engine"), lyricStyle = str("lyric-style");
+    if (lyricEngine !== undefined && !["auto", "jizura", "classic"].includes(lyricEngine)) throw new UsageError("--lyric-engine must be auto, jizura or classic");
+    const lyric = { ...(lyricEngine ? { lyricEngine: lyricEngine as "auto" | "jizura" | "classic" } : {}), ...(lyricStyle ? { lyricStyle } : {}), ...(flags.has("horror") ? { lyricHorror: true } : {}) };
+    const result = await runAction(spec, { text, aspect: str("frame") ?? (isAspect(str("aspect")) ? str("aspect") : undefined), fresh: flags.has("fresh"), ...(output ? { output: output as "image" | "gif" | "video" } : {}), ...lyric }, { decider, generator, render });
     if (json) console.log(JSON.stringify({ ok: true, action: spec.id, result }));
     else if (result.output === "text") console.log(result.text);
-    else console.log(`${spec.id}: ${result.format} → ${result.path} (${result.ms} ms${"meta" in result && result.meta?.encoder ? `, ${result.meta.encoder} encoder` : ""})`);
+    else {
+      const meta = "meta" in result ? result.meta : undefined;
+      const l = meta?.lyric as { engine?: string; style?: string; mood?: string | null; reason?: string; message?: string } | undefined;
+      const drawn = l ? (l.engine === "jizura" ? `, JIZURA ${l.style}${l.mood ? ` (${l.mood})` : ""}` : `, classic${l.reason === "chosen" || l.reason === "poster" ? "" : ` (JIZURA: ${l.message ?? l.reason})`}`) : "";
+      console.log(`${spec.id}: ${result.format} → ${result.path} (${result.ms} ms${meta?.encoder ? `, ${meta.encoder} encoder` : ""}${drawn})`);
+    }
     return 0;
   }
 
@@ -150,7 +158,7 @@ async function renderDeps(str: (n: string) => string | undefined, appData: strin
   assertEngine(engine);
   const work = resolve(str("work") ?? (appData ? join(appData, "work") : join(REPO_ROOT, ".work/tree")));
   const emojiBundle = resources ? join(resources, "emoji") : join(REPO_ROOT, ".work/emoji-all");
-  return { engine, work, emojiCache: appData ? join(appData, "emoji") : join(work, "..", "emoji"), emojiBundle, outDir: appData ? join(appData, "cards") : join(REPO_ROOT, "out") };
+  return { engine, work, emojiCache: appData ? join(appData, "emoji") : join(work, "..", "emoji"), emojiBundle, outDir: appData ? join(appData, "cards") : join(REPO_ROOT, "out"), ...(appData ? { dataDir: appData } : {}) };
 }
 
 /** Longer than this and it is a document, not a card. */
@@ -192,6 +200,8 @@ export class InputError extends Error {}
 const USAGE = `paste "text" [--aspect chat|doc|social] [--out file] [--json] [--fresh]
 paste --action paste-card "text" [--frame auto|1:1|4:5|16:9|9:16]   # render actions take a frame
 paste --action paste-lyric "text" [--output gif|video|image]       # MP4: the app's encoder, else ffmpeg (PEESUTO_VIDEO_ENCODER=ffmpeg forces it)
+      [--lyric-engine auto|jizura|classic] [--lyric-style auto|<JIZURA style>|classic|editorial|pop|night] [--horror]
+                                           # GIF/video by JIZURA when its fonts are here (PEESUTO_JIZURA_FONTS_DIR, installed packs), else classic
 paste --action paste-translate "text"      # any action; generator from PASTE_GENERATOR, PASTE_GEN_BASE_URL, PASTE_GEN_MODEL, PASTE_GEN_API_KEY,
                                            #   PASTE_GEN_REASONING (none|low|medium|high, default learn), PASTE_GEN_TIMEOUT_MS
       [--provider rules|none|laya|proxy|cloudflare|typesafe|vercel|openrouter|hosted] [--laya-url URL] [--proxy-url URL] [--account-id ID] [--token T] [--jev-model ID] [--hosted-url URL]

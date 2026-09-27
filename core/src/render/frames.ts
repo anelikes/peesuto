@@ -23,22 +23,33 @@
  * the engine fails to load in a thread, a world fails to boot), frames are
  * drawn in this thread, from wherever the stream had got to.
  *
+ * JIZURA films (`jizura`, core/src/jizura/render.ts) go through the same
+ * stream with their own chunks: fixed, contiguous and larger (a fresh engine
+ * instance per chunk, replayed up to it), one in flight per thread, and no
+ * held frames. The chunks are the job's, whatever the thread count, so the
+ * frames are the same with any number of threads.
+ *
  * Stopping: leaving the loop (break, return, an exception), aborting the
  * signal or passing the deadline terminates every worker. A worker yields a
  * macrotask turn after each frame, which is where terminate() takes effect,
  * so a busy one stops within a frame.
  */
 import { EngineAbortedError, EngineError, EngineTimeoutError, throwIfAborted } from "../engine.ts";
+import type { JizuraJob } from "../jizura/render.ts";
 import { FrameDrawer, frameComposition, type DrawOptions, type Drawer, type FrameComposition, type ResolvedComposition } from "./prepared.ts";
 
 /** Frames a worker draws per chunk. */
 export const FRAME_CHUNK = 6;
-/** Chunks out past the one being delivered, per thread. */
+/** Chunks out past the one being delivered, per thread (JIZURA's chunks are larger: one). */
 const AHEAD_PER_THREAD = 2;
+const AHEAD_PER_THREAD_JIZURA = 1;
 
 export interface FramesOptions {
-  readonly engine: string;
-  readonly composition: ResolvedComposition;
+  /** The engine checkout and the prepared composition (Pocket Motion frames). */
+  readonly engine?: string;
+  readonly composition?: ResolvedComposition;
+  /** A JIZURA film instead (core/src/jizura): its size, rate, frames and chunks are the job's; step, width and reuse do not apply. */
+  readonly jizura?: JizuraJob;
   /** Draw every `step`-th frame of the composition (a GIF at half its rate: 2). Default 1. */
   readonly step?: number;
   /** Box-downscale every frame to this width (GIF). Absent: the composition's size. */
@@ -79,6 +90,7 @@ export interface FrameStats {
 /* ---- the worker protocol (frame-worker.ts) --------------------------------- */
 export type WorkerRequest =
   | { readonly type: "init"; readonly engine: string; readonly composition: FrameComposition; readonly width?: number; readonly reuse: boolean }
+  | { readonly type: "init"; readonly jizura: JizuraJob }
   /** Draw `frames` (increasing); `before` is the frame shown before the first (-1: none). */
   | { readonly type: "chunk"; readonly frames: readonly number[]; readonly before: number };
 export type WorkerReply =
@@ -101,11 +113,13 @@ const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** The frames of `o.composition`, in order. Start is lazy: nothing boots until the first `next()`. */
 export async function* renderFrames(o: FramesOptions): AsyncGenerator<Frame, void, undefined> {
-  const c = frameComposition(o.composition);
-  const step = Math.max(1, Math.floor(o.step ?? 1));
+  const job = o.jizura;
+  if (!job && (!o.engine || !o.composition)) throw new EngineError(`${o.label}: no frame source (an engine composition or a JIZURA job)`);
+  const c = job ? undefined : frameComposition(o.composition!);
+  const step = job ? job.step : Math.max(1, Math.floor(o.step ?? 1));
   const list: number[] = [];
-  for (let f = 0; f < c.durationFrames; f += step) list.push(f);
-  const reuse = o.reuse ?? process.env.PEESUTO_FRAME_REUSE !== "0";
+  for (let f = 0; f < (job ? job.durationFrames : c!.durationFrames); f += step) list.push(f);
+  const reuse = job ? false : o.reuse ?? process.env.PEESUTO_FRAME_REUSE !== "0";
   const stats: FrameStats = o.stats ?? { threads: 1, drawn: 0, held: 0 };
   stats.threads = 1;
   let next = 0; // index into `list` of the next frame to deliver
@@ -118,15 +132,19 @@ export async function* renderFrames(o: FramesOptions): AsyncGenerator<Frame, voi
   };
 
   const chunks: number[][] = [];
-  for (let i = 0; i < list.length; i += FRAME_CHUNK) chunks.push(list.slice(i, i + FRAME_CHUNK));
-  // Two chunks a thread at least: fewer, and the boots cost more than they save.
-  const threads = Math.max(1, Math.min(Math.floor(o.threads), Math.floor(chunks.length / 2)));
+  if (job) for (const chunk of job.chunks) chunks.push([...chunk.frames]);
+  else for (let i = 0; i < list.length; i += FRAME_CHUNK) chunks.push(list.slice(i, i + FRAME_CHUNK));
+  // Two chunks a thread at least: fewer, and the boots cost more than they save. A JIZURA chunk is
+  // a second or so of drawing and every chunk starts an engine anyway: one is enough.
+  const threads = Math.max(1, Math.min(Math.floor(o.threads), job ? chunks.length : Math.floor(chunks.length / 2)));
   if (threads > 1) {
     let crew: FrameCrew | undefined;
     try {
-      crew = new FrameCrew(o, c, reuse, chunks, threads);
+      const init: WorkerRequest = job ? { type: "init", jizura: job }
+        : { type: "init", engine: o.engine!, composition: c!, ...(o.width !== undefined ? { width: o.width } : {}), reuse };
+      crew = new FrameCrew(o, init, chunks, threads);
       stats.threads = threads;
-      const ahead = AHEAD_PER_THREAD * threads;
+      const ahead = (job ? AHEAD_PER_THREAD_JIZURA : AHEAD_PER_THREAD) * threads;
       crew.dispatch(ahead);
       for (let ci = 0; ci < chunks.length; ci++) {
         for (const frame of chunks[ci]!) {
@@ -148,7 +166,9 @@ export async function* renderFrames(o: FramesOptions): AsyncGenerator<Frame, voi
   }
 
   throwIfAborted(o.signal);
-  const drawer = await (o.openDrawer ?? FrameDrawer.open)(o.engine, c, { width: o.width, reuse });
+  const drawer: Drawer = job
+    ? await (await import("../jizura/render.ts")).JizuraDrawer.open(job)
+    : await (o.openDrawer ?? FrameDrawer.open)(o.engine!, c!, { width: o.width, reuse });
   try {
     for (; next < list.length; next++) {
       throwIfAborted(o.signal);
@@ -174,9 +194,8 @@ class FrameCrew {
   #wake: (() => void) | undefined;
   readonly #onAbort = () => { this.stop(); this.#notify(); };
 
-  constructor(private readonly o: FramesOptions, composition: FrameComposition, reuse: boolean, private readonly chunks: readonly (readonly number[])[], threads: number) {
+  constructor(private readonly o: FramesOptions, init: WorkerRequest, private readonly chunks: readonly (readonly number[])[], threads: number) {
     o.signal?.addEventListener("abort", this.#onAbort, { once: true });
-    const init: WorkerRequest = { type: "init", engine: o.engine, composition, ...(o.width !== undefined ? { width: o.width } : {}), reuse };
     try {
       for (let k = 0; k < threads; k++) {
         const worker = new Worker(o.worker ?? WORKER_URL);
