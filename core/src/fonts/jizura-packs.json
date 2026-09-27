@@ -2,9 +2,182 @@
   "formatVersion": 1,
   "baseUrl": "https://font-packs.peesuto.invalid/jizura/v1/",
   "bundled": {
-    "title": { "en": "Base fonts", "zh": "基础字体", "ja": "基本フォント" },
-    "families": [],
-    "licenses": []
+    "title": {"en":"Base fonts (Latin)","zh":"基础字体（拉丁字母）","ja":"基本フォント（欧文）"},
+    "families": [
+      {"family":"Noto Sans JP","weight":300,"style":"normal","file":"NotoSansJP-Light-Latin.woff2","bytes":113960,"sha256":"4985872b94bcf206f8b31f19b993502390877c6486483e249a9516afdfb829de","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Noto Sans JP","weight":500,"style":"normal","file":"NotoSansJP-Medium-Latin.woff2","bytes":115104,"sha256":"6758ac1d833f253f69f970bd26a1a386e2d082b148c33714d63aa42f5e5f7a42","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Noto Sans JP","weight":700,"style":"normal","file":"NotoSansJP-Bold-Latin.woff2","bytes":116260,"sha256":"e2ba04f52c770f9f0565b62361576a3b3afa44577b31c96ed7f4bd8a2de17abd","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Noto Sans JP","weight":900,"style":"normal","file":"NotoSansJP-Black-Latin.woff2","bytes":113340,"sha256":"2188e3a0f7371a369250780d07985be457fb5cbd82538816a01c1fbfb0dc8dc8","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Noto Serif JP","weight":300,"style":"normal","file":"NotoSerifJP-Light-Latin.woff2","bytes":150716,"sha256":"5edd21417f13b122b8151713500157aa6848b723a4ab2c1237bedfc3d6510e42","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Noto Serif JP","weight":500,"style":"normal","file":"NotoSerifJP-Medium-Latin.woff2","bytes":149992,"sha256":"63bbe1ed0a33752edc98b6d6b0cfdbde31b53464a8253017db3427ab79ed3949","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Noto Serif JP","weight":700,"style":"normal","file":"NotoSerifJP-Bold-Latin.woff2","bytes":152240,"sha256":"9d34e6dfd8c9f79e5738352c7ad4c7a19700249ed44483b75069024b656b487d","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Dela Gothic One","weight":400,"style":"normal","file":"DelaGothicOne-Regular-Latin.woff2","bytes":40044,"sha256":"1006ff63259681123ca7d9fd9060264deaee2199f86599bcd3647bab92d5e17f","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Zen Kaku Gothic New","weight":900,"style":"normal","file":"ZenKakuGothicNew-Black-Latin.woff2","bytes":26060,"sha256":"7f85116f690e30214d5259e089bf008e5f1319e2b98fb5070bb5f48f5baf3465","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Zen Old Mincho","weight":900,"style":"normal","file":"ZenOldMincho-Black-Latin.woff2","bytes":46768,"sha256":"cfb8f85ed32f077dfd2fddedaade78c61fe8b31722fed9a79305bf4546b88cb4","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Kaisei Tokumin","weight":800,"style":"normal","file":"KaiseiTokumin-ExtraBold-Latin.woff2","bytes":123464,"sha256":"88860dbd0cc7b34ac6997c80d9ef506594b6659359a3b58786602161696ac74e","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"M PLUS Rounded 1c","weight":800,"style":"normal","file":"MPLUSRounded1c-ExtraBold-Latin.woff2","bytes":105208,"sha256":"80b22d91f8074733b8e3da13e5fe50c7e64e1bc60cdb6e3437f348e4c611b64a","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Mochiy Pop One","weight":400,"style":"normal","file":"MochiyPopOne-Regular-Latin.woff2","bytes":40628,"sha256":"bdda08b4985e925d6efb34b3d7b11d9f147b0bf128718abbbb8ed8d33fff7ccc","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"DotGothic16","weight":400,"style":"normal","file":"DotGothic16-Regular.woff2","bytes":500340,"sha256":"ba8513004fcb6c03c831d7eefd7fffe457426346820054a2481c278076796b32"},
+      {"family":"Yuji Syuku","weight":400,"style":"normal","file":"YujiSyuku-Regular-Latin.woff2","bytes":146780,"sha256":"deecd27babebf2999909914e641e23393d3b083ed4fe08ee46a60ef8fee230c8","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"IBM Plex Mono","weight":500,"style":"normal","file":"IBMPlexMono-Medium.woff2","bytes":40080,"sha256":"0498bcb48294756b5ac9062290e1639e907b1ec69b5dc2e8cfdec3fab58e0bc8"},
+      {"family":"IBM Plex Sans JP","weight":500,"style":"normal","file":"IBMPlexSansJP-Medium.woff2","bytes":1140356,"sha256":"d0ed6f0a784eda143ed18e9ed2e381c1db04bc968071b5d0733f51c442653b17"},
+      {"family":"Reggae One","weight":400,"style":"normal","file":"ReggaeOne-Regular-Latin.woff2","bytes":62824,"sha256":"57b763f53801b1acb6c618206b1503b6643acc22e6e557faae14bc2abb94572f","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Rampart One","weight":400,"style":"normal","file":"RampartOne-Regular-Latin.woff2","bytes":125304,"sha256":"06131c20d87fdd2ab1767c36e04cb80cde7f77f54398663e45cb2f7733cd077b","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Potta One","weight":400,"style":"normal","file":"PottaOne-Regular-Latin.woff2","bytes":57296,"sha256":"a8737a2e78d5e3f7f3272c7a54ceddbc8f9894adf1b85e95fd89080edad88c0e","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Kiwi Maru","weight":500,"style":"normal","file":"KiwiMaru-Medium-Latin.woff2","bytes":82744,"sha256":"cafd0a2da4bcf3d98cb07d33aab65066d91fa73c9dc83b3c2a7de1e4f740e338","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Klee One","weight":600,"style":"normal","file":"KleeOne-SemiBold-Latin.woff2","bytes":162592,"sha256":"3e743d7dd278726657073f6b97c11fa2562271f23e4b985a8f314b728ecea16a","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]},
+      {"family":"Shippori Mincho B1","weight":800,"style":"normal","file":"ShipporiMinchoB1-ExtraBold-Latin.woff2","bytes":69612,"sha256":"7875e0b44ea98fc60f73b645b6729ea6b073e28cc141bcdadb05276492527d1d","lacks":[[4352,4607],[11904,40959],[43360,43391],[44032,55295],[63744,64255],[65040,65055],[65072,65103],[65280,65519],[127488,127743],[131072,262143]]}
+    ],
+    "licenses": [
+      {"file":"OFL-DelaGothicOne.txt","bytes":4392,"sha256":"c0014792d4f4abc0508c295b277f2b17ae44465c8dc88d12af9cea48279b5fda"},
+      {"file":"OFL-DotGothic16.txt","bytes":4492,"sha256":"b6630c61ea078cacd7fabe37d14ffe557a0b45b06683374a9aa9e24262993e33"},
+      {"file":"OFL-IBMPlexMono.txt","bytes":4456,"sha256":"7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da"},
+      {"file":"OFL-IBMPlexSansJP.txt","bytes":4456,"sha256":"7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da"},
+      {"file":"OFL-KaiseiTokumin.txt","bytes":4383,"sha256":"6c5445d4febbf6d84025b874a85c51e7e4bfa7495279eccdb4c317a6de857b46"},
+      {"file":"OFL-KiwiMaru.txt","bytes":4399,"sha256":"07ceae7a6e3294cbbd0fdf6e35226550566a1cce9fd226d0f8a57f3d34c664fe"},
+      {"file":"OFL-KleeOne.txt","bytes":4479,"sha256":"e376b0df8e8a2345a9533db6f0a5333a1107975569ad9d1973a7ee557161ca38"},
+      {"file":"OFL-MPLUSRounded1c.txt","bytes":4387,"sha256":"04971e3fcee60b247395150d93b3616f6a0b092572332c96187b472976553abc"},
+      {"file":"OFL-MochiyPopOne.txt","bytes":4387,"sha256":"76be26178f13ef82866cf6a5c54272191bb583c203ad7035021c7681c9043558"},
+      {"file":"OFL-NotoSansCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-NotoSerifCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-PottaOne.txt","bytes":4472,"sha256":"fe55933bcfad354914050fe0e7c879bd666a623f1e363a651198ac40c271cd26"},
+      {"file":"OFL-RampartOne.txt","bytes":4484,"sha256":"1286896706738557c1fb98f0f66006d4ca675e475d681ca85976fd0da9daa353"},
+      {"file":"OFL-ReggaeOne.txt","bytes":4483,"sha256":"2756c3dcd85ad997b742330f91332fb478afad302708d4149f7bcd4600543ce2"},
+      {"file":"OFL-ShipporiMinchoB1.txt","bytes":4399,"sha256":"41fba056279be5f45ff9a99e44b7b53897b42732f5806d8e666e0ab49ac6bd38"},
+      {"file":"OFL-YujiSyuku.txt","bytes":4386,"sha256":"ef7c85c72ae94381c8bc4832ae4e6fbabdeafa2bb8a31313cd75dce95a690256"},
+      {"file":"OFL-ZenKakuGothicNew.txt","bytes":4401,"sha256":"0fac78a235c98d640cb06332eb5362c211d86fa03c011df438c35005d22ad2c7"},
+      {"file":"OFL-ZenOldMincho.txt","bytes":4399,"sha256":"469d214f9842809659c827b7f2adaf40ec0df6efdd5fe18b7127665c32aafaec"}
+    ]
   },
-  "packs": []
+  "packs": [
+    {
+    "id": "ja", "title": {"en":"Japanese lyric fonts","zh":"日文歌词字体","ja":"日本語の歌詞フォント"}, "langs": ["ja"],
+    "file": "ja-9def19a5.tar", "bytes": 56022016, "sha256": "9def19a5e990a2d38d3bfda2a739ca2b5286ae51d35fdfa4d281e8c523c6d8f0",
+    "families": [
+      {"family":"Noto Sans JP","weight":300,"style":"normal","file":"NotoSansJP-Light.woff2","bytes":3255376,"sha256":"a75d609a30c77cbcfe12971d336444e13638dc1ed2fedb1e2cf99f2149c4d627"},
+      {"family":"Noto Sans JP","weight":500,"style":"normal","file":"NotoSansJP-Medium.woff2","bytes":3409440,"sha256":"e974cfb539e1aea67ed40580c9d61cb37453f901755687a0aeed15383325fdec"},
+      {"family":"Noto Sans JP","weight":700,"style":"normal","file":"NotoSansJP-Bold.woff2","bytes":3494132,"sha256":"47b2462b7655093e1008ccdbcc14323e1a5d39df7008371299e8a014a8ec48b1"},
+      {"family":"Noto Sans JP","weight":900,"style":"normal","file":"NotoSansJP-Black.woff2","bytes":3573428,"sha256":"dcb74f451af7c21f6329d0ae424b2543cd9b66d61f64d802a6d0d974cb9ed48f"},
+      {"family":"Noto Serif JP","weight":300,"style":"normal","file":"NotoSerifJP-Light.woff2","bytes":4433432,"sha256":"4bc4aa2e4dfd9899be44705575efba761623b218b27a707c356973eec5e261f1"},
+      {"family":"Noto Serif JP","weight":500,"style":"normal","file":"NotoSerifJP-Medium.woff2","bytes":4584720,"sha256":"6559b9266a1e5e09973bccbc93bf55a4669ea08fb826fb7447ad41172d611571"},
+      {"family":"Noto Serif JP","weight":700,"style":"normal","file":"NotoSerifJP-Bold.woff2","bytes":4782460,"sha256":"9d5b7ed0a7a00853ffbef1ec1ecb41e4953267db09b56bae07853301a86ebec8"},
+      {"family":"Dela Gothic One","weight":400,"style":"normal","file":"DelaGothicOne-Regular.woff2","bytes":1186656,"sha256":"e7cde7c3a9b253734ab1a7ce40e03ef1f19307b39aaabb9772db7f8acfe2c5bf"},
+      {"family":"Zen Kaku Gothic New","weight":900,"style":"normal","file":"ZenKakuGothicNew-Black.woff2","bytes":1047268,"sha256":"73cc1976f4d51a0809b2f5e78e762acefedada92db3db92bf0d147752e75df1e"},
+      {"family":"Zen Old Mincho","weight":900,"style":"normal","file":"ZenOldMincho-Black.woff2","bytes":2078456,"sha256":"135bfd72095b13c910cc4996169447012d3eb574b9d8daac1b2a83c2e590c4dc"},
+      {"family":"Kaisei Tokumin","weight":800,"style":"normal","file":"KaiseiTokumin-ExtraBold.woff2","bytes":2155664,"sha256":"b3281e84edbe01eb040c99af56cbfbc0b6e52860e6f92334cdcba785cbc47100"},
+      {"family":"M PLUS Rounded 1c","weight":800,"style":"normal","file":"MPLUSRounded1c-ExtraBold.woff2","bytes":1131956,"sha256":"e9d2b2de94723b35ca4b7144a67a6672f95ae6ecc473b59f7935dc76bdb403dd"},
+      {"family":"Mochiy Pop One","weight":400,"style":"normal","file":"MochiyPopOne-Regular.woff2","bytes":2239932,"sha256":"d12c1fac796f6111258de90df2f96fdf7f2081c17130ac5abd5090522dcd1965"},
+      {"family":"Yuji Syuku","weight":400,"style":"normal","file":"YujiSyuku-Regular.woff2","bytes":4067668,"sha256":"d78a0c1de6110e95e96a55d5d1bfb329e22533e0b3ca61c2d8c50f5dfcb9e0ce"},
+      {"family":"Reggae One","weight":400,"style":"normal","file":"ReggaeOne-Regular.woff2","bytes":1065368,"sha256":"e6f46b9319909dfa2b92bd62ea165458440a9e62f4eb906cc873ffba35c8aed9"},
+      {"family":"Rampart One","weight":400,"style":"normal","file":"RampartOne-Regular.woff2","bytes":1922428,"sha256":"b43d486a8ecffcc00fceaa0c119e9922dcbe37145e9ec09bd7e168aec020d1f6"},
+      {"family":"Potta One","weight":400,"style":"normal","file":"PottaOne-Regular.woff2","bytes":2044904,"sha256":"4c32a13beaa331dd004f0dd5d2d45a92c74fbc4b1acd5f2b4757aae5e0bd634b"},
+      {"family":"Kiwi Maru","weight":500,"style":"normal","file":"KiwiMaru-Medium.woff2","bytes":1822116,"sha256":"8635962aef38bd6195506532231bb8594ca87aa779a6a9c5c043d97f14e1d5db"},
+      {"family":"Klee One","weight":600,"style":"normal","file":"KleeOne-SemiBold.woff2","bytes":3090436,"sha256":"aa031bcdbc3d495e85165a570925100dec951e4d9c405e9568a65e109ff015a7"},
+      {"family":"Shippori Mincho B1","weight":800,"style":"normal","file":"ShipporiMinchoB1-ExtraBold.woff2","bytes":4543164,"sha256":"c2feb450d8657c8e9c8b0be06dc8d6108db1643dfe37581e72f919138775751a"}
+    ],
+    "licenses": [
+      {"file":"OFL-DelaGothicOne.txt","bytes":4392,"sha256":"c0014792d4f4abc0508c295b277f2b17ae44465c8dc88d12af9cea48279b5fda"},
+      {"file":"OFL-KaiseiTokumin.txt","bytes":4383,"sha256":"6c5445d4febbf6d84025b874a85c51e7e4bfa7495279eccdb4c317a6de857b46"},
+      {"file":"OFL-KiwiMaru.txt","bytes":4399,"sha256":"07ceae7a6e3294cbbd0fdf6e35226550566a1cce9fd226d0f8a57f3d34c664fe"},
+      {"file":"OFL-KleeOne.txt","bytes":4479,"sha256":"e376b0df8e8a2345a9533db6f0a5333a1107975569ad9d1973a7ee557161ca38"},
+      {"file":"OFL-MPLUSRounded1c.txt","bytes":4387,"sha256":"04971e3fcee60b247395150d93b3616f6a0b092572332c96187b472976553abc"},
+      {"file":"OFL-MochiyPopOne.txt","bytes":4387,"sha256":"76be26178f13ef82866cf6a5c54272191bb583c203ad7035021c7681c9043558"},
+      {"file":"OFL-NotoSansCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-NotoSerifCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-PottaOne.txt","bytes":4472,"sha256":"fe55933bcfad354914050fe0e7c879bd666a623f1e363a651198ac40c271cd26"},
+      {"file":"OFL-RampartOne.txt","bytes":4484,"sha256":"1286896706738557c1fb98f0f66006d4ca675e475d681ca85976fd0da9daa353"},
+      {"file":"OFL-ReggaeOne.txt","bytes":4483,"sha256":"2756c3dcd85ad997b742330f91332fb478afad302708d4149f7bcd4600543ce2"},
+      {"file":"OFL-ShipporiMinchoB1.txt","bytes":4399,"sha256":"41fba056279be5f45ff9a99e44b7b53897b42732f5806d8e666e0ab49ac6bd38"},
+      {"file":"OFL-YujiSyuku.txt","bytes":4386,"sha256":"ef7c85c72ae94381c8bc4832ae4e6fbabdeafa2bb8a31313cd75dce95a690256"},
+      {"file":"OFL-ZenKakuGothicNew.txt","bytes":4401,"sha256":"0fac78a235c98d640cb06332eb5362c211d86fa03c011df438c35005d22ad2c7"},
+      {"file":"OFL-ZenOldMincho.txt","bytes":4399,"sha256":"469d214f9842809659c827b7f2adaf40ec0df6efdd5fe18b7127665c32aafaec"}
+    ]
+    },
+    {
+    "id": "zh-hans", "title": {"en":"Simplified Chinese lyric fonts","zh":"简体中文歌词字体","ja":"簡体字中国語の歌詞フォント"}, "langs": ["zh-Hans"],
+    "file": "zh-hans-47d8f962.tar", "bytes": 68869120, "sha256": "47d8f962286b77fbdc940361b927f5dcd144f99691318a6658285acf3e31698f",
+    "families": [
+      {"family":"Noto Sans SC","weight":300,"style":"normal","file":"NotoSansSC-Light.woff2","bytes":5882772,"sha256":"7420b7af6283f8f707ed916d33489e1b7fad64496ea987658b20485e97964425"},
+      {"family":"Noto Sans SC","weight":500,"style":"normal","file":"NotoSansSC-Medium.woff2","bytes":6201972,"sha256":"f2b8c385d7ac18b990e0fc9a79232a57398b44c63ca97dbdaa6d2a21af6aa535"},
+      {"family":"Noto Sans SC","weight":700,"style":"normal","file":"NotoSansSC-Bold.woff2","bytes":6398228,"sha256":"be8a109bcb4fad27ee22ecf7e3f6f3b759c47889a73cef304c89c66438e12dc0"},
+      {"family":"Noto Sans SC","weight":900,"style":"normal","file":"NotoSansSC-Black.woff2","bytes":6535188,"sha256":"5669a3552b69e783b6aef1e94956324db95831407402ef39d93b607e69d010a6"},
+      {"family":"Noto Serif SC","weight":300,"style":"normal","file":"NotoSerifSC-Light.woff2","bytes":8267224,"sha256":"6c59ebf946c5205acc7ec59664ea5230e31a0fd576ff70483a886ad29a8e678e"},
+      {"family":"Noto Serif SC","weight":500,"style":"normal","file":"NotoSerifSC-Medium.woff2","bytes":8583792,"sha256":"2f89425d2d46f27918de553162eeff7c535d521f1a8b56fedec77e7f29bd754d"},
+      {"family":"Noto Serif SC","weight":700,"style":"normal","file":"NotoSerifSC-Bold.woff2","bytes":9015320,"sha256":"20e95a93a4ad0811b2f57d4e31398e16ff02899370f0ab1d033e6836a466ed50"},
+      {"family":"Noto Serif SC","weight":900,"style":"normal","file":"NotoSerifSC-Black.woff2","bytes":8718844,"sha256":"d169bce96676b237b7041241d865e0eb0d3a07ac7981486a2ab5819e0171e07f"},
+      {"family":"ZCOOL QingKe HuangYou","weight":400,"style":"normal","file":"ZCOOLQingKeHuangYou-Regular.woff2","bytes":2469812,"sha256":"8111c973a9c0077b47aeda0f26af4bd2972dd39930c7a51fb3c327a6526aa2f4"},
+      {"family":"ZCOOL KuaiLe","weight":400,"style":"normal","file":"ZCOOLKuaiLe-Regular.woff2","bytes":871928,"sha256":"c6fc388b486afb363e00420540b56079561e4b46eba4c0d09a65b999bd0235e0"},
+      {"family":"ZCOOL XiaoWei","weight":400,"style":"normal","file":"ZCOOLXiaoWei-Regular.woff2","bytes":2633132,"sha256":"5437bdb559e47847c8c40d1640f4c50957df660eb974115cdaf923b21b2fc8d7"},
+      {"family":"Ma Shan Zheng","weight":400,"style":"normal","file":"MaShanZheng-Regular.woff2","bytes":3250464,"sha256":"31563e1b1d107037b3ba46890fd4af7d0bb06d12dc87ab87a53c9757f7cb024a"}
+    ],
+    "licenses": [
+      {"file":"OFL-MaShanZheng.txt","bytes":4397,"sha256":"d7bdb1cee215b689e23c2f95672a6084c790542170648267a55114103d756a08"},
+      {"file":"OFL-NotoSansCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-NotoSerifCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-ZCOOLKuaiLe.txt","bytes":4398,"sha256":"538078469839b4a2e7ad22bef4ebe41681a4e53749bb2a072144024f1d6d703d"},
+      {"file":"OFL-ZCOOLQingKeHuangYou.txt","bytes":4419,"sha256":"f1bce31b817dee01c1e4ef8bc45d8ecb95f01f4abbf0a985007cb3cd0fd8123d"},
+      {"file":"OFL-ZCOOLXiaoWei.txt","bytes":4400,"sha256":"a094514ca57cf8f9c5e8d8d1adab5d8cd3a377297ff016f9df2c05b3ecd77f0a"}
+    ]
+    },
+    {
+    "id": "zh-hant", "title": {"en":"Traditional Chinese lyric fonts","zh":"繁体中文歌词字体","ja":"繁体字中国語の歌詞フォント"}, "langs": ["zh-Hant"],
+    "file": "zh-hant-9d785dce.tar", "bytes": 66180096, "sha256": "9d785dcecca5aef129bccaa2e5d51cea232818ce7081b3ba0efa5b24385d2d31",
+    "families": [
+      {"family":"Noto Sans TC","weight":300,"style":"normal","file":"NotoSansTC-Light.woff2","bytes":4049492,"sha256":"d33bb965a6cdb2e201fc8cf3af337fa0156a34e46b729aa120bad355dee56d19"},
+      {"family":"Noto Sans TC","weight":500,"style":"normal","file":"NotoSansTC-Medium.woff2","bytes":4254600,"sha256":"dd1e38fe940b521a8f3052006288b90738a73d47d408b15e72cfca7d64befa79"},
+      {"family":"Noto Sans TC","weight":700,"style":"normal","file":"NotoSansTC-Bold.woff2","bytes":4394124,"sha256":"2f8c6f44a542bcc33bfc0a2aa9b22b323575cdaa3a78256ae1259f86cfcd4924"},
+      {"family":"Noto Sans TC","weight":900,"style":"normal","file":"NotoSansTC-Black.woff2","bytes":4497232,"sha256":"289a4e2a79615f3692de8c1a729bbb6b20aa725da6a130fa96053ef70d14a14f"},
+      {"family":"Noto Serif TC","weight":300,"style":"normal","file":"NotoSerifTC-Light.woff2","bytes":5708036,"sha256":"144454495d6e5a3952b4bc04d69ff77d84c54b1aa5fddee6235d723be47d47cb"},
+      {"family":"Noto Serif TC","weight":500,"style":"normal","file":"NotoSerifTC-Medium.woff2","bytes":5907016,"sha256":"c0dd57e10de584cb484a51474293dad87a58734965e9175abe75f3308d318d51"},
+      {"family":"Noto Serif TC","weight":700,"style":"normal","file":"NotoSerifTC-Bold.woff2","bytes":6189088,"sha256":"70a6b69ce237ab94e38ac8735b337d35e2a87ccc36421f6114d2065043812ee5"},
+      {"family":"Noto Serif TC","weight":900,"style":"normal","file":"NotoSerifTC-Black.woff2","bytes":6037244,"sha256":"fd2043484fd6ac2e0e891f4a75e3e837fb6c19b9d974470d32fc196d6e7754d4"},
+      {"family":"WDXL Lubrifont TC","weight":400,"style":"normal","file":"WDXLLubrifontTC-Regular.woff2","bytes":2553352,"sha256":"1d80284ffada18cbbd63819da4a272f396a333b925d4cb1ab58e1bdcb23d75ba"},
+      {"family":"Chiron GoRound TC","weight":800,"style":"normal","file":"ChironGoRoundTC-800EB.woff2","bytes":13779796,"sha256":"e9eccba879fc29c44ab22e199552c41b0c8b40441865f0a64ae4f14c4afe40fb"},
+      {"family":"Huninn","weight":400,"style":"normal","file":"Huninn-Regular.woff2","bytes":2123816,"sha256":"e2a95d2a13e0ce0c10198356eb1e0aa323494adfd0847afdd50e4695a5c747ee"},
+      {"family":"LXGW WenKai TC","weight":700,"style":"normal","file":"LXGWWenKaiTC-Bold.woff2","bytes":5389240,"sha256":"645fae10c41701b5d489822901ea6ff3d3c01f535772d79db8cd5e92c967c3a9"},
+      {"family":"LXGW Marker Gothic","weight":400,"style":"normal","file":"LXGWMarkerGothic-Regular.woff2","bytes":1249468,"sha256":"18edc7fc44f7acb3ed4166c6dd2d43b8570cfcbb0352aa258bba436f8f332258"}
+    ],
+    "licenses": [
+      {"file":"OFL-ChironGoRoundTC.txt","bytes":4603,"sha256":"0094428d514f463d78f37506961b84e98cccd708573c4f12661ff6d989cd2483"},
+      {"file":"OFL-Huninn.txt","bytes":4382,"sha256":"d71824aeb09afc4c2cac01acab5c3db79796e927ba37be40d69fb62a412639b6"},
+      {"file":"OFL-LXGWMarkerGothic.txt","bytes":4401,"sha256":"58e494ff4a5177d593a97ffc482f4069f59f54a0d4049fd29e531d3b1009e8b4"},
+      {"file":"OFL-LXGWWenKaiTC.txt","bytes":4390,"sha256":"4fff27d35db0e22cd81d58da6f20e09f415cf354a3338e3cf1fc0eb9222c7174"},
+      {"file":"OFL-NotoSansCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-NotoSerifCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-WDXLLubrifontTC.txt","bytes":4521,"sha256":"048eba87d28b5d74c432cfa38ca44737e86a5508cf912c1b2cc211c45944e1d9"}
+    ]
+    },
+    {
+    "id": "ko", "title": {"en":"Korean lyric fonts","zh":"韩文歌词字体","ja":"韓国語の歌詞フォント"}, "langs": ["ko"],
+    "file": "ko-3c9ee757.tar", "bytes": 34932224, "sha256": "3c9ee757068ac44f031053a41bedfd8f989309f74631d692f647c02ba534b42d",
+    "families": [
+      {"family":"Noto Sans KR","weight":300,"style":"normal","file":"NotoSansKR-Light.woff2","bytes":3079308,"sha256":"ea8b61399c2d83a106c6af0b4f26daa2fd82328349c1528d32496ffe82edb1b4"},
+      {"family":"Noto Sans KR","weight":500,"style":"normal","file":"NotoSansKR-Medium.woff2","bytes":3238704,"sha256":"e2d431155afbab482540088606574635ae390105c6e89805e8dfc86d5e7eda16"},
+      {"family":"Noto Sans KR","weight":700,"style":"normal","file":"NotoSansKR-Bold.woff2","bytes":3334320,"sha256":"959da01e3b69a96fd432dbc243e22906f84b12417c9ed700f2c8c06f11115b33"},
+      {"family":"Noto Sans KR","weight":900,"style":"normal","file":"NotoSansKR-Black.woff2","bytes":3397468,"sha256":"688ee7af4b3c3cd9b8da9d92d30fc8e62d00df81180208d21066d5b275cd4b4e"},
+      {"family":"Noto Serif KR","weight":300,"style":"normal","file":"NotoSerifKR-Light.woff2","bytes":4761820,"sha256":"70a6cc9ba9ddc97626a6877c423f5b456bed0fd0889c523c0752e6dfff87e3c1"},
+      {"family":"Noto Serif KR","weight":500,"style":"normal","file":"NotoSerifKR-Medium.woff2","bytes":4841008,"sha256":"2cf41b0f074e444a47a9b6fff0e2ad1653e0c2c5f59c4c00e98cbc3caf7eda60"},
+      {"family":"Noto Serif KR","weight":700,"style":"normal","file":"NotoSerifKR-Bold.woff2","bytes":5002824,"sha256":"dc5d9bd948b7f5dd909914edb364a17eae7b5d6a264d18948286ed649241dd6a"},
+      {"family":"Noto Serif KR","weight":900,"style":"normal","file":"NotoSerifKR-Black.woff2","bytes":4313412,"sha256":"05f6b20c1779eb11d96253c0c9f1d7437e38668785aacec5a4be488804254dc9"},
+      {"family":"IBM Plex Sans KR","weight":500,"style":"normal","file":"IBMPlexSansKR-Medium.woff2","bytes":606456,"sha256":"9ba34274f2d2d10ba8f8ad7fb0bff8c5e50908bd6abee1c25b2bb3bc560293e6"},
+      {"family":"Black Han Sans","weight":400,"style":"normal","file":"BlackHanSans-Regular.woff2","bytes":190720,"sha256":"d74df563d0af150c2bee16f157a59852eff2da56c572ae710680000ad6400b10"},
+      {"family":"Jua","weight":400,"style":"normal","file":"Jua-Regular.woff2","bytes":368996,"sha256":"cb995145eb03afc3ca5d714471d2183f58d56ed571001321e109170b421abcda"},
+      {"family":"Do Hyeon","weight":400,"style":"normal","file":"DoHyeon-Regular.woff2","bytes":204480,"sha256":"5ee04db4b64ab2aad1aca9e4099177f4ba0d3194348b4a7d0d05a1a94c4f42d1"},
+      {"family":"Gowun Dodum","weight":400,"style":"normal","file":"GowunDodum-Regular.woff2","bytes":445304,"sha256":"c7b9e9f507c283809ade4fde1b7d8d629df71e4bc593dcab4f5bffb28d617a8a"},
+      {"family":"Gowun Batang","weight":700,"style":"normal","file":"GowunBatang-Bold.woff2","bytes":492220,"sha256":"7f3c6eff348d1e8034bbd9b4cf177e887c4a8a58b59035cfee0b1ed464d54a70"},
+      {"family":"Nanum Brush Script","weight":400,"style":"normal","file":"NanumBrushScript-Regular.woff2","bytes":595976,"sha256":"7fc834e74b483d38abf6717f7c0470e57c1d262d080d88e74c017e864ecdc684"}
+    ],
+    "licenses": [
+      {"file":"OFL-BlackHanSans.txt","bytes":4399,"sha256":"c324192c8b3a988bae45a9a7e4ac1258b684739003bda114e0523423440457c9"},
+      {"file":"OFL-DoHyeon.txt","bytes":4347,"sha256":"de5ff32211a4340b01477af39ee339d639438955e409f79b666d4b9207f3c92c"},
+      {"file":"OFL-GowunBatang.txt","bytes":4397,"sha256":"49a57cc769fa9affd6eefb9070a61e3d3f6b757c97cafb15848bc6d1c81acc78"},
+      {"file":"OFL-GowunDodum.txt","bytes":4395,"sha256":"a7c73f9521cd646bbdfb6684c99a62311bbd7bce11898dc11ef0b3c69eda1aca"},
+      {"file":"OFL-IBMPlexSansKR.txt","bytes":4456,"sha256":"7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da"},
+      {"file":"OFL-Jua.txt","bytes":4342,"sha256":"44a7c6e4c5572392ae122d3b1d8c6ba6fd640a7797e675384585d947f2773e3c"},
+      {"file":"OFL-NanumBrushScript.txt","bytes":4534,"sha256":"eeacf16032901d0ed0456876ec77b8f0fda6b3fecec7d972f8543eb602e6c30f"},
+      {"file":"OFL-NotoSansCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"},
+      {"file":"OFL-NotoSerifCJK.txt","bytes":4301,"sha256":"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"}
+    ]
+    }
+  ]
 }

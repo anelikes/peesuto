@@ -35,6 +35,17 @@ own license:
   ZCOOL KuaiLe (站酷快乐体), Copyright 2018 The ZCOOL KuaiLe Project Authors;
   Zen Maru Gothic, Copyright 2021 The Zen Maru Gothic Project Authors;
   DotGothic16, Copyright 2020 The DotGothic16 Project Authors.
+- The JIZURA render line's base fonts (core/src/render/fonts/jizura/,
+  README there), WOFF2, each SIL Open Font License 1.1 with its licence
+  beside it: DotGothic16, Copyright 2020 The DotGothic16 Project Authors;
+  IBM Plex Mono and IBM Plex Sans JP, Copyright 2017 IBM Corp., Reserved
+  Font Name "Plex" (converted to WOFF2 only); and Latin cuts of Noto Sans JP
+  and Noto Serif JP (Copyright 2014–2024 Adobe), Dela Gothic One, Zen Kaku
+  Gothic New, Zen Old Mincho, Kaisei Tokumin, M PLUS Rounded 1c, Mochiy Pop
+  One, Yuji Syuku, Reggae One, Rampart One, Potta One, Kiwi Maru, Klee One
+  and Shippori Mincho B1 (copyright lines in that README). The font packs
+  Peesuto downloads on demand for Japanese, Chinese and Korean lyrics carry
+  their own licences.
 - Sparkle 2 (https://sparkle-project.org), Copyright Andy Matuschak and
   the Sparkle Project contributors, MIT License.
 - highlight.js 11.12.0 (https://highlightjs.org/), Copyright 2006 Ivan
