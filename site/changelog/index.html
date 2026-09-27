@@ -54,6 +54,24 @@
 <div class="page wrap log">
 <h1>Changelog</h1>
 <p>What changed in each release, newest first. “Unreleased” is what the next release will contain. The source is <a href="https://github.com/anelikes/peesuto/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
+<article class="release" aria-labelledby="v0.2.3">
+<header><h2 id="v0.2.3">0.2.3</h2><p><time datetime="2026-09-27">27 Sep 2026</time></p><p><a href="https://github.com/anelikes/peesuto/releases/tag/v0.2.3">v0.2.3 on GitHub</a></p></header>
+<div class="body">
+<p>Lyric motion several times faster, and pasting that stays out of the way.</p>
+<h3>Improved</h3>
+<ul>
+<li><strong>Quiet pasting</strong> — the shortcuts (and Paste as…) no longer pop a card in the top-right corner. While a result is being made, a small breathing dot sits right after your text cursor (next to the pointer in apps that do not report a cursor, such as terminals and some web editors); press Esc to cancel. When the result is pasted the dot just fades; nothing else appears. Anything worth reading (an error, a note) is a one-line bubble at the cursor that fades by itself. The card is kept only for when you have to act: Accessibility is missing, or a password field stopped the paste. To switch a result's style afterwards, open clipboard history (⇧⌥V), which shows the latest result. Reduce Motion keeps the dot still.</li>
+<li><strong>No pasting into the wrong app</strong> — if you switch apps while a result is being made, it is copied instead of pasted, with &quot;Copied. Press ⌘V where you want it.&quot;</li>
+<li><strong>Faster Lyric motion</strong> — videos and GIFs render several times faster: frames are drawn on several cores at once, and a frame that repeats the one before it is not drawn again. A 30-second video takes about 5–8 seconds instead of 20–30 on a Mac mini M4, with exactly the same pictures. Other animated GIFs and videos are faster too.</li>
+<li><strong>Faster Japanese</strong> — cards, GIFs and videos of Japanese text are ready 3–4 seconds sooner: kana, the common kanji and marks such as 「」『』・〜 (and full-width letters and digits) no longer need a measuring pass of their own.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li><strong>Lyric motion in 16:9</strong> — most Lyric motion GIFs and videos in the 16:9 frame failed with an internal font error; they render again, in every style.</li>
+<li><strong>Lyric motion, Paper, Japanese</strong> — a line with a comma set in a vertical column at the right edge (such as 「ねえ、」) no longer stops the whole video with &quot;does not fit its canvas&quot;; and if a composition ever does not fit a screen, another one is used for that screen instead of failing the video.</li>
+</ul>
+</div>
+</article>
 <article class="release" aria-labelledby="v0.2.2">
 <header><h2 id="v0.2.2">0.2.2</h2><p><time datetime="2026-09-25">25 Sep 2026</time></p><p><a href="https://github.com/anelikes/peesuto/releases/tag/v0.2.2">v0.2.2 on GitHub</a></p></header>
 <div class="body">
