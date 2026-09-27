@@ -1,0 +1,10 @@
+{
+  "formatVersion": 1,
+  "baseUrl": "https://font-packs.peesuto.invalid/jizura/v1/",
+  "bundled": {
+    "title": { "en": "Base fonts", "zh": "基础字体", "ja": "基本フォント" },
+    "families": [],
+    "licenses": []
+  },
+  "packs": []
+}
