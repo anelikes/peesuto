@@ -19,6 +19,9 @@ jobs:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      # vendor/jizura is JIZURA's engine at the commit jizura.json pins, unmodified (a sparse fetch of a few MB).
+      - name: vendored JIZURA matches its pin
+        run: bun scripts/jizura.ts --check
       - run: bun test core/tests
 
   render:
