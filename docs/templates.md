@@ -485,11 +485,15 @@ error; it never chooses the font. Token: `SIGNATURE_STYLE` in `compose.ts`.
 
 ### Lyric motion (文字 PV): any text as kinetic type, by choice only
 
-Inspired by [JIZURA](https://github.com/852wa/JIZURA) (MIT), a browser
-lyric-video maker by 852wa: its vocabulary (a cut = layout + entrance + hold +
-exit + decor) and its lyric markup are what this template speaks. No JIZURA
-code or assets are used. Peesuto makes the quick version; the result panel's
-**Open in JIZURA** hands the text over for a full video (below).
+Lyric motion's GIFs and videos are drawn by [JIZURA](https://github.com/852wa/JIZURA)
+(MIT, © 2026 hakoniwa), the browser lyric-video maker by 852wa: its own
+engine, some 860 effect parts in 27 styles, unmodified, run headless inside
+Core ([below](#two-engines-jizura-and-classic)). Peesuto's own renderer on
+Pocket Motion, with four styles of its own in JIZURA's vocabulary (a cut =
+layout + entrance + hold + exit + decor) and its lyric markup, draws the
+poster (PNG), the classic styles, and any GIF or video JIZURA cannot draw
+here. The result panel's **Open in JIZURA** hands the text to JIZURA's web
+app for a full, editable video (below).
 
 Lyric motion is a **manual** template, like QR: rules and the model never
 choose it (`MANUAL_TEMPLATES`; the model is never offered it), and every text
@@ -505,6 +509,112 @@ become a GIF, and the result says so
 never precomposed (fixed-template actions have no precompose key). The id
 stays `lyrics`, so saved styles and disabled lists keep working; the
 user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
+
+#### Two engines: JIZURA and classic
+
+`templates/lyrics-route.ts` decides, per render:
+
+| Output | Engine |
+|---|---|
+| GIF, video | **JIZURA** when it can draw the film here: the engine loads, every face the film needs is on this Mac, and every character of the text is in those faces. Otherwise **classic**, and the result says why. |
+| Poster (PNG) | classic |
+| A classic style chosen (`lyricStyle` classic, editorial, pop or night; a style picked from the result's template menu), or `lyricEngine: "classic"` | classic |
+
+When JIZURA cannot draw a film, nothing is silent: the action's
+`meta.lyric` is `{ engine: "classic", reason, message, … }` with `reason`
+`fonts-missing` (and `missing`, the families to download: the font packs,
+`core/src/fonts/jizura-packs.ts`), `glyphs` (and `characters` no face has;
+they would be boxes) or `engine` (the canvas addon or the bundle did not
+load). A JIZURA film says `{ engine: "jizura", style, mood, requestedStyle,
+horror, lang, cuts, lines, paired, families, version, commit }`. An input
+JIZURA refuses (an unknown style, a horror style without the horror switch)
+is an input error, and a text too long is the same `lyric-too-long` /
+`lyric-gif-too-long` error either way.
+
+- **Styles** (`lyricStyles()` in `core/src/jizura/catalog.ts`, also in the
+  daemon's `templates.list` as `lyricStyles`): `auto` (default), JIZURA's 24
+  styles by key (`noir`, `crimson`, `caution`, `magenta`, `paper`, `hud`,
+  `mint`, `specimen`, `transit`, `blueprint`, `rouge`, `mono`, `sakura`,
+  `ocean`, `sunset`, `forest`, `vapor`, `newsprint`, `synth80`, `kraft`,
+  `candy`, `acid`, `sumi`, `gold`), its three horror styles (`hrRuin`,
+  `hrNightRec`, `hrCurse`) only with `lyricHorror`, and the four classic ones.
+  Each carries JIZURA's own Japanese name and description and those of its
+  English and Simplified Chinese editions (`vendor/jizura/catalog.json`).
+  **Auto** is JIZURA's おまかせ: a mood (glitch, calm, pop, graphic, editorial,
+  emotional, anything goes; horror only with the switch), a style that suits
+  it, effect strengths, drawing rate (koma), a technique subset, sometimes
+  other faces and colours, all rolled from a generator seeded by the text, so
+  the same text gives the same film. A chosen style keeps JIZURA's default
+  settings.
+- **Parts**: every part set but horror is on: 追加分 (everything added after
+  JIZURA's first release), 和風, 文字PV系 (typographic) and キネティック
+  (kinetic). Horror (about 50 parts, three styles and the horror mood) only
+  with `lyricHorror`. One part is never picked at random here: ぼかし送り
+  (treatment `focusPull`), which blurs every glyph by its own radius for the
+  whole cut; Skia draws each such glyph through a full layer, and all 15 of
+  its cuts in a 112-film sweep ran at 0.2–0.7 s a frame, up to 2.1 s
+  (`SLOW_PARTS` in `core/src/jizura/index.ts`; the cost bullet below).
+- **Time**: JIZURA sets a lyric to a song; Peesuto has none, so each JIZURA
+  line gets its time from this template's own reading timing (below:
+  per-character reading time, LRC timing, prose floors, the intro, final
+  hold and caps; too long and two lines share one, then the same explicit
+  errors). A lyric or poem line is one JIZURA line, its `/` pieces written back
+  as JIZURA's `/`; a prose cut is a line of its own. `*emphasis*`, `line|note`
+  and a trailing `!` are JIZURA's markup too (the `!` is drawn by JIZURA as a
+  flash and a shake, not as a character). A literal `*`, `/` or `|` and a
+  leading `#` or LRC-like `[…]` are set in their full-width forms (＊ ／ ｜ ＃ ［)
+  so JIZURA reads them as text. JIZURA then splits each line into cuts
+  itself. No beat grid: without audio JIZURA runs its own clock.
+- **Frames**: 1:1, 16:9, 9:16 and 4:5 map to JIZURA's frames of the same
+  shape and are drawn straight at Peesuto's sizes (1080 wide or high); a GIF
+  is drawn at its own width (540 px, down to 360 for the frame-memory budget),
+  15 frames a second; video 30. Through the same encoders as classic (GIF:
+  one 128-colour palette; MP4: PeesutoEncoder, or ffmpeg outside the app),
+  deadline and cancellation.
+- **Grain**: JIZURA lays a film grain (and, in some styles, scanlines) over
+  every frame as a repeating pattern, drawn as JIZURA draws it. Skia's
+  pattern fill is a large share of a frame; an opt-in path
+  (`PEESUTO_JIZURA_GRAIN=presampled`, `core/src/jizura/grain.ts`) samples one
+  period of the layer with the same pattern fill and lays it over the frame
+  by whole-pixel copies: a 21 s 1080² MP4 in 15.6 s instead of 21.9 s on six
+  threads, the pixels within 4 of 255 (0.3–0.6 on average), but MP4s 11–23%
+  larger, because the 8-bit blend adds a faint noise the encoder pays for
+  (an earlier pre-tiled image resampled in 8 bits: up to 10 of 255 and
+  20–32% larger). Not matching, it stays off; crops, numbers and both MP4s in
+  `bun run jizura-gallery`. A GIF leaves the grain out, as classic Lyric
+  motion does: animated noise is dithering in a 128-colour palette and most
+  of the file (14 s GIFs: 2.6–5.3 MB with it, 1.5–2.2 MB without); paper,
+  scanlines and vignette stay.
+- **Frames and threads**: the film is cut into fixed chunks (14 frames at
+  1080², 8 at 1920×1080, 30 of a GIF), each drawn by a fresh engine instance
+  that first replays the half second before it with nothing painted, so any
+  number of threads draws the same film byte for byte (and, all but exactly,
+  the film of one uninterrupted run); details in
+  [development.md](development.md#the-jizura-render-line).
+- **Cost** (Mac mini M4, six threads, measured while the machine was busy
+  with other work, load average 11–19; CPU time is the steadier figure): a
+  14 s GIF (about 400 px) in 2.3–3.6 s; a 21–26 s MP4 in 35–42 s at 1:1
+  (106–118 s of CPU) and 67–70 s at 16:9 (190–205 s of CPU), 15–40 MB; peak
+  memory 0.9–1.1 GB for a GIF, 1.8–2.0 GB for a 1:1 MP4, 2.7 GB at 16:9
+  (0.6 GB plus about 0.35 GB a thread). Per frame at 1080², sampled over
+  46,236 frames of 64 films (grain presampled; JIZURA's own fill adds about
+  a third): 45 ms of CPU at the median, 141 ms at p95, 0.3 s at p99; 27
+  frames in 8 cuts took over a second, all rare pairs of parts, the slowest
+  3.7 s (a long shadow under a staggered blur exit). Classic Lyric motion
+  is several times cheaper; JIZURA draws everything on the CPU in Skia,
+  where a browser has a GPU.
+- **Fonts**: JIZURA's faces (Google Fonts in a browser) come from
+  `core/src/fonts` (a bundled Latin base; one pack per language, downloaded on
+  demand); system fonts are never used, so a render looks the same on every
+  Mac. The faces a film needs are those of every role key its plan may draw
+  with, in the lyric's language, with their fallbacks (`core/src/jizura/fonts.ts`).
+- **Credit**: JIZURA is © 2026 hakoniwa (852wa), MIT; its author allowed its
+  reuse in Peesuto on the condition that JIZURA is credited in the licence
+  (NOTICE carries its copyright and the full MIT text). `vendor/jizura/jizura.js`
+  is its `src/*.js` at the commit `jizura.json` pins, joined as its build.py
+  does; `bun scripts/jizura.ts --check` proves it.
+
+#### Classic (Pocket Motion)
 
 - **Content** (`lyricMotion` in `parse.ts`): lyrics, LRC and poems keep their
   own lines (read as below); code, terminal sessions, diffs, errors, tables,
@@ -854,6 +964,11 @@ Native bundle and interface acceptance is recorded in
   files may not be sold on their own.
 - [highlight.js](https://highlightjs.org/) 11.12.0, © 2006 Ivan Sagalaev and contributors,
   BSD 3-Clause License (shipped with its package in the sidecar's `core/node_modules/highlight.js/LICENSE`).
-- The lyrics template is inspired by [JIZURA](https://github.com/852wa/JIZURA) by 852wa (MIT
-  License): its cut vocabulary and lyric markup. No JIZURA code or assets are included; the
-  "Open in JIZURA" action only opens its public web app.
+- [JIZURA](https://github.com/852wa/JIZURA) 0.9.0, © 2026 hakoniwa (852wa), MIT License
+  (the full text in NOTICE and `vendor/jizura/LICENSE`): its engine draws Lyric motion's GIFs
+  and videos, unmodified (`vendor/jizura/jizura.js`, pinned by `jizura.json`); Peesuto's
+  classic lyric renderer follows its cut vocabulary and lyric markup. "Open in JIZURA" opens
+  its public web app.
+- [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas) 1.0.9 (Skia), MIT, © 2020
+  LongYinan: the canvas JIZURA draws on (shipped with its package in the sidecar's
+  `core/node_modules/@napi-rs/`).

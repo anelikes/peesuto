@@ -7,6 +7,9 @@ section here becomes one.
 
 ## Unreleased
 
+### New
+- **Lyric motion by JIZURA** — Lyric motion GIFs and videos are now drawn by [JIZURA](https://github.com/852wa/JIZURA), the lyric-video maker by hakoniwa (852wa), running inside Peesuto: its own engine, some 860 effect parts in 24 styles (plus three horror ones you can switch on), offline and on the Mac. By default JIZURA picks a style and a mood from your text (おまかせ), and the same text always gives the same film; your reading speed, lengths and limits stay as before. When the fonts a text needs are not on your Mac yet, Peesuto's own Lyric motion draws it as before and the result says so; posters (PNG) and the four classic styles (Stage, Paper, Pop, Night) stay Peesuto's own.
+
 ## 0.2.3 — 2026-09-27
 
 Lyric motion several times faster, and pasting that stays out of the way.

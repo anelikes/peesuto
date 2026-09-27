@@ -46,6 +46,17 @@ own license:
   and Shippori Mincho B1 (copyright lines in that README). The font packs
   Peesuto downloads on demand for Japanese, Chinese and Korean lyrics carry
   their own licences.
+- JIZURA 0.9.0 (https://github.com/852wa/JIZURA), Copyright (c) 2026
+  hakoniwa (852wa), MIT License (full text below): its engine, unmodified
+  (vendor/jizura/jizura.js, the commit pinned in jizura.json), draws Lyric
+  motion's GIFs and videos; Peesuto's classic lyric renderer follows its cut
+  vocabulary and lyric markup. JIZURA's author allowed its reuse and
+  modification in Peesuto on the condition that JIZURA is credited in the
+  licence.
+- @napi-rs/canvas 1.0.9 (https://github.com/Brooooooklyn/canvas), Copyright
+  (c) 2020 LongYinan, MIT License, with Skia (https://skia.org), Copyright
+  Google LLC, BSD 3-Clause License: the canvas JIZURA draws on (shipped with
+  its licence in the sidecar's core/node_modules/@napi-rs/canvas/).
 - Sparkle 2 (https://sparkle-project.org), Copyright Andy Matuschak and
   the Sparkle Project contributors, MIT License.
 - highlight.js 11.12.0 (https://highlightjs.org/), Copyright 2006 Ivan
@@ -55,9 +66,29 @@ own license:
 - qrcode-generator (https://github.com/kazuhikoarase/qrcode-generator),
   Copyright 2011 Kazuhiko Arase, MIT License.
 
-The lyrics template is inspired by JIZURA (https://github.com/852wa/JIZURA),
-a browser lyric-video maker by 852wa, MIT License: its cut vocabulary and its
-lyric markup. No JIZURA code or assets are included.
+JIZURA's licence (vendor/jizura/LICENSE):
+
+  MIT License
+
+  Copyright (c) 2026 hakoniwa
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
 
 Emoji images are downloaded at runtime from Noto Emoji
 (https://github.com/googlefonts/noto-emoji), Apache License 2.0.

@@ -7,11 +7,15 @@
  * geometric decor that moves. Everything is deterministic: the choices are
  * seeded by the source text, so the same lyrics give the same video.
  *
- * The vocabulary (a cut = layout + entrance + hold + exit + decor; `/` cuts,
- * `*emphasis*`, a trailing `!` flash, `lyric|note`, LRC timing) follows
- * JIZURA (https://github.com/852wa/JIZURA, MIT), a browser lyric-video maker.
- * No JIZURA code or assets are used; Peesuto makes the quick version and hands
- * the lyrics to JIZURA for a full video.
+ * This is Lyric motion's classic engine (Pocket Motion): the poster, the
+ * four classic styles, and the GIF and video whenever JIZURA cannot draw them.
+ * GIF and video are drawn by JIZURA itself (https://github.com/852wa/JIZURA,
+ * MIT, © 2026 hakoniwa) when it can: its own engine, vendored unmodified in
+ * vendor/jizura and run by core/src/jizura (templates/lyrics-route.ts decides
+ * which). The classic vocabulary (a cut = layout + entrance + hold + exit +
+ * decor; `/` cuts, `*emphasis*`, a trailing `!` flash, `lyric|note`, LRC
+ * timing) follows JIZURA's; this file's code is Peesuto's own, and its
+ * timing (LYRICS_TIMING) sets the length of JIZURA's films too.
  *
  * Engine notes (Pocket Motion v0.4.0): keyframes on translate/rotate/scale/
  * opacity/colour and on paint (blur, glow, gradient stops, outline colour);

@@ -110,6 +110,46 @@ If the worker threads cannot start, the render continues in Core's own
 thread. Cancelling (Esc stops Core; an aborted request or the render
 deadline inside Core) terminates the threads within a frame.
 
+## The JIZURA render line
+
+Lyric motion's GIFs and videos are drawn by JIZURA's own engine
+([docs/templates.md](templates.md#two-engines-jizura-and-classic)): the
+vendored bundle `vendor/jizura/jizura.js`, run by `core/src/jizura/` over
+Skia (`@napi-rs/canvas`, a root dependency; `bun install` fetches the binary
+for this platform). Nothing to set up beyond that and JIZURA's fonts: English
+lyrics draw with the bundled base fonts, Chinese and Japanese ones need the
+packs, or for development a directory of the faces (below).
+
+```bash
+PEESUTO_JIZURA_FONTS_DIR=$PWD/.work/jizura-fonts-src \
+  bun run paste --provider none --action paste-lyric --output video "$(pbpaste)"   # --lyric-style sakura, --lyric-engine classic, --horror
+bun scripts/jizura.ts --check     # vendor/jizura is the build of the commit jizura.json pins (CI runs it)
+bun run jizura-gallery            # .work/jizura-gallery/index.html: styles, classic vs JIZURA, grain crops
+```
+
+To move to another JIZURA commit, change `commit` and `version` in
+`jizura.json`, run `bun scripts/jizura.ts` (it fetches the commit sparsely into
+`.work/jizura-src`), look at the gallery, and commit `vendor/jizura/` with the
+pin. Never edit the bundle: everything JIZURA needs from Peesuto is in
+`core/src/jizura/` (the realm and its browser stand-ins, fonts, timing, the
+frame chunks, the grain sheets).
+
+How its frames are drawn: a JIZURA film is cut into fixed chunks (about 64 MB
+of frames each: 14 frames at 1080², 8 at 1920×1080, 30 of a GIF), and every
+chunk is drawn from a fresh engine instance that first replays the half
+second before it with nothing painted (`core/src/jizura/render.ts`; one vm
+context per thread, a fresh engine per chunk, `realm.ts`). Chunks go
+round-robin to the frame threads, one in flight per thread; the frames are
+the same bytes with any number of threads, and all but exactly those of one
+uninterrupted run (`core/tests/jizura.test.ts`).
+
+| Variable | Effect |
+| --- | --- |
+| `PEESUTO_JIZURA_FONTS_DIR` | JIZURA's faces for development (see the font packs below). |
+| `PEESUTO_JIZURA_BUNDLE` | Another engine bundle than `vendor/jizura/jizura.js` (for trying a JIZURA build). |
+| `PEESUTO_JIZURA_GRAIN` | `presampled` draws JIZURA's grain and scanlines by sampling one period with the pattern and copying it (`core/src/jizura/grain.ts`): about a third faster, within 4 of 255, MP4s 11–23% larger. Default: JIZURA's own pattern fills. |
+| `PEESUTO_RENDER_THREADS` | As above. JIZURA's threads have their own memory budget, 0.5 GB a thread (measured 0.35 GB; `RENDER_THREADS.jizura` in `core/src/render/threads.ts`): an 8 GB Mac gets 4, 12 GB and up 6. |
+
 ## JIZURA font packs
 
 The JIZURA render line draws with the faces JIZURA asks Google Fonts for in
