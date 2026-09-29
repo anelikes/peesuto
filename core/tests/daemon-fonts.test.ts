@@ -17,6 +17,8 @@ import { ERROR_KINDS, type FontPackState, type Response as DaemonResponse } from
 import { FontPackError, fontPacksRoot, jizuraPackManifest, parseManifest, type JizuraPackManifest } from "../src/fonts/jizura-packs.ts";
 import { writeTar } from "../src/fonts/tar.ts";
 import { setOffline } from "../src/provider/egress.ts";
+import { ComposeError } from "../src/render/compose.ts";
+import { LyricFontsError } from "../src/templates/lyrics-route.ts";
 
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 const bytes = (n: number, seed: number) => new Uint8Array(n).map((_, i) => (i * 31 + seed * 7) % 256);
@@ -217,6 +219,10 @@ describe("daemon: font packs", () => {
   test("fonts.* are known commands; a FontPackError maps to kind fonts with its code", () => {
     for (const cmd of ["fonts.status", "fonts.install", "fonts.cancel", "fonts.remove"]) expect(parseRequest(JSON.stringify({ id: 1, cmd, pack: "ja" }))).toMatchObject({ id: 1, cmd });
     expect(errorOf(new FontPackError("sha256", "bad"))).toEqual({ kind: "fonts", code: "sha256", message: "bad" });
+    // a Lyric motion JIZURA lacked fonts for, that classic cannot draw either: the compose error names the packs
+    const ko = { id: "ko", title: { en: "Korean lyric fonts", zh: "韩文歌词字体", ja: "韓国語の歌詞フォント" }, bytes: 34_932_224 };
+    expect(errorOf(new LyricFontsError(new ComposeError("unsupported-script", "no Hangul", ["밤"]), [ko])))
+      .toEqual({ kind: "compose", code: "unsupported-script", message: "no Hangul", characters: ["밤"], packs: [ko] });
     expect(ERROR_KINDS).toContain("fonts");
   });
 });

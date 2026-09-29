@@ -24,6 +24,7 @@ import { cancelFontPack, checkFontPackInstall, FontPackError, fontPackStatus, in
 import type { FontPackState, Request, Response, TaskEvent } from "./protocol.ts";
 import { TEMPLATE_REGISTRY } from "../templates/registry.ts";
 import { lyricStyles } from "../jizura/catalog.ts";
+import { LyricFontsError, type LyricFontPack } from "../templates/lyrics-route.ts";
 
 export interface DaemonHost {
   readonly version: string;
@@ -302,13 +303,13 @@ function packOf(req: { cmd: string; pack?: unknown }): string {
 
 class UsageError extends Error {}
 
-export function errorOf(e: unknown): { kind: string; message: string; code?: string; characters?: string[] } {
+export function errorOf(e: unknown): { kind: string; message: string; code?: string; characters?: string[]; packs?: LyricFontPack[] } {
   const message = e instanceof Error ? e.message : String(e);
   if (e instanceof FontPackError) return { kind: "fonts", code: e.code, message };
   if (e instanceof UsageError) return { kind: "usage", message };
   if (e instanceof ProviderError) return { kind: `provider:${e.code}`, message };
   if (e instanceof ActionError) return { kind: `action:${e.kind}`, message };
-  if (e instanceof ComposeError) return { kind: "compose", code: e.code, message, ...(e.characters ? { characters: [...e.characters] } : {}) };
+  if (e instanceof ComposeError) return { kind: "compose", code: e.code, message, ...(e.characters ? { characters: [...e.characters] } : {}), ...(e instanceof LyricFontsError ? { packs: [...e.packs] } : {}) };
   if (e instanceof EngineError) return { kind: "engine", message };
   if (e instanceof PrivacyConfigError || e instanceof PrecomposeConfigError) return { kind: "usage", message };
   if (e instanceof Error && e.constructor.name === "DslError") return { kind: "usage", message };

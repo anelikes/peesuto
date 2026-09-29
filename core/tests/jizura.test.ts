@@ -28,7 +28,7 @@ import { lyricScript } from "../src/jizura/script.ts";
 import { ComposeError } from "../src/render/compose.ts";
 import { liveFrameWorkers, renderFrames } from "../src/render/frames.ts";
 import { RENDER_THREADS, renderThreads } from "../src/render/threads.ts";
-import { renderLyrics } from "../src/templates/lyrics-route.ts";
+import { LyricFontsError, renderLyrics } from "../src/templates/lyrics-route.ts";
 import { parseTemplates } from "../src/templates/parse.ts";
 import { TemplateInputError, type TemplateContent, type TemplatePlan } from "../src/templates/types.ts";
 
@@ -251,6 +251,21 @@ describe("routing (templates/lyrics-route.ts)", () => {
     const zh = jizuraPackManifest().packs.find((p) => p.id === "zh-hans")!;
     expect(r.lyric.engine === "classic" && r.lyric.packs).toEqual([{ id: "zh-hans", title: zh.title, bytes: zh.bytes }]);
     expect(calls).toEqual(["classic:gif"]);
+  }, 60_000);
+  withCanvas("when classic cannot draw the text either, its error names the packs too", async () => {
+    const [g] = plan(ZH);
+    const noScript = (async () => { throw new ComposeError("unsupported-script", "The card font does not support Hangul.", ["밤"]); }) as never;
+    const e = await renderLyrics(g, { ...options, format: "gif" }, { resolveFonts: (families) => ({ files: [], missing: [...families] }) }, noScript).then(() => null, (x: unknown) => x);
+    expect(e).toBeInstanceOf(LyricFontsError);
+    expect(e).toBeInstanceOf(ComposeError);
+    expect((e as LyricFontsError).code).toBe("unsupported-script");
+    expect((e as LyricFontsError).characters).toEqual(["밤"]);
+    expect((e as LyricFontsError).packs.map((p) => p.id)).toEqual(["zh-hans"]);
+    // without missing fonts (a poster), the classic error is passed on as it is
+    const [p] = plan(ZH, "png");
+    const plain = await renderLyrics(p, { ...options, format: "png" }, {}, noScript).then(() => null, (x: unknown) => x);
+    expect(plain).toBeInstanceOf(ComposeError);
+    expect(plain).not.toBeInstanceOf(LyricFontsError);
   }, 60_000);
   withCanvas("an input JIZURA refuses is an input error, not a fallback", async () => {
     const [g, calls] = plan(ZH);

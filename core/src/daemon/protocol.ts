@@ -23,6 +23,7 @@ import type { ClipItem, Context, PickResult } from "../pick/types.ts";
 import type { TEMPLATE_REGISTRY } from "../templates/registry.ts";
 import type { LyricStyle } from "../jizura/catalog.ts";
 import type { FontPackStatus } from "../fonts/jizura-packs.ts";
+import type { LyricFontPack } from "../templates/lyrics-route.ts";
 
 export type Request =
   | { id: number; cmd: "health" }
@@ -85,7 +86,7 @@ export type Response =
   | { id: number; ok: true; cmd: "fonts.cancel"; cancelled: boolean }
   | { id: number; ok: true; cmd: "fonts.remove"; removed: boolean }
   | { id: number; ok: true; cmd: "shutdown" }
-  | { id: number; ok: false; cmd?: string; kind: string; message: string; code?: string; characters?: string[] };
+  | { id: number; ok: false; cmd?: string; kind: string; message: string; code?: string; characters?: string[]; packs?: LyricFontPack[] };
 
 /** Opt-in, content-free task lifecycle. No percentage or render-stage estimate. */
 export interface TaskEvent {

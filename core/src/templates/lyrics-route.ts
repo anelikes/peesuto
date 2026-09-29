@@ -22,6 +22,7 @@ import { EngineError, renderDeadline, throwIfAborted } from "../engine.ts";
 import { fontPacksFor, type Titles } from "../fonts/jizura-packs.ts";
 import { AUTO_STYLE, isClassicLyricStyle, JizuraStyleError, prepareJizura, renderJizura, type JizuraFallbackReason, type JizuraMeta, type JizuraRequest } from "../jizura/index.ts";
 import type { RenderOptions, RenderResult } from "../render/card.ts";
+import { ComposeError } from "../render/compose.ts";
 import { pruneOutputs, writeOutput } from "../render/outputs.ts";
 import { videoEncoderFor } from "../render/video.ts";
 import type { TemplateComposeResult } from "./compose.ts";
@@ -61,6 +62,15 @@ export type LyricRenderMeta =
 /** A font pack a fallback names: its id for `fonts.install`, its name and its download size in bytes. */
 export interface LyricFontPack { readonly id: string; readonly title: Titles; readonly bytes: number }
 
+/**
+ * JIZURA lacked fonts and the classic fallback cannot draw the text either
+ * (Hangul: no classic face has it). The classic error, with the packs that
+ * would let JIZURA draw it.
+ */
+export class LyricFontsError extends ComposeError {
+  constructor(e: ComposeError, readonly packs: readonly LyricFontPack[]) { super(e.code, e.message, e.characters); }
+}
+
 export type LyricRenderResult = RenderResult & TemplateComposeResult & { readonly lyric: LyricRenderMeta };
 
 /** The render of a Lyric motion plan: JIZURA, or Pocket Motion with the reason. */
@@ -71,7 +81,12 @@ export async function renderLyrics(plan: TemplatePlan, options: RenderOptions, o
   const engine = o.engine ?? "auto";
   if (!LYRIC_ENGINES.includes(engine)) throw new TemplateInputError(`Unknown lyric engine ${JSON.stringify(engine)}: auto, jizura or classic.`);
   const classic = async (reason: Extract<LyricRenderMeta, { engine: "classic" }>["reason"], extra: Partial<Extract<LyricRenderMeta, { engine: "classic" }>> = {}, variant?: VariantId) => {
-    const r = await render(variant ? { ...plan, variant } : plan, { ...options, format });
+    let r;
+    try { r = await render(variant ? { ...plan, variant } : plan, { ...options, format }); }
+    catch (e) {
+      if (e instanceof ComposeError && e.code === "unsupported-script" && extra.packs?.length) throw new LyricFontsError(e, extra.packs);
+      throw e;
+    }
     return { ...r, lyric: { engine: "classic" as const, reason, ...extra } };
   };
   if (format === "png") return classic("poster");
