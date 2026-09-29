@@ -6,12 +6,16 @@
  * for Chinese, the catalogue face for Japanese and English) and a CSS
  * fallback list behind it. Skia follows that list and nothing else (Core
  * disables system fonts, canvas.ts), so a character no face in the list has
- * is a box. Hence the families a film needs are every JIZURA face in the list
- * of every key the plan may draw with (J.fontsOfPlan), and the check before a
- * render is twofold: each family resolves to files (core/src/fonts), and
- * every character of the lyric, title and credit is in some face of the list
- * of every such key. Either failing is a typed result, never a render with
- * boxes: Lyric motion then uses Pocket Motion and says why (index.ts).
+ * is a box. Hence the families a film may draw with are every JIZURA face in
+ * the list of every key the plan uses (J.fontsOfPlan), and the check before a
+ * render is twofold: the faces it draws with first (the head of each list and
+ * the language's base faces, `required`) resolve to files (core/src/fonts),
+ * and every character of the lyric, title and credit is in some face of the
+ * list of every such key. Either failing is a typed result, never a render
+ * with boxes: Lyric motion then uses Pocket Motion and says why (index.ts).
+ * The rest are fallbacks (every Chinese and Korean list ends in the Japanese
+ * Noto faces): registered when this machine has them, a Latin cut included,
+ * and never a reason on their own to ask for another language's pack.
  *
  * Fonts are registered with Skia once per process and file (the registry is
  * shared by every thread of the process), always under the family name
@@ -31,6 +35,8 @@ export const familiesOfList = (list: string): string[] => list.split(",").map(un
 export interface PlanFaces {
   /** Every JIZURA family the plan may draw with (primary faces and their fallbacks), sorted. */
   readonly families: readonly string[];
+  /** The ones it draws with first: the head of each key's list and the language's base faces, sorted. */
+  readonly required: readonly string[];
   /** Per role key the plan uses: the families of its font list, in order. */
   readonly chains: Readonly<Record<string, readonly string[]>>;
 }
@@ -40,15 +46,16 @@ export function planFaces(J: JizuraApi, plan: JizuraPlan): PlanFaces {
   J.setLang(plan.lang);
   const keys = J.fontsOfPlan(plan).filter((k) => k !== "@var" && J.FONTS[k]);
   const chains: Record<string, string[]> = {};
-  const all = new Set<string>();
+  const all = new Set<string>(), required = new Set<string>();
   for (const key of keys) {
     const face = J.faceOf(key);
     const chain = [...new Set([...familiesOfList(face.family), ...familiesOfList(face.fb)])];
     chains[key] = chain;
     for (const f of chain) all.add(f);
+    if (chain[0]) required.add(chain[0]);
   }
-  for (const b of J.langBaseFaces(keys)) if (KNOWN.has(b.family)) all.add(b.family);
-  return { families: [...all].sort(), chains };
+  for (const b of J.langBaseFaces(keys)) if (KNOWN.has(b.family)) { all.add(b.family); required.add(b.family); }
+  return { families: [...all].sort(), required: [...required].sort(), chains };
 }
 
 const registered = new Set<string>();

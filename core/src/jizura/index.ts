@@ -150,14 +150,20 @@ export async function prepareJizura(r: JizuraRequest): Promise<JizuraPrepared> {
   // Plan, find the faces, register them, and plan again with them: the plan is the one the frame threads make.
   let files: JizuraFontFile[] = [];
   let planned = plan(files);
+  const resolveFonts = r.resolveFonts ?? jizuraFontFiles;
+  const where = r.dataDir ? { dataDir: r.dataDir } : {};
   for (let pass = 0; pass < 3; pass++) {
-    const found = (r.resolveFonts ?? jizuraFontFiles)(planned.faces.families, { ...(r.dataDir ? { dataDir: r.dataDir } : {}), text });
+    const { required, families } = planned.faces;
+    const found = resolveFonts(required, { ...where, text });
     if (found.missing.length) {
-      return { ok: false, reason: "fonts-missing", missing: found.missing, families: planned.faces.families,
+      return { ok: false, reason: "fonts-missing", missing: found.missing, families,
         message: `JIZURA needs fonts this Mac does not have yet: ${found.missing.join(", ")}.` };
     }
+    // Fallbacks: whatever this machine has of them (no text: a Latin cut counts); the coverage check below decides.
+    const fallbacks = families.filter((f) => !required.includes(f));
+    const have = fallbacks.length ? [...found.files, ...resolveFonts(fallbacks, { ...where, text: "" }).files] : found.files;
     const known = new Set(files.map((f) => `${f.family}\0${f.path}`));
-    const added = found.files.filter((f) => !known.has(`${f.family}\0${f.path}`));
+    const added = have.filter((f) => !known.has(`${f.family}\0${f.path}`));
     if (!added.length) break;
     files = [...files, ...added];
     planned = plan(files);

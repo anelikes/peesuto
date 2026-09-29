@@ -184,6 +184,25 @@ describe.skipIf(!canvasReady)("plans", () => {
     if (!glyphs.ok && glyphs.reason === "glyphs") expect(glyphs.characters).toContain("晚");
     else throw new Error("expected glyphs");
   }, 60_000);
+  test("a Chinese film needs its own faces only: the Japanese faces at the end of its font lists are fallbacks", async () => {
+    const asked: { families: string[]; text: string }[] = [];
+    // this machine has every face but the Japanese ones (no Japanese pack, no Latin cut)
+    const noJapanese = (families: readonly string[], o: { readonly text: string }) => {
+      asked.push({ families: [...families], text: o.text });
+      const jp = families.filter((f) => f.endsWith(" JP"));
+      return { files: standIn(families.filter((f) => !jp.includes(f))).files, missing: jp };
+    };
+    const zh = await prepareJizura({ content: lyricsOf(ZH), sourceText: ZH, aspect: "1:1", format: "gif", style: "forest", resolveFonts: noJapanese });
+    if (!zh.ok) throw new Error(zh.message);
+    expect(zh.meta.families).toContain("Noto Sans JP");                 // in the lists, behind Noto Sans SC
+    const needed = asked.filter((a) => a.text !== "").flatMap((a) => a.families);
+    expect(needed).toContain("Noto Sans SC");
+    expect(needed.filter((f) => f.endsWith(" JP"))).toEqual([]);
+    expect(asked.some((a) => a.text === "" && a.families.includes("Noto Sans JP"))).toBe(true);
+    // a Japanese film draws with the Japanese faces first: they are needed
+    const ja = await prepareJizura({ content: lyricsOf(JA), sourceText: JA, aspect: "1:1", format: "gif", resolveFonts: noJapanese });
+    expect(!ja.ok && ja.reason === "fonts-missing" && ja.missing.some((f) => f.endsWith(" JP"))).toBe(true);
+  }, 60_000);
 });
 
 describe("routing (templates/lyrics-route.ts)", () => {
