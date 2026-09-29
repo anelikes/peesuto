@@ -863,8 +863,14 @@ struct ChooserSnapshot {
             await applyFontStatus(fontPreview.status, install: { fontPreview.install($0) })
             return
         }
+        guard let core else {
+            // No bundled Core (a bare `swift run`): nothing can download.
+            for id in fontRequests.requested { fontRequests.drop(id) }
+            fontStatusProblem = tr("Font packs are unavailable right now.", "字体包暂时不可用。")
+            return
+        }
         // The daemon answers in order: behind a render the status would only wait.
-        guard let core, force || !busy else { return }
+        guard force || !busy else { return }
         do {
             if !coreConfiguredOnce { try await configureCore() }
             let status = try await core.fontsStatus()
