@@ -7,8 +7,17 @@ section here becomes one.
 
 ## Unreleased
 
+## 0.2.4 — 2026-09-29
+
+Lyric motion drawn by JIZURA, in its own styles, in any language you ask for.
+
 ### New
-- **Lyric motion by JIZURA** — Lyric motion GIFs and videos are now drawn by [JIZURA](https://github.com/852wa/JIZURA), the lyric-video maker by hakoniwa (852wa), running inside Peesuto: its own engine, some 860 effect parts in 24 styles (plus three horror ones you can switch on), offline and on the Mac. By default JIZURA picks a style and a mood from your text (おまかせ), and the same text always gives the same film; your reading speed, lengths and limits stay as before. When the fonts a text needs are not on your Mac yet, Peesuto's own Lyric motion draws it as before and the result says so; posters (PNG) and the four classic styles (Stage, Paper, Pop, Night) stay Peesuto's own.
+- **Lyric motion by JIZURA** — Lyric motion GIFs and videos are now drawn by [JIZURA](https://github.com/852wa/JIZURA), the lyric-video maker by hakoniwa (852wa), running inside Peesuto: its own engine, some 860 effect parts in 24 styles (plus three horror ones you can switch on), offline and on the Mac. By default JIZURA picks a style and a mood from your text (Auto, おまかせ), and the same text always gives the same film; your reading speed, lengths and limits stay as before. Posters (PNG) and the four classic styles (Stage, Paper, Pop, Night) stay Peesuto's own. The engine, the Skia canvas it draws with and its base fonts make the app about 33 MB larger.
+- **Pick the style** — Settings › Templates › Lyric motion: Auto, any of JIZURA's 24 styles, or one of the classic four; "Horror styles" adds JIZURA's three horror ones. In clipboard history a result's style menu redraws that film in another style (and remembers it), and switching its format or frame keeps it JIZURA's.
+- **Fonts for Chinese, Japanese and Korean, when you ask** — English lyrics need nothing more. For Chinese (Simplified or Traditional), Japanese or Korean text JIZURA needs that language's fonts, 35–69 MB each (SIL Open Font License), downloaded once from Peesuto's GitHub releases and only when you press Download: in Settings › Templates › Lyric motion › Fonts for JIZURA, or on the note under a result. Until then such text is drawn in the classic style and the note says why, with "Redraw with JIZURA" once the fonts are in; Korean, which the classic style cannot draw, asks for its fonts first. A download names only the language pack, never your text; it resumes where it stopped, is checked (SHA-256) before use, and is refused in offline mode.
+
+### Improved
+- **Japanese** — the app says 動画 for video, as the website does.
 
 ## 0.2.3 — 2026-09-27
 
