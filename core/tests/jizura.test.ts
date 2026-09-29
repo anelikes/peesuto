@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { EngineAbortedError } from "../src/engine.ts";
-import type { JizuraFontFile } from "../src/fonts/jizura-packs.ts";
+import { jizuraPackManifest, type JizuraFontFile } from "../src/fonts/jizura-packs.ts";
 import { loadCanvas } from "../src/jizura/canvas.ts";
 import { jizuraBundlePath } from "../src/jizura/bundle.ts";
 import { AUTO_STYLE, JizuraDrawer, JizuraStyleError, lyricStyles, prepareJizura, renderJizura, type JizuraJob } from "../src/jizura/index.ts";
@@ -247,6 +247,9 @@ describe("routing (templates/lyrics-route.ts)", () => {
     const [g, calls] = plan(ZH);
     const r = await renderLyrics(g, { ...options, format: "gif" }, { resolveFonts: (families) => ({ files: [], missing: [...families] }) }, fakeClassic(calls));
     expect(r.lyric).toMatchObject({ engine: "classic", reason: "fonts-missing", missing: expect.arrayContaining(["Noto Sans SC"]) });
+    // the pack to offer: the Simplified Chinese one only, as the manifest has it
+    const zh = jizuraPackManifest().packs.find((p) => p.id === "zh-hans")!;
+    expect(r.lyric.engine === "classic" && r.lyric.packs).toEqual([{ id: "zh-hans", title: zh.title, bytes: zh.bytes }]);
     expect(calls).toEqual(["classic:gif"]);
   }, 60_000);
   withCanvas("an input JIZURA refuses is an input error, not a fallback", async () => {

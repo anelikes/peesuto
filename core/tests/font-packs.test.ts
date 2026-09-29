@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FontParseError, fontFaces } from "../src/fonts/font-names.ts";
 import {
-  BUNDLED_DIR, BUNDLED_ID, CJK_RANGES, FAMILY_ALIASES, fontPackStatus, fontPacksRoot, JIZURA_FACES, JIZURA_FAMILIES, jizuraFontFiles,
+  BUNDLED_DIR, BUNDLED_ID, CJK_RANGES, FAMILY_ALIASES, fontPacksFor, fontPackStatus, fontPacksRoot, JIZURA_FACES, JIZURA_FAMILIES, jizuraFontFiles,
   jizuraPackManifest, packUrl, parseManifest, type JizuraPackManifest,
 } from "../src/fonts/jizura-packs.ts";
 import { extractTar, TarError, writeTar } from "../src/fonts/tar.ts";
@@ -78,6 +78,13 @@ describe("font packs: the committed manifest", () => {
     // A release a shipped app downloads from is never deleted or re-uploaded: a changed pack gets a new tag and baseUrl.
     expect(manifest.baseUrl).toBe("https://github.com/anelikes/peesuto/releases/download/fonts-jizura-v1/");
     for (const p of manifest.packs) expect(packUrl(p, manifest.baseUrl)).toBe(`https://github.com/anelikes/peesuto/releases/download/fonts-jizura-v1/${p.id}-${p.sha256.slice(0, 8)}.tar`);
+  });
+
+  test("the packs a set of missing families needs, in manifest order; faces bundled in full or unknown need none", () => {
+    expect(fontPacksFor(["Noto Sans SC", "Noto Sans JP", "Noto Serif SC", "DotGothic16", "No Such Face"]).map((p) => p.id)).toEqual(["ja", "zh-hans"]);
+    expect(fontPacksFor(["Huninn"]).map((p) => p.id)).toEqual(["zh-hant"]);
+    expect(fontPacksFor(["IBM Plex Mono", "IBM Plex Sans JP"])).toEqual([]);
+    expect(fontPacksFor([])).toEqual([]);
   });
 
   test("manifest validation rejects bad entries", () => {

@@ -5,7 +5,8 @@
  * the engine loads here and this machine has every face the film needs and
  * every character of the text is in them. Otherwise, and for the poster
  * (PNG), Pocket Motion draws it with the classic styles (lyrics.ts), and the
- * result says why (`lyric.fallback`), so the app can offer the missing fonts.
+ * result says why (`lyric.reason`), and for missing fonts which packs have
+ * them (`lyric.packs`), so the app can offer to download them.
  * An explicit classic choice (the engine, a classic style id, or a style
  * picked from the template menu) goes to Pocket Motion directly.
  *
@@ -18,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { EngineError, renderDeadline, throwIfAborted } from "../engine.ts";
+import { fontPacksFor, type Titles } from "../fonts/jizura-packs.ts";
 import { AUTO_STYLE, isClassicLyricStyle, JizuraStyleError, prepareJizura, renderJizura, type JizuraFallbackReason, type JizuraMeta, type JizuraRequest } from "../jizura/index.ts";
 import type { RenderOptions, RenderResult } from "../render/card.ts";
 import { pruneOutputs, writeOutput } from "../render/outputs.ts";
@@ -50,9 +52,14 @@ export type LyricRenderMeta =
     /** Why JIZURA did not draw it: the poster, an explicit classic choice, or what was missing. */
     readonly reason: "poster" | "chosen" | JizuraFallbackReason;
     readonly missing?: readonly string[];
+    /** With `fonts-missing`: the downloadable packs that have the missing faces (the daemon's `fonts.install`). */
+    readonly packs?: readonly LyricFontPack[];
     readonly characters?: readonly string[];
     readonly message?: string;
   };
+
+/** A font pack a fallback names: its id for `fonts.install`, its name and its download size in bytes. */
+export interface LyricFontPack { readonly id: string; readonly title: Titles; readonly bytes: number }
 
 export type LyricRenderResult = RenderResult & TemplateComposeResult & { readonly lyric: LyricRenderMeta };
 
@@ -87,7 +94,9 @@ export async function renderLyrics(plan: TemplatePlan, options: RenderOptions, o
   }
   if (!prepared.ok) {
     const { reason, message } = prepared;
-    const extra = prepared.reason === "fonts-missing" ? { missing: prepared.missing } : prepared.reason === "glyphs" ? { characters: prepared.characters } : {};
+    const extra = prepared.reason === "fonts-missing"
+      ? { missing: prepared.missing, packs: fontPacksFor(prepared.missing).map((p): LyricFontPack => ({ id: p.id, title: p.title, bytes: p.bytes })) }
+      : prepared.reason === "glyphs" ? { characters: prepared.characters } : {};
     return classic(reason, { message, ...extra });
   }
   const { job, meta } = prepared;

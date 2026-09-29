@@ -351,6 +351,13 @@ function packFor(manifest: JizuraPackManifest, family: string): ManifestPack | n
   return manifest.packs.find((p) => p.families.some((f) => f.family === family)) ?? null;
 }
 
+/** The downloadable packs with the full faces of `families`, in manifest order (a family bundled in full, or in no pack, adds none). */
+export function fontPacksFor(families: readonly string[], opts: Common = {}): ManifestPack[] {
+  const manifest = opts.manifest ?? jizuraPackManifest();
+  const ids = new Set(families.map((f) => packFor(manifest, f)?.id));
+  return manifest.packs.filter((p) => ids.has(p.id));
+}
+
 /**
  * `jizuraFontFiles`, after downloading and installing whatever packs the
  * missing families are in (and checking, once per process, that the packs
