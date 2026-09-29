@@ -80,7 +80,7 @@ final class ClipboardPanel: NSPanel {
         }
         // Preview-only launch arguments for screenshots: --onboarding-step N, --settings-section N [--settings-anchor id], --pin-sample, --pin-panel,
         // --chooser-sample (the Paste as… chooser over sample text), --chooser-image (with an image on the clipboard instead),
-        // --language en|zh-CN|ja (read by AppState; not saved).
+        // --language en|zh-CN|ja (read by AppState; not saved), --fonts-sample (a pretend fonts.status, AppState.fontPreview).
         let arguments = CommandLine.arguments
         if preview, arguments.contains("--pin-panel") { model.panelPinned = true }
         func argument(_ name: String) -> Int? {

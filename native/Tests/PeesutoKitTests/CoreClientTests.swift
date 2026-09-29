@@ -529,4 +529,93 @@ extension CoreClientTests {
         XCTAssertEqual(before, after)
         await client.shutdown()
     }
+
+    /// The font-pack commands of the contract, a Core refusal with its code,
+    /// and a status that is not answered in time failing alone.
+    func testFontPackCommandsRoundTrip() async throws {
+        let (client, root) = try fixture(behavior: """
+        import os
+        if cmd == 'fonts.status':
+            res.update({'offline': False, 'packs': [
+                {'id': 'base', 'title': {'en': 'Base fonts (Latin)', 'zh': 'x', 'ja': 'y'}, 'bytes': 2900000, 'installed': True, 'bundled': True, 'installing': False, 'langs': ['en'], 'families': []},
+                {'id': 'zh-hans', 'title': {'en': 'Simplified Chinese lyric fonts', 'zh': '简体中文歌词字体', 'ja': '簡体字中国語の歌詞フォント'}, 'bytes': 68869120, 'installed': False, 'bundled': False, 'installing': True, 'langs': ['zh-Hans'], 'families': ['Noto Sans SC'], 'progress': {'done': 34434560, 'total': 68869120}},
+                {'id': 'ko', 'title': {'en': 'Korean lyric fonts'}, 'bytes': 34932224, 'installed': False, 'bundled': False, 'installing': False, 'langs': ['ko'], 'families': [], 'error': {'code': 'network', 'message': 'connection reset'}, 'future': 1}]})
+            emit(res)
+            continue
+        if cmd == 'fonts.install':
+            if req['pack'] == 'ja':
+                emit({'id': req['id'], 'ok': False, 'cmd': cmd, 'kind': 'fonts', 'code': 'offline', 'message': 'Offline mode is on.'})
+                continue
+            res['started'] = req['pack'] == 'ko'
+            emit(res)
+            continue
+        if cmd == 'fonts.cancel':
+            res['cancelled'] = True
+            emit(res)
+            continue
+        if cmd == 'fonts.remove':
+            time.sleep(0.6)
+            res['removed'] = True
+            emit(res)
+            continue
+        if cmd == 'health':
+            res.update({'version': str(os.getpid()), 'engine': None, 'providers': providers, 'uptimeMs': 1, 'packs': []})
+            emit(res)
+            continue
+        """, timeout: 5)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let status = try await client.fontsStatus()
+        XCTAssertFalse(status.offline)
+        XCTAssertEqual(status.downloadable.map(\.id), ["zh-hans", "ko"])
+        XCTAssertTrue(status.anyInstalling)
+        XCTAssertEqual(status.pack("zh-hans")?.progress?.fraction, 0.5)
+        XCTAssertEqual(status.pack("zh-hans")?.title.text(.chinese), "简体中文歌词字体")
+        XCTAssertEqual(status.pack("ko")?.title.text(.japanese), "Korean lyric fonts", "a missing language falls back to English")
+        XCTAssertEqual(status.pack("ko")?.error, CoreFontPackError(code: "network", message: "connection reset"))
+        let started = try await client.installFontPack("ko")
+        XCTAssertTrue(started)
+        let notStarted = try await client.installFontPack("zh-hant")
+        XCTAssertFalse(notStarted)
+        do {
+            try await client.installFontPack("ja")
+            XCTFail("Expected Core's refusal")
+        } catch let error as CoreError {
+            XCTAssertEqual(error.kind, "fonts")
+            XCTAssertEqual(error.code, "offline")
+        }
+        let cancelled = try await client.cancelFontPack("ko")
+        XCTAssertTrue(cancelled)
+        let before = try await client.health().version
+        do {
+            try await client.removeFontPack("ko", timeout: 0.1)
+            XCTFail("Expected a timeout")
+        } catch let error as CoreError { XCTAssertEqual(error.kind, "timeout") }
+        let after = try await client.health().version
+        XCTAssertEqual(after, before, "a font request that times out never restarts Core")
+        await client.shutdown()
+    }
+
+    /// paste-lyric carries the style and horror switch; other renders leave them out.
+    func testLyricStyleTravelsWithTheInput() async throws {
+        let (client, root) = try fixture(behavior: """
+        if cmd == 'run-action' and req['action'] == 'paste-lyric':
+            assert req['input']['lyricStyle'] == 'noir', req['input']
+            assert req['input']['lyricHorror'] is False
+            assert req['input']['output'] == 'gif'
+            res['result'] = {'output':'gif','format':'gif','path':'/synthetic.gif','ms':12,'meta':{'template':{'id':'lyrics','variant':'classic','motion':'reveal','decisionSource':'override','availableTemplates':['lyrics','text'],'aspect':'1:1'},'lyric':{'engine':'jizura','requestedStyle':'noir','style':'noir','mood':None,'horror':False,'lang':'en','cuts':4,'lines':2,'paired':False,'families':['Noto Sans JP'],'version':'0.9.0','commit':'bae339e','prepareMs':40}}}
+            emit(res)
+            continue
+        if cmd == 'run-action':
+            assert 'lyricStyle' not in req['input'] and 'lyricHorror' not in req['input'], req['input']
+        """)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let response = try await client.runAction(action: "paste-lyric", input: CoreActionInput(text: "la la", output: "gif",
+                                                  lyric: LyricRequest(style: "noir", horror: false)))
+        XCTAssertEqual(response.result.meta?.lyric?.engine, "jizura")
+        XCTAssertEqual(response.result.meta?.lyric?.requestedStyle, "noir")
+        XCTAssertNil(response.result.meta?.lyric?.mood)
+        let plain = try await client.runAction(action: "custom", input: CoreActionInput(text: "plain"))
+        XCTAssertEqual(plain.result.text, "plain")
+        await client.shutdown()
+    }
 }

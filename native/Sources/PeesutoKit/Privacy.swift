@@ -209,13 +209,12 @@ extension SettingsStore {
         styles[id] = variant
         try set("template_styles", value: styles)
     }
-    /// Every template on, no remembered styles, the default font, no signature.
+    /// Every template on, no remembered styles, the default font, no signature;
+    /// Lyric motion back to Auto, horror off, GIF.
     public func resetTemplates() throws {
-        try set("template_font", value: "maple")
-        try set("template_signature", value: "")
-        try set("templates_disabled", value: [String]())
-        try set("template_styles", value: [String: String]())
-        try set(LyricOutput.settingsKey, value: LyricOutput.defaultValue.rawValue)
+        try setValues(["template_font": "maple", "template_signature": "", "templates_disabled": [String](),
+                       "template_styles": [String: String](), LyricOutput.settingsKey: LyricOutput.defaultValue.rawValue,
+                       SettingsStore.lyricStyleKey: LyricStyles.auto, SettingsStore.lyricHorrorKey: false])
     }
 }
 

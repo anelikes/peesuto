@@ -10,6 +10,8 @@ struct TemplatesSettingsView: View {
     @State private var styles: [String: String] = [:]
     @State private var font = "maple"
     @State private var lyricOutput = LyricOutput.defaultValue
+    @State private var lyricStyle = LyricStyles.auto
+    @State private var lyricHorror = false
     /// The signature as typed; saved on Return and when the field loses focus
     /// (saving each keystroke would trim a space the user is still typing).
     @State private var signature = ""
@@ -43,17 +45,22 @@ struct TemplatesSettingsView: View {
                 HStack(spacing: 8) { ProgressView().controlSize(.small); Text(model.tr("Loading templates…", "正在载入模板…")) }
                     .font(.system(size: 12)).foregroundColor(.secondary)
             }
-            ForEach(model.templates) { spec in row(spec) }
+            ForEach(model.templates) { spec in
+                if spec.id == LyricStyles.templateID { lyricRow(spec).id("lyrics") } else { row(spec) }
+            }
             HStack {
                 if let problem { Text(problem).font(.system(size: 11)).foregroundColor(.orange) }
                 Spacer()
                 Button(model.tr("Restore defaults", "恢复默认"), action: reset)
-                    .disabled(disabled.isEmpty && styles.isEmpty && font == "maple" && signature.isEmpty && lyricOutput == LyricOutput.defaultValue)
+                    .disabled(disabled.isEmpty && styles.isEmpty && font == "maple" && signature.isEmpty && lyricOutput == LyricOutput.defaultValue
+                              && lyricStyle == LyricStyles.auto && !lyricHorror)
             }
         }
         .onAppear(perform: load)
         .onDisappear(perform: saveSignature)
-        .task { unavailable = !(await model.loadTemplates()) }
+        // A style picked in a result's menu is remembered while this is open.
+        .onChange(of: model.settingsRevision) { _ in loadLyric() }
+        .task { unavailable = !(await model.loadTemplates()); loadLyric() }
     }
 
     private var signatureRow: some View {
@@ -111,10 +118,102 @@ struct TemplatesSettingsView: View {
                 }
             }
             .opacity(on ? 1 : 0.45)
-            if spec.id == "lyrics" { lyricOutputRow }
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
+    }
+
+    /// Lyric motion: its style (JIZURA's or a classic one) instead of style
+    /// tiles, the horror switch, the default output, and JIZURA's font packs.
+    private func lyricRow(_ spec: CoreTemplateSpec) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.templateName(spec)).font(.system(size: 13, weight: .semibold))
+                    Text(summary(spec.id)).font(.system(size: 11)).foregroundColor(.secondary)
+                }
+                Spacer()
+                Text(model.tr("Only when chosen", "仅手动选择")).font(.system(size: 11)).foregroundColor(.secondary)
+            }
+            lyricStyleRow
+            lyricHorrorRow
+            lyricOutputRow
+            Divider()
+            fontPacks
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
+    }
+
+    private var lyricStyleRow: some View {
+        let language = model.localizer.language
+        let menu = LyricStyles.menu(model.lyricStyles, horror: lyricHorror)
+        let selected = model.lyricStyles.first { $0.id == lyricStyle }
+        let description = selected?.description?.text(language)
+            ?? (selected?.isClassic == true || LyricStyles.classicIDs.contains(lyricStyle)
+                ? model.tr("Drawn by Peesuto's classic renderer, like the poster.", "由 Peesuto 的经典渲染器绘制，与海报相同。") : "")
+        return HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.tr("Style", "风格")).font(.system(size: 12, weight: .medium))
+                Text(description).font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Picker("", selection: Binding(get: { lyricStyle }, set: { value in apply { try $0.setLyricStyle(value) } })) {
+                if let auto = menu.auto { Text(auto.name.text(language)).tag(auto.id) }
+                if !menu.jizura.isEmpty {
+                    Section("JIZURA") { ForEach(menu.jizura) { style in Text(style.name.text(language)).tag(style.id) } }
+                }
+                if !menu.classic.isEmpty {
+                    Section(model.tr("Classic", "经典")) { ForEach(menu.classic) { style in Text(style.name.text(language)).tag(style.id) } }
+                }
+                if menu.all.isEmpty { Text(model.lyricStyleName(lyricStyle)).tag(lyricStyle) }
+            }
+            .labelsHidden().pickerStyle(.menu).fixedSize()
+            .disabled(model.lyricStyles.isEmpty)
+            .accessibilityLabel(model.tr("Style", "风格"))
+        }
+    }
+
+    private var lyricHorrorRow: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.tr("Horror styles", "恐怖风格")).font(.system(size: 12, weight: .medium))
+                Text(model.tr("JIZURA's three horror styles, and horror moods in Auto.", "JIZURA 的三种恐怖风格；“自动”也可能选到恐怖氛围。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Toggle(model.tr("Horror styles", "恐怖风格"), isOn: Binding(get: { lyricHorror }, set: { on in
+                apply { try $0.setLyricHorror(on, styles: model.lyricStyles) }
+            }))
+            .toggleStyle(.switch).controlSize(.small).labelsHidden()
+        }
+    }
+
+    /// JIZURA's language packs: English is bundled; the rest come down only on Download.
+    private var fontPacks: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.tr("Fonts for JIZURA", "JIZURA 字体")).font(.system(size: 12, weight: .medium))
+                Text(model.tr("English needs no download. The fonts come from GitHub (anelikes/peesuto releases), only when you press Download.",
+                              "英文无需下载。字体来自 GitHub（anelikes/peesuto 的发布页），只在你点击“下载”时获取。"))
+                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if model.offline {
+                Text(model.tr("Offline mode is on, so nothing is downloaded. Turn it off in Settings › AI & actions.",
+                              "离线模式已开启，不会下载任何内容。可在“设置 › AI 与动作”中关闭。"))
+                    .font(.system(size: 11)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
+            }
+            if let status = model.fontStatus {
+                ForEach(status.downloadable) { pack in FontPackRow(model: model, pack: pack) }
+            } else if let problem = model.fontStatusProblem {
+                Text(problem).font(.system(size: 11)).foregroundColor(.secondary)
+            } else {
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text(model.tr("Checking fonts…", "正在检查字体…")) }
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+            }
+        }
+        .background(WindowVisibility { visible in model.fontsVisible("settings", visible) })
+        .onDisappear { model.fontsVisible("settings", false) }
     }
 
     /// What L in the chooser (and the Lyric motion shortcut) makes. One result can
@@ -206,6 +305,14 @@ struct TemplatesSettingsView: View {
         font = settings.templateFont
         lyricOutput = settings.lyricOutput
         signature = settings.templateSignature
+        loadLyric()
+    }
+    /// The style as it will be sent: a horror style with the switch off, or
+    /// one Core no longer lists, shows as Auto.
+    private func loadLyric() {
+        guard let settings = model.settings else { return }
+        lyricStyle = settings.lyricRequest(styles: model.lyricStyles).style
+        lyricHorror = settings.lyricHorror
     }
 
     private func setEnabled(_ id: String, _ enabled: Bool) {

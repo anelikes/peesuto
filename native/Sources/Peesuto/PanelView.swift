@@ -137,7 +137,10 @@ struct PanelView: View {
                 }
             }.buttonStyle(.borderless).foregroundColor(.secondary)
             if let output = model.output {
-                if let selection = output.template { templateControls(selection, format: output.format ?? "png", frame: output.usedFrame) }
+                if let selection = output.template { templateControls(selection, result: output.rendered, format: output.format ?? "png", frame: output.usedFrame) }
+                if let fallback = LyricFallback.of(output.lyric, status: model.fontStatus) {
+                    LyricFallbackNote(model: model, fallback: fallback)
+                }
                 if let failure = output.template?.decisionError {
                     Label(model.tr("The AI style pick was unavailable (\(failure.kind)), so local rules chose this template.",
                                    "AI 风格选择暂不可用（\(failure.kind)），已由本地规则选择模板。",
@@ -225,11 +228,12 @@ struct PanelView: View {
         }.controlSize(.large)
     }
 
-    private func templateControls(_ selection: CoreTemplateSelection, format: String, frame: String?) -> some View {
+    private func templateControls(_ selection: CoreTemplateSelection, result: RenderedResult?, format: String, frame: String?) -> some View {
         let kind = OutputFrames.kind(output: format) ?? "image"
         let currentFrame = OutputFrames.normalize(frame, kind: kind)
         let spec = model.templates.first { $0.id == selection.id }
         let variant = spec?.variants.first { $0.id == selection.variant }
+        let lyric = result.flatMap { $0.isLyrics ? $0 : nil }
         return HStack(spacing: 12) {
             Menu {
                 ForEach(model.templates.filter { selection.availableTemplates.contains($0.id) }) { candidate in
@@ -237,13 +241,18 @@ struct PanelView: View {
                 }
             } label: { Text(spec.map { model.templateName($0) } ?? selection.id) }
                 .help(model.tr("Template", "模板"))
-            Menu {
-                ForEach(spec?.variants ?? []) { variant in
-                    Button(model.variantName(variant)) { model.rerender(variant: variant.id) }
-                }
-            } label: { Text(variant.map { model.variantName($0) } ?? model.tr("Style", "风格")) }
-                .help(model.tr("Change style", "更换风格"))
-            if format != "png" {
+            if let lyric {
+                lyricStyleMenu(lyric)
+            } else {
+                Menu {
+                    ForEach(spec?.variants ?? []) { variant in
+                        Button(model.variantName(variant)) { model.rerender(variant: variant.id) }
+                    }
+                } label: { Text(variant.map { model.variantName($0) } ?? model.tr("Style", "风格")) }
+                    .help(model.tr("Change style", "更换风格"))
+            }
+            // JIZURA has its own motion.
+            if format != "png" && lyric?.isJizura != true {
                 Menu {
                     ForEach(spec?.motions ?? [], id: \.self) { motion in
                         Button(model.motionName(motion)) { model.rerender(motion: motion) }
@@ -274,6 +283,27 @@ struct PanelView: View {
             } label: { Text(format.uppercased()) }
                 .help(model.tr("Output format", "输出格式"))
         }.font(.system(size: 11)).menuStyle(.borderlessButton).disabled(model.busy)
+    }
+
+    /// Lyric motion's styles for a lyric result: Auto, JIZURA's, the classic
+    /// ones (a poster: the classic ones only), the current one checked. Picking
+    /// one redraws it and makes it the default, as other templates' styles do.
+    private func lyricStyleMenu(_ result: RenderedResult) -> some View {
+        let defaults = model.lyricDefaults
+        let menu = Rerender.menu(result, styles: model.lyricStyles, horror: defaults.horror)
+        let current = Rerender.checkedStyle(result, fallback: defaults.style)
+        let language = model.localizer.language
+        func item(_ style: CoreLyricStyle) -> some View {
+            Button { model.rerender(lyricStyle: style.id) } label: {
+                if style.id == current { Label(style.name.text(language), systemImage: "checkmark") } else { Text(style.name.text(language)) }
+            }
+        }
+        return Menu {
+            if let auto = menu.auto { item(auto) }
+            if !menu.jizura.isEmpty { Section("JIZURA") { ForEach(menu.jizura) { item($0) } } }
+            if !menu.classic.isEmpty { Section(model.tr("Classic", "经典")) { ForEach(menu.classic) { item($0) } } }
+        } label: { Text(Rerender.styleLabel(result, styles: model.lyricStyles, fallback: defaults.style, language: language)) }
+            .help(model.tr("Change style", "更换风格"))
     }
 
     private var footer: some View {

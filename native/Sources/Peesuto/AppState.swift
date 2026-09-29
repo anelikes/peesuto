@@ -13,15 +13,25 @@ struct OutputPreview {
     let frame: String?
     /// Core served this result from background precompose.
     let precomposed: Bool
+    /// Lyric motion: which engine drew it (and why not JIZURA).
+    let lyric: CoreLyricMeta?
+    /// Lyric motion: the style and horror switch this result was asked for.
+    let lyricRequest: LyricRequest?
     init(title: String, text: String?, url: URL?, sourceText: String? = nil,
          template: CoreTemplateSelection? = nil, format: String? = nil, frame: String? = nil,
-         precomposed: Bool = false) {
+         precomposed: Bool = false, lyric: CoreLyricMeta? = nil, lyricRequest: LyricRequest? = nil) {
         self.title = title; self.text = text; self.url = url
         self.sourceText = sourceText; self.template = template; self.format = format
         self.frame = frame; self.precomposed = precomposed
+        self.lyric = lyric; self.lyricRequest = lyricRequest
     }
     /// The frame Core reports it used, falling back to the requested one.
     var usedFrame: String? { template?.aspect ?? frame }
+    /// What the template menus rerender from.
+    var rendered: RenderedResult? {
+        template.map { RenderedResult(templateID: $0.id, variant: $0.variant, motion: $0.motion, format: format,
+                                      frame: frame, lyric: lyric, lyricRequest: lyricRequest) }
+    }
 }
 
 /// A render the chooser started for its preview, reusable by the shortcut it previews.
@@ -45,6 +55,8 @@ struct ChooserSnapshot {
     @Published var language = "system"
     @Published var actions: [CoreActionSpec] = []
     @Published var templates: [CoreTemplateSpec] = []
+    /// Lyric motion's styles (templates.list `lyricStyles`).
+    @Published var lyricStyles: [CoreLyricStyle] = []
     @Published var output: OutputPreview?
     @Published var busy = false
     @Published var taskStatus = ""
@@ -308,7 +320,7 @@ struct ChooserSnapshot {
                 try await configureCore()
                 guard revision == panelRevision, !busy else { return }
                 if let core { actions = try await core.actions().actions }
-                if let core { templates = try await core.templates().templates }
+                if let core { useTemplates(try await core.templates()) }
                 guard settings?.bool("smart_paste", default: true) != false,
                       capturedContext["secure"] as? Bool != true, !capturedItems.isEmpty, !busy, revision == panelRevision else { return }
                 let decoder = JSONDecoder()
@@ -360,7 +372,7 @@ struct ChooserSnapshot {
         do {
             if !coreConfiguredOnce { try await configureCore() }
             _ = try await core.precompose(text: text, frames: settings.precomposeFrames,
-                                          templatePreferences: settings.templatePreferences,
+                                          templatePreferences: settings.renderTemplatePreferences(styles: lyricStyles),
                                           disabledTemplates: settings.disabledTemplates,
                                           templateFont: settings.templateFont,
                                           templateSignature: settings.templateSignature)
@@ -481,17 +493,21 @@ struct ChooserSnapshot {
         return PreparedRender(text: text, actionID: actionID, task: task)
     }
 
-    /// The input every media render sends for `actionID`.
-    private func mediaInput(actionID: String, text: String, frame: String?, options: CoreTemplateOptions?) -> CoreActionInput {
+    /// The input every media render sends for `actionID`. `lyric` goes with
+    /// Lyric motion renders only (paste-lyric, or the lyrics template chosen).
+    private func mediaInput(actionID: String, text: String, frame: String?, options: CoreTemplateOptions?, lyric: LyricRequest? = nil) -> CoreActionInput {
         CoreActionInput(text: text, aspect: frame ?? defaultFrame(actionID: actionID),
-            template: options, templatePreferences: settings?.templatePreferences,
+            template: options, templatePreferences: settings?.renderTemplatePreferences(styles: lyricStyles),
             disabledTemplates: settings?.disabledTemplates, templateFont: settings?.templateFont,
             templateSignature: settings?.templateSignature,
-            output: actionID == "paste-lyric" ? lyricOutput.rawValue : nil)
+            output: actionID == "paste-lyric" ? lyricOutput.rawValue : nil, lyric: lyric)
     }
 
     /// Lyric motion's default output (Settings › Templates).
     var lyricOutput: LyricOutput { settings?.lyricOutput ?? LyricOutput.defaultValue }
+    /// What paste-lyric sends now: Settings › Templates › Lyric motion.
+    var lyricDefaults: LyricRequest { settings?.lyricRequest(styles: lyricStyles) ?? LyricRequest(style: LyricStyles.auto, horror: false) }
+    func lyricStyleName(_ id: String) -> String { LyricStyles.name(id, in: lyricStyles, language: localizer.language) }
     func lyricOutputName(_ output: LyricOutput) -> String {
         switch output {
         case .gif: return "GIF"
@@ -506,12 +522,16 @@ struct ChooserSnapshot {
     }
 
     func templateName(_ spec: CoreTemplateSpec) -> String { tr(spec.name, spec.nameZh) }
-    /// The template list for Settings, from Core when it has not been fetched yet; false when Core cannot answer.
+    /// The template list (and Lyric motion's styles) from Core when it has not been fetched yet; false when Core cannot answer.
     @discardableResult func loadTemplates() async -> Bool {
-        if !templates.isEmpty { return true }
-        guard let core, let list = try? await core.templates().templates else { return false }
-        templates = list
+        if !templates.isEmpty && !lyricStyles.isEmpty { return true }
+        guard let core, let list = try? await core.templates() else { return !templates.isEmpty }
+        useTemplates(list)
         return true
+    }
+    private func useTemplates(_ list: CoreTemplateList) {
+        templates = list.templates
+        if let styles = list.lyricStyles { lyricStyles = styles }
     }
     /// A layout failure, told apart by its reason: characters the font lacks,
     /// nothing to draw, or content that really does not fit.
@@ -535,28 +555,27 @@ struct ChooserSnapshot {
     }
 
     /// `frame` applies to this rerender only; the saved default is unchanged.
-    func rerender(templateID: String? = nil, variant: String? = nil, motion: String? = nil, format: String? = nil, frame: String? = nil) {
-        guard !busy, let output, let text = output.sourceText, let selectedTemplate = output.template else { return }
-        let chosenFormat = format ?? output.format ?? "png"
-        let actionID = chosenFormat == "mp4" ? "paste-video" : chosenFormat == "gif" ? "paste-gif" : "paste-card"
-        let kind = OutputFrames.kind(output: chosenFormat) ?? "image"
-        // Same kind keeps this result's frame; a new kind takes its saved default.
-        let sameKind = OutputFrames.kind(output: output.format) == kind
-        let chosenFrame = frame.map { OutputFrames.normalize($0, kind: kind) }
-            ?? (sameKind ? output.frame.map { OutputFrames.normalize($0, kind: kind) } : nil)
-            ?? settings?.frame(kind: kind) ?? OutputFrames.defaultFrame(kind: kind)
-        let changingTemplate = templateID != nil && templateID != selectedTemplate.id
-        let options = CoreTemplateOptions(id: templateID ?? selectedTemplate.id,
-            variant: variant ?? (changingTemplate ? nil : selectedTemplate.variant),
-            motion: motion ?? (changingTemplate || (format != nil && output.format == "png") ? nil : selectedTemplate.motion))
-        execute(actionID: actionID, title: output.title, text: text, direct: false, options: options,
-                frame: chosenFrame, keepPreview: true, rememberVariant: variant != nil)
+    /// With no change it draws the same request again (Redraw with JIZURA).
+    /// The rules are `Rerender.plan` in PeesutoKit.
+    func rerender(templateID: String? = nil, variant: String? = nil, motion: String? = nil, format: String? = nil, frame: String? = nil,
+                  lyricStyle: String? = nil) {
+        guard !busy, let output, let text = output.sourceText, let result = output.rendered else { return }
+        let change = RerenderChange(templateID: templateID, variant: variant, motion: motion, format: format, frame: frame, lyricStyle: lyricStyle)
+        let plan = Rerender.plan(result, change: change,
+                                 savedFrame: { [settings] kind in settings?.frame(kind: kind) ?? OutputFrames.defaultFrame(kind: kind) },
+                                 lyricDefaults: lyricDefaults, styles: lyricStyles)
+        execute(actionID: plan.actionID, title: output.title, text: text, direct: false, options: plan.options,
+                frame: plan.frame, keepPreview: true, rememberVariant: plan.rememberVariant,
+                lyric: plan.lyric, rememberLyricStyle: plan.rememberLyricStyle)
     }
 
+    /// `lyric`: Lyric motion's style for this render; paste-lyric and the lyrics
+    /// template take the saved one when none is given.
     private func execute(actionID: String, title: String, text: String, direct: Bool,
                          delivery: ClipboardShortcutDelivery = .paste,
                          options: CoreTemplateOptions? = nil, frame: String? = nil,
                          keepPreview: Bool = false, rememberVariant: Bool = false,
+                         lyric: LyricRequest? = nil, rememberLyricStyle: String? = nil,
                          prepared: Task<CoreActionResponse, Error>? = nil, target: pid_t? = nil) {
         actionRevision += 1
         let revision = actionRevision
@@ -577,8 +596,14 @@ struct ChooserSnapshot {
                 try Task.checkCancellation()
                 try await configureCore()
                 try Task.checkCancellation()
+                var lyric = lyric
+                if lyric == nil, actionID == "paste-lyric" || options?.id == LyricStyles.templateID {
+                    // The saved style is checked against Core's list (a horror or retired style becomes auto).
+                    if lyricStyles.isEmpty { await loadTemplates() }
+                    lyric = lyricDefaults
+                }
                 let requestedFrame = frame ?? defaultFrame(actionID: actionID)
-                let input = mediaInput(actionID: actionID, text: text, frame: requestedFrame, options: options)
+                let input = mediaInput(actionID: actionID, text: text, frame: requestedFrame, options: options, lyric: lyric)
                 taskStatus = title + "…"
                 let kind = requestOutput(actionID: actionID)
                 let timeout = CoreClient.actionTimeout(output: kind) ?? CoreClient.actionTimeout(actionID: actionID)
@@ -601,17 +626,27 @@ struct ChooserSnapshot {
                     response = answer
                 }
                 if !Task.isCancelled {
+                    let meta = response.result.meta
                     output = OutputPreview(title: title, text: response.result.text,
                                            url: response.result.path.map { URL(fileURLWithPath: $0) },
-                                           sourceText: text, template: response.result.meta?.template, format: response.result.format,
-                                           frame: requestedFrame, precomposed: response.result.meta?.precomposed == true)
-                    if templates.isEmpty, let core { templates = (try? await core.templates().templates) ?? [] }
+                                           sourceText: text, template: meta?.template, format: response.result.format,
+                                           frame: requestedFrame, precomposed: meta?.precomposed == true,
+                                           lyric: meta?.lyric, lyricRequest: meta?.template?.id == LyricStyles.templateID ? lyric : nil)
+                    if templates.isEmpty || lyricStyles.isEmpty { await loadTemplates() }
                     try Task.checkCancellation()
-                    if rememberVariant, let selected = response.result.meta?.template {
+                    if rememberVariant, let selected = meta?.template {
                         var preferences = settings?.values["template_styles"] as? [String: String] ?? [:]
                         preferences[selected.id] = selected.variant
                         do { try settings?.set("template_styles", value: preferences) }
                         catch { notice = tr("Created. Could not remember this style.", "已生成，但无法保存风格偏好。") }
+                    }
+                    if let style = rememberLyricStyle {
+                        do { try settings?.setLyricStyle(style); settingsRevision += 1 }
+                        catch { notice = tr("Created. Could not remember this style.", "已生成，但无法保存风格偏好。") }
+                    }
+                    // A shortcut's GIF or video that JIZURA could not draw: say so at the caret (the panel shows it too).
+                    if direct, let fallback = LyricFallback.of(meta?.lyric, status: fontStatus) {
+                        notice = [notice, fallback.bubble(localizer)].compactMap { $0 }.joined(separator: " ")
                     }
                     if direct, let output {
                         switch delivery {
@@ -744,6 +779,132 @@ struct ChooserSnapshot {
         guard !lyrics.isEmpty, paste.copyText(lyrics) else { error = tr("Could not copy this item.", "无法复制此项。"); return }
         NSWorkspace.shared.open(JizuraHandoff.url(for: localizer.language))
         notice = tr("Text copied — paste it in JIZURA", "文字已复制——在 JIZURA 中粘贴")
+    }
+
+    // MARK: JIZURA font packs
+
+    /// The last `fonts.status`; nil until read.
+    @Published private(set) var fontStatus: CoreFontsStatus?
+    /// Why the packs cannot be listed now; nil when they can.
+    @Published private(set) var fontStatusProblem: String?
+    /// The last failure of each pack, as shown to the user.
+    @Published private(set) var fontFailures: [String: String] = [:]
+    /// Downloads the user started that have not finished, failed or been cancelled.
+    @Published private(set) var fontRequests = FontPackRequests()
+    /// On-screen views that show packs ("settings", "panel").
+    private var fontViewers: Set<String> = []
+    private var fontLoop: Task<Void, Never>?
+    private var fontStatusFailures = 0
+    /// Preview builds with --fonts-sample: a pretend `fonts.status`.
+    lazy var fontPreview: PreviewFontPacks? = previewMode && CommandLine.arguments.contains("--fonts-sample") ? PreviewFontPacks() : nil
+
+    /// A view that shows packs appeared or went away (window closed, covered, section left).
+    func fontsVisible(_ viewer: String, _ visible: Bool) {
+        if visible {
+            if fontViewers.insert(viewer).inserted { pollFonts() }
+        } else {
+            fontViewers.remove(viewer)
+        }
+    }
+
+    /// Download pressed. Only this ever starts a download.
+    func downloadFontPack(_ id: String) {
+        guard !offline else { fontFailures[id] = fontFailureText(code: "offline", message: nil); return }
+        fontFailures[id] = nil
+        fontRequests.request(id)
+        pollFonts()
+    }
+
+    func cancelFontPack(_ id: String) {
+        fontRequests.drop(id)
+        Task {
+            do {
+                if let fontPreview { fontPreview.cancel(id) } else { try await core?.cancelFontPack(id) }
+            } catch { fontFailures[id] = fontFailureText(error) }
+            pollFonts()
+        }
+    }
+
+    func removeFontPack(_ id: String) {
+        fontRequests.drop(id)
+        Task {
+            do {
+                if let fontPreview { fontPreview.remove(id) } else { try await core?.removeFontPack(id) }
+                fontFailures[id] = nil
+            } catch { fontFailures[id] = fontFailureText(error) }
+            pollFonts()
+        }
+    }
+
+    /// Reads the status now and keeps reading about twice a second while a
+    /// download the user started is unfinished, or one runs and a view shows it.
+    private func pollFonts() {
+        guard fontLoop == nil else { return }
+        fontLoop = Task { [weak self] in
+            while let self = self {
+                await self.fontTick()
+                guard !Task.isCancelled, FontPackPolling.shouldPoll(requested: self.fontRequests.isActive,
+                                                                   installing: self.fontStatus?.anyInstalling == true,
+                                                                   visible: !self.fontViewers.isEmpty) else { break }
+                try? await Task.sleep(nanoseconds: UInt64(FontPackPolling.interval * 1_000_000_000))
+            }
+            self?.fontLoop = nil
+        }
+    }
+
+    private func fontTick() async {
+        if let fontPreview {
+            fontPreview.advance()
+            await applyFontStatus(fontPreview.status, install: { fontPreview.install($0) })
+            return
+        }
+        // The daemon answers in order: behind a render the status would only wait.
+        guard let core, !busy else { return }
+        do {
+            if !coreConfiguredOnce { try await configureCore() }
+            let status = try await core.fontsStatus()
+            fontStatusFailures = 0
+            await applyFontStatus(status, install: { try await core.installFontPack($0) })
+        } catch let failure as CoreError where failure.kind == "timeout" && fontStatus != nil {
+            // Busy with something else; the next tick asks again.
+        } catch {
+            fontStatusFailures += 1
+            // An unknown command (an older Core) or a Core that keeps failing: stop asking.
+            if (error as? CoreError)?.kind == "usage" || fontStatusFailures >= 6 {
+                for id in fontRequests.requested { fontRequests.drop(id) }
+                fontStatusProblem = tr("Font packs are unavailable right now.", "字体包暂时不可用。")
+            }
+        }
+    }
+
+    private func applyFontStatus(_ status: CoreFontsStatus, install: (String) async throws -> Void) async {
+        fontStatus = status
+        fontStatusProblem = nil
+        let step = fontRequests.reconcile(status)
+        for id in step.finished { fontFailures[id] = nil }
+        for failure in step.failed { fontFailures[failure.id] = fontFailureText(code: failure.code, message: failure.message) }
+        for id in step.install {
+            do { try await install(id) } catch {
+                fontRequests.drop(id)
+                fontFailures[id] = fontFailureText(error)
+            }
+        }
+    }
+
+    private func fontFailureText(_ error: Error) -> String {
+        guard let failure = error as? CoreError else { return fontFailureText(code: "error", message: nil) }
+        return fontFailureText(code: failure.code ?? failure.kind, message: failure.kind == "fonts" ? failure.message : nil)
+    }
+
+    private func fontFailureText(code: String, message: String?) -> String {
+        switch code {
+        case "offline":
+            return tr("Offline mode is on, so nothing is downloaded. Turn it off in Settings › AI & actions.",
+                      "离线模式已开启，不会下载任何内容。可在“设置 › AI 与动作”中关闭。")
+        case "not-started": return tr("The download did not start. Try again.", "下载没有开始，请重试。")
+        case "unknown-pack": return tr("This font pack is not available.", "此字体包不可用。")
+        default: return message ?? tr("The download failed. Try again.", "下载失败，请重试。")
+        }
     }
 
     func copySelection() {

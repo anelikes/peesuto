@@ -246,6 +246,36 @@ public actor CoreClient {
         return try await request(body, timeout: timeout, soft: true)
     }
 
+    // JIZURA font packs. The download runs inside Core and outlives these
+    // calls; each answers at once. They are soft: the daemon answers in
+    // order, so behind a render one only times out, never stopping Core.
+
+    public func fontsStatus(timeout: TimeInterval = 5) async throws -> CoreFontsStatus {
+        try await request(["cmd": "fonts.status"], timeout: timeout, soft: true)
+    }
+
+    /// Starts (or resumes) downloading `pack`; false when Core had nothing to start.
+    @discardableResult
+    public func installFontPack(_ pack: String, timeout: TimeInterval = 10) async throws -> Bool {
+        struct Reply: Decodable { let started: Bool? }
+        let reply: Reply = try await request(["cmd": "fonts.install", "pack": pack], timeout: timeout, soft: true)
+        return reply.started ?? true
+    }
+
+    @discardableResult
+    public func cancelFontPack(_ pack: String, timeout: TimeInterval = 10) async throws -> Bool {
+        struct Reply: Decodable { let cancelled: Bool? }
+        let reply: Reply = try await request(["cmd": "fonts.cancel", "pack": pack], timeout: timeout, soft: true)
+        return reply.cancelled ?? false
+    }
+
+    @discardableResult
+    public func removeFontPack(_ pack: String, timeout: TimeInterval = 20) async throws -> Bool {
+        struct Reply: Decodable { let removed: Bool? }
+        let reply: Reply = try await request(["cmd": "fonts.remove", "pack": pack], timeout: timeout, soft: true)
+        return reply.removed ?? false
+    }
+
     /// No cancellation command exists in the current protocol. Stopping Core
     /// fails outstanding callers; subsequent requests start a fresh process.
     public func shutdown() async {

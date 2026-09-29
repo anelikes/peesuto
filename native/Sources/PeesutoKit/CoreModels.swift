@@ -115,11 +115,15 @@ public struct CoreActionInput: Codable, Sendable {
     public let templateSignature: String?
     /// One of the action's `render.outputs` ("image", "gif", "video"): paste-lyric's default output.
     public let output: String?
+    /// Lyric motion: "auto" (JIZURA's おまかせ), a JIZURA style key or a classic style id.
+    public let lyricStyle: String?
+    /// Lyric motion: JIZURA's horror styles, parts and mood.
+    public let lyricHorror: Bool?
 
     public init(text: String, item: CoreClipItem? = nil, context: CoreContext? = nil,
                 aspect: String? = nil, fresh: Bool? = nil, template: CoreTemplateOptions? = nil,
                 templatePreferences: [String: String]? = nil, disabledTemplates: [String]? = nil, templateFont: String? = nil,
-                templateSignature: String? = nil, output: String? = nil) {
+                templateSignature: String? = nil, output: String? = nil, lyric: LyricRequest? = nil) {
         self.text = text; self.item = item; self.context = context
         self.aspect = aspect; self.fresh = fresh
         self.template = template
@@ -128,6 +132,8 @@ public struct CoreActionInput: Codable, Sendable {
         self.templateFont = templateFont
         self.templateSignature = templateSignature
         self.output = output
+        self.lyricStyle = lyric?.style
+        self.lyricHorror = lyric?.horror
     }
 }
 
@@ -141,7 +147,7 @@ public struct CoreActionResult: Codable, Sendable {
     public let meta: CoreActionMetadata?
 }
 
-public struct CoreTemplateOptions: Codable, Sendable {
+public struct CoreTemplateOptions: Codable, Equatable, Sendable {
     public let id: String?
     public let variant: String?
     public let motion: String?
@@ -176,6 +182,8 @@ public struct CoreActionMetadata: Codable, Sendable {
     public let fallback: CoreRenderFallback?
     /// MP4 only: "native" (PeesutoEncoder, bundled) or "ffmpeg".
     public let encoder: String?
+    /// Lyric motion: which engine drew it, and why not JIZURA when it did not.
+    public let lyric: CoreLyricMeta?
 }
 
 public struct CoreRenderFallback: Codable, Sendable, Equatable {
@@ -242,6 +250,8 @@ public struct CoreTemplateSpec: Codable, Identifiable, Sendable {
 
 public struct CoreTemplateList: Codable, Sendable {
     public let templates: [CoreTemplateSpec]
+    /// Lyric motion's styles: auto first, JIZURA's (horror ones flagged), then the classic ones.
+    public let lyricStyles: [CoreLyricStyle]?
 }
 
 public struct CoreActionResponse: Codable, Sendable {
