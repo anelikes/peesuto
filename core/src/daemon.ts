@@ -6,7 +6,8 @@
  *
  * JSON lines in on stdin, JSON lines out on stdout (protocol.ts). Exits when
  * stdin closes, on `shutdown`, or after `--idle-minutes` without pending work
- * (the shell restarts it on demand). Logs go to stderr only; stdout carries
+ * (precompose or a font pack download in the background is pending work; the
+ * shell restarts it on demand). Logs go to stderr only; stdout carries
  * nothing but responses and explicitly requested task lifecycle events.
  */
 import { join, resolve } from "node:path";
@@ -70,7 +71,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   const touch = () => {
     pauseIdle();
     if (idleMs > 0) timer = setTimeout(() => {
-      // Precompose work in the background is pending work too.
+      // Precompose work and font pack downloads in the background are pending work too.
       if (daemon.busy()) { touch(); return; }
       console.error("daemon: idle, exiting"); stop(0);
     }, idleMs);

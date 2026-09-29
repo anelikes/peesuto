@@ -473,12 +473,21 @@ export async function installFontPack(id: string, opts: DownloadOptions): Promis
 function follow(job: Job, signal: AbortSignal | undefined, onProgress: ((d: number, t: number) => void) | undefined): Promise<boolean> {
   job.callers++;
   let last = 0, left = false, settled = false;
-  const listener = onProgress ? (d: number, t: number) => { const now = Date.now(); if (d === t || now - last >= 100) { last = now; onProgress(d, t); } } : null;
+  // at most every 100 ms, and the latest value always within 100 ms (a stalled download shows what came)
+  let latest: [number, number] = [0, 0], trailing: ReturnType<typeof setTimeout> | undefined;
+  const report = () => { clearTimeout(trailing); trailing = undefined; last = Date.now(); onProgress!(...latest); };
+  const listener = onProgress ? (d: number, t: number) => {
+    latest = [d, t];
+    const wait = 100 - (Date.now() - last);
+    if (d === t || wait <= 0) report();
+    else trailing ??= setTimeout(report, wait);
+  } : null;
   if (listener) job.listeners.add(listener);
   return new Promise<boolean>((resolve, reject) => {
     const leave = () => {
       if (left) return;
       left = true;
+      clearTimeout(trailing);
       if (listener) job.listeners.delete(listener);
       signal?.removeEventListener("abort", onAbort);
       if (--job.callers === 0 && !settled) job.controller.abort();
@@ -490,6 +499,39 @@ function follow(job: Job, signal: AbortSignal | undefined, onProgress: ((d: numb
       (e) => { settled = true; if (!left) { leave(); reject(e); } },
     );
   });
+}
+
+/**
+ * What `installFontPack(id)` would do, sending nothing: "installed" (installed
+ * and intact; the first check in a process reads every file), "installing" (a
+ * download for it is running in this process) or "download". Throws the
+ * FontPackError it would fail with before any request: unknown-pack, bundled,
+ * and when it would download, offline, unconfigured or insecure.
+ */
+export async function checkFontPackInstall(id: string, opts: { dataDir: string; baseUrl?: string } & Common): Promise<"installed" | "installing" | "download"> {
+  const manifest = opts.manifest ?? jizuraPackManifest();
+  if (id === BUNDLED_ID) throw new FontPackError("bundled", "the base fonts come with the app and are not downloaded");
+  const pack = manifest.packs.find((p) => p.id === id);
+  if (!pack) throw new FontPackError("unknown-pack", `no font pack ${JSON.stringify(id)}`);
+  const root = fontPacksRoot(opts.dataDir);
+  if (inflight.has(jobKey(root, pack))) return "installing";
+  if (await intact(join(root, dirName(pack)), pack)) return "installed";
+  if (isOffline()) throw new FontPackError("offline", `offline mode is on, so the ${pack.id} fonts were not downloaded`);
+  packUrl(pack, opts.baseUrl || process.env.PEESUTO_FONT_PACKS_URL?.trim() || manifest.baseUrl);
+  return "download";
+}
+
+/** Stop a pack's download running in this process, for every caller (what was downloaded stays, for a resume). */
+export async function cancelFontPack(id: string, opts: { dataDir: string } & Common): Promise<{ cancelled: boolean }> {
+  const manifest = opts.manifest ?? jizuraPackManifest();
+  if (id === BUNDLED_ID) throw new FontPackError("bundled", "the base fonts come with the app and are not downloaded");
+  const pack = manifest.packs.find((p) => p.id === id);
+  if (!pack) throw new FontPackError("unknown-pack", `no font pack ${JSON.stringify(id)}`);
+  const job = inflight.get(jobKey(fontPacksRoot(opts.dataDir), pack));
+  if (!job) return { cancelled: false };
+  job.controller.abort(new Error("cancelled"));
+  await job.promise.catch(() => {});
+  return { cancelled: true };
 }
 
 /** Remove an installed pack (every version of it), stopping its download if one is running here. */

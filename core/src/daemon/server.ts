@@ -19,7 +19,9 @@ import { pick } from "../pick/index.ts";
 import { ComposeError } from "../render/compose.ts";
 import { renderCard, type RenderOptions } from "../render/card.ts";
 import { ProviderError } from "../provider/types.ts";
-import type { Request, Response, TaskEvent } from "./protocol.ts";
+import { isOffline } from "../provider/egress.ts";
+import { cancelFontPack, checkFontPackInstall, FontPackError, fontPackStatus, installFontPack, jizuraPackManifest, removeFontPack, type JizuraPackManifest } from "../fonts/jizura-packs.ts";
+import type { FontPackState, Request, Response, TaskEvent } from "./protocol.ts";
 import { TEMPLATE_REGISTRY } from "../templates/registry.ts";
 import { lyricStyles } from "../jizura/catalog.ts";
 
@@ -36,7 +38,12 @@ export interface DaemonHost {
   readonly coreVersion?: string;
   /** Substitute template renderer (tests). */
   readonly renderTemplate?: typeof renderTemplate;
+  /** Tests: another font pack manifest, bundled directory or host than the committed ones. */
+  readonly fontPacks?: { readonly manifest?: JizuraPackManifest; readonly bundledDir?: string; readonly baseUrl?: string };
 }
+
+/** A font pack download this daemon started (fonts.install). */
+interface FontJob { progress: { done: number; total: number }; settled: Promise<void> }
 
 /** The built-in render action for each precompose output. */
 const PRECOMPOSE_SPECS: Readonly<Record<PrecomposeOutput, ActionSpec>> = {
@@ -54,14 +61,54 @@ export class Daemon {
   private precompose: PrecomposeConfig = DEFAULT_PRECOMPOSE;
   private core = "";
   private readonly precomposer: Precomposer;
+  private readonly fontJobs = new Map<string, FontJob>();
+  private readonly fontErrors = new Map<string, { code: string; message: string }>();
   constructor(private readonly host: DaemonHost) {
     this.precomposer = new Precomposer((task, signal) => renderAction(task.spec, task.input, this.deps(this.precompose.useModel ? this.providers?.decider ?? null : rulesDecider), { signal, lowPriority: true }));
   }
 
-  /** Background work in progress (the idle timer waits for it). */
-  busy(): boolean { return this.precomposer.busy(); }
+  /** Background work in progress: precompose, font pack downloads (the idle timer waits for it). */
+  busy(): boolean { return this.precomposer.busy() || this.fontJobs.size > 0; }
   /** Resolves when precompose work is done (tests). */
   idle(): Promise<void> { return this.precomposer.idle(); }
+  /** Resolves when the font pack downloads this daemon started have ended (tests). */
+  async fontsIdle(): Promise<void> { while (this.fontJobs.size) await Promise.all([...this.fontJobs.values()].map((j) => j.settled)); }
+
+  /** Installed packs live in the app data (`<appData>/fonts/jizura`), as renders look for them. */
+  private fontOptions() { return { dataDir: this.host.appData, ...this.host.fontPacks }; }
+
+  /** Start downloading a pack in the background; its end is recorded for fonts.status. */
+  private startFontJob(pack: string): void {
+    const manifest = this.host.fontPacks?.manifest ?? jizuraPackManifest();
+    const job: FontJob = { progress: { done: 0, total: manifest.packs.find((p) => p.id === pack)?.bytes ?? 0 }, settled: Promise.resolve() };
+    this.fontErrors.delete(pack);
+    job.settled = installFontPack(pack, { ...this.fontOptions(), onProgress: (done, total) => { job.progress = { done, total }; } })
+      .then(() => { this.fontErrors.delete(pack); })
+      .catch((e: unknown) => {
+        // cancelling (fonts.cancel, fonts.remove, shutdown) is not a failure
+        if (e instanceof FontPackError && e.code === "aborted") return;
+        this.fontErrors.set(pack, { code: e instanceof FontPackError ? e.code : "error", message: e instanceof Error ? e.message : String(e) });
+      })
+      .finally(() => { if (this.fontJobs.get(pack) === job) this.fontJobs.delete(pack); });
+    this.fontJobs.set(pack, job);
+  }
+
+  /** Stop every download this daemon started (shutdown, offline mode); what was downloaded stays for a resume. */
+  private async cancelFontJobs(reason?: { code: string; message: string }): Promise<void> {
+    for (const pack of [...this.fontJobs.keys()]) {
+      const job = this.fontJobs.get(pack);
+      await cancelFontPack(pack, this.fontOptions()).catch(() => {});
+      await job?.settled;
+      if (reason) this.fontErrors.set(pack, reason);
+    }
+  }
+
+  private fontStatus(): FontPackState[] {
+    return fontPackStatus(this.fontOptions()).map((s): FontPackState => {
+      const job = this.fontJobs.get(s.id), error = this.fontErrors.get(s.id);
+      return { ...s, installing: s.installing || !!job, ...(job ? { progress: { ...job.progress } } : {}), ...(error ? { error: { ...error } } : {}) };
+    });
+  }
 
   private async reload(): Promise<void> {
     this.packs = await loadPacks(join(this.host.appData, "packs"));
@@ -150,6 +197,8 @@ export class Daemon {
           if (privacy.fingerprint !== this.privacy.fingerprint || JSON.stringify(precompose) !== JSON.stringify(this.precompose)) this.precomposer.cancelAll();
           this.privacy = privacy;
           this.precompose = precompose;
+          // Offline mode stops font downloads under way, as it keeps new ones from starting.
+          if (resolved.names.offline) await this.cancelFontJobs({ code: "offline", message: "offline mode was turned on, so the download stopped" });
           return { id, ok: true, cmd: "config.set", providers: this.providers.names };
         }
         case "privacy.rules":
@@ -208,8 +257,33 @@ export class Daemon {
           finally { release(); }
           return { id, ok: true, cmd: "render", path: r.path, format: r.format, frames: r.frames, ms: r.ms };
         }
+        case "fonts.status":
+          return { id, ok: true, cmd: "fonts.status", offline: isOffline(), packs: this.fontStatus() };
+        case "fonts.install": {
+          // Answers at once: the download runs in the background (fonts.status reports it), other requests go on.
+          const pack = packOf(req);
+          const state = await checkFontPackInstall(pack, this.fontOptions());
+          if (state === "installed") { this.fontErrors.delete(pack); return { id, ok: true, cmd: "fonts.install", started: false }; }
+          if (state === "download") this.startFontJob(pack);
+          return { id, ok: true, cmd: "fonts.install", started: true };
+        }
+        case "fonts.cancel": {
+          const pack = packOf(req);
+          const job = this.fontJobs.get(pack);
+          const { cancelled } = await cancelFontPack(pack, this.fontOptions());
+          await job?.settled;
+          return { id, ok: true, cmd: "fonts.cancel", cancelled };
+        }
+        case "fonts.remove": {
+          const pack = packOf(req);
+          const job = this.fontJobs.get(pack);
+          const { removed } = await removeFontPack(pack, this.fontOptions());
+          await job?.settled;
+          return { id, ok: true, cmd: "fonts.remove", removed };
+        }
         case "shutdown":
           this.precomposer.cancelAll();
+          await this.cancelFontJobs();
           return { id, ok: true, cmd: "shutdown" };
         default:
           return { id, ok: false, kind: "usage", message: `unknown cmd ${(req as { cmd?: string }).cmd}` };
@@ -220,8 +294,18 @@ export class Daemon {
   }
 }
 
+/** The pack a fonts.* request names (a usage error without one). */
+function packOf(req: { cmd: string; pack?: unknown }): string {
+  if (typeof req.pack !== "string" || !req.pack) throw new UsageError(`${req.cmd} needs {pack}`);
+  return req.pack;
+}
+
+class UsageError extends Error {}
+
 export function errorOf(e: unknown): { kind: string; message: string; code?: string; characters?: string[] } {
   const message = e instanceof Error ? e.message : String(e);
+  if (e instanceof FontPackError) return { kind: "fonts", code: e.code, message };
+  if (e instanceof UsageError) return { kind: "usage", message };
   if (e instanceof ProviderError) return { kind: `provider:${e.code}`, message };
   if (e instanceof ActionError) return { kind: `action:${e.kind}`, message };
   if (e instanceof ComposeError) return { kind: "compose", code: e.code, message, ...(e.characters ? { characters: [...e.characters] } : {}) };
@@ -231,7 +315,7 @@ export function errorOf(e: unknown): { kind: string; message: string; code?: str
   return { kind: "error", message };
 }
 
-const COMMANDS: readonly Request["cmd"][] = ["health", "config.set", "pick", "actions.list", "actions.reload", "templates.list", "run-action", "render", "privacy.rules", "privacy.preview", "precompose", "shutdown"];
+const COMMANDS: readonly Request["cmd"][] = ["health", "config.set", "pick", "actions.list", "actions.reload", "templates.list", "run-action", "render", "privacy.rules", "privacy.preview", "precompose", "fonts.status", "fonts.install", "fonts.cancel", "fonts.remove", "shutdown"];
 
 /** Parse one request line. A malformed line gets an error response carrying
  * the request's id when one is readable, otherwise id -1. */

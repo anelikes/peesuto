@@ -12,7 +12,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CJK_RANGES, ensureJizuraFonts, FontPackError, fontPackStatus, fontPacksRoot, installFontPack, jizuraFontFiles, parseManifest,
+  cancelFontPack, checkFontPackInstall, CJK_RANGES, ensureJizuraFonts, FontPackError, fontPackStatus, fontPacksRoot, installFontPack, jizuraFontFiles, parseManifest,
   removeFontPack, type JizuraPackManifest,
 } from "../src/fonts/jizura-packs.ts";
 import { writeTar } from "../src/fonts/tar.ts";
@@ -158,6 +158,46 @@ describe("font packs: download", () => {
     release?.(); release = null;
     expect((await installFontPack("ja", o)).downloaded).toBe(true);
     expect(await code(installFontPack("ja", { ...o, signal: AbortSignal.abort() }))).toBe("aborted");
+  });
+
+  test("progress: a stalled download reports what came (the last value is never held back by the 100 ms throttle)", async () => {
+    const o = await opts();
+    mode = "slow";
+    let seen = -1;
+    const p = code(installFontPack("ja", { ...o, onProgress: (d) => { seen = d; } }));
+    await until(() => release !== null);
+    await until(() => seen === 65_536);
+    expect(seen).toBe(65_536);
+    release!();
+    expect(await p).toBe("resolved");
+    expect(seen).toBe(tarJa.length);
+  });
+
+  test("checkFontPackInstall says what an install would do, sending nothing; cancelFontPack stops a download for every caller", async () => {
+    const o = await opts();
+    expect(await checkFontPackInstall("ja", o)).toBe("download");
+    expect(await code(checkFontPackInstall("nope", o))).toBe("unknown-pack");
+    expect(await code(checkFontPackInstall("base", o))).toBe("bundled");
+    expect(await code(checkFontPackInstall("ja", { ...o, baseUrl: undefined }))).toBe("unconfigured");
+    expect(await code(checkFontPackInstall("ja", { ...o, baseUrl: "http://example.com/" }))).toBe("insecure");
+    setOffline(true);
+    expect(await code(checkFontPackInstall("ja", o))).toBe("offline");
+    setOffline(false);
+    expect(hits).toEqual([]);
+    mode = "slow";
+    const a = code(installFontPack("ja", o)), b = code(installFontPack("ja", o));
+    await until(() => release !== null);
+    expect(await checkFontPackInstall("ja", o)).toBe("installing");
+    expect(await cancelFontPack("ja", o)).toEqual({ cancelled: true });
+    expect([await a, await b]).toEqual(["aborted", "aborted"]);
+    expect(fontPackStatus(o).find((s) => s.id === "ja")!.installing).toBe(false);
+    expect(await cancelFontPack("ja", o)).toEqual({ cancelled: false });
+    mode = "ok";
+    await installFontPack("ja", o);
+    expect(hits.at(-1)!.range).toBe("bytes=65536-");     // what came before the cancel was kept
+    expect(await checkFontPackInstall("ja", o)).toBe("installed");
+    setOffline(true);
+    expect(await checkFontPackInstall("ja", o)).toBe("installed");   // nothing to download: offline does not matter
   });
 
   test("concurrent callers share one download; one leaving does not stop it for the others", async () => {

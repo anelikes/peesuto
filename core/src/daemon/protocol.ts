@@ -10,6 +10,10 @@
  *   ← {"id":2,"ok":true,"ranked":[…],"shouldPaste":0.8,"source":"decider"}
  *   ← {"id":3,"ok":false,"kind":"provider:auth","message":"…"}
  *
+ * Font packs (JIZURA's per-language fonts) are downloaded only when the shell
+ * asks (`fonts.install`, after asking the user); the download runs in the
+ * background of the same process and `fonts.status` reports it.
+ *
  * Secrets never touch the disk on Core's side: the shell, which owns the
  * Keychain, sends them with `config.set`, and Core keeps them in memory.
  */
@@ -18,6 +22,7 @@ import type { Dsl } from "../dsl.ts";
 import type { ClipItem, Context, PickResult } from "../pick/types.ts";
 import type { TEMPLATE_REGISTRY } from "../templates/registry.ts";
 import type { LyricStyle } from "../jizura/catalog.ts";
+import type { FontPackStatus } from "../fonts/jizura-packs.ts";
 
 export type Request =
   | { id: number; cmd: "health" }
@@ -31,7 +36,17 @@ export type Request =
   | { id: number; cmd: "privacy.rules" }
   | { id: number; cmd: "privacy.preview"; text: string }
   | { id: number; cmd: "precompose"; text: string; frames?: { image?: string; gif?: string; video?: string }; templatePreferences?: Readonly<Record<string, string>>; disabledTemplates?: readonly string[]; templateFont?: string; templateSignature?: string }
+  | { id: number; cmd: "fonts.status" }
+  | { id: number; cmd: "fonts.install" | "fonts.cancel" | "fonts.remove"; pack: string }
   | { id: number; cmd: "shutdown" };
+
+/** One font pack in `fonts.status`: the bundled base ("base") first, then the downloadable ones. */
+export interface FontPackState extends FontPackStatus {
+  /** Bytes downloaded so far, of the pack's size: only while this daemon downloads it. */
+  progress?: { done: number; total: number };
+  /** The last failed download of it in this process (a FontPackError code); cleared when one starts or succeeds. Cancelling is not a failure. */
+  error?: { code: string; message: string };
+}
 
 /** `config.set`'s privacy section; absent means the defaults (mode "redacted", built-in defaults, no rules). */
 export interface PrivacySettings {
@@ -65,6 +80,10 @@ export type Response =
   | { id: number; ok: true; cmd: "privacy.preview"; modelText: string; outputText: string; spans: { start: number; end: number; ruleId: string; replacement: string }[]; containsSecret: boolean }
   | { id: number; ok: true; cmd: "precompose"; queued: true }
   | { id: number; ok: true; cmd: "precompose"; queued: false; skipped: "off" | "secret" | "too-long" | "empty" }
+  | { id: number; ok: true; cmd: "fonts.status"; offline: boolean; packs: FontPackState[] }
+  | { id: number; ok: true; cmd: "fonts.install"; started: boolean }
+  | { id: number; ok: true; cmd: "fonts.cancel"; cancelled: boolean }
+  | { id: number; ok: true; cmd: "fonts.remove"; removed: boolean }
   | { id: number; ok: true; cmd: "shutdown" }
   | { id: number; ok: false; cmd?: string; kind: string; message: string; code?: string; characters?: string[] };
 
@@ -77,4 +96,4 @@ export interface TaskEvent {
 }
 
 /** `kind` values a shell can map to messages; the same as the CLI's. */
-export const ERROR_KINDS = ["usage", "input", "provider:config", "provider:auth", "provider:network", "provider:timeout", "provider:model", "provider:bad-response", "provider:quota", "provider:offline", "provider:unavailable", "action:spec", "action:needs", "action:input", "action:run", "compose", "engine", "error"] as const;
+export const ERROR_KINDS = ["usage", "input", "provider:config", "provider:auth", "provider:network", "provider:timeout", "provider:model", "provider:bad-response", "provider:quota", "provider:offline", "provider:unavailable", "action:spec", "action:needs", "action:input", "action:run", "compose", "engine", "fonts", "error"] as const;
