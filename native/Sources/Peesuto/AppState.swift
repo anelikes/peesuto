@@ -579,7 +579,7 @@ struct ChooserSnapshot {
                          prepared: Task<CoreActionResponse, Error>? = nil, target: pid_t? = nil) {
         actionRevision += 1
         let revision = actionRevision
-        error = nil; notice = nil; busy = true; needsAccessibility = false
+        error = nil; notice = nil; busy = true; needsAccessibility = false; fontRetry = nil
         if !keepPreview { output = nil }
         directTask = direct
         taskStatus = tr("Preparing…", "正在准备…")
@@ -668,6 +668,13 @@ struct ChooserSnapshot {
                 if Task.isCancelled { if !direct { notice = tr("Cancelled", "已取消") } }
                 else if let failure = error as? CoreError, failure.kind == "action:needs", failure.message.contains("MP4") || failure.message.contains("video encoder") {
                     self.error = tr("Video could not be made: Peesuto's video encoder is missing. Reinstall Peesuto; PNG and GIF still work.", "无法生成视频：Peesuto 的视频编码器缺失。请重新安装 Peesuto；图片和 GIF 仍可使用。")
+                } else if let failure = error as? CoreError, failure.kind == "compose", failure.code == "unsupported-script", !failure.packs.isEmpty {
+                    // Lyric motion neither JIZURA (fonts not installed) nor the classic style (Korean) can draw:
+                    // offer the packs, and make it again once they are in.
+                    self.error = direct ? LyricFallback.unsupportedBubble(failure.packs, localizer) : LyricFallback.unsupportedMessage(failure.packs, localizer)
+                    fontRetry = FontRetry(packs: failure.packs, message: LyricFallback.unsupportedMessage(failure.packs, localizer)) { [weak self] in
+                        self?.execute(actionID: actionID, title: title, text: text, direct: false, options: options, frame: frame, lyric: lyric)
+                    }
                 } else if let failure = error as? CoreError, failure.kind == "compose" {
                     self.error = composeFailureMessage(failure)
                 } else if let failure = error as? CoreError, failure.kind == "engine", failure.message.localizedCaseInsensitiveContains("timed out") {
@@ -787,12 +794,24 @@ struct ChooserSnapshot {
 
     // MARK: JIZURA font packs
 
+    /// A Lyric motion that failed because neither JIZURA nor the classic style
+    /// could draw the text without these packs (Korean): the panel offers them.
+    struct FontRetry {
+        let packs: [CoreLyricPack]
+        let message: String
+        /// Download was pressed on the note: run again once the packs are in.
+        var automatic = false
+        let run: () -> Void
+        init(packs: [CoreLyricPack], message: String, run: @escaping () -> Void) { self.packs = packs; self.message = message; self.run = run }
+    }
+    @Published var fontRetry: FontRetry?
+
     /// The last `fonts.status`; nil until read.
     @Published private(set) var fontStatus: CoreFontsStatus?
     /// Why the packs cannot be listed now; nil when they can.
     @Published private(set) var fontStatusProblem: String?
-    /// The last failure of each pack, as shown to the user.
-    @Published private(set) var fontFailures: [String: String] = [:]
+    /// The last failure of each pack in this session (code and Core's message), worded when shown.
+    @Published private(set) var fontFailures: [String: CoreFontPackError] = [:]
     /// Downloads the user started that have not finished, failed or been cancelled.
     @Published private(set) var fontRequests = FontPackRequests()
     /// On-screen views that show packs ("settings", "panel").
@@ -813,7 +832,7 @@ struct ChooserSnapshot {
 
     /// Download pressed. Only this ever starts a download.
     func downloadFontPack(_ id: String) {
-        guard !offline else { fontFailures[id] = fontFailureText(code: "offline", message: nil); return }
+        guard !offline else { fontFailures[id] = CoreFontPackError(code: "offline", message: ""); return }
         fontFailures[id] = nil
         fontRequests.request(id)
         pollFonts()
@@ -824,7 +843,7 @@ struct ChooserSnapshot {
         Task {
             do {
                 if let fontPreview { fontPreview.cancel(id) } else { try await core?.cancelFontPack(id) }
-            } catch { fontFailures[id] = fontFailureText(error) }
+            } catch { fontFailures[id] = fontFailure(error) }
             pollFonts()
         }
     }
@@ -835,7 +854,7 @@ struct ChooserSnapshot {
             do {
                 if let fontPreview { fontPreview.remove(id) } else { try await core?.removeFontPack(id) }
                 fontFailures[id] = nil
-            } catch { fontFailures[id] = fontFailureText(error) }
+            } catch { fontFailures[id] = fontFailure(error) }
             pollFonts()
         }
     }
@@ -893,25 +912,55 @@ struct ChooserSnapshot {
         fontStatusProblem = nil
         let step = fontRequests.reconcile(status)
         for id in step.finished { fontFailures[id] = nil }
-        for failure in step.failed { fontFailures[failure.id] = fontFailureText(code: failure.code, message: failure.message) }
+        for failure in step.failed { fontFailures[failure.id] = CoreFontPackError(code: failure.code, message: failure.message ?? "") }
         for id in step.install {
-            do { try await install(id) } catch {
+            do { try await install(id) } catch let failure as CoreError where failure.kind == "timeout" {
+                // Unanswered (e.g. the first check of an installed pack): asked again next time, within the attempt cap.
+            } catch {
                 fontRequests.drop(id)
-                fontFailures[id] = fontFailureText(error)
+                fontFailures[id] = fontFailure(error)
             }
+        }
+        // A Lyric motion that failed for want of these packs: make it again now they are in.
+        if let retry = fontRetry, retry.automatic, !busy,
+           retry.packs.allSatisfy({ status.pack($0.id)?.installed == true }) {
+            fontRetry = nil
+            retry.run()
         }
     }
 
-    private func fontFailureText(_ error: Error) -> String {
-        guard let failure = error as? CoreError else { return fontFailureText(code: "error", message: nil) }
-        return fontFailureText(code: failure.code ?? failure.kind, message: failure.kind == "fonts" ? failure.message : nil)
+    /// The failure to show for a pack: one from this session, else the one Core last reported.
+    func fontPackFailure(_ id: String) -> String? {
+        (fontFailures[id] ?? fontStatus?.pack(id)?.error).map { fontFailureText(code: $0.code, message: $0.message.isEmpty ? nil : $0.message) }
+    }
+
+    /// Download pressed on a failed action's note: fetch the packs, then make it again by itself.
+    func downloadForRetry() {
+        guard var retry = fontRetry else { return }
+        retry.automatic = true
+        fontRetry = retry
+        for pack in retry.packs where fontStatus?.pack(pack.id)?.installed != true { downloadFontPack(pack.id) }
+    }
+
+    func runFontRetry() {
+        guard let retry = fontRetry, !busy else { return }
+        fontRetry = nil
+        retry.run()
+    }
+
+    private func fontFailure(_ error: Error) -> CoreFontPackError {
+        guard let failure = error as? CoreError else { return CoreFontPackError(code: "error", message: "") }
+        return CoreFontPackError(code: failure.code ?? failure.kind, message: failure.kind == "fonts" ? failure.message : "")
     }
 
     private func fontFailureText(code: String, message: String?) -> String {
         switch code {
-        case "offline":
+        case "offline" where offline:
             return tr("Offline mode is on, so nothing is downloaded. Turn it off in Settings › AI & actions.",
                       "离线模式已开启，不会下载任何内容。可在“设置 › AI 与动作”中关闭。")
+        case "offline":
+            return tr("The download stopped when offline mode was turned on. Download again to resume it.",
+                      "开启离线模式时下载已停止。再次点击“下载”即可继续。")
         case "not-started": return tr("The download did not start. Try again.", "下载没有开始，请重试。")
         case "unknown-pack": return tr("This font pack is not available.", "此字体包不可用。")
         default: return message ?? tr("The download failed. Try again.", "下载失败，请重试。")

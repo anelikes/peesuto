@@ -92,6 +92,7 @@ struct PanelView: View {
             model.selectedID = item.id
             model.output = nil
             model.error = nil
+            model.fontRetry = nil
             model.notice = nil
         } label: {
             HStack(alignment: .top, spacing: 11) {
@@ -181,7 +182,9 @@ struct PanelView: View {
                     }.font(.system(size: 11)).foregroundColor(.secondary)
                 }.buttonStyle(.plain)
             }
-            if let error = model.error {
+            if let retry = model.fontRetry {
+                FontRetryNote(model: model, retry: retry)
+            } else if let error = model.error {
                 Label(error, systemImage: "exclamationmark.circle").font(.system(size: 12)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if model.historyLocked {
@@ -340,6 +343,7 @@ struct PanelView: View {
         let index = model.items.firstIndex { $0.id == model.selectedID } ?? 0
         model.selectedID = model.items[min(max(index + delta, 0), model.items.count - 1)].id
         model.output = nil
+        model.fontRetry = nil
     }
     private func sourceName(_ id: String?) -> String {
         guard let id else { return model.tr("Clipboard", "剪贴板") }

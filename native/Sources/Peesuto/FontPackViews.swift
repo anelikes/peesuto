@@ -90,7 +90,8 @@ struct FontPackRow: View {
                 if let fraction = pack.progress?.fraction { ProgressView(value: fraction) } else { ProgressView().progressViewStyle(.linear) }
             }
             // The failure of a download started here, else the one Core last reported.
-            if let failure = model.fontFailures[pack.id] ?? pack.error?.message, !downloading, !pack.installed {
+            // Offline: the section says why once.
+            if let failure = model.fontPackFailure(pack.id), !downloading, !pack.installed, !model.offline {
                 Text(failure).font(.system(size: 11)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -117,25 +118,61 @@ struct LyricFallbackNote: View {
     @ObservedObject var model: AppState
     let fallback: LyricFallback
 
-    private var packs: [CoreLyricPack] { fallback.packs }
+    var body: some View {
+        FontPackNote(model: model, message: fallback.message(model.localizer), packs: fallback.packs, isError: false,
+                     watch: fallback.isFontsMissing,
+                     download: { for pack in $0 { model.downloadFontPack(pack.id) } },
+                     installedTitle: model.tr("Redraw with JIZURA", "用 JIZURA 重新绘制"), installed: { model.rerender() })
+    }
+}
+
+/// The history panel's error for a Lyric motion nothing could draw without a
+/// font pack (Korean): Download, progress inline, and it is made again by
+/// itself once the pack is in (Try again when it came in some other way).
+struct FontRetryNote: View {
+    @ObservedObject var model: AppState
+    let retry: AppState.FontRetry
+
+    var body: some View {
+        FontPackNote(model: model, message: retry.message, packs: retry.packs, isError: true, watch: true,
+                     download: { _ in model.downloadForRetry() },
+                     installedTitle: model.tr("Try again", "重试"), installed: { model.runFontRetry() })
+    }
+}
+
+/// A message about font packs with what can be done now: Download (size),
+/// progress with Cancel, or `installedTitle` once every pack is in. Core's
+/// failure (or the offline note) goes under it.
+struct FontPackNote: View {
+    @ObservedObject var model: AppState
+    let message: String
+    let packs: [CoreLyricPack]
+    let isError: Bool
+    /// Read the packs' status while this is on screen.
+    let watch: Bool
+    let download: ([CoreLyricPack]) -> Void
+    let installedTitle: String
+    let installed: () -> Void
+
     private func status(_ id: String) -> CoreFontPack? { model.fontStatus?.pack(id) }
-    private var installed: Bool { !packs.isEmpty && packs.allSatisfy { status($0.id)?.installed == true } }
+    private var allInstalled: Bool { !packs.isEmpty && packs.allSatisfy { status($0.id)?.installed == true } }
     private var downloading: [CoreLyricPack] {
         packs.filter { status($0.id)?.installed != true && (status($0.id)?.installing == true || model.fontRequests.contains($0.id)) }
     }
-    private var failures: [String] { packs.compactMap { model.fontFailures[$0.id] } }
+    private var failures: [String] { packs.compactMap { model.fontPackFailure($0.id) } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 10) {
-                Label(fallback.message(model.localizer), systemImage: "info.circle")
-                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                Label(message, systemImage: isError ? "exclamationmark.circle" : "info.circle")
+                    .font(.system(size: isError ? 12 : 11)).foregroundColor(isError ? .orange : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 6)
                 controls
             }
-            if downloading.isEmpty, let failure = failures.first {
+            if downloading.isEmpty, !allInstalled, let failure = failures.first {
                 Text(failure).font(.system(size: 11)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
-            } else if downloading.isEmpty, !installed, !packs.isEmpty, model.offline {
+            } else if downloading.isEmpty, !allInstalled, !packs.isEmpty, model.offline {
                 Text(model.tr("Offline mode is on, so nothing is downloaded. Turn it off in Settings › AI & actions.",
                               "离线模式已开启，不会下载任何内容。可在“设置 › AI 与动作”中关闭。"))
                     .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -143,14 +180,13 @@ struct LyricFallbackNote: View {
         }
         .controlSize(.small)
         // Also when the packs are not known yet: the status names them.
-        .background(WindowVisibility { visible in if fallback.isFontsMissing { model.fontsVisible("panel", visible) } })
+        .background(WindowVisibility { visible in if watch { model.fontsVisible("panel", visible) } })
         .onDisappear { model.fontsVisible("panel", false) }
     }
 
     @ViewBuilder private var controls: some View {
-        if installed {
-            Button(model.tr("Redraw with JIZURA", "用 JIZURA 重新绘制")) { model.rerender() }
-                .disabled(model.busy)
+        if allInstalled {
+            Button(installedTitle, action: installed).disabled(model.busy)
         } else if !downloading.isEmpty {
             let progress = downloading.compactMap { status($0.id)?.progress }
             let total = progress.reduce(0) { $0 + $1.total }
@@ -163,11 +199,9 @@ struct LyricFallbackNote: View {
         } else if !packs.isEmpty {
             let needed = packs.filter { status($0.id)?.installed != true }
             let size = FontPackSize.text(needed.reduce(0) { $0 + $1.bytes })
-            Button(model.tr("Download (\(size))", "下载（\(size)）", ja: "ダウンロード（\(size)）")) {
-                for pack in needed { model.downloadFontPack(pack.id) }
-            }
-            .disabled(model.offline)
-            .help(model.tr("From GitHub (anelikes/peesuto releases), only now that you ask.", "来自 GitHub（anelikes/peesuto 的发布页），只在你点击时下载。"))
+            Button(model.tr("Download (\(size))", "下载（\(size)）", ja: "ダウンロード（\(size)）")) { download(needed) }
+                .disabled(model.offline)
+                .help(model.tr("From GitHub (anelikes/peesuto releases), only now that you ask.", "来自 GitHub（anelikes/peesuto 的发布页），只在你点击时下载。"))
         }
     }
 }

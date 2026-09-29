@@ -488,7 +488,8 @@ public actor CoreClient {
                 kind: body["kind"] as? String ?? "error",
                 message: body["message"] as? String ?? "Core could not complete the request.",
                 code: body["code"] as? String,
-                characters: body["characters"] as? [String] ?? []
+                characters: body["characters"] as? [String] ?? [],
+                packs: CoreError.packs(from: body)
             ))
         }
     }

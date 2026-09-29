@@ -424,8 +424,29 @@ public enum LyricFallback: Equatable, Sendable {
     /// The caret bubble after a shortcut: the note, and where to get the fonts.
     public func bubble(_ tr: Localizer) -> String {
         guard case .fontsMissing = self else { return message(tr) }
-        return message(tr) + (tr.language == .english ? " " : "")
+        return Self.withWhereToDownload(message(tr), tr)
+    }
+
+    static func withWhereToDownload(_ message: String, _ tr: Localizer) -> String {
+        message + (tr.language == .english ? " " : "")
             + tr("Download them in clipboard history or Settings › Templates.", "可在剪贴板历史或“设置 › 模板”中下载。")
+    }
+
+    // MARK: Nothing drawn
+
+    /// A Lyric motion GIF or video that failed with "unsupported-script" and
+    /// names packs: JIZURA lacks the fonts and the classic style has no face
+    /// for the script either (Korean). The error in the history panel.
+    public static func unsupportedMessage(_ packs: [CoreLyricPack], _ tr: Localizer) -> String {
+        let names = self.names(packs, tr.language), size = FontPackSize.text(packs.reduce(0) { $0 + $1.bytes })
+        return tr("Nothing was made: this text needs JIZURA's \(names) (\(size)); the classic style cannot draw it.",
+                  "未生成：这段文字需要 JIZURA 的\(names)（\(size)），经典风格无法绘制。",
+                  ja: "作成できませんでした。このテキストには JIZURA の\(names)（\(size)）が必要で、クラシックスタイルでは描けません。")
+    }
+
+    /// The same at the caret after a shortcut, with where to get the fonts.
+    public static func unsupportedBubble(_ packs: [CoreLyricPack], _ tr: Localizer) -> String {
+        withWhereToDownload(unsupportedMessage(packs, tr), tr)
     }
 
     /// "Simplified Chinese lyric fonts", "… and …" in the UI language.

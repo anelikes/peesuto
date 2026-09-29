@@ -341,6 +341,19 @@ final class LyricMotionTests: XCTestCase {
         XCTAssertEqual(LyricFallback.glyphs([]).bubble(ja), "クラシックスタイルで描きました。JIZURA のフォントには、このテキストの一部の文字がありません。")
     }
 
+    /// Korean without its pack: neither JIZURA nor the classic style draws it, so the action fails and names the pack.
+    func testUnsupportedScriptMessagesNameThePack() {
+        let ko = CoreLyricPack(id: "ko", title: CoreLabels(en: "Korean lyric fonts", zh: "韩文歌词字体", ja: "韓国語の歌詞フォント"), bytes: 34_932_224)
+        let en = Localizer(.english), ja = Localizer(.japanese), cn = Localizer(.chinese)
+        XCTAssertEqual(LyricFallback.unsupportedMessage([ko], en),
+                       "Nothing was made: this text needs JIZURA's Korean lyric fonts (35 MB); the classic style cannot draw it.")
+        XCTAssertEqual(LyricFallback.unsupportedBubble([ko], en),
+                       "Nothing was made: this text needs JIZURA's Korean lyric fonts (35 MB); the classic style cannot draw it. Download them in clipboard history or Settings › Templates.")
+        XCTAssertEqual(LyricFallback.unsupportedMessage([ko], cn), "未生成：这段文字需要 JIZURA 的韩文歌词字体（35 MB），经典风格无法绘制。")
+        XCTAssertTrue(LyricFallback.unsupportedBubble([ko], ja).hasSuffix("クリップボード履歴か「設定 › テンプレート」でダウンロードできます。"))
+        XCTAssertTrue(LyricFallback.unsupportedBubble([ko], ja).contains("韓国語の歌詞フォント（35 MB）"))
+    }
+
     // MARK: Font pack requests
 
     private func status(_ packs: [CoreFontPack], offline: Bool = false) -> CoreFontsStatus { CoreFontsStatus(offline: offline, packs: packs) }

@@ -454,6 +454,8 @@ public enum JapaneseStrings {
         "This font pack is not available.": "このフォントパックは使用できません。",
         "From GitHub (anelikes/peesuto releases), only now that you ask.": "GitHub（anelikes/peesuto のリリース）から、押したときにだけ取得します。",
         "Redraw with JIZURA": "JIZURA で描き直す",
+        "Try again": "もう一度試す",
+        "The download stopped when offline mode was turned on. Download again to resume it.": "オフラインモードをオンにしたため、ダウンロードが止まりました。もう一度「ダウンロード」を押すと続きから再開します。",
         "Drawn in the classic style: JIZURA needs fonts that are not on this Mac.": "クラシックスタイルで描きました。JIZURA にはこの Mac にないフォントが必要です。",
         "Drawn in the classic style: JIZURA's fonts lack some characters of this text.": "クラシックスタイルで描きました。JIZURA のフォントには、このテキストの一部の文字がありません。",
         "JIZURA could not start, so the classic style was used.": "JIZURA を起動できなかったため、クラシックスタイルで描きました。",

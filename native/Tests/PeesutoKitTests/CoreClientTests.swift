@@ -605,6 +605,10 @@ extension CoreClientTests {
             res['result'] = {'output':'gif','format':'gif','path':'/synthetic.gif','ms':12,'meta':{'template':{'id':'lyrics','variant':'classic','motion':'reveal','decisionSource':'override','availableTemplates':['lyrics','text'],'aspect':'1:1'},'lyric':{'engine':'jizura','requestedStyle':'noir','style':'noir','mood':None,'horror':False,'lang':'en','cuts':4,'lines':2,'paired':False,'families':['Noto Sans JP'],'version':'0.9.0','commit':'bae339e','prepareMs':40}}}
             emit(res)
             continue
+        if cmd == 'run-action' and req['input']['text'] == 'korean':
+            emit({'id': req['id'], 'ok': False, 'cmd': cmd, 'kind': 'compose', 'code': 'unsupported-script', 'message': 'The card font cannot draw: 가', 'characters': ['가'],
+                  'packs': [{'id': 'ko', 'title': {'en': 'Korean lyric fonts', 'zh': '韩文歌词字体', 'ja': '韓国語の歌詞フォント'}, 'bytes': 34932224}]})
+            continue
         if cmd == 'run-action':
             assert 'lyricStyle' not in req['input'] and 'lyricHorror' not in req['input'], req['input']
         """)
@@ -616,6 +620,16 @@ extension CoreClientTests {
         XCTAssertNil(response.result.meta?.lyric?.mood)
         let plain = try await client.runAction(action: "custom", input: CoreActionInput(text: "plain"))
         XCTAssertEqual(plain.result.text, "plain")
+        // Korean without its pack: the compose error names the pack JIZURA needs.
+        do {
+            _ = try await client.runAction(action: "paste-gif", input: CoreActionInput(text: "korean"))
+            XCTFail("Expected the compose error")
+        } catch let error as CoreError {
+            XCTAssertEqual(error.kind, "compose")
+            XCTAssertEqual(error.code, "unsupported-script")
+            XCTAssertEqual(error.characters, ["가"])
+            XCTAssertEqual(error.packs, [CoreLyricPack(id: "ko", title: CoreLabels(en: "Korean lyric fonts", zh: "韩文歌词字体", ja: "韓国語の歌詞フォント"), bytes: 34_932_224)])
+        }
         await client.shutdown()
     }
 }

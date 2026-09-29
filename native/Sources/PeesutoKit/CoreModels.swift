@@ -268,10 +268,21 @@ public struct CoreError: Error, LocalizedError, Sendable {
     public let code: String?
     /// For "unsupported-script": the characters the card font cannot draw.
     public let characters: [String]
+    /// Lyric motion's "unsupported-script" when neither JIZURA (fonts not
+    /// installed) nor the classic style (no face: Hangul) can draw the text:
+    /// the font packs that would let JIZURA draw it.
+    public let packs: [CoreLyricPack]
     public var errorDescription: String? { message }
 
-    public init(kind: String, message: String, diagnostics: [String] = [], code: String? = nil, characters: [String] = []) {
-        self.kind = kind; self.message = message; self.diagnostics = diagnostics; self.code = code; self.characters = characters
+    public init(kind: String, message: String, diagnostics: [String] = [], code: String? = nil, characters: [String] = [], packs: [CoreLyricPack] = []) {
+        self.kind = kind; self.message = message; self.diagnostics = diagnostics; self.code = code; self.characters = characters; self.packs = packs
+    }
+
+    /// The packs of an error response (`packs`), read leniently.
+    public static func packs(from body: [String: Any]) -> [CoreLyricPack] {
+        guard let raw = body["packs"], JSONSerialization.isValidJSONObject(raw),
+              let data = try? JSONSerialization.data(withJSONObject: raw) else { return [] }
+        return (try? JSONDecoder().decode([CoreLyricPack].self, from: data)) ?? []
     }
 
     /// Characters as readable labels; invisible ones become their code point.
