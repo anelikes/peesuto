@@ -18,8 +18,9 @@ Peesuto is a small, open-source clipboard app for the Mac. It sees what you
 copied (code, a chat, a table, a quote) and pastes it as a well-set image
 into whatever you are typing in. GIF and video too.
 
-- **Cards from plain text.** 19 templates, 41 styles. Words, names, numbers
-  and order come from your text; nothing is rewritten or made up.
+- **Cards from plain text.** 19 templates, 65 styles (24 of them JIZURA's,
+  for Lyric motion). Words, names, numbers and order come from your text;
+  nothing is rewritten or made up.
 - **One key to paste.** ⌥V opens a chooser at your caret with the card
   already drawn; Return pastes it.
 - **Clipboard history.** Everything you copy, encrypted on your Mac and
@@ -41,7 +42,7 @@ it with the arrow keys):
 | **I** | Image: a PNG, pasted into the app you are typing in |
 | **G** | GIF: the same card, revealed line by line |
 | **M** | Video: an MP4, encoded by your Mac's own video hardware |
-| **L** | Lyric motion: any text as kinetic type, cut into screens at its sentences and clauses (a GIF; Video or Poster in Settings › Templates) |
+| **L** | Lyric motion: any text as a lyric video, drawn on your Mac by [JIZURA](https://github.com/852wa/JIZURA) in one of its 24 styles or its own pick (a GIF; Video or Poster in Settings › Templates) |
 | **Q** | QR code: exactly the text you copied; never sent to a model |
 | **P** | Pin to screen: floats above every window; drag, pinch to zoom, double-click to close |
 | **H** | Clipboard history (also **⇧⌥V**) |
@@ -61,7 +62,7 @@ never overwritten.
 ## Templates
 
 <p align="center">
-  <img src="docs/images/templates.png" width="100%" alt="All 41 card styles: text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics, lyric motion and QR code.">
+  <img src="docs/images/templates.png" width="100%" alt="The 41 card styles of the 19 templates (Lyric motion as posters in its four classic styles): text, document, quote, code, statistic, list, conversation, table, comparison, diagram, info card, release notes, terminal session, diff, error, schedule, metrics, lyric motion and QR code.">
 </p>
 
 Text · Document · Quote · Code · Statistic · List · Conversation · Table ·
@@ -76,6 +77,18 @@ diagrams; an author is shown only when your text has one. Every card is
 checked before it is drawn: if anything you copied would be missing,
 Peesuto says so instead of pasting an incomplete card.
 [How templates work](docs/templates.md).
+
+**Lyric motion** is drawn by [JIZURA](https://github.com/852wa/JIZURA), the
+lyric-video maker by hakoniwa (852wa), whose engine runs unmodified inside
+Peesuto, offline on your Mac: about 860 effect parts in 24 styles, plus three
+horror styles you can switch on. By default JIZURA picks a style and a mood
+from your text (Auto), and the same text always gives the same film. English
+needs nothing more. Chinese, Japanese and Korean need a font pack (35–69 MB
+per language, OFL fonts), which Peesuto downloads from this project's GitHub
+releases only when you press Download in Settings › Templates › Lyric motion;
+until then those texts are drawn by Peesuto's own four classic styles (Stage,
+Paper, Pop and Night), which also draw the poster (PNG) and stay available to
+choose. [See it on the website](https://peesuto.com/templates/lyrics/).
 
 ## Privacy
 
@@ -170,6 +183,11 @@ Peesuto is three parts:
 - **[Pocket Motion](https://github.com/anelikes/pocket-motion)** — the
   rendering engine, a separate repository pinned in `engine.json`.
 
+Lyric motion's GIFs and videos are drawn by the engine of
+[JIZURA](https://github.com/852wa/JIZURA), vendored unmodified in
+`vendor/jizura/` at the commit `jizura.json` pins; the adaptation lives in
+`core/src/jizura/`.
+
 Content is parsed locally from your text. A decision provider (local rules
 by default) may only choose among valid templates, styles and motions; it
 cannot replace or invent words, numbers, speakers or table cells. Actions
@@ -223,8 +241,10 @@ Text sent to a model is redacted by default (API keys, private keys, tokens,
 credentials in URLs, secret assignments). The offline switch in Settings
 closes the single egress path for everything above. Emoji pictures are
 fetched by codepoint from a CDN once and cached; that reveals which emoji,
-not the text. History is stored encrypted with a key in your Keychain. See
-[SECURITY.md](SECURITY.md).
+not the text. Lyric motion's font packs (Chinese, Japanese, Korean) are
+downloaded from this project's GitHub releases only when you press Download;
+the request names the pack, not the text. History is stored encrypted with a
+key in your Keychain. See [SECURITY.md](SECURITY.md).
 
 Security reports: contact@peesuto.com (please not a public issue).
 
@@ -235,7 +255,8 @@ Security reports: contact@peesuto.com (please not a public issue).
 by the license; see [Trademarks](CONTRIBUTING.md#trademarks).
 
 Built with [Pocket Motion](https://github.com/anelikes/pocket-motion)
-(rendering), [Maple Mono](https://github.com/subframe7536/maple-font) (the
+(rendering), [JIZURA](https://github.com/852wa/JIZURA) by hakoniwa (Lyric
+motion), [Maple Mono](https://github.com/subframe7536/maple-font) (the
 card font), [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono)
 (keyboard symbols), [highlight.js](https://highlightjs.org/) (syntax
 highlighting) and [Sparkle](https://sparkle-project.org/) (updates).

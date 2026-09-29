@@ -16,7 +16,7 @@
 
 Peesuto 是一款小巧的开源 Mac 剪贴板应用。它看得懂你复制的内容，比如代码、聊天记录、表格、引语，把它排成一张好看的图片，直接粘贴到你正在输入的地方。也能生成 GIF 和视频。
 
-- **纯文本变卡片。** 19 种模板，41 种样式。字词、人名、数字和顺序都来自原文，不改写，不编造。
+- **纯文本变卡片。** 19 种模板，65 种样式（其中 24 种是 JIZURA 为文字 PV 提供的）。字词、人名、数字和顺序都来自原文，不改写，不编造。
 - **一个快捷键粘贴。** 按 ⌥V，光标处弹出选择面板，卡片已经画好，回车即可粘贴。
 - **剪贴板历史。** 复制过的所有内容都加密保存在本机，按 ⇧⌥V 随时搜索。
 - **默认不联网。** 没有账号，没有遥测。除非你自己填了 AI 密钥，否则什么都不会离开这台 Mac。
@@ -32,7 +32,7 @@ Peesuto 是一款小巧的开源 Mac 剪贴板应用。它看得懂你复制的�
 | **I** | 图片：PNG，直接粘贴进你正在输入的应用 |
 | **G** | GIF：同一张卡片，逐行出现 |
 | **M** | 视频：MP4，由 Mac 自带的视频硬件编码 |
-| **L** | 文字 PV：任意文字做成动态文字，按句子和分句切成一幕幕（默认 GIF；可在“设置 › 模板”改成视频或海报） |
+| **L** | 文字 PV：任意文字做成歌词视频，由 [JIZURA](https://github.com/852wa/JIZURA) 在你的 Mac 上绘制，24 种样式任选，或交给它挑（默认 GIF；可在“设置 › 模板”改成视频或海报） |
 | **Q** | 二维码：编码的就是你复制的原文，不会发给任何模型 |
 | **P** | 贴到屏幕：浮在所有窗口之上；可拖动、捏合缩放，双击关闭 |
 | **H** | 剪贴板历史（也可以直接按 **⇧⌥V**） |
@@ -52,12 +52,14 @@ Peesuto 是一款小巧的开源 Mac 剪贴板应用。它看得懂你复制的�
 ## 模板
 
 <p align="center">
-  <img src="docs/images/templates.png" width="100%" alt="全部 41 种卡片样式：文本、文档、引用、代码、数字、列表、对话、表格、对比、流程图、信息卡、更新日志、终端会话、代码差异、报错、日程、多项指标、文字 PV 和二维码。">
+  <img src="docs/images/templates.png" width="100%" alt="19 种模板的 41 种卡片样式（文字 PV 以四种经典样式的海报展示）：文本、文档、引用、代码、数字、列表、对话、表格、对比、流程图、信息卡、更新日志、终端会话、代码差异、报错、日程、多项指标、文字 PV 和二维码。">
 </p>
 
 文本 · 文档 · 引用 · 代码 · 数字 · 列表 · 对话 · 表格 · 对比 · 流程图 · 信息卡 · 更新日志 · 文字 PV · 二维码
 
 模板由本地规则挑选。粘贴后可以换样式；在“设置 › 模板”里可以为每个模板选默认样式、关掉不需要的模板、选择卡片字体、加一行署名。代码支持 24 种语言的语法高亮；制表符分隔、Markdown 和终端里的框线表格都认得；Mermaid 流程图和箭头链会画成流程图；原文写了作者，卡片上才会署名。每张卡片绘制前都会检查：如果你复制的内容有任何一部分放不下，Peesuto 会直接告诉你，而不是粘贴一张不完整的卡片。详见[模板说明](docs/templates.md)（英文）。
+
+**文字 PV** 由 [JIZURA](https://github.com/852wa/JIZURA) 绘制。这是 hakoniwa（852wa）开发的歌词视频工具，它的引擎原样运行在 Peesuto 里，在你的 Mac 上离线绘制：约 860 种效果部件，24 种样式，另有 3 种恐怖样式可以打开。默认由 JIZURA 按你的文字挑选样式和氛围（自动），同样的文字总是得到同样的影片。英文不需要额外下载；中文、日文和韩文需要字体包（每种语言 35–69 MB，OFL 授权字体），只有在“设置 › 模板 › 文字 PV”里点“下载”时，Peesuto 才会从本项目的 GitHub Releases 下载。在那之前，这些文字由 Peesuto 自己的四种经典样式（舞台、纸面、糖果、夜行）绘制；海报（PNG）也由它们绘制，它们也仍然可以选用。[在官网上看看](https://peesuto.com/zh/templates/lyrics/)。
 
 ## 隐私
 
@@ -66,6 +68,8 @@ Peesuto 是一款小巧的开源 Mac 剪贴板应用。它看得懂你复制的�
 - **不记录密码。** 从密码管理器和安全输入框复制的内容一律不记录。
 - **没有账号，没有遥测，没有统计。**
 - **AI 可选，用你自己的密钥。** 只有填了密钥，复制的文字才会发给该服务商，发送前先把 API 密钥、令牌等敏感信息脱敏。模型只挑样式，不碰文字。设置里的离线开关可以一键切断所有网络访问。
+
+文字 PV 的字体包（中文、日文、韩文）只在你点“下载”时才从本项目的 GitHub Releases 下载，请求里只有字体包的名称，不含你的文字。
 
 详见[隐私政策](https://peesuto.com/privacy/)（英文）和 [SECURITY.md](SECURITY.md)（英文）。
 
@@ -119,6 +123,8 @@ Peesuto 由三部分组成：
 - **`core/`**：基于 Bun 的 TypeScript Core，打包进应用，作为本地 sidecar 运行，负责解析、模板选择、服务商与动作、渲染以及 GIF/MP4 导出；也可以在命令行里用（`bun run paste`）。
 - **[Pocket Motion](https://github.com/anelikes/pocket-motion)**：渲染引擎，独立仓库，版本固定在 `engine.json`。
 
+文字 PV 的 GIF 和视频由 [JIZURA](https://github.com/852wa/JIZURA) 的引擎绘制，原样收在 `vendor/jizura/`，版本固定在 `jizura.json`；适配代码在 `core/src/jizura/`。
+
 内容在本地从原文解析。决策方（默认是本地规则）只能在合法的模板、样式和动效之间选择，不能替换或编造文字、数字、发言人和表格内容。
 
 需要 macOS 13+、Xcode 16.4+、Bun 1.3.x，以及带 `wasm32-unknown-unknown` target 的 Rust（用于引擎的光栅化器）。
@@ -150,4 +156,4 @@ open native/dist/Peesuto.app
 
 [MIT](LICENSE)。第三方组件及其许可证见 [NOTICE](NOTICE)。“Peesuto”名称及标志为商标，不在许可证授权范围内，详见 [Trademarks](CONTRIBUTING.md#trademarks)（英文）。
 
-感谢 [Pocket Motion](https://github.com/anelikes/pocket-motion)（渲染）、[Maple Mono](https://github.com/subframe7536/maple-font)（卡片字体）、[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono)（键盘符号）、[highlight.js](https://highlightjs.org/)（语法高亮）和 [Sparkle](https://sparkle-project.org/)（自动更新）。
+感谢 [Pocket Motion](https://github.com/anelikes/pocket-motion)（渲染）、hakoniwa 的 [JIZURA](https://github.com/852wa/JIZURA)（文字 PV）、[Maple Mono](https://github.com/subframe7536/maple-font)（卡片字体）、[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono)（键盘符号）、[highlight.js](https://highlightjs.org/)（语法高亮）和 [Sparkle](https://sparkle-project.org/)（自动更新）。
