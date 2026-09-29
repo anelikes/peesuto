@@ -342,7 +342,10 @@ describe.skipIf(!canvasReady)("frames", () => {
     expect(sum / n).toBeLessThan(1.5);
   }, 120_000);
   test("cancelling stops the threads and the render", async () => {
-    const job = await film();
+    // the whole film at its own size: seconds of drawing, so the abort always comes first (the short test film can be done in 300 ms)
+    const p = await prepareJizura({ content: lyricsOf(JA), sourceText: JA, aspect: "1:1", format: "gif", style: "noir", resolveFonts: standIn });
+    if (!p.ok) throw new Error(p.message);
+    const job = p.job;
     const control = new AbortController();
     const dir = await mkdtemp(join(tmpdir(), "peesuto-jizura-"));
     try {
