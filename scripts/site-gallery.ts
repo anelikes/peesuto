@@ -9,23 +9,36 @@
  *   <template>-<style>.webp      1:1, 640 px wide (retina-sharp at the site's 320 px)
  *   <template>-<style>-wide.webp 16:9, 960 px wide (first style only)
  *   <template>.mp4               the animated card, 640 px, H.264, no audio
- *   lyrics-<style>.mp4           Lyric motion, every style animated
  *
- * site/gallery/manifest.json records each file's input key, size and bytes.
- * A file is rendered again only when its input (sample text, template, style,
- * frame) or the renderer (core/src/templates, the render fonts, engine.json)
+ * Lyric motion is a film drawn by JIZURA (templates/lyrics-route.ts
+ * renderLyrics) in the styles LYRIC_FILMS names; its classic styles appear
+ * only as their posters (the 1:1 webp above):
+ *
+ *   lyrics-jizura-<style>.mp4        the 1:1 film, 640 px, H.264 (CRF 30), no audio
+ *   lyrics-jizura-<style>.webp       one frame of it (LYRIC_FILMS' `still`), 640 px
+ *   lyrics-jizura-auto-wide.webp     one frame of the 16:9 Auto film (LYRIC_WIDE_STILL), 960 px
+ *
+ * site/gallery/manifest.json records each file's input key, size and bytes
+ * (and, for a JIZURA film, the style and mood it was drawn in). A file is
+ * rendered again only when its input (sample text, template, style, frame,
+ * still) or the renderer (core/src/templates, the render fonts, engine.json;
+ * for JIZURA also core/src/jizura, core/src/fonts, vendor/jizura, jizura.json)
  * changed, so a rebuild with nothing new takes a second.
  *
- *   bun scripts/site-gallery.ts [--engine .work/native-engine] [--only code,diff] [--lang en]
+ *   bun scripts/site-gallery.ts [--engine .work/native-engine] [--fonts <dir>] [--only code,diff] [--lang en]
  *                               [--jobs 4] [--force] [--reuse] [--check]
  *
  *   --check   only verify that each sample is picked as its own template (no engine)
  *   --sheet   also write docs/images/templates.png (the README's sheet: every style, English, 10 columns)
  *   --reuse   keep existing files whose input is unchanged even if the renderer changed
  *   --force   render everything again
+ *   --fonts   JIZURA's faces for Chinese and Japanese (else PEESUTO_JIZURA_FONTS_DIR, else
+ *             .work/jizura-fonts-src); a film JIZURA cannot draw fails, it never falls back to classic
  *
  * The engine checkout is copied to a scratch directory first (its builds write
- * caches). Needs cwebp and ffmpeg (brew install webp ffmpeg).
+ * caches); a run with only JIZURA films to draw needs no engine. Films are
+ * drawn one at a time (each uses every core). Needs cwebp and ffmpeg
+ * (brew install webp ffmpeg).
  */
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -35,9 +48,10 @@ import { join, relative, resolve } from "node:path";
 import { decideTemplate } from "../core/src/templates/decide.ts";
 import { parseTemplates } from "../core/src/templates/parse.ts";
 import { MANUAL_TEMPLATES, TEMPLATE_REGISTRY } from "../core/src/templates/registry.ts";
+import { renderLyrics } from "../core/src/templates/lyrics-route.ts";
 import { renderTemplate } from "../core/src/templates/render.ts";
 import type { TemplateId, VariantId } from "../core/src/templates/types.ts";
-import { SAMPLES, type Lang } from "./site-templates.ts";
+import { LYRIC_FILMS, LYRIC_WIDE_STILL, SAMPLES, type Lang } from "./site-templates.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const OUT = join(REPO, "site/gallery");
@@ -53,8 +67,14 @@ const onlyLang = flag("lang")?.split(",");
 const jobs = Math.max(1, Number(flag("jobs") ?? 4));
 const force = argv.includes("--force");
 const reuse = argv.includes("--reuse");
+const fonts = flag("fonts") ?? process.env.PEESUTO_JIZURA_FONTS_DIR ?? (existsSync(join(REPO, ".work/jizura-fonts-src")) ? join(REPO, ".work/jizura-fonts-src") : undefined);
+if (fonts) process.env.PEESUTO_JIZURA_FONTS_DIR = resolve(fonts);
 
-export interface GalleryFile { readonly input: string; readonly renderer: string; readonly width: number; readonly height: number; readonly bytes: number }
+export interface GalleryFile {
+  readonly input: string; readonly renderer: string; readonly width: number; readonly height: number; readonly bytes: number;
+  /** A JIZURA film (or a frame of one): the style it was drawn in (Auto's pick, for "auto") and Auto's mood. */
+  readonly lyric?: { readonly style: string; readonly mood: string | null };
+}
 export interface GalleryManifest { readonly files: Record<string, GalleryFile> }
 
 // ---------------------------------------------------------------- check samples
@@ -93,9 +113,37 @@ function rendererHash(): string {
   return h.digest("hex").slice(0, 16);
 }
 
-interface Job { readonly file: string; readonly lang: Lang; readonly id: TemplateId; readonly variant: VariantId; readonly kind: "square" | "wide" | "motion"; readonly input: string }
+/** JIZURA's films also depend on its engine, the adaptation, the font code and the base fonts. */
+function jizuraHash(base: string): string {
+  const h = createHash("sha256");
+  h.update(base);
+  const walk = (dir: string, keep: (f: string) => boolean) => {
+    for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p, keep); else if (keep(e.name)) { h.update(relative(REPO, p)); h.update(readFileSync(p)); }
+    }
+  };
+  walk(join(REPO, "core/src/jizura"), (f) => f.endsWith(".ts"));
+  walk(join(REPO, "core/src/fonts"), () => true);
+  walk(join(REPO, "vendor/jizura"), () => true);
+  h.update(readFileSync(join(REPO, "jizura.json")));
+  for (const f of readdirSync(join(REPO, "core/src/render/fonts/jizura")).sort()) h.update(`${f}:${statSync(join(REPO, "core/src/render/fonts/jizura", f)).size}`);
+  return h.digest("hex").slice(0, 16);
+}
+
+type Kind = "square" | "wide" | "motion" | "film" | "film-wide";
+interface Job {
+  readonly file: string; readonly lang: Lang; readonly id: TemplateId; readonly variant: VariantId; readonly kind: Kind; readonly input: string;
+  /** JIZURA's films: the style, and the second kept as the still. */
+  readonly style?: string; readonly at?: number;
+  /** A 1:1 film's still, written by the same job. */
+  readonly still?: { readonly file: string; readonly input: string };
+}
 
 const renderer = rendererHash();
+const jizuraRenderer = jizuraHash(renderer);
+const isFilm = (j: Job) => j.kind === "film" || j.kind === "film-wide";
+const rendererOf = (j: Job) => (isFilm(j) ? jizuraRenderer : renderer);
 const manifest: GalleryManifest = existsSync(MANIFEST) ? JSON.parse(readFileSync(MANIFEST, "utf8")) : { files: {} };
 const wanted: Job[] = [];
 for (const t of templates) {
@@ -104,21 +152,32 @@ for (const t of templates) {
   for (const lang of LANGS) {
     if (onlyLang && !onlyLang.includes(lang)) continue;
     const text = sample[lang];
-    const key = (kind: string, variant: string) => createHash("sha256").update(JSON.stringify({ text, id: t.id, variant, kind, SQUARE_WIDTH, WIDE_WIDTH })).digest("hex").slice(0, 16);
+    const key = (kind: string, variant: string, extra: object = {}) => createHash("sha256").update(JSON.stringify({ text, id: t.id, variant, kind, SQUARE_WIDTH, WIDE_WIDTH, ...extra })).digest("hex").slice(0, 16);
     const first = t.variants[0]!.id;
+    // Every style at 1:1 (for Lyric motion: the classic styles' posters).
     for (const v of t.variants) wanted.push({ file: `${lang}/${t.id}-${v.id}.webp`, lang, id: t.id, variant: v.id, kind: "square", input: key("square", v.id) });
+    if (t.id === "lyrics") {
+      // Lyric motion: JIZURA's films, each with one frame as its still, and one frame of the 16:9 Auto film.
+      for (const { style, still } of LYRIC_FILMS) {
+        const at = still[lang];
+        wanted.push({ file: `${lang}/lyrics-jizura-${style}.mp4`, lang, id: t.id, variant: first, kind: "film", style, at, input: key("film", first, { style }),
+          still: { file: `${lang}/lyrics-jizura-${style}.webp`, input: key("film-still", first, { style, at }) } });
+      }
+      const at = LYRIC_WIDE_STILL[lang];
+      wanted.push({ file: `${lang}/lyrics-jizura-auto-wide.webp`, lang, id: t.id, variant: first, kind: "film-wide", style: "auto", at, input: key("film-wide", first, { style: "auto", at }) });
+      continue;
+    }
     wanted.push({ file: `${lang}/${t.id}-${first}-wide.webp`, lang, id: t.id, variant: first, kind: "wide", input: key("wide", first) });
-    // Lyric motion is a video first: every style animated. Other templates: the first style.
-    if (t.id === "lyrics") for (const v of t.variants) wanted.push({ file: `${lang}/${t.id}-${v.id}.mp4`, lang, id: t.id, variant: v.id, kind: "motion", input: key("motion", v.id) });
-    else wanted.push({ file: `${lang}/${t.id}.mp4`, lang, id: t.id, variant: first, kind: "motion", input: key("motion", first) });
+    wanted.push({ file: `${lang}/${t.id}.mp4`, lang, id: t.id, variant: first, kind: "motion", input: key("motion", first) });
   }
 }
-const fresh = (j: Job) => {
-  const m = manifest.files[j.file];
-  return !force && m && existsSync(join(OUT, j.file)) && m.input === j.input && (reuse || m.renderer === renderer);
+const freshFile = (file: string, input: string, r: string) => {
+  const m = manifest.files[file];
+  return !force && !!m && existsSync(join(OUT, file)) && m.input === input && (reuse || m.renderer === r);
 };
+const fresh = (j: Job) => freshFile(j.file, j.input, rendererOf(j)) && (!j.still || freshFile(j.still.file, j.still.input, rendererOf(j)));
 const todo = wanted.filter((j) => !fresh(j));
-console.log(`gallery: ${wanted.length} files, ${wanted.length - todo.length} up to date, ${todo.length} to render (renderer ${renderer})`);
+console.log(`gallery: ${wanted.length} renders, ${wanted.length - todo.length} up to date, ${todo.length} to do (renderer ${renderer}, JIZURA ${jizuraRenderer})`);
 
 // ---------------------------------------------------------------- render
 
@@ -141,16 +200,70 @@ const saveManifest = async () => {
   await Bun.write(MANIFEST, `${JSON.stringify({ files }, null, 1)}\n`);
 };
 
+/** A webp from a PNG, as every still here is made. */
+const webp = (png: string, target: string, width: number) =>
+  run(["cwebp", "-quiet", "-q", "90", "-m", "6", "-sharp_yuv", "-metadata", "none", "-resize", String(width), "0", png, "-o", target]);
+/** An MP4 for the site: 640 px, H.264 at `crf`, no audio, moov first. */
+const mp4 = (raw: string, target: string, crf: number) =>
+  run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw, "-vf", `scale=${SQUARE_WIDTH}:-2:flags=lanczos`, "-c:v", "libx264", "-preset", "slow",
+    "-crf", String(crf), "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart", "-an", target]);
+const record = async (file: string, input: string, r: string, lyric?: GalleryFile["lyric"]): Promise<string> => {
+  const target = join(OUT, file);
+  const { width, height } = await probe(target);
+  const bytes = (await stat(target)).size;
+  manifest.files[file] = { input, renderer: r, width, height, bytes, ...(lyric ? { lyric } : {}) };
+  return `${file} ${width}×${height} ${(bytes / 1024).toFixed(1)} KB`;
+};
+
 if (todo.length) {
-  const sourceEngine = resolve(flag("engine") ?? join(REPO, ".work/native-engine"));
-  if (!existsSync(sourceEngine)) throw new Error(`engine checkout not found: ${sourceEngine} (pass --engine)`);
   await rm(scratch, { recursive: true, force: true });
   await mkdir(scratch, { recursive: true });
+  // The engine draws everything but JIZURA's films; a run with only films needs none.
   const engine = join(scratch, ".engine");
-  await cp(sourceEngine, engine, { recursive: true });
+  if (todo.some((j) => !isFilm(j))) {
+    const sourceEngine = resolve(flag("engine") ?? join(REPO, ".work/native-engine"));
+    if (!existsSync(sourceEngine)) throw new Error(`engine checkout not found: ${sourceEngine} (pass --engine)`);
+    await cp(sourceEngine, engine, { recursive: true });
+  }
   let done = 0;
   const started = performance.now();
+  const renderFilm = async (j: Job, worker: number) => {
+    const text = SAMPLES[j.id]![j.lang];
+    const decision = await decideTemplate(text, { aspect: j.kind === "film-wide" ? "16:9" : "1:1", output: "video", decider: null, override: { id: j.id, variant: j.variant } });
+    const raw = join(scratch, `w${worker}-${j.lang}-${j.id}-${j.style}-${j.kind}.mp4`);
+    const r = await renderLyrics(decision.plan, {
+      engine, work: join(scratch, `.tree-${worker}`), emojiCache: join(scratch, ".emoji"), emojiBundle: join(REPO, ".work/emoji-all"), format: "mp4", out: raw,
+    }, { engine: "jizura", style: j.style });
+    // The site shows these as JIZURA's films: never a classic fallback.
+    if (r.lyric.engine !== "jizura") throw new Error(`JIZURA did not draw ${j.file} (${r.lyric.reason}${r.lyric.message ? `: ${r.lyric.message}` : ""}); pass --fonts <a directory with its faces>`);
+    const lyric = { style: r.lyric.style, mood: r.lyric.mood ?? null };
+    await mkdir(join(OUT, j.lang), { recursive: true });
+    const frame = `${raw}.png`;
+    await run(["ffmpeg", "-y", "-loglevel", "error", "-ss", String(j.at), "-i", raw, "-frames:v", "1", frame]);
+    const lines: string[] = [];
+    if (j.kind === "film") {
+      // The same CRF as the classic Lyric motion clips had: film grain and colour cuts cost bits.
+      await mp4(raw, join(OUT, j.file), 30);
+      await webp(frame, join(OUT, j.still!.file), SQUARE_WIDTH);
+      lines.push(await record(j.file, j.input, jizuraRenderer, lyric), await record(j.still!.file, j.still!.input, jizuraRenderer, lyric));
+    } else {
+      await webp(frame, join(OUT, j.file), WIDE_WIDTH);
+      lines.push(await record(j.file, j.input, jizuraRenderer, lyric));
+    }
+    await unlink(raw).catch(() => {});
+    await unlink(frame).catch(() => {});
+    done++;
+    console.log(`[${done}/${todo.length}] ${lines.join(", ")} (JIZURA: ${lyric.style}${lyric.mood ? `, ${lyric.mood}` : ""})`);
+    if (done % 10 === 0) await saveManifest();
+  };
+  // JIZURA draws a film on every core: one film at a time, whatever --jobs says.
+  let filmTurn: Promise<unknown> = Promise.resolve();
   const renderOne = async (j: Job, worker: number) => {
+    if (isFilm(j)) {
+      const turn = filmTurn.then(() => renderFilm(j, worker));
+      filmTurn = turn.catch(() => {});
+      return turn;
+    }
     const text = SAMPLES[j.id]![j.lang];
     const output = j.kind === "motion" ? "video" : "image";
     const decision = await decideTemplate(text, {
@@ -164,18 +277,12 @@ if (todo.length) {
     });
     const target = join(OUT, j.file);
     await mkdir(join(OUT, j.lang), { recursive: true });
-    if (j.kind === "motion") {
-      // Lyric motion carries film grain and colour cuts: a higher CRF keeps each clip near 1 MB.
-      await run(["ffmpeg", "-y", "-loglevel", "error", "-i", raw, "-vf", `scale=${SQUARE_WIDTH}:-2:flags=lanczos`, "-c:v", "libx264", "-preset", "slow",
-        "-crf", j.id === "lyrics" ? "30" : "26", "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart", "-an", target]);
-    } else {
-      await run(["cwebp", "-quiet", "-q", "90", "-m", "6", "-sharp_yuv", "-metadata", "none", "-resize", String(j.kind === "wide" ? WIDE_WIDTH : SQUARE_WIDTH), "0", raw, "-o", target]);
-    }
+    if (j.kind === "motion") await mp4(raw, target, 26);
+    else await webp(raw, target, j.kind === "wide" ? WIDE_WIDTH : SQUARE_WIDTH);
     await unlink(raw).catch(() => {});
-    const { width, height } = await probe(target);
-    manifest.files[j.file] = { input: j.input, renderer, width, height, bytes: (await stat(target)).size };
+    const line = await record(j.file, j.input, renderer);
     done++;
-    console.log(`[${done}/${todo.length}] ${j.file} ${width}×${height} ${(manifest.files[j.file]!.bytes / 1024).toFixed(1)} KB`);
+    console.log(`[${done}/${todo.length}] ${line}`);
     if (done % 10 === 0) await saveManifest();
   };
   const queue = [...todo];
@@ -197,7 +304,7 @@ if (todo.length) {
 // Files no longer wanted (a removed template or style) leave the manifest and the disk,
 // unless this run was narrowed with --only or --lang.
 if (!only && !onlyLang) {
-  const keep = new Set(wanted.map((j) => j.file));
+  const keep = new Set(wanted.flatMap((j) => (j.still ? [j.file, j.still.file] : [j.file])));
   for (const file of Object.keys(manifest.files)) if (!keep.has(file)) { delete manifest.files[file]; await rm(join(OUT, file), { force: true }); console.log(`removed ${file}`); }
   await saveManifest();
 }

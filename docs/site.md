@@ -14,7 +14,7 @@ requests to other domains at runtime.
 | `/404.html`, `robots.txt`, `sitemap.xml` | `scripts/site.ts` |
 | `/assets/site.css`, `/assets/site.js` | hand-written (`site.js`: hero video or loop, tabs, card videos, Copy sample) |
 | `/_headers` | hand-written: security headers, CSP (self only), caching, `application/xml` for the feeds |
-| `/gallery/<lang>/*` | rendered by `scripts/site-gallery.ts` with the real engine from the samples in `scripts/site-templates.ts`; `manifest.json` holds each file's render key and size |
+| `/gallery/<lang>/*` | rendered by `scripts/site-gallery.ts` with the real engine (Lyric motion's films: JIZURA) from the samples in `scripts/site-templates.ts`; `manifest.json` holds each file's render key and size |
 | `/assets/peesuto-promo.{mp4,webp}` | the promo film for the hero, `scripts/site-assets.ts --only hero --promo <mp4>` |
 | `/assets/field-indigo.*`, `grain.png` | the code cards' "Indigo night" field (`core/src/templates/backdrop.ts`) |
 | `/assets/fonts/*.woff2` | Latin + keyboard-symbol subset of `core/src/render/fonts/PeesutoText-*.ttf` (SIL OFL, `OFL.txt` beside them) |
@@ -25,7 +25,7 @@ requests to other domains at runtime.
 
 ```bash
 bun run site:build      # regenerate the HTML pages; Bun only, no network, no engine
-bun scripts/site-gallery.ts   # render the template gallery (engine + cwebp + ffmpeg); cached
+bun scripts/site-gallery.ts   # render the template gallery (engine, JIZURA's faces, cwebp, ffmpeg); cached
 bun run site:assets     # regenerate other binary assets (macOS: sips, iconutil; cwebp, pyftsubset + brotli, Chrome)
 bun run site:deploy     # build, then wrangler pages deploy site --project-name peesuto --branch main
 ```
@@ -49,13 +49,33 @@ The list of templates always comes from `core/src/templates/registry.ts`.
 sample as its own template (QR and Lyric motion, which are manual: that it is available and never preferred; `--check` stops there),
 then renders, per language: every style at 1:1 (`<id>-<style>.webp`, 640 px),
 the first style at 16:9 (`<id>-<style>-wide.webp`, 960 px) and the first style
-animated (`<id>.mp4`, 640 px, H.264, no audio). It copies `.work/native-engine`
+animated (`<id>.mp4`, 640 px, H.264 at CRF 26, no audio). It copies `.work/native-engine`
 (or `--engine`) to a scratch directory, since engine builds write caches. A file
 is rendered again only when its input (sample, template, style, frame) or the
 renderer (`core/src/templates/**`, the render fonts, `engine.json`) changed;
 `--reuse` ignores renderer changes, `--force` redoes everything, `--only
-code,diff` and `--lang en` narrow a run. A full run is about 220 files and five
-minutes; the output is about 4 MB.
+code,diff` and `--lang en` narrow a run (and then leave files no longer wanted
+in place; a later full run, `--reuse` is enough, removes them). A full run is
+about 260 files and ten minutes, half of it the JIZURA films; the output is
+about 12 MB, two thirds of it Lyric motion.
+
+**Lyric motion** is shown as films drawn by JIZURA, through the app's own
+`renderLyrics`: Auto and the named styles `LYRIC_FILMS` lists in
+`scripts/site-templates.ts` (`lyrics-jizura-<style>.mp4`, 640 px, H.264 at
+CRF 30), each with one frame of it as its still (`lyrics-jizura-<style>.webp`),
+and one frame of the 16:9 Auto film (`lyrics-jizura-auto-wide.webp`). The
+seconds of those frames are in `LYRIC_FILMS` and `LYRIC_WIDE_STILL`, picked by
+eye for whole words; the films are deterministic, so they hold until the
+sample text or JIZURA changes, and then want looking at again. The manifest
+records the style each film was drawn in (what Auto picked, which the page
+names). Its four classic styles appear only as their posters
+(`lyrics-<style>.webp`), in a row under the films. Chinese and Japanese films
+need JIZURA's faces: `--fonts <dir>` (else `PEESUTO_JIZURA_FONTS_DIR`, else
+`.work/jizura-fonts-src`); a film JIZURA cannot draw fails the run rather than
+falling back to classic. Films are drawn one at a time, since each uses every
+core (tens of seconds each); a run with only films to draw needs no engine.
+The renderer key of a film also covers `core/src/jizura`, `core/src/fonts`,
+`vendor/jizura` and `jizura.json`.
 
 A **new template** appears on the site once it has a sample in
 `scripts/site-templates.ts` and renders: add the sample (and ideally blurb,

@@ -280,65 +280,129 @@
    "height": 640,
    "bytes": 19142
   },
-  "en/lyrics-classic-wide.webp": {
-   "input": "f9df12d05ab717e9",
-   "renderer": "061b8f612381b488",
-   "width": 960,
-   "height": 540,
-   "bytes": 36854
-  },
-  "en/lyrics-classic.mp4": {
-   "input": "6962119d15e856ae",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 542768
-  },
   "en/lyrics-classic.webp": {
    "input": "4b7ee720e3c5bffa",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 39594
   },
-  "en/lyrics-editorial.mp4": {
-   "input": "426de872c182b208",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 302407
-  },
   "en/lyrics-editorial.webp": {
    "input": "bcae6b282f3e4438",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 26300
   },
-  "en/lyrics-night.mp4": {
-   "input": "f83b6305299f6834",
-   "renderer": "061b8f612381b488",
+  "en/lyrics-jizura-auto-wide.webp": {
+   "input": "c306ede27970b322",
+   "renderer": "9e18d789e8f88810",
+   "width": 960,
+   "height": 540,
+   "bytes": 35360,
+   "lyric": {
+    "style": "sakura",
+    "mood": "emotional"
+   }
+  },
+  "en/lyrics-jizura-auto.mp4": {
+   "input": "3c82262047233e8a",
+   "renderer": "9e18d789e8f88810",
    "width": 640,
    "height": 640,
-   "bytes": 730272
+   "bytes": 755998,
+   "lyric": {
+    "style": "sakura",
+    "mood": "emotional"
+   }
+  },
+  "en/lyrics-jizura-auto.webp": {
+   "input": "4dbbec7ad3574132",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 29376,
+   "lyric": {
+    "style": "sakura",
+    "mood": "emotional"
+   }
+  },
+  "en/lyrics-jizura-paper.mp4": {
+   "input": "307ed3f0143900d1",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 583181,
+   "lyric": {
+    "style": "paper",
+    "mood": null
+   }
+  },
+  "en/lyrics-jizura-paper.webp": {
+   "input": "0a6f0f5008fefaf8",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 28148,
+   "lyric": {
+    "style": "paper",
+    "mood": null
+   }
+  },
+  "en/lyrics-jizura-sumi.mp4": {
+   "input": "9d9973f981828667",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 565374,
+   "lyric": {
+    "style": "sumi",
+    "mood": null
+   }
+  },
+  "en/lyrics-jizura-sumi.webp": {
+   "input": "368a252cca673a65",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 26636,
+   "lyric": {
+    "style": "sumi",
+    "mood": null
+   }
+  },
+  "en/lyrics-jizura-synth80.mp4": {
+   "input": "279120407833c8a3",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 669465,
+   "lyric": {
+    "style": "synth80",
+    "mood": null
+   }
+  },
+  "en/lyrics-jizura-synth80.webp": {
+   "input": "cd86842ebd4e39f1",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 43602,
+   "lyric": {
+    "style": "synth80",
+    "mood": null
+   }
   },
   "en/lyrics-night.webp": {
    "input": "c159b86421c8d3e6",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 20132
   },
-  "en/lyrics-pop.mp4": {
-   "input": "1c396e74935dc2f9",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 267518
-  },
   "en/lyrics-pop.webp": {
    "input": "6744f5cd961ab045",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 35190
@@ -854,65 +918,129 @@
    "height": 640,
    "bytes": 17178
   },
-  "ja/lyrics-classic-wide.webp": {
-   "input": "2e9594d6aff66a78",
-   "renderer": "061b8f612381b488",
-   "width": 960,
-   "height": 540,
-   "bytes": 33540
-  },
-  "ja/lyrics-classic.mp4": {
-   "input": "b2e78dacec605f1d",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 292940
-  },
   "ja/lyrics-classic.webp": {
    "input": "7b8ce24b51323a83",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 35932
   },
-  "ja/lyrics-editorial.mp4": {
-   "input": "7f75a648aaae2f03",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 230148
-  },
   "ja/lyrics-editorial.webp": {
    "input": "c47bc93c4cc0a393",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 20988
   },
-  "ja/lyrics-night.mp4": {
-   "input": "9cb461cd0f11b826",
-   "renderer": "061b8f612381b488",
+  "ja/lyrics-jizura-auto-wide.webp": {
+   "input": "1a3624fb1e7fab53",
+   "renderer": "9e18d789e8f88810",
+   "width": 960,
+   "height": 540,
+   "bytes": 28210,
+   "lyric": {
+    "style": "noir",
+    "mood": "chaos"
+   }
+  },
+  "ja/lyrics-jizura-auto.mp4": {
+   "input": "afae4092e2f9e6f3",
+   "renderer": "9e18d789e8f88810",
    "width": 640,
    "height": 640,
-   "bytes": 687655
+   "bytes": 772094,
+   "lyric": {
+    "style": "noir",
+    "mood": "chaos"
+   }
+  },
+  "ja/lyrics-jizura-auto.webp": {
+   "input": "f78ac600cb82a081",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 32414,
+   "lyric": {
+    "style": "noir",
+    "mood": "chaos"
+   }
+  },
+  "ja/lyrics-jizura-paper.mp4": {
+   "input": "5e92d704f4187cf2",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 576820,
+   "lyric": {
+    "style": "paper",
+    "mood": null
+   }
+  },
+  "ja/lyrics-jizura-paper.webp": {
+   "input": "2fde7904453b14b3",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 23826,
+   "lyric": {
+    "style": "paper",
+    "mood": null
+   }
+  },
+  "ja/lyrics-jizura-sumi.mp4": {
+   "input": "87d47348021a53cf",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 406316,
+   "lyric": {
+    "style": "sumi",
+    "mood": null
+   }
+  },
+  "ja/lyrics-jizura-sumi.webp": {
+   "input": "09fba7a1f985ca69",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 19092,
+   "lyric": {
+    "style": "sumi",
+    "mood": null
+   }
+  },
+  "ja/lyrics-jizura-synth80.mp4": {
+   "input": "ec5d945478f614e5",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 700135,
+   "lyric": {
+    "style": "synth80",
+    "mood": null
+   }
+  },
+  "ja/lyrics-jizura-synth80.webp": {
+   "input": "25f7965e8b06457b",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 27200,
+   "lyric": {
+    "style": "synth80",
+    "mood": null
+   }
   },
   "ja/lyrics-night.webp": {
    "input": "870355e26ecdcac7",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 32514
   },
-  "ja/lyrics-pop.mp4": {
-   "input": "b722c6aeabe1f80f",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 217270
-  },
   "ja/lyrics-pop.webp": {
    "input": "b6e9b8f37b2f13af",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 34196
@@ -1428,65 +1556,129 @@
    "height": 640,
    "bytes": 22616
   },
-  "zh/lyrics-classic-wide.webp": {
-   "input": "428ba04cd4787ccd",
-   "renderer": "061b8f612381b488",
-   "width": 960,
-   "height": 540,
-   "bytes": 40488
-  },
-  "zh/lyrics-classic.mp4": {
-   "input": "d39172db007a21e9",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 547363
-  },
   "zh/lyrics-classic.webp": {
    "input": "61cddedea1f9eff8",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 36278
   },
-  "zh/lyrics-editorial.mp4": {
-   "input": "56bc9f7df4ec2202",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 264768
-  },
   "zh/lyrics-editorial.webp": {
    "input": "71bbe902897e3db1",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 26238
   },
-  "zh/lyrics-night.mp4": {
-   "input": "036db10ed79d9f0a",
-   "renderer": "061b8f612381b488",
+  "zh/lyrics-jizura-auto-wide.webp": {
+   "input": "feb201c979171ddd",
+   "renderer": "9e18d789e8f88810",
+   "width": 960,
+   "height": 540,
+   "bytes": 46422,
+   "lyric": {
+    "style": "specimen",
+    "mood": "glitch"
+   }
+  },
+  "zh/lyrics-jizura-auto.mp4": {
+   "input": "58fdfbb21f66a613",
+   "renderer": "9e18d789e8f88810",
    "width": 640,
    "height": 640,
-   "bytes": 967879
+   "bytes": 737004,
+   "lyric": {
+    "style": "specimen",
+    "mood": "glitch"
+   }
+  },
+  "zh/lyrics-jizura-auto.webp": {
+   "input": "1783d489c04a9287",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 31670,
+   "lyric": {
+    "style": "specimen",
+    "mood": "glitch"
+   }
+  },
+  "zh/lyrics-jizura-paper.mp4": {
+   "input": "266ccd7642590949",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 634774,
+   "lyric": {
+    "style": "paper",
+    "mood": null
+   }
+  },
+  "zh/lyrics-jizura-paper.webp": {
+   "input": "3f951c6fa6cae348",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 30926,
+   "lyric": {
+    "style": "paper",
+    "mood": null
+   }
+  },
+  "zh/lyrics-jizura-sumi.mp4": {
+   "input": "93e4b50721bd6ad8",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 648248,
+   "lyric": {
+    "style": "sumi",
+    "mood": null
+   }
+  },
+  "zh/lyrics-jizura-sumi.webp": {
+   "input": "8f11786d9b9a4fd0",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 17692,
+   "lyric": {
+    "style": "sumi",
+    "mood": null
+   }
+  },
+  "zh/lyrics-jizura-synth80.mp4": {
+   "input": "339014415cb4edf2",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 729925,
+   "lyric": {
+    "style": "synth80",
+    "mood": null
+   }
+  },
+  "zh/lyrics-jizura-synth80.webp": {
+   "input": "ff2fdb91690ad1de",
+   "renderer": "9e18d789e8f88810",
+   "width": 640,
+   "height": 640,
+   "bytes": 57208,
+   "lyric": {
+    "style": "synth80",
+    "mood": null
+   }
   },
   "zh/lyrics-night.webp": {
    "input": "d0e72a6ff415c602",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 45082
   },
-  "zh/lyrics-pop.mp4": {
-   "input": "c6c50d0e91451951",
-   "renderer": "061b8f612381b488",
-   "width": 640,
-   "height": 640,
-   "bytes": 272565
-  },
   "zh/lyrics-pop.webp": {
    "input": "303b08f56d56d190",
-   "renderer": "061b8f612381b488",
+   "renderer": "176ee0a26ddd9302",
    "width": 640,
    "height": 640,
    "bytes": 41834

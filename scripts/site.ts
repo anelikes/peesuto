@@ -16,9 +16,10 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { lyricStyles } from "../core/src/jizura/catalog.ts";
 import { TEMPLATE_REGISTRY } from "../core/src/templates/registry.ts";
 import type { GalleryManifest } from "./site-gallery.ts";
-import { BLURBS, GROUPS, HOME_PICKS, HOME_STRIP, HOW, JA_NAMES, OTHER_GROUP, SAMPLES, type Localized } from "./site-templates.ts";
+import { BLURBS, GROUPS, HOME_PICKS, HOME_STRIP, HOW, JA_NAMES, LYRIC_FILMS, OTHER_GROUP, SAMPLES, type Localized } from "./site-templates.ts";
 
 const REPO = resolve(import.meta.dir, "..");
 const SITE = join(REPO, "site");
@@ -26,6 +27,8 @@ const ORIGIN = "https://peesuto.com";
 const GITHUB = "https://github.com/anelikes/peesuto";
 /** Every release also carries the DMG as Peesuto.dmg, so this always downloads the newest one. */
 const DOWNLOAD = `${GITHUB}/releases/latest/download/Peesuto.dmg`;
+/** JIZURA, the lyric-video maker by hakoniwa (852wa), whose engine draws Lyric motion's GIFs and videos. */
+const JIZURA = "https://github.com/852wa/JIZURA";
 /**
  * The hero's promo video: site/assets/<name>.mp4 with a poster <name>.webp
  * beside it (`bun scripts/site-assets.ts --only hero --promo <mp4>`). The page
@@ -54,12 +57,22 @@ const templates = TEMPLATE_REGISTRY;
 /** Rendered by scripts/site-gallery.ts; a template without renders is left out (with a warning). */
 const MANIFEST: GalleryManifest = existsSync(join(SITE, "gallery/manifest.json"))
   ? JSON.parse(readFileSync(join(SITE, "gallery/manifest.json"), "utf8")) : { files: {} };
+/** Lyric motion's films by JIZURA (LYRIC_FILMS), each with its still, and the 16:9 Auto still. */
+const lyricFiles = (lang: Lang) => [...LYRIC_FILMS.flatMap((f) => [`lyrics-jizura-${f.style}.mp4`, `lyrics-jizura-${f.style}.webp`]), "lyrics-jizura-auto-wide.webp"].map((f) => `${lang}/${f}`);
 const shown = templates.filter((t) => {
-  const ok = LANGS.every((l) => t.variants.every((v) => MANIFEST.files[`${l.lang}/${t.id}-${v.id}.webp`]));
+  const ok = LANGS.every((l) => t.variants.every((v) => MANIFEST.files[`${l.lang}/${t.id}-${v.id}.webp`])
+    && (t.id !== "lyrics" || lyricFiles(l.lang).every((f) => MANIFEST.files[f])));
   if (!ok) console.warn(`warning: no gallery renders for "${t.id}": run bun scripts/site-gallery.ts (and give it a sample in scripts/site-templates.ts)`);
   return ok;
 });
-const shownStyles = shown.reduce((n, t) => n + t.variants.length, 0);
+/** JIZURA's named styles (Auto and the opt-in horror ones aside): Lyric motion has these besides its four classic ones. */
+const JIZURA_STYLES = lyricStyles().filter((s) => s.engine === "jizura" && s.id !== "auto");
+const shownStyles = shown.reduce((n, t) => n + t.variants.length + (t.id === "lyrics" ? JIZURA_STYLES.length : 0), 0);
+/** A Lyric motion style's name as JIZURA (or, for the classic ones, the app) calls it. */
+const lyricStyleName = (lang: Lang, id: string) => {
+  const s = lyricStyles({ horror: true }).find((x) => x.id === id);
+  return s ? s.name[lang === "zh" ? "zh-Hans" : lang] : id;
+};
 /** A gallery file: URL (versioned by its render key) and intrinsic size. */
 function gfile(lang: Lang, name: string): { src: string; width: number; height: number } {
   const f = MANIFEST.files[`${lang}/${name}`];
@@ -653,9 +666,13 @@ function templatesIndex(lang: Lang): string {
 <ul class="tg-grid">
 ${items.map((t) => {
     const [name] = templateName(lang, t.id);
-    const styles = t.variants.map((v) => templateName(lang, t.id, v.id)[1]);
+    // Lyric motion: a frame of JIZURA's Auto film; its styles in three words rather than 28 names.
+    const lyric = t.id === "lyrics";
+    const styles = lyric
+      ? [lyricStyleName(lang, "auto"), T(lang, `${JIZURA_STYLES.length} by JIZURA`, `JIZURA 的 ${JIZURA_STYLES.length} 种`, `JIZURA の ${JIZURA_STYLES.length} 種`), T(lang, `${t.variants.length} classic`, `${t.variants.length} 种经典`, `クラシック ${t.variants.length} 種`)]
+      : t.variants.map((v) => templateName(lang, t.id, v.id)[1]);
     return `<li><a class="tg-card" href="${templatesPath(lang, t.id)}">
-${cardImg(lang, `${t.id}-${t.variants[0]!.id}`, "", 320, ' loading="lazy" decoding="async"')}
+${cardImg(lang, lyric ? "lyrics-jizura-auto" : `${t.id}-${t.variants[0]!.id}`, "", 320, ' loading="lazy" decoding="async"')}
 <h3>${esc(name)}</h3>
 <p>${esc(localized(BLURBS, t.id, lang))}</p>
 <p class="tg-styles"><span class="visually-hidden">${T(lang, "Styles: ", "样式：", "スタイル：")}</span>${styles.map((x) => `<span>${esc(x)}</span>`).join("")}</p>
@@ -681,6 +698,74 @@ ${sections}
       `Peesuto の ${shown.length} のテンプレートと ${shownStyles} のスタイル。それぞれの用途、見た目、Peesuto がどう見分けるか。`), body });
 }
 
+// ---------------------------------------------------------------- Lyric motion's page
+
+/** What JIZURA's Auto picked for the sample text in this language (recorded by the gallery script). */
+const lyricPick = (lang: Lang) => MANIFEST.files[`${lang}/lyrics-jizura-auto.mp4`]?.lyric?.style ?? "auto";
+
+/** JIZURA's films of the sample text: Auto and the named styles of LYRIC_FILMS, each playing over its still. */
+function lyricFilms(lang: Lang, name: string): string {
+  return LYRIC_FILMS.map(({ style }) => {
+    const clip = gfile(lang, `lyrics-jizura-${style}.mp4`), still = gfile(lang, `lyrics-jizura-${style}.webp`);
+    const label = lyricStyleName(lang, style);
+    const picked = style === "auto" ? lyricStyleName(lang, lyricPick(lang)) : "";
+    const caption = picked ? `${esc(label)} <span>${esc(T(lang, `picked ${picked}`, `选了${picked}`, `${picked}を選択`))}</span>` : esc(label);
+    const aria = picked
+      ? T(lang, `${name}, Auto: JIZURA picked ${picked}.`, `${name}，自动：JIZURA 选了${picked}。`, `${name}、おまかせ：JIZURA が${picked}を選択。`)
+      : T(lang, `${name} in JIZURA's ${label} style.`, `${name}，JIZURA 的${label}样式。`, `${name}、JIZURA の${label}スタイル。`);
+    return `<figure><video data-card-video muted loop playsinline preload="none" poster="${still.src}" width="320" height="${Math.round(320 * clip.height / clip.width)}" aria-label="${esc(aria)}"><source src="${clip.src}" type="video/mp4"></video><figcaption>${caption}</figcaption></figure>`;
+  }).join("\n");
+}
+
+/** The classic styles, kept: their posters, small. */
+function lyricClassic(lang: Lang, t: (typeof shown)[number], name: string): string {
+  const names = t.variants.map((v) => templateName(lang, t.id, v.id)[1]);
+  const list = T(lang, `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`, names.join("、"), names.join("、"));
+  const posters = t.variants.map((v, k) => `<figure>${cardImg(lang, `${t.id}-${v.id}`, T(lang, `${name} poster in the ${names[k]} style.`, `${name}海报，${names[k]}样式。`, `${name}のポスター、${names[k]}スタイル。`), 150, ' loading="lazy" decoding="async"')}<figcaption>${esc(names[k]!)}</figcaption></figure>`).join("\n");
+  return `<div class="tp-classic">
+<div>
+<h3>${T(lang, "Classic styles", "经典样式", "クラシック")}</h3>
+<p>${T(lang,
+    `Peesuto's own four styles stay: ${list}. They draw the poster (PNG), a GIF or video set to one of them, and Chinese, Japanese or Korean text until its font pack is downloaded.`,
+    `Peesuto 自己的四种样式仍然保留：${list}。海报（PNG）由它们绘制；选了其中一种时，GIF 和视频也用它；中文、日文或韩文在下载字体包之前，也由它们绘制。`,
+    `Peesuto 独自の 4 つのスタイル（${list}）も残っています。ポスター（PNG）はこちらで描きます。GIF や動画でこのスタイルを選んだとき、そしてフォントパックをダウンロードするまでの中国語・日本語・韓国語のテキストも、こちらで描きます。`)}</p>
+</div>
+<div class="tp-classic-row">
+${posters}
+</div>
+</div>`;
+}
+
+/** Where other templates say how they move: who draws the film, offline, the fonts, the outputs, the credit. */
+function lyricJizura(lang: Lang): string {
+  const fact = (dt: string, dd: string) => `<div><dt>${dt}</dt><dd>${dd}</dd></div>`;
+  return `<section class="tp-sec tp-jizura" aria-labelledby="jizura-title">
+<h2 id="jizura-title">${T(lang, "Drawn by JIZURA", "由 JIZURA 绘制", "描くのは JIZURA")}</h2>
+<p>${T(lang,
+    `<a href="${JIZURA}">JIZURA</a> is the lyric-video maker by hakoniwa (852wa), open source under the MIT License. Peesuto runs its engine unmodified inside the app: about 860 effect parts in ${JIZURA_STYLES.length} styles.`,
+    `<a href="${JIZURA}">JIZURA</a> 是 hakoniwa（852wa）开发的歌词视频工具，以 MIT 许可证开源。Peesuto 把它的引擎原样放进了应用：约 860 种效果部件，${JIZURA_STYLES.length} 种样式。`,
+    `<a href="${JIZURA}">JIZURA</a> は hakoniwa（852wa）さんによるリリックビデオ作成ツールで、MIT ライセンスのオープンソースです。Peesuto はそのエンジンに手を加えずアプリに組み込んでいます。エフェクトパーツは約 860、スタイルは ${JIZURA_STYLES.length}。`)}</p>
+<dl class="facts">
+${fact(T(lang, "Offline", "离线", "オフライン"), T(lang,
+    "The film is drawn on your Mac. Your text is not sent anywhere to make it.",
+    "影片在你的 Mac 上绘制，文字不会为此发往任何地方。",
+    "映像は Mac の中で描きます。そのためにテキストをどこかへ送ることはありません。"))}
+${fact(T(lang, "Fonts when you ask", "字体按需下载", "フォントは必要なときに"), T(lang,
+    "English needs nothing more. Chinese (Simplified or Traditional), Japanese and Korean use a font pack of 35–69 MB per language (OFL fonts). Peesuto downloads it from the project’s GitHub releases only when you press Download in Settings › Templates › Lyric motion, or in the note on a result. Until then those texts are drawn in a classic style, and the result says so.",
+    "英文不需要额外下载。简体中文、繁体中文、日文和韩文要用字体包，每种语言 35–69 MB（OFL 授权字体）。只有在“设置 › 模板 › 文字 PV”或结果上的提示里点“下载”时，Peesuto 才会从本项目的 GitHub Releases 下载。在那之前，这些文字用经典样式绘制，结果上会注明。",
+    "英語なら追加のダウンロードは要りません。中国語（簡体字・繁体字）、日本語、韓国語には、言語ごとに 35〜69 MB のフォントパック（OFL ライセンスのフォント）を使います。Peesuto がプロジェクトの GitHub Releases から取得するのは、「設定 › テンプレート › 文字PV」か結果に出るお知らせで「ダウンロード」を押したときだけです。それまではクラシックのスタイルで描き、結果にその旨を表示します。"))}
+${fact(T(lang, "GIF, video or poster", "GIF、视频或海报", "GIF、動画、ポスター"), T(lang,
+    "L makes a GIF. Set Lyric motion to Video or Poster (PNG) in Settings › Templates, or switch one result in its format menu.",
+    "按 L 默认生成 GIF。可在“设置 › 模板”里把文字 PV 改成视频或海报（PNG），也可以在结果的格式菜单里单独切换。",
+    "L で作るのは GIF。「設定 › テンプレート」で動画かポスター（PNG）に変えられ、結果の形式メニューで一枚ずつ切り替えることもできます。"))}
+</dl>
+<p class="more">${T(lang,
+    `JIZURA’s copyright notice and licence are in <a href="${GITHUB}/blob/main/NOTICE">NOTICE</a>.`,
+    `JIZURA 的版权声明和许可证见 <a href="${GITHUB}/blob/main/NOTICE">NOTICE</a>（英文）。`,
+    `JIZURA の著作権表示とライセンスは <a href="${GITHUB}/blob/main/NOTICE">NOTICE</a>（英語）にあります。`)}</p>
+</section>`;
+}
+
 function templatePage(lang: Lang, id: string): string {
   const t = shown.find((x) => x.id === id)!;
   const i = shown.indexOf(t);
@@ -694,19 +779,20 @@ function templatePage(lang: Lang, id: string): string {
   const pasteHint = manualKey
     ? T(lang, `Have Peesuto? Copy the sample (or any text), press ⌥V, then ${manualKey}.`, `装了 Peesuto？复制示例（或任意文字），按 ⌥V，再按 ${manualKey}。`, `Peesuto をお使いなら：サンプル（どんなテキストでも）をコピーして ⌥V、続けて ${manualKey}。`)
     : T(lang, "Have Peesuto? Copy the sample, then press ⌥V in any text field to get this card.", "装了 Peesuto？复制示例，在任意输入框里按 ⌥V，就能得到这张卡片。", "Peesuto をお使いなら：サンプルをコピーして、どこかの入力欄で ⌥V を押すと、このカードになります。");
-  const styles = t.variants.map((v) => {
+  const styles = isLyric ? lyricFilms(lang, name) : t.variants.map((v) => {
     const [, style] = templateName(lang, id, v.id);
-    // Lyric motion is a video first: each style plays (on screen only, never with reduced motion) over its poster.
-    if (isLyric) {
-      const clip = gfile(lang, `${id}-${v.id}.mp4`), still = gfile(lang, `${id}-${v.id}.webp`);
-      return `<figure><video data-card-video muted loop playsinline preload="none" poster="${still.src}" width="320" height="${Math.round(320 * clip.height / clip.width)}" aria-label="${esc(T(lang, `${name} in the ${style} style.`, `${name}，${style}样式。`, `${name}、${style}スタイル。`))}"><source src="${clip.src}" type="video/mp4"></video><figcaption>${esc(style)}</figcaption></figure>`;
-    }
     return `<figure>${cardImg(lang, `${id}-${v.id}`, T(lang, `${name} card in the ${style} style.`, `${name}卡片，${style}样式。`, `${name}カード、${style}スタイル。`), 320, ' loading="lazy" decoding="async"')}<figcaption>${esc(style)}</figcaption></figure>`;
   }).join("\n");
-  const wide = gfile(lang, `${id}-${first}-wide.webp`);
+  // Lyric motion shows JIZURA's Auto film where other templates show their first style.
+  const lead = isLyric ? "lyrics-jizura-auto" : `${id}-${first}`;
+  const wide = gfile(lang, isLyric ? "lyrics-jizura-auto-wide.webp" : `${id}-${first}-wide.webp`);
   const [, firstStyle] = templateName(lang, id, first);
-  const motion = gfile(lang, isLyric ? `${id}-${first}.mp4` : `${id}.mp4`);
-  const poster = gfile(lang, `${id}-${first}.webp`);
+  const leadAlt = isLyric
+    ? T(lang, `A frame of the ${name} film JIZURA drew from the sample text (Auto picked ${lyricStyleName(lang, lyricPick(lang))}).`,
+      `JIZURA 用示例文字画出的${name}影片中的一帧（自动选了${lyricStyleName(lang, lyricPick(lang))}）。`,
+      `サンプルテキストから JIZURA が描いた${name}の一場面（おまかせで選ばれたのは${lyricStyleName(lang, lyricPick(lang))}）。`)
+    : T(lang, `${name} card made from the sample text, in the ${firstStyle} style.`, `由示例文字生成的${name}卡片，${firstStyle}样式。`, `サンプルテキストから作った${name}カード、${firstStyle}スタイル。`);
+  const motion = isLyric ? null : gfile(lang, `${id}.mp4`);
   const prev = shown[(i - 1 + shown.length) % shown.length]!, next = shown[(i + 1) % shown.length]!;
   const body = `<div class="wrap tp">
 <nav class="crumbs" aria-label="${T(lang, "Breadcrumb", "位置", "現在地")}"><a href="${templatesPath(lang)}">${T(lang, "Templates", "模板", "テンプレート")}</a><span aria-hidden="true">/</span><a href="${templatesPath(lang)}#${group.id}">${esc(group.name[lang])}</a></nav>
@@ -726,40 +812,46 @@ function templatePage(lang: Lang, id: string): string {
 </div>
 <svg class="arrow" viewBox="0 0 48 14" aria-hidden="true"><use href="#i-arrow"/></svg>
 <div class="tp-to"><span class="eyebrow">${manualKey ? T(lang, `Pasted with ⌥V ${manualKey}`, `按 ⌥V ${manualKey} 粘贴`, `⌥V ${manualKey} でペースト`) : T(lang, "Pasted with ⌥V ↩", "按 ⌥V ↩ 粘贴", "⌥V ↩ でペースト")}</span>
-${cardImg(lang, `${id}-${first}`, T(lang, `${name} card made from the sample text, in the ${firstStyle} style.`, `由示例文字生成的${name}卡片，${firstStyle}样式。`, `サンプルテキストから作った${name}カード、${firstStyle}スタイル。`), 420, ' fetchpriority="high"')}</div>
+${cardImg(lang, lead, leadAlt, 420, ' fetchpriority="high"')}</div>
 </section>
 
 <section class="tp-sec" aria-labelledby="styles-title">
-<h2 id="styles-title">${T(lang, `${t.variants.length} styles`, `${t.variants.length} 种样式`, `${t.variants.length} つのスタイル`)}</h2>
-<p>${T(lang, "Switch after pasting, or pick a default in Settings › Templates.", "粘贴后可以切换，也可以在“设置 › 模板”里选默认样式。", "ペーストしたあとで切り替えるか、「設定 › テンプレート」で既定を選べます。")}</p>
+${isLyric ? `<h2 id="styles-title">${T(lang, `Auto, or one of ${JIZURA_STYLES.length} styles`, `自动，或 ${JIZURA_STYLES.length} 种样式任选`, `おまかせか、${JIZURA_STYLES.length} のスタイルから`)}</h2>
+<p>${T(lang,
+    `By default JIZURA picks a style and a mood from your text, and the same text always gives the same film. Or choose one of its ${JIZURA_STYLES.length} styles in Settings › Templates (three horror styles can be switched on too). Here is the sample text in Auto and in three of them.`,
+    `默认由 JIZURA 按你的文字挑选样式和氛围，同样的文字总是得到同样的影片。也可以在“设置 › 模板”里选定它的 ${JIZURA_STYLES.length} 种样式之一（另有 3 种恐怖样式可以打开）。下面是示例文字的自动版，和其中三种样式。`,
+    `初期設定では、JIZURA がテキストからスタイルと雰囲気を選びます。同じテキストからは、いつも同じ映像ができます。「設定 › テンプレート」で ${JIZURA_STYLES.length} のスタイルからひとつ選ぶこともできます（ホラーの 3 スタイルもオンにできます）。下は、サンプルテキストのおまかせと、3 つのスタイルです。`)}</p>`
+  : `<h2 id="styles-title">${T(lang, `${t.variants.length} styles`, `${t.variants.length} 种样式`, `${t.variants.length} つのスタイル`)}</h2>
+<p>${T(lang, "Switch after pasting, or pick a default in Settings › Templates.", "粘贴后可以切换，也可以在“设置 › 模板”里选默认样式。", "ペーストしたあとで切り替えるか、「設定 › テンプレート」で既定を選べます。")}</p>`}
 <div class="tp-styles">
 ${styles}
 </div>
+${isLyric ? lyricClassic(lang, t, name) : ""}
 </section>
 
 <section class="tp-sec" aria-labelledby="frames-title">
 <h2 id="frames-title">${T(lang, "Square or wide", "方形或宽屏", "正方形とワイド")}</h2>
-<p>${T(lang, "Images fit their content by default; choose 1:1, 4:5, 16:9 or 9:16 for any output. Content that does not fit a fixed frame grows the image, or scrolls in a GIF or video; nothing is cut.",
+<p>${isLyric ? T(lang, "Choose 1:1, 4:5, 16:9 or 9:16, and JIZURA composes the film in that shape.",
+    "可选 1:1、4:5、16:9 或 9:16，JIZURA 会按这个画幅来构图。",
+    "1:1、4:5、16:9、9:16 から選べます。JIZURA はその形に合わせて映像を組みます。")
+  : T(lang, "Images fit their content by default; choose 1:1, 4:5, 16:9 or 9:16 for any output. Content that does not fit a fixed frame grows the image, or scrolls in a GIF or video; nothing is cut.",
     "图片默认按内容自适应大小；每种输出都可以选 1:1、4:5、16:9 或 9:16。内容放不下固定画幅时，图片会变高，GIF 和视频里则会滚动，不会裁掉任何内容。",
     "画像は初期設定では内容に合わせた大きさ。どの出力でも 1:1、4:5、16:9、9:16 を選べます。決まった枠に収まらない内容は、画像なら縦に伸び、GIF や動画ならスクロールします。何も切り捨てません。")}</p>
 <div class="tp-frames">
-<figure class="f-square">${cardImg(lang, `${id}-${first}`, T(lang, `${name}, 1:1.`, `${name}，1:1。`, `${name}、1:1。`), 320, ' loading="lazy" decoding="async"')}<figcaption>1:1</figcaption></figure>
+<figure class="f-square">${cardImg(lang, lead, T(lang, `${name}, 1:1.`, `${name}，1:1。`, `${name}、1:1。`), 320, ' loading="lazy" decoding="async"')}<figcaption>1:1</figcaption></figure>
 <figure class="f-wide"><img src="${wide.src}" width="${Math.round(wide.width * 0.6)}" height="${Math.round(wide.height * 0.6)}" loading="lazy" decoding="async" alt="${esc(T(lang, `${name}, 16:9.`, `${name}，16:9。`, `${name}、16:9。`))}"><figcaption>16:9</figcaption></figure>
 </div>
 </section>
 
-<section class="tp-sec tp-motion" aria-labelledby="motion-title">
+${isLyric ? lyricJizura(lang) : `<section class="tp-sec tp-motion" aria-labelledby="motion-title">
 <div>
 <h2 id="motion-title">${T(lang, "In motion", "动起来", "動きをつける")}</h2>
-<p>${isLyric ? T(lang, "Press L in the chooser: each sentence or clause gets its own screens, set big in the style's display type, one of twenty-odd compositions per cut, with colour cuts on the beat. It makes a GIF; set Lyric motion to Video or Poster in Settings › Templates, or switch one result in its format menu.",
-    "在选择面板里按 L：每个句子或分句各占几幕，用样式自带的展示字体大字排出，每一幕从二十多种构图里挑一种，颜色随节拍切换。默认生成 GIF；可在“设置 › 模板”里把文字 PV 改成视频或海报，也可以在结果的格式菜单里单独切换。",
-    "パネルで L を押すと、文や句ごとに場面が生まれ、スタイルの見出し書体で大きく組まれます。場面ごとに二十あまりの構図からひとつ、色はビートで切り替わります。できあがるのは GIF。「設定 › テンプレート」で動画やポスターに変えられ、結果の形式メニューで一枚ずつ切り替えることもできます。")
-  : T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order.",
+<p>${T(lang, "Press G in the chooser for a GIF or M for an MP4: the same card, revealed in reading order.",
     "在选择面板里按 G 生成 GIF，按 M 生成 MP4：同一张卡片，按阅读顺序逐步出现。",
     "パネルで G を押すと GIF、M を押すと MP4 に。同じカードが、読む順に現れます。")}</p>
 </div>
-<video data-card-video muted loop playsinline controls preload="none" poster="${poster.src}" width="320" height="${Math.round(320 * motion.height / motion.width)}" aria-label="${esc(T(lang, `The ${name} card, animated.`, `${name}卡片的动画版。`, `${name}カードのアニメーション。`))}"><source src="${motion.src}" type="video/mp4"></video>
-</section>
+<video data-card-video muted loop playsinline controls preload="none" poster="${gfile(lang, `${id}-${first}.webp`).src}" width="320" height="${Math.round(320 * motion!.height / motion!.width)}" aria-label="${esc(T(lang, `The ${name} card, animated.`, `${name}卡片的动画版。`, `${name}カードのアニメーション。`))}"><source src="${motion!.src}" type="video/mp4"></video>
+</section>`}
 
 <section class="tp-sec tp-how" aria-labelledby="how-title">
 <h2 id="how-title">${T(lang, "How Peesuto recognises it", "Peesuto 怎么认出它", "Peesuto の見分け方")}</h2>
