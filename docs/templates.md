@@ -516,16 +516,20 @@ user-facing name is "Lyric motion" / 「文字 PV」 / 「文字PV」.
 
 | Output | Engine |
 |---|---|
-| GIF, video | **JIZURA** when it can draw the film here: the engine loads, every face the film needs is on this Mac, and every character of the text is in those faces. Otherwise **classic**, and the result says why. |
+| GIF, video | **JIZURA** when it can draw the film here: the engine loads, the faces the film draws with are on this Mac, and every character of the text is in those faces. Otherwise **classic**, and the result says why. |
 | Poster (PNG) | classic |
 | A classic style chosen (`lyricStyle` classic, editorial, pop or night; a style picked from the result's template menu), or `lyricEngine: "classic"` | classic |
 
 When JIZURA cannot draw a film, nothing is silent: the action's
 `meta.lyric` is `{ engine: "classic", reason, message, … }` with `reason`
-`fonts-missing` (and `missing`, the families to download: the font packs,
-`core/src/fonts/jizura-packs.ts`), `glyphs` (and `characters` no face has;
-they would be boxes) or `engine` (the canvas addon or the bundle did not
-load). A JIZURA film says `{ engine: "jizura", style, mood, requestedStyle,
+`fonts-missing` (and `missing`, the families this Mac lacks, and `packs`,
+the downloadable font packs that have them:
+`[{ id, title: { en, zh, ja }, bytes }]`, for the daemon's `fonts.install`
+after the user agrees; [daemon.md](daemon.md), "Font packs"), `glyphs` (and
+`characters` no face has; they would be boxes) or `engine` (the canvas addon
+or the bundle did not load). Classic has no Hangul face, so a Korean lyric
+without the Korean pack cannot fall back: the error is `compose` /
+`unsupported-script` as before, with the same `packs` added. A JIZURA film says `{ engine: "jizura", style, mood, requestedStyle,
 horror, lang, cuts, lines, paired, families, version, commit }`. An input
 JIZURA refuses (an unknown style, a horror style without the horror switch)
 is an input error, and a text too long is the same `lyric-too-long` /
@@ -604,10 +608,17 @@ is an input error, and a text too long is the same `lyric-too-long` /
   is several times cheaper; JIZURA draws everything on the CPU in Skia,
   where a browser has a GPU.
 - **Fonts**: JIZURA's faces (Google Fonts in a browser) come from
-  `core/src/fonts` (a bundled Latin base; one pack per language, downloaded on
-  demand); system fonts are never used, so a render looks the same on every
-  Mac. The faces a film needs are those of every role key its plan may draw
-  with, in the lyric's language, with their fallbacks (`core/src/jizura/fonts.ts`).
+  `core/src/fonts` (a bundled Latin base; one pack per language, downloaded
+  when the user agrees, never by a render); system fonts are never used, so
+  a render looks the same on every Mac. A film needs the faces it draws with
+  first: the head of the font list of every role key its plan may draw with,
+  in the lyric's language, and the language's base faces. The rest of each
+  list are fallbacks (every Chinese and Korean list ends in the Japanese Noto
+  faces): used when installed, a Latin cut included, and never a reason to
+  ask for another language's pack; every character must still be in some
+  face of every list (`core/src/jizura/fonts.ts`). Skia draws a family with
+  the face registered first, so registering a pack's full face drops the
+  Latin cut an earlier film registered under that name.
 - **Credit**: JIZURA is © 2026 hakoniwa (852wa), MIT; its author allowed its
   reuse in Peesuto on the condition that JIZURA is credited in the licence
   (NOTICE carries its copyright and the full MIT text). `vendor/jizura/jizura.js`

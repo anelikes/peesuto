@@ -5,9 +5,11 @@ been downloaded. JIZURA asks for about forty families by name (src/02_fonts.js
 and src/02b_lang.js at 852wa/JIZURA bae339e); in a browser it fetches them
 from Google Fonts. Peesuto never fetches a font while rendering: this base set
 comes with the app, and one pack per lyric language (Japanese, Simplified
-Chinese, Traditional Chinese, Korean) is downloaded once, when a render first
-needs it, from the host in `core/src/fonts/jizura-packs.json`, and checked
-against the SHA-256 listed there. How they are built and served:
+Chinese, Traditional Chinese, Korean) is downloaded once, when the user
+agrees to it (a lyric that needs it says so, and the app asks), from the
+GitHub Release that the `baseUrl` in `core/src/fonts/jizura-packs.json`
+names, and checked against the SHA-256 listed there. A lyric needs its own
+language's pack only. How they are built and served:
 [docs/development.md](../../../../../docs/development.md), "JIZURA font packs".
 
 Everything here is WOFF2 converted with fontTools from the pinned upstream
@@ -72,7 +74,9 @@ Notes:
 
 ## The downloadable packs
 
-Not in the repository; each is one tar of WOFF2 files with their licences.
+Not in the repository; each is one tar of WOFF2 files with their licences,
+an asset of the GitHub Release
+[`fonts-jizura-v1`](https://github.com/anelikes/peesuto/releases/tag/fonts-jizura-v1).
 Sizes of the current build:
 
 | Pack | Families (weights) | Download |

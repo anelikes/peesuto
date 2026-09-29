@@ -117,8 +117,9 @@ Lyric motion's GIFs and videos are drawn by JIZURA's own engine
 vendored bundle `vendor/jizura/jizura.js`, run by `core/src/jizura/` over
 Skia (`@napi-rs/canvas`, a root dependency; `bun install` fetches the binary
 for this platform). Nothing to set up beyond that and JIZURA's fonts: English
-lyrics draw with the bundled base fonts, Chinese and Japanese ones need the
-packs, or for development a directory of the faces (below).
+lyrics draw with the bundled base fonts; a Japanese, Chinese or Korean one
+needs its language's pack (only that one), or for development a directory of
+the faces (below).
 
 ```bash
 PEESUTO_JIZURA_FONTS_DIR=$PWD/.work/jizura-fonts-src \
@@ -154,8 +155,10 @@ uninterrupted run (`core/tests/jizura.test.ts`).
 
 The JIZURA render line draws with the faces JIZURA asks Google Fonts for in
 a browser. Peesuto never asks Google (or anyone) while rendering: a small
-base set is bundled, and one pack per lyric language is downloaded when a
-render first needs it (`core/src/fonts/jizura-packs.ts`).
+base set is bundled, and one pack per lyric language is downloaded when the
+user agrees to it: a Lyric motion that fell back for want of fonts names the
+packs, the app asks, and the daemon's `fonts.install` downloads it
+([daemon.md](daemon.md), "Font packs"; `core/src/fonts/jizura-packs.ts`).
 
 | What | Where |
 | --- | --- |
@@ -164,6 +167,7 @@ render first needs it (`core/src/fonts/jizura-packs.ts`).
 | Manifest (committed) | `core/src/fonts/jizura-packs.json`: every file's size and SHA-256, bundled vs downloadable, `baseUrl` |
 | Bundled base (committed) | `core/src/render/fonts/jizura/` ([README](../core/src/render/fonts/jizura/README.md)): DotGothic16, IBM Plex Mono and IBM Plex Sans JP whole, and a Latin cut of every other Japanese face, so English lyrics need no download |
 | Packs (built, not committed) | `.work/jizura-font-packs/<id>-<sha8>.tar`: `ja`, `zh-hans`, `zh-hant`, `ko`; a plain tar of WOFF2 files and their licences, uploaded to the host as they are |
+| Host | The GitHub Release [`fonts-jizura-v1`](https://github.com/anelikes/peesuto/releases/tag/fonts-jizura-v1) on `anelikes/peesuto`: the four tars as assets; the manifest's `baseUrl` is `https://github.com/anelikes/peesuto/releases/download/fonts-jizura-v1/` |
 | Installed packs | `<app data>/fonts/jizura/<id>@<sha12>/` (the daemon's `--app-data`; `~/Library/Application Support/com.peesuto.desktop` in the app), downloads in progress under `.partial/` |
 
 Rebuild after changing the sources:
@@ -196,14 +200,12 @@ JIZURA's outline treatments stroke as inner lines. Static Noto CJK has no
 weight 800, so JIZURA's Serif 800 snaps to 900, and the 太さ cut, which asks
 for any weight from 100 to 900, steps through the four weights shipped.
 
-To publish a build, upload the tars under the manifest's `baseUrl` (each
-file name carries its hash, so old and new builds can sit side by side),
-then commit the manifest and the bundled base. A client only downloads when
-`ensureJizuraFonts` or `installFontPack` is called: HTTPS only (plain HTTP
+A client only downloads when `installFontPack` (the daemon's
+`fonts.install`) or `ensureJizuraFonts` is called: HTTPS only (plain HTTP
 for loopback hosts, for tests), no cookies or credentials, `Range` only when
 resuming; the size and SHA-256 are checked before anything is unpacked, and
-again for every file; offline mode refuses, and every request is a line in
-the egress log (`fonts:<pack>`).
+again for every file; offline mode refuses before anything is sent, and
+every request is a line in the egress log (`fonts:<pack>`).
 
 | Variable | Effect |
 | --- | --- |
@@ -212,6 +214,37 @@ the egress log (`fonts:<pack>`).
 | `PYTHON` | The Python the build uses (default `python3`). |
 | `JIZURA_CANVAS_DIR` | Where `--verify` finds @napi-rs/canvas (default `.work/jizura-font-verify`). |
 | `JIZURA_FONT_JOBS` | Parallel conversions (default: up to 6). |
+
+### Where the packs are served, and publishing a new version
+
+The packs are the assets of the GitHub Release `fonts-jizura-v1` on the
+public repository (made with `--latest=false`: it is not an app release, and
+the site's download link follows the Latest release). **Never delete that
+release, its tag or its assets, and never replace an asset under it**: every
+installed app downloads from the `baseUrl` of the manifest it shipped with,
+for as long as it is installed, and checks the file against that manifest's
+SHA-256. GitHub answers `github.com/…/releases/download/…` with a redirect
+to `release-assets.githubusercontent.com`; both hosts appear in the egress
+log.
+
+A build that changes any pack is published under a new tag and `baseUrl`:
+
+```bash
+bun scripts/fonts/jizura-packs.ts --verify     # the tars in .work/jizura-font-packs and the manifest
+# the four tars the manifest names (packs[].file), unchanged ones too: the new baseUrl must serve every pack
+gh release create fonts-jizura-v2 -R anelikes/peesuto --target <commit> --latest=false \
+  --title "JIZURA font packs v2" --notes "…" .work/jizura-font-packs/{ja,zh-hans,zh-hant,ko}-<sha8>.tar
+gh release view -R anelikes/peesuto --json tagName   # still the latest app release
+```
+
+then set `baseUrl` in `core/src/fonts/jizura-packs.json` to
+`https://github.com/anelikes/peesuto/releases/download/fonts-jizura-v2/`
+(the builder keeps whatever `baseUrl` is there), check that the size and
+SHA-256 of every uploaded asset match the manifest (`gh release view
+fonts-jizura-v2 -R anelikes/peesuto --json assets` lists GitHub's `digest`),
+and commit the manifest and the bundled base together. `fonts-jizura-v1`
+stays for the apps already out. A build whose packs are unchanged keeps the
+old `baseUrl`.
 
 ## Tests
 

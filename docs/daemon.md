@@ -29,7 +29,8 @@ actions. The process exits when stdin closes, on `shutdown`, or after
 `--idle-minutes` with no active request; the shell restarts it on the next request.
 The idle timer is suspended while handling a request and restarted after its
 response. A slow model/render task is not idle just because stdin is silent,
-and neither is precompose work running in the background.
+and neither is precompose work or a font pack download running in the
+background.
 Only responses and opted-in lifecycle events are written to stdout; diagnostics go to stderr.
 
 ## Commands
@@ -46,7 +47,11 @@ Only responses and opted-in lifecycle events are written to stdout; diagnostics 
 | `privacy.rules` | — | `builtins[] {id, name, nameZh, description, descriptionZh, defaultEnabled, enabled}` |
 | `privacy.preview` | `text` | `modelText`, `outputText`, `spans[] {start, end, ruleId, replacement}`, `containsSecret` |
 | `precompose` | `text`, `frames? {image?, gif?, video?}`, `templatePreferences?` | `queued: true`, or `queued: false` and `skipped` (`off`, `secret`, `too-long`, `empty`) |
-| `shutdown` | — | — |
+| `fonts.status` | — | `offline`, `packs[] {id, title {en, zh, ja}, bytes, installed, bundled, installing, langs, families, progress?, error?}` ([Font packs](#font-packs)) |
+| `fonts.install` | `pack` | `started` (the download runs in the background) |
+| `fonts.cancel` | `pack` | `cancelled` |
+| `fonts.remove` | `pack` | `removed` |
+| `shutdown` | — | — (stops font pack downloads first) |
 
 Media actions use the [structured template pipeline](templates.md). Optional
 `input.template` selects `{id?, variant?, motion?}`; `templatePreferences` maps
@@ -122,6 +127,76 @@ lower priority (`nice 10`), GIF encoding yielding between frames.
 - Precompose results are never written into the cache by `run-action`, so
   `meta.precomposed` always means "rendered before you asked".
 
+## Font packs
+
+Lyric motion's JIZURA engine draws with a font pack per lyric language
+(Japanese, Simplified Chinese, Traditional Chinese, Korean; 35–69 MB each),
+listed in `core/src/fonts/jizura-packs.json` and served from a GitHub Release
+([development.md](development.md), "JIZURA font packs"). Core never
+downloads one on its own: a render only reads what is installed, and a
+Lyric motion result that fell back for want of fonts says which packs would
+let JIZURA draw it (`meta.lyric.packs`, [templates.md](templates.md)). The
+app asks the user, then sends `fonts.install`.
+
+```
+→ {"id":1,"cmd":"fonts.status"}
+← {"id":1,"ok":true,"cmd":"fonts.status","offline":false,"packs":[
+    {"id":"base","title":{"en":"Base fonts (Latin)","zh":"…","ja":"…"},"bytes":3761169,
+     "installed":true,"bundled":true,"installing":false,"langs":["ja","zh-Hans","zh-Hant","ko"],"families":[…]},
+    {"id":"zh-hans","title":{"en":"Simplified Chinese lyric fonts","zh":"简体中文歌词字体","ja":"簡体字中国語の歌詞フォント"},
+     "bytes":68869120,"installed":false,"bundled":false,"installing":true,"langs":["zh-Hans"],"families":[…],
+     "progress":{"done":10256087,"total":68869120}},
+    …]}
+→ {"id":2,"cmd":"fonts.install","pack":"zh-hans"}
+← {"id":2,"ok":true,"cmd":"fonts.install","started":true}
+→ {"id":3,"cmd":"fonts.cancel","pack":"zh-hans"}
+← {"id":3,"ok":true,"cmd":"fonts.cancel","cancelled":true}
+→ {"id":4,"cmd":"fonts.remove","pack":"zh-hans"}
+← {"id":4,"ok":true,"cmd":"fonts.remove","removed":false}
+```
+
+- **`fonts.status`** lists the bundled base set (`"base"`, always installed)
+  and then every downloadable pack: `bytes` is the download size (the base
+  set's size on disk), `installed` a cheap local check (a marker and every
+  file at its size), `installing` a download running in this process.
+  `progress {done, total}` (bytes) is there only while this daemon downloads
+  the pack; `done` starts at what an earlier attempt left when it resumes.
+  `error {code, message}` is the last failed download of the pack in this
+  process (a code below), cleared when the next one starts or succeeds;
+  cancelling is not a failure. `offline` is the current offline mode.
+- **`fonts.install`** answers at once. `started: true`: a download began
+  (or was already running) in the background of the same process, and the
+  request loop goes on serving other requests; poll `fonts.status` for
+  progress, the end and any error. `started: false`: the pack is installed
+  and intact (the first check in a process reads every file's SHA-256).
+  What can be known before anything is sent is an error response instead:
+  `{"ok":false,"kind":"fonts","code":…}` with `unknown-pack`, `bundled`
+  (`"base"`), `offline`, `unconfigured` (no host) or `insecure`.
+- **`fonts.cancel`** stops the pack's download (`cancelled: false` when none
+  was running). The bytes already downloaded stay under
+  `<app data>/fonts/jizura/.partial/`, and the next `fonts.install` resumes
+  with a `Range` request. **`fonts.remove`** deletes the installed pack
+  (`removed: false` when it was not installed), stopping its download and
+  dropping any partial one. Both take the same `unknown-pack` / `bundled`
+  errors.
+- **In the background.** A download is pending work: the idle timeout waits
+  for it. `config.set` turning offline mode on stops a download under way
+  (its `error` is `offline`); `shutdown` stops it too (no error). Closing
+  stdin ends the process with it; the part is resumed next time.
+- **What goes out.** HTTPS only (every redirect hop checked), no cookies or
+  credentials, `Range` only when resuming. GitHub answers `github.com` with a
+  redirect to `release-assets.githubusercontent.com`; each hop is a line in
+  the egress log (`purpose: "fonts:<pack>"`). The file is checked against the
+  manifest's size and SHA-256 before it is unpacked, every font again after,
+  and it is renamed into `<app data>/fonts/jizura/<pack>@<sha12>/` in one
+  step. A render in the same process uses it at once.
+- **Failure codes** (in `error.code` and error responses): `unknown-pack`,
+  `bundled`, `offline`, `unconfigured`, `insecure`, `network`, `timeout`
+  (nothing arrived for 30 s), `http` (the host answered an error status),
+  `size`, `sha256` (the file does not match the manifest; it is deleted),
+  `corrupt` (the tar or a font in it does not match). A cancel (`aborted`
+  inside Core) is never reported.
+
 ## Errors
 
 Errors: `{"id":n,"ok":false,"kind":"provider:auth","message":"…"}`. The
@@ -129,7 +204,10 @@ kinds are the CLI's (`core/src/daemon/protocol.ts`, `ERROR_KINDS`). A
 `compose` error also carries `code` (`overflow`, `unsupported-script`, `empty`
 or `catalog`), and an `unsupported-script` one lists the offending
 `characters`, so the shell can say which character the font lacks instead of
-calling everything "too long".
+calling everything "too long". When that error comes from a Lyric motion
+render JIZURA lacked fonts for (a Korean lyric without the Korean pack:
+classic has no Hangul face), it also carries `packs`, as `meta.lyric.packs`
+does. A `fonts` error carries the font pack `code` ([Font packs](#font-packs)).
 
 ## Optional task lifecycle events
 
