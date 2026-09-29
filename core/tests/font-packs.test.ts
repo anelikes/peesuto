@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { FontParseError, fontFaces } from "../src/fonts/font-names.ts";
 import {
   BUNDLED_DIR, BUNDLED_ID, CJK_RANGES, FAMILY_ALIASES, fontPackStatus, fontPacksRoot, JIZURA_FACES, JIZURA_FAMILIES, jizuraFontFiles,
-  jizuraPackManifest, parseManifest, type JizuraPackManifest,
+  jizuraPackManifest, packUrl, parseManifest, type JizuraPackManifest,
 } from "../src/fonts/jizura-packs.ts";
 import { extractTar, TarError, writeTar } from "../src/fonts/tar.ts";
 
@@ -74,9 +74,10 @@ describe("font packs: the committed manifest", () => {
     for (const p of manifest.packs) expect(p.file.startsWith(`${p.id}-${p.sha256.slice(0, 8)}`)).toBe(true);
   });
 
-  test("the host is a placeholder or HTTPS", () => {
-    const u = new URL(manifest.baseUrl);
-    expect(u.hostname.endsWith(".invalid") || u.protocol === "https:").toBe(true);
+  test("the host is the fonts-jizura-v1 release on GitHub; each pack is one of its assets", () => {
+    // A release a shipped app downloads from is never deleted or re-uploaded: a changed pack gets a new tag and baseUrl.
+    expect(manifest.baseUrl).toBe("https://github.com/anelikes/peesuto/releases/download/fonts-jizura-v1/");
+    for (const p of manifest.packs) expect(packUrl(p, manifest.baseUrl)).toBe(`https://github.com/anelikes/peesuto/releases/download/fonts-jizura-v1/${p.id}-${p.sha256.slice(0, 8)}.tar`);
   });
 
   test("manifest validation rejects bad entries", () => {

@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "baseUrl": "https://font-packs.peesuto.invalid/jizura/v1/",
+  "baseUrl": "https://github.com/anelikes/peesuto/releases/download/fonts-jizura-v1/",
   "bundled": {
     "title": {"en":"Base fonts (Latin)","zh":"基础字体（拉丁字母）","ja":"基本フォント（欧文）"},
     "families": [
