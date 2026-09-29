@@ -32,7 +32,11 @@ import { extractTar, SAFE_NAME } from "./tar.ts";
 
 // ── public types ────────────────────────────────────────────────────────────
 
-export interface JizuraFontFile { family: string; weight: number; style: "normal" | "italic"; path: string }
+export interface JizuraFontFile {
+  family: string; weight: number; style: "normal" | "italic"; path: string;
+  /** A bundled Latin cut standing in for the full face (fonts.ts drops it from Skia once the full face is registered). */
+  cut?: true;
+}
 
 /** Lyric languages JIZURA draws with their own faces. "en" draws with the "ja" faces (all have Latin). */
 export type JizuraLang = "ja" | "zh-Hans" | "zh-Hant" | "ko";
@@ -334,7 +338,7 @@ export function jizuraFontFiles(families: readonly string[], opts: ResolveOption
     for (const f of full) found.push({ family, weight: f.weight, style: f.style, path: join(bundledDir, f.file) });
     if (!found.length) {
       const subset = bundled.filter((f) => f.lacks);
-      if (subset.length && subset.every((f) => covers(f, opts.text))) for (const f of subset) found.push({ family, weight: f.weight, style: f.style, path: join(bundledDir, f.file) });
+      if (subset.length && subset.every((f) => covers(f, opts.text))) for (const f of subset) found.push({ family, weight: f.weight, style: f.style, path: join(bundledDir, f.file), cut: true });
     }
     if (found.length) files.push(...found); else missing.push(family);
   }

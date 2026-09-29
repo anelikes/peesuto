@@ -19,7 +19,11 @@
  *
  * Fonts are registered with Skia once per process and file (the registry is
  * shared by every thread of the process), always under the family name
- * JIZURA asks for.
+ * JIZURA asks for. Skia draws a family with the face registered first for a
+ * weight, so a Latin cut registered by an earlier film (English lyrics, or a
+ * fallback) would shadow the full face of a pack installed since, and its
+ * CJK characters would draw as boxes: registering a full face drops the cuts
+ * of its family first.
  */
 import { JIZURA_FAMILIES, type JizuraFontFile } from "../fonts/jizura-packs.ts";
 import type { CanvasModule } from "./canvas.ts";
@@ -59,16 +63,25 @@ export function planFaces(J: JizuraApi, plan: JizuraPlan): PlanFaces {
 }
 
 const registered = new Set<string>();
+/** Latin cuts registered in this thread, by family, with their Skia keys. */
+const cuts = new Map<string, { path: string; key: unknown }[]>();
 
 /** Register `files` with Skia (each path once per process), under the family JIZURA asks for. */
 export function registerFonts(canvas: CanvasModule, files: readonly JizuraFontFile[]): { registered: number; failed: string[] } {
   let n = 0;
   const failed: string[] = [];
+  for (const family of new Set(files.filter((f) => !f.cut).map((f) => f.family))) {
+    for (const c of cuts.get(family) ?? []) { canvas.GlobalFonts.remove(c.key); registered.delete(`${family}\0${c.path}`); }
+    cuts.delete(family);
+  }
   for (const f of files) {
     const key = `${f.family}\0${f.path}`;
     if (registered.has(key)) continue;
-    if (canvas.GlobalFonts.registerFromPath(f.path, f.family)) { registered.add(key); n++; }
-    else failed.push(f.path);
+    const k = canvas.GlobalFonts.registerFromPath(f.path, f.family);
+    if (!k) { failed.push(f.path); continue; }
+    registered.add(key);
+    n++;
+    if (f.cut) cuts.set(f.family, [...(cuts.get(f.family) ?? []), { path: f.path, key: k }]);
   }
   return { registered: n, failed };
 }

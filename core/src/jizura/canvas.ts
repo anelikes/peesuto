@@ -39,7 +39,9 @@ export interface CanvasElement {
   encodeSync(format: "png"): Uint8Array;
 }
 export interface GlobalFontsApi {
+  /** A key for `remove`, or null when the file is not a font it can read. One file is one entry, whatever the aliases. */
   registerFromPath(path: string, alias?: string): unknown;
+  remove(key: unknown): boolean;
   has(family: string): boolean;
   readonly families: readonly { family: string; styles: readonly { weight: number; style: string }[] }[];
 }

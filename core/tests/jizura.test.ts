@@ -20,6 +20,7 @@ import type { JizuraFontFile } from "../src/fonts/jizura-packs.ts";
 import { loadCanvas } from "../src/jizura/canvas.ts";
 import { jizuraBundlePath } from "../src/jizura/bundle.ts";
 import { AUTO_STYLE, JizuraDrawer, JizuraStyleError, lyricStyles, prepareJizura, renderJizura, type JizuraJob } from "../src/jizura/index.ts";
+import { registerFonts } from "../src/jizura/fonts.ts";
 import { createRealm } from "../src/jizura/realm.ts";
 import { jizuraChunks } from "../src/jizura/render.ts";
 import { shimGrain } from "../src/jizura/grain.ts";
@@ -203,6 +204,23 @@ describe.skipIf(!canvasReady)("plans", () => {
     const ja = await prepareJizura({ content: lyricsOf(JA), sourceText: JA, aspect: "1:1", format: "gif", resolveFonts: noJapanese });
     expect(!ja.ok && ja.reason === "fonts-missing" && ja.missing.some((f) => f.endsWith(" JP"))).toBe(true);
   }, 60_000);
+  test("a full face registered after its Latin cut replaces it (Skia draws a family with the face registered first)", async () => {
+    const canvas = await loadCanvas();
+    const draw = (family: string) => {
+      const cv = canvas.createCanvas(160, 60);
+      const ctx = cv.getContext("2d") as unknown as { fillStyle: string; font: string; fillRect(x: number, y: number, w: number, h: number): void; fillText(t: string, x: number, y: number): void };
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, 160, 60);
+      ctx.fillStyle = "#000"; ctx.font = `700 40px "${family}"`; ctx.fillText("夜明", 4, 46);
+      return hash(cv.data());
+    };
+    const cut = join(FONT_DIR, "jizura/NotoSansJP-Bold-Latin.woff2"), full = join(FONT_DIR, "PeesutoText-Bold.ttf");
+    registerFonts(canvas, [{ family: "Cut Then Full", weight: 700, style: "normal", path: cut, cut: true }]);
+    const boxes = draw("Cut Then Full");
+    registerFonts(canvas, [{ family: "Cut Then Full", weight: 700, style: "normal", path: full }]);
+    registerFonts(canvas, [{ family: "Full Only", weight: 700, style: "normal", path: full }]);
+    expect(draw("Cut Then Full")).toBe(draw("Full Only"));
+    expect(draw("Cut Then Full")).not.toBe(boxes);
+  });
 });
 
 describe("routing (templates/lyrics-route.ts)", () => {
