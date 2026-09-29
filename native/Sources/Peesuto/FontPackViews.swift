@@ -89,7 +89,8 @@ struct FontPackRow: View {
             if downloading && !pack.installed {
                 if let fraction = pack.progress?.fraction { ProgressView(value: fraction) } else { ProgressView().progressViewStyle(.linear) }
             }
-            if let failure = model.fontFailures[pack.id], !downloading {
+            // The failure of a download started here, else the one Core last reported.
+            if let failure = model.fontFailures[pack.id] ?? pack.error?.message, !downloading, !pack.installed {
                 Text(failure).font(.system(size: 11)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -141,7 +142,8 @@ struct LyricFallbackNote: View {
             }
         }
         .controlSize(.small)
-        .background(WindowVisibility { visible in if !packs.isEmpty { model.fontsVisible("panel", visible) } })
+        // Also when the packs are not known yet: the status names them.
+        .background(WindowVisibility { visible in if fallback.isFontsMissing { model.fontsVisible("panel", visible) } })
         .onDisappear { model.fontsVisible("panel", false) }
     }
 

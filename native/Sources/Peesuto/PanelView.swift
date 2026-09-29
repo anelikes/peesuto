@@ -240,6 +240,7 @@ struct PanelView: View {
                     Button(model.templateName(candidate)) { model.rerender(templateID: candidate.id) }
                 }
             } label: { Text(spec.map { model.templateName($0) } ?? selection.id) }
+                .fixedSize()
                 .help(model.tr("Template", "模板"))
             if let lyric {
                 lyricStyleMenu(lyric)
@@ -258,13 +259,17 @@ struct PanelView: View {
                         Button(model.motionName(motion)) { model.rerender(motion: motion) }
                     }
                 } label: { Text(model.motionName(selection.motion)) }
+                    .fixedSize()
                     .help(model.tr("Motion", "动效"))
             }
             Spacer(minLength: 0)
             if selection.id == JizuraHandoff.templateID {
-                Button { model.openInJizura() } label: { Label(model.tr("Open in JIZURA", "在 JIZURA 中打开"), systemImage: "arrow.up.forward.square") }
-                    .buttonStyle(.borderless).fixedSize()
-                    .help(model.tr("Copy the text and open JIZURA, a free lyric-video maker, for a full video", "复制文字并打开免费的歌词视频工具 JIZURA，做完整的视频"))
+                // Its name when there is room, else just the icon (the menus keep their width).
+                ViewThatFits(in: .horizontal) {
+                    openInJizura(named: true)
+                    openInJizura(named: false)
+                }
+                .layoutPriority(1)
             }
             Menu {
                 ForEach(OutputFrames.options(kind: kind), id: \.self) { option in
@@ -281,8 +286,18 @@ struct PanelView: View {
                 Button("GIF") { model.rerender(format: "gif") }
                 Button("MP4") { model.rerender(format: "mp4") }
             } label: { Text(format.uppercased()) }
+                .fixedSize()
                 .help(model.tr("Output format", "输出格式"))
         }.font(.system(size: 11)).menuStyle(.borderlessButton).disabled(model.busy)
+    }
+
+    private func openInJizura(named: Bool) -> some View {
+        Button { model.openInJizura() } label: {
+            if named { Label(model.tr("Open in JIZURA", "在 JIZURA 中打开"), systemImage: "arrow.up.forward.square") }
+            else { Image(systemName: "arrow.up.forward.square").accessibilityLabel(model.tr("Open in JIZURA", "在 JIZURA 中打开")) }
+        }
+        .buttonStyle(.borderless).fixedSize()
+        .help(model.tr("Copy the text and open JIZURA, a free lyric-video maker, for a full video", "复制文字并打开免费的歌词视频工具 JIZURA，做完整的视频"))
     }
 
     /// Lyric motion's styles for a lyric result: Auto, JIZURA's, the classic
@@ -303,6 +318,7 @@ struct PanelView: View {
             if !menu.jizura.isEmpty { Section("JIZURA") { ForEach(menu.jizura) { item($0) } } }
             if !menu.classic.isEmpty { Section(model.tr("Classic", "经典")) { ForEach(menu.classic) { item($0) } } }
         } label: { Text(Rerender.styleLabel(result, styles: model.lyricStyles, fallback: defaults.style, language: language)) }
+            .fixedSize()
             .help(model.tr("Change style", "更换风格"))
     }
 

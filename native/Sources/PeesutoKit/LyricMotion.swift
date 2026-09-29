@@ -394,6 +394,10 @@ public enum LyricFallback: Equatable, Sendable {
         if case .fontsMissing(let packs) = self { return packs }
         return []
     }
+    public var isFontsMissing: Bool {
+        if case .fontsMissing = self { return true }
+        return false
+    }
 
     /// The note in the history panel.
     public func message(_ tr: Localizer) -> String {
@@ -431,12 +435,13 @@ public enum LyricFallback: Equatable, Sendable {
         return titles.dropLast().joined(separator: ", ") + " and " + titles.last!
     }
 
-    /// At most five characters, invisible ones as code points.
+    /// At most five characters, invisible ones as code points, held on one
+    /// line by no-break spaces.
     static func characterList(_ characters: [String]) -> String {
         let shown = characters.prefix(5).map { character -> String in
             let visible = character.unicodeScalars.contains { !$0.properties.isWhitespace && $0.properties.generalCategory != .format && $0.properties.generalCategory != .control }
-            return visible ? character : character.unicodeScalars.map { String(format: "U+%04X", $0.value) }.joined(separator: " ")
+            return visible ? character : character.unicodeScalars.map { String(format: "U+%04X", $0.value) }.joined(separator: "\u{00A0}")
         }
-        return shown.joined(separator: " ") + (characters.count > 5 ? " …" : "")
+        return (shown + (characters.count > 5 ? ["…"] : [])).joined(separator: "\u{00A0}")
     }
 }

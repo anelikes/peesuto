@@ -334,7 +334,8 @@ final class LyricMotionTests: XCTestCase {
         XCTAssertEqual(LyricFallback.fontsMissing([zh]).message(cn), "已用经典风格绘制：JIZURA 需要简体中文歌词字体（69 MB）。")
         XCTAssertTrue(LyricFallback.fontsMissing([zh, ko]).message(ja).contains("簡体字中国語の歌詞フォント、韓国語の歌詞フォント（104 MB）"))
         XCTAssertFalse(LyricFallback.fontsMissing([zh]).bubble(ja).contains("Download"), "Japanese from the table")
-        XCTAssertEqual(LyricFallback.glyphs(["★", "♪", "※", "‥", "〒", "☆"]).message(en), "Drawn in the classic style: JIZURA's fonts have no ★ ♪ ※ ‥ 〒 ….")
+        XCTAssertEqual(LyricFallback.glyphs(["★", "♪", "※", "‥", "〒", "☆"]).message(en).replacingOccurrences(of: "\u{00A0}", with: "_"),
+                       "Drawn in the classic style: JIZURA's fonts have no ★_♪_※_‥_〒_….", "five at most, never broken across lines")
         XCTAssertTrue(LyricFallback.glyphs(["\u{200B}"]).message(en).contains("U+200B"))
         XCTAssertEqual(LyricFallback.engine.bubble(en), "JIZURA could not start, so the classic style was used.")
         XCTAssertEqual(LyricFallback.glyphs([]).bubble(ja), "クラシックスタイルで描きました。JIZURA のフォントには、このテキストの一部の文字がありません。")

@@ -645,6 +645,10 @@ struct ChooserSnapshot {
                         catch { notice = tr("Created. Could not remember this style.", "已生成，但无法保存风格偏好。") }
                     }
                     // A shortcut's GIF or video that JIZURA could not draw: say so at the caret (the panel shows it too).
+                    // Which packs: the result says; else the status does (Core is idle now).
+                    if direct, meta?.lyric?.reason == "fonts-missing", meta?.lyric?.packs?.isEmpty != false, fontStatus == nil {
+                        await fontTick(force: true)
+                    }
                     if direct, let fallback = LyricFallback.of(meta?.lyric, status: fontStatus) {
                         notice = [notice, fallback.bubble(localizer)].compactMap { $0 }.joined(separator: " ")
                     }
@@ -852,14 +856,15 @@ struct ChooserSnapshot {
         }
     }
 
-    private func fontTick() async {
+    /// `force`: read even while `busy` (the action has its answer; Core is idle).
+    private func fontTick(force: Bool = false) async {
         if let fontPreview {
             fontPreview.advance()
             await applyFontStatus(fontPreview.status, install: { fontPreview.install($0) })
             return
         }
         // The daemon answers in order: behind a render the status would only wait.
-        guard let core, !busy else { return }
+        guard let core, force || !busy else { return }
         do {
             if !coreConfiguredOnce { try await configureCore() }
             let status = try await core.fontsStatus()

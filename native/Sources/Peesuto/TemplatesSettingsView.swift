@@ -139,7 +139,7 @@ struct TemplatesSettingsView: View {
             lyricHorrorRow
             lyricOutputRow
             Divider()
-            fontPacks
+            fontPacks.id("lyric-fonts")
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color(NSColor.controlBackgroundColor)))
@@ -152,12 +152,7 @@ struct TemplatesSettingsView: View {
         let description = selected?.description?.text(language)
             ?? (selected?.isClassic == true || LyricStyles.classicIDs.contains(lyricStyle)
                 ? model.tr("Drawn by Peesuto's classic renderer, like the poster.", "由 Peesuto 的经典渲染器绘制，与海报相同。") : "")
-        return HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.tr("Style", "风格")).font(.system(size: 12, weight: .medium))
-                Text(description).font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
+        return lyricSetting(model.tr("Style", "风格"), description) {
             Picker("", selection: Binding(get: { lyricStyle }, set: { value in apply { try $0.setLyricStyle(value) } })) {
                 if let auto = menu.auto { Text(auto.name.text(language)).tag(auto.id) }
                 if !menu.jizura.isEmpty {
@@ -175,13 +170,8 @@ struct TemplatesSettingsView: View {
     }
 
     private var lyricHorrorRow: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.tr("Horror styles", "恐怖风格")).font(.system(size: 12, weight: .medium))
-                Text(model.tr("JIZURA's three horror styles, and horror moods in Auto.", "JIZURA 的三种恐怖风格；“自动”也可能选到恐怖氛围。"))
-                    .font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
+        lyricSetting(model.tr("Horror styles", "恐怖风格"),
+                     model.tr("JIZURA's three horror styles, and horror moods in Auto.", "JIZURA 的三种恐怖风格；“自动”也可能选到恐怖氛围。")) {
             Toggle(model.tr("Horror styles", "恐怖风格"), isOn: Binding(get: { lyricHorror }, set: { on in
                 apply { try $0.setLyricHorror(on, styles: model.lyricStyles) }
             }))
@@ -219,18 +209,35 @@ struct TemplatesSettingsView: View {
     /// What L in the chooser (and the Lyric motion shortcut) makes. One result can
     /// still switch format in the result window.
     private var lyricOutputRow: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.tr("Default output", "默认输出")).font(.system(size: 12, weight: .medium))
-                Text(model.tr("A GIF holds about 14 seconds, a video about 30.", "GIF 最长约 14 秒，视频约 30 秒。"))
-                    .font(.system(size: 11)).foregroundColor(.secondary)
-            }
-            Spacer()
+        lyricSetting(model.tr("Default output", "默认输出"), model.tr("A GIF holds about 14 seconds, a video about 30.", "GIF 最长约 14 秒，视频约 30 秒。")) {
             Picker("", selection: Binding(get: { lyricOutput }, set: { value in apply { try $0.setLyricOutput(value) } })) {
                 Text("GIF").tag(LyricOutput.gif)
                 Text(model.tr("Video", "视频")).tag(LyricOutput.video)
                 Text(model.tr("Poster (PNG)", "海报（PNG）")).tag(LyricOutput.image)
             }.labelsHidden().pickerStyle(.segmented).fixedSize()
+        }
+    }
+
+    /// A Lyric motion setting: its name and control on one line (the control
+    /// under the name when a language's name does not fit beside it), the note
+    /// under both, so a wide control never squeezes it into a narrow column.
+    private func lyricSetting<Control: View>(_ title: String, _ note: String, @ViewBuilder control: () -> Control) -> some View {
+        let name = Text(title).font(.system(size: 12, weight: .medium))
+        return VStack(alignment: .leading, spacing: 3) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center) {
+                    name.fixedSize()
+                    Spacer()
+                    control()
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    name
+                    control()
+                }
+            }
+            if !note.isEmpty {
+                Text(note).font(.system(size: 11)).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
