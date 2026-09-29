@@ -366,7 +366,10 @@ function shortcuts(lang: Lang): string {
 ${out("I", T(lang, "Image", "图片", "画像"), T(lang, "a PNG, pasted into the app you are typing in", "PNG，直接粘贴进你正在输入的应用", "PNG を、いま入力中のアプリにそのままペースト"))}
 ${out("G", "GIF", T(lang, "the same card, revealed line by line", "同一张卡片，逐行出现", "同じカードを、一行ずつ表示"))}
 ${out("M", T(lang, "Video", "视频", "動画"), T(lang, "an MP4, encoded by your Mac's own video hardware", "MP4，由 Mac 自带的视频硬件编码", "MP4。Mac 内蔵のハードウェアで動画をエンコードします"))}
-${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang, "any text as kinetic type, cut into screens at its sentences and clauses: a GIF, or a video or poster if you prefer", "任意文字做成动态文字，按句子和分句切成一幕幕：默认 GIF，也可以设成视频或海报", "どんなテキストも、文や句の切れ目で場面に分けた動く文字に。GIF のほか、動画やポスターにも"))}
+${out("L", T(lang, "Lyric motion", "文字 PV", "文字PV"), T(lang,
+    `any text as a lyric video, drawn on your Mac by <a href="${JIZURA}">JIZURA</a> in one of ${JIZURA_STYLES.length} styles or its own pick: a GIF, or a video or poster if you prefer`,
+    `任意文字做成歌词视频，由 <a href="${JIZURA}">JIZURA</a> 在你的 Mac 上绘制，${JIZURA_STYLES.length} 种样式任选，或交给它挑：默认 GIF，也可以设成视频或海报`,
+    `どんなテキストもリリックビデオに。描くのは Mac の中の <a href="${JIZURA}">JIZURA</a>。${JIZURA_STYLES.length} のスタイルか、おまかせで。GIF のほか、動画やポスターにも`))}
 ${out("Q", T(lang, "QR code", "二维码", "QR コード"), T(lang, "exactly the text you copied; never sent to a model", "编码的就是你复制的原文，不会发给任何模型", "コピーしたテキストをそのまま。モデルには送りません"))}
 ${out("P", T(lang, "Pin to screen", "贴到屏幕", "画面にピン留め"), T(lang, "floats above every window; drag, pinch to zoom, double-click to close", "浮在所有窗口之上；可拖动、捏合缩放，双击关闭", "すべてのウィンドウの上に浮かびます。ドラッグで移動、ピンチで拡大、ダブルクリックで閉じます"))}
 </dl>
@@ -407,6 +410,7 @@ function faq(lang: Lang): string {
     ["Mac の外に出るデータはありますか？", `初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/ja/privacy/">プライバシーポリシー</a>に書いてあります。`],
     ["AI は必須ですか？", "いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。"],
     ["動画を作るのに何か必要ですか？", "いいえ。MP4 は Peesuto 自身が、Mac に内蔵の動画エンコーダ（VideoToolbox）で作ります。画像、GIF、動画、QR コードのどれにも、追加でインストールするものはありません。"],
+    ["文字PVに追加のダウンロードは必要ですか？", `英語なら要りません。文字PVの GIF と動画は、hakoniwa（852wa）さんのオープンソースのリリックビデオ作成ツール <a href="${JIZURA}">JIZURA</a> が、Peesuto の中で、Mac 上でオフラインで描きます。中国語、日本語、韓国語は JIZURA の書体で組むため、言語ごとに 35〜69 MB のフォントパックが必要で、アプリには入っていません。「設定 › テンプレート › 文字PV」か結果に出るお知らせで「ダウンロード」を押したときだけ、その言語のフォントパックをプロジェクトの GitHub Releases から一度だけ取得します。押さなければ何もダウンロードせず、それまではクラシックのスタイルで描きます。`],
     ["対応している Mac は？", "Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。"],
     ["Homebrew で入れられますか？", "はい。<code>brew install --cask anelikes/tap/peesuto</code> でインストールできます。アップデートはアプリ自身が行います。"],
     ["料金はかかりますか？", "かかりません。Peesuto は MIT ライセンスのオープンソースで、オープンソース版から外している機能もありません。"],
@@ -416,6 +420,7 @@ function faq(lang: Lang): string {
     ["What leaves my Mac?", `By default, nothing. Only if you set up an AI provider is copied text sent, with secrets redacted first, to that provider with your key. One offline switch in Settings stops all of it. The <a href="/privacy/">privacy policy</a> lists every case.`],
     ["Is AI required?", "No. Local rules choose a template for everything. If you like, bring your own key and let Jev, a small model, choose the template and style, through TypeSafe, Vercel AI Gateway, OpenRouter or your own Cloudflare account. It picks presentation only; it never rewrites your text."],
     ["Does video need anything extra?", "No. Peesuto makes MP4 itself, with the video encoder built into your Mac (VideoToolbox). Images, GIFs, video and QR codes need nothing else installed."],
+    ["Does Lyric motion need a download?", `Not for English. Lyric motion's GIFs and videos are drawn by <a href="${JIZURA}">JIZURA</a>, the open-source lyric-video maker by hakoniwa (852wa), running inside Peesuto, offline on your Mac. Chinese, Japanese and Korean are set in JIZURA's own typefaces, a font pack of 35–69 MB per language that is not in the app: press Download in Settings › Templates › Lyric motion, or in the note on a result, and Peesuto fetches that language's pack from the project's GitHub releases, once. Nothing is downloaded unless you ask; until then those texts are drawn in the classic styles.`],
     ["Which Macs does it run on?", "Macs with Apple silicon, on macOS 13 Ventura or later."],
     ["Can I install it with Homebrew?", "Yes: <code>brew install --cask anelikes/tap/peesuto</code>. The app keeps itself up to date from then on."],
     ["What does it cost?", "Nothing. Peesuto is free and MIT-licensed, and no feature is held back from the open-source build."],
@@ -425,6 +430,7 @@ function faq(lang: Lang): string {
     ["哪些数据会离开我的 Mac？", `默认什么都不会。只有当你配置了 AI 服务，复制的文字才会先脱敏，再用你的密钥发给该服务商。设置里有一个离线开关，可以一键全部切断。<a href="/zh/privacy/">隐私政策</a>列出了每一种情况。`],
     ["必须用 AI 吗？", "不必。本地规则就能为所有内容选好模板。如果愿意，也可以填入自己的密钥，让小模型 Jev 来挑模板和样式，支持 TypeSafe、Vercel AI Gateway、OpenRouter 或你自己的 Cloudflare 账号。它只负责选择呈现方式，从不改写你的文字。"],
     ["生成视频需要装别的吗？", "不需要。MP4 由 Peesuto 自己用 Mac 内置的视频编码器（VideoToolbox）生成。图片、GIF、视频和二维码都不用另外安装任何组件。"],
+    ["文字 PV 需要另外下载什么吗？", `英文不用。文字 PV 的 GIF 和视频由 <a href="${JIZURA}">JIZURA</a> 绘制，这是 hakoniwa（852wa）开源的歌词视频工具，在 Peesuto 里、在你的 Mac 上离线运行。中文、日文和韩文要用 JIZURA 自己的字体，每种语言一个字体包，35–69 MB，没有放进应用：在“设置 › 模板 › 文字 PV”或结果上的提示里点“下载”，Peesuto 才会从本项目的 GitHub Releases 下载该语言的字体包，只下一次。你不点就什么都不下载；在那之前，这些文字用经典样式绘制。`],
     ["支持哪些 Mac？", "搭载 Apple 芯片、运行 macOS 13 Ventura 或更高版本的 Mac。"],
     ["可以用 Homebrew 安装吗？", "可以：<code>brew install --cask anelikes/tap/peesuto</code>。之后应用会自己更新。"],
     ["收费吗？", "免费。Peesuto 以 MIT 许可证开源，开源版本没有任何功能保留。"],
@@ -569,12 +575,12 @@ ${articles}
 // ---------------------------------------------------------------- privacy
 
 function privacyPolicy(lang: Lang): string {
-  const updated = "2026-09-24";
+  const updated = "2026-09-29";
   const row = (a: string, b: string, c: string) => `<tr><td>${a}</td><td>${b}</td><td>${c}</td></tr>`;
   const t = (en: string, zh: string, ja: string) => T(lang, en, zh, ja);
   const body = `<div class="page wrap"><article class="prose">
 <h1>${t("Privacy policy", "隐私政策", "プライバシーポリシー")}</h1>
-<p class="updated">${t("Updated", "更新于", "更新日")} <time datetime="${updated}">${t("24 September 2026", "2026 年 9 月 24 日", "2026 年 9 月 24 日")}</time></p>
+<p class="updated">${t("Updated", "更新于", "更新日")} <time datetime="${updated}">${t("29 September 2026", "2026 年 9 月 29 日", "2026 年 9 月 29 日")}</time></p>
 <p class="big">${t("Peesuto has no telemetry, no analytics and no account. What you copy stays on your Mac unless you set up an AI provider yourself.",
     "Peesuto 没有遥测，没有统计，也没有账号。除非你自己配置了 AI 服务，你复制的内容都留在你的 Mac 上。",
     "Peesuto にはテレメトリもアクセス解析もアカウントもありません。ご自身で AI サービスを設定しない限り、コピーしたものは Mac の中にとどまります。")}</p>
@@ -629,6 +635,9 @@ ${row(t("Text generation (translate, summarise, your own prompts)", "文字生�
 <li>${t("<strong>Update checks.</strong> Once a day Peesuto fetches <code>https://peesuto.com/appcast.xml</code> to see whether a new version exists, and downloads it only if you accept. The request names the app and its version (the user agent of Sparkle, the update framework); Sparkle’s optional system profile is not enabled, so nothing about your Mac is sent. Turn automatic checks off in Settings › General.",
     "<strong>检查更新。</strong>Peesuto 每天请求一次 <code>https://peesuto.com/appcast.xml</code>，看看有没有新版本，只有你同意后才下载。请求里只有应用名和版本号（更新框架 Sparkle 的 User-Agent）；Sparkle 可选的系统信息上报没有开启，所以不会发送关于你 Mac 的任何信息。可以在“设置 › 通用”里关闭自动检查。",
     "<strong>アップデートの確認。</strong>Peesuto は 1 日に 1 回 <code>https://peesuto.com/appcast.xml</code> を取得して新しい版があるかを確かめ、あなたが承認したときだけダウンロードします。リクエストに含まれるのはアプリ名とバージョン（アップデート用フレームワーク Sparkle のユーザーエージェント）だけです。Sparkle のシステムプロファイル送信は有効にしていないので、Mac についての情報は送りません。自動確認は「設定 › 一般」でオフにできます。")}</li>
+<li>${t("<strong>Lyric motion fonts.</strong> Lyric motion in Chinese, Japanese or Korean uses a font pack (35–69 MB per language). Peesuto downloads one only when you press Download, from the project’s GitHub releases, checks it and keeps it on your Mac. The request names the pack, never your text. The offline switch blocks it.",
+    "<strong>文字 PV 字体。</strong>中文、日文或韩文的文字 PV 要用字体包（每种语言 35–69 MB）。只有你点“下载”时，Peesuto 才会从本项目的 GitHub Releases 下载，校验后保存在你的 Mac 上。请求里只有字体包的名称，不含你的文字。离线开关打开时不会下载。",
+    "<strong>文字PVのフォント。</strong>中国語、日本語、韓国語の文字PVにはフォントパック（言語ごとに 35〜69 MB）を使います。Peesuto がダウンロードするのは「ダウンロード」を押したときだけで、取得先はプロジェクトの GitHub Releases です。検証してから Mac に保存します。リクエストに含まれるのはフォントパックの名前だけで、テキストは含みません。オフラインスイッチがオンならダウンロードしません。")}</li>
 </ul>
 
 <h2>${t("This website", "本网站", "このウェブサイト")}</h2>

@@ -232,7 +232,7 @@ Host: https://staging.example.com</pre></div>
 <dt><kbd class="inline-cap">I</kbd></dt><dd><strong>画像</strong>：PNG を、いま入力中のアプリにそのままペースト</dd>
 <dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>：同じカードを、一行ずつ表示</dd>
 <dt><kbd class="inline-cap">M</kbd></dt><dd><strong>動画</strong>：MP4。Mac 内蔵のハードウェアで動画をエンコードします</dd>
-<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字PV</strong>：どんなテキストも、文や句の切れ目で場面に分けた動く文字に。GIF のほか、動画やポスターにも</dd>
+<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字PV</strong>：どんなテキストもリリックビデオに。描くのは Mac の中の <a href="https://github.com/852wa/JIZURA">JIZURA</a>。24 のスタイルか、おまかせで。GIF のほか、動画やポスターにも</dd>
 <dt><kbd class="inline-cap">Q</kbd></dt><dd><strong>QR コード</strong>：コピーしたテキストをそのまま。モデルには送りません</dd>
 <dt><kbd class="inline-cap">P</kbd></dt><dd><strong>画面にピン留め</strong>：すべてのウィンドウの上に浮かびます。ドラッグで移動、ピンチで拡大、ダブルクリックで閉じます</dd>
 </dl>
@@ -282,6 +282,7 @@ Host: https://staging.example.com</pre></div>
 <details><summary>Mac の外に出るデータはありますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>初期状態では何も出ません。AI サービスを設定したときだけ、コピーしたテキストが秘密情報を伏せたうえで、あなたのキーでそのサービスに送られます。設定のオフラインスイッチひとつで、すべて止められます。すべてのケースは<a href="/ja/privacy/">プライバシーポリシー</a>に書いてあります。</p></details>
 <details><summary>AI は必須ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>いいえ。テンプレートはすべてローカルのルールで選べます。お好みで、自分の API キーを入れて小さなモデル Jev にテンプレートとスタイルを選ばせることもできます。TypeSafe、Vercel AI Gateway、OpenRouter、またはご自身の Cloudflare アカウントから使えます。Jev が決めるのは見せ方だけで、文章を書き換えることはありません。</p></details>
 <details><summary>動画を作るのに何か必要ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>いいえ。MP4 は Peesuto 自身が、Mac に内蔵の動画エンコーダ（VideoToolbox）で作ります。画像、GIF、動画、QR コードのどれにも、追加でインストールするものはありません。</p></details>
+<details><summary>文字PVに追加のダウンロードは必要ですか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>英語なら要りません。文字PVの GIF と動画は、hakoniwa（852wa）さんのオープンソースのリリックビデオ作成ツール <a href="https://github.com/852wa/JIZURA">JIZURA</a> が、Peesuto の中で、Mac 上でオフラインで描きます。中国語、日本語、韓国語は JIZURA の書体で組むため、言語ごとに 35〜69 MB のフォントパックが必要で、アプリには入っていません。「設定 › テンプレート › 文字PV」か結果に出るお知らせで「ダウンロード」を押したときだけ、その言語のフォントパックをプロジェクトの GitHub Releases から一度だけ取得します。押さなければ何もダウンロードせず、それまではクラシックのスタイルで描きます。</p></details>
 <details><summary>対応している Mac は？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>Apple シリコン搭載で、macOS 13 Ventura 以降の Mac です。</p></details>
 <details><summary>Homebrew で入れられますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>はい。<code>brew install --cask anelikes/tap/peesuto</code> でインストールできます。アップデートはアプリ自身が行います。</p></details>
 <details><summary>料金はかかりますか？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>かかりません。Peesuto は MIT ライセンスのオープンソースで、オープンソース版から外している機能もありません。</p></details>

@@ -57,7 +57,7 @@
 <main id="main">
 <div class="page wrap"><article class="prose">
 <h1>Privacy policy</h1>
-<p class="updated">Updated <time datetime="2026-09-24">24 September 2026</time></p>
+<p class="updated">Updated <time datetime="2026-09-29">29 September 2026</time></p>
 <p class="big">Peesuto has no telemetry, no analytics and no account. What you copy stays on your Mac unless you set up an AI provider yourself.</p>
 
 <h2>What is stored, and where</h2>
@@ -88,6 +88,7 @@
 <ul>
 <li><strong>Emoji.</strong> Emoji pictures come from a set bundled with the app. An emoji missing from it is fetched once by its code point from the jsDelivr CDN (Google’s Noto Emoji) and cached. That reveals which emoji, not your text.</li>
 <li><strong>Update checks.</strong> Once a day Peesuto fetches <code>https://peesuto.com/appcast.xml</code> to see whether a new version exists, and downloads it only if you accept. The request names the app and its version (the user agent of Sparkle, the update framework); Sparkle’s optional system profile is not enabled, so nothing about your Mac is sent. Turn automatic checks off in Settings › General.</li>
+<li><strong>Lyric motion fonts.</strong> Lyric motion in Chinese, Japanese or Korean uses a font pack (35–69 MB per language). Peesuto downloads one only when you press Download, from the project’s GitHub releases, checks it and keeps it on your Mac. The request names the pack, never your text. The offline switch blocks it.</li>
 </ul>
 
 <h2>This website</h2>

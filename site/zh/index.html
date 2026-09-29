@@ -232,7 +232,7 @@ Host: https://staging.example.com</pre></div>
 <dt><kbd class="inline-cap">I</kbd></dt><dd><strong>图片</strong>：PNG，直接粘贴进你正在输入的应用</dd>
 <dt><kbd class="inline-cap">G</kbd></dt><dd><strong>GIF</strong>：同一张卡片，逐行出现</dd>
 <dt><kbd class="inline-cap">M</kbd></dt><dd><strong>视频</strong>：MP4，由 Mac 自带的视频硬件编码</dd>
-<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字 PV</strong>：任意文字做成动态文字，按句子和分句切成一幕幕：默认 GIF，也可以设成视频或海报</dd>
+<dt><kbd class="inline-cap">L</kbd></dt><dd><strong>文字 PV</strong>：任意文字做成歌词视频，由 <a href="https://github.com/852wa/JIZURA">JIZURA</a> 在你的 Mac 上绘制，24 种样式任选，或交给它挑：默认 GIF，也可以设成视频或海报</dd>
 <dt><kbd class="inline-cap">Q</kbd></dt><dd><strong>二维码</strong>：编码的就是你复制的原文，不会发给任何模型</dd>
 <dt><kbd class="inline-cap">P</kbd></dt><dd><strong>贴到屏幕</strong>：浮在所有窗口之上；可拖动、捏合缩放，双击关闭</dd>
 </dl>
@@ -282,6 +282,7 @@ Host: https://staging.example.com</pre></div>
 <details><summary>哪些数据会离开我的 Mac？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>默认什么都不会。只有当你配置了 AI 服务，复制的文字才会先脱敏，再用你的密钥发给该服务商。设置里有一个离线开关，可以一键全部切断。<a href="/zh/privacy/">隐私政策</a>列出了每一种情况。</p></details>
 <details><summary>必须用 AI 吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>不必。本地规则就能为所有内容选好模板。如果愿意，也可以填入自己的密钥，让小模型 Jev 来挑模板和样式，支持 TypeSafe、Vercel AI Gateway、OpenRouter 或你自己的 Cloudflare 账号。它只负责选择呈现方式，从不改写你的文字。</p></details>
 <details><summary>生成视频需要装别的吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>不需要。MP4 由 Peesuto 自己用 Mac 内置的视频编码器（VideoToolbox）生成。图片、GIF、视频和二维码都不用另外安装任何组件。</p></details>
+<details><summary>文字 PV 需要另外下载什么吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>英文不用。文字 PV 的 GIF 和视频由 <a href="https://github.com/852wa/JIZURA">JIZURA</a> 绘制，这是 hakoniwa（852wa）开源的歌词视频工具，在 Peesuto 里、在你的 Mac 上离线运行。中文、日文和韩文要用 JIZURA 自己的字体，每种语言一个字体包，35–69 MB，没有放进应用：在“设置 › 模板 › 文字 PV”或结果上的提示里点“下载”，Peesuto 才会从本项目的 GitHub Releases 下载该语言的字体包，只下一次。你不点就什么都不下载；在那之前，这些文字用经典样式绘制。</p></details>
 <details><summary>支持哪些 Mac？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>搭载 Apple 芯片、运行 macOS 13 Ventura 或更高版本的 Mac。</p></details>
 <details><summary>可以用 Homebrew 安装吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>可以：<code>brew install --cask anelikes/tap/peesuto</code>。之后应用会自己更新。</p></details>
 <details><summary>收费吗？<svg aria-hidden="true"><use href="#i-plus"/></svg></summary><p>免费。Peesuto 以 MIT 许可证开源，开源版本没有任何功能保留。</p></details>

@@ -57,7 +57,7 @@
 <main id="main">
 <div class="page wrap"><article class="prose">
 <h1>隐私政策</h1>
-<p class="updated">更新于 <time datetime="2026-09-24">2026 年 9 月 24 日</time></p>
+<p class="updated">更新于 <time datetime="2026-09-29">2026 年 9 月 29 日</time></p>
 <p class="big">Peesuto 没有遥测，没有统计，也没有账号。除非你自己配置了 AI 服务，你复制的内容都留在你的 Mac 上。</p>
 
 <h2>存了什么，存在哪里</h2>
@@ -88,6 +88,7 @@
 <ul>
 <li><strong>Emoji。</strong>Emoji 图片来自应用自带的一套。缺少的 emoji 会按码位从 jsDelivr CDN（Google 的 Noto Emoji）下载一次并缓存。这只会透露是哪个 emoji，不会透露你的文字。</li>
 <li><strong>检查更新。</strong>Peesuto 每天请求一次 <code>https://peesuto.com/appcast.xml</code>，看看有没有新版本，只有你同意后才下载。请求里只有应用名和版本号（更新框架 Sparkle 的 User-Agent）；Sparkle 可选的系统信息上报没有开启，所以不会发送关于你 Mac 的任何信息。可以在“设置 › 通用”里关闭自动检查。</li>
+<li><strong>文字 PV 字体。</strong>中文、日文或韩文的文字 PV 要用字体包（每种语言 35–69 MB）。只有你点“下载”时，Peesuto 才会从本项目的 GitHub Releases 下载，校验后保存在你的 Mac 上。请求里只有字体包的名称，不含你的文字。离线开关打开时不会下载。</li>
 </ul>
 
 <h2>本网站</h2>
