@@ -9,7 +9,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Daemon, errorOf, parseRequest, type DaemonHost } from "../src/daemon/server.ts";
@@ -220,6 +220,28 @@ describe("daemon: font packs", () => {
     expect(ERROR_KINDS).toContain("fonts");
   });
 });
+
+test("installing a pack leaves stdin open in a process started with a Bun.spawn pipe, as the app starts the daemon", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "daemon-fonts-stdin-"));
+  dirs.push(dir);
+  const manifestPath = join(dir, "manifest.json");
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const child = Bun.spawn([Bun.which("bun") ?? "bun", join(import.meta.dir, "helpers/install-then-read-stdin.ts"), manifestPath, join(dir, "data"), base], { stdin: "pipe", stdout: "pipe", stderr: "inherit" });
+  let out = "";
+  const reading = (async () => { const dec = new TextDecoder(); for await (const c of child.stdout) out += dec.decode(c, { stream: true }); })();
+  try {
+    await until(() => out.includes("installed"));
+    child.stdin.write("ping\n");
+    child.stdin.flush();
+    await until(() => out.includes("read ping"));
+    await Bun.sleep(100);
+    child.stdin.write("bye\n");
+    child.stdin.flush();
+    expect(await child.exited).toBe(0);
+    await reading;
+    expect(out.trim().split("\n")).toEqual(['{"installed":true}', "read ping", "read bye"]);
+  } finally { if (child.exitCode === null) child.kill(); }
+}, 20_000);
 
 test("a spawned daemon answers while a download runs and does not idle out during it, then exits when idle", async () => {
   const appData = await mkdtemp(join(tmpdir(), "daemon-fonts-idle-"));

@@ -594,9 +594,26 @@ async function intact(dir: string, pack: ManifestPack): Promise<boolean> {
 }
 
 async function sha256File(path: string): Promise<string> {
-  const h = createHash("sha256");
-  for await (const chunk of Bun.file(path).stream()) h.update(chunk);
-  return h.digest("hex");
+  return (await hashInto(createHash("sha256"), path)).digest("hex");
+}
+
+/**
+ * Feed a file to `h`. Read through a file handle, not Bun.file().stream():
+ * in Bun 1.3, a Bun.file stream read to its end makes Bun.stdin.stream()
+ * report end of input on its next read when stdin is a pipe from Bun.spawn,
+ * which is how the app runs the daemon, and the daemon exits on it.
+ */
+async function hashInto<H extends { update(b: Uint8Array): unknown }>(h: H, path: string): Promise<H> {
+  const fh = await open(path, "r");
+  try {
+    const buf = new Uint8Array(1 << 20);
+    for (;;) {
+      const { bytesRead } = await fh.read(buf, 0, buf.length, null);
+      if (!bytesRead) break;
+      h.update(buf.subarray(0, bytesRead));
+    }
+  } finally { await fh.close(); }
+  return h;
 }
 
 async function install(root: string, pack: ManifestPack, url: string, signal: AbortSignal, progress: (d: number, t: number) => void): Promise<boolean> {
@@ -682,7 +699,7 @@ async function download(url: string, part: string, pack: ManifestPack, signal: A
   try { have = (await stat(part)).size; } catch { have = 0; }
   if (have > pack.bytes) { await rm(part, { force: true }); have = 0; }
   let hash = createHash("sha256");
-  if (have > 0) for await (const chunk of Bun.file(part).stream()) hash.update(chunk);
+  if (have > 0) await hashInto(hash, part);
   const mismatch = async () => { await rm(part, { force: true }); return new FontPackError("sha256", `${pack.id}: the downloaded file does not match its SHA-256`); };
   if (have === pack.bytes) {                            // complete part from an attempt that stopped before unpacking
     progress(have, pack.bytes);
