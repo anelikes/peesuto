@@ -283,7 +283,8 @@ describe.skipIf(!canvasReady)("frames", () => {
       for (let i = 0; i < x.length; i += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(x[i + c]! - y[i + c]!); max = Math.max(max, d); sum += d; n++; }
     }
     expect(max).toBeLessThanOrEqual(8);
-    expect(sum / n).toBeLessThan(1);
+    // Under 1 on macOS; Skia's pattern sampling on Linux x64 rounds differently (1.15 on ubuntu-latest).
+    expect(sum / n).toBeLessThan(1.5);
   }, 120_000);
   test("cancelling stops the threads and the render", async () => {
     const job = await film();
